@@ -1,0 +1,104 @@
+@{
+    ViewData["Title"] = "Dashboard Cliente";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonEF.Models.Client
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+</div>
+
+@if (ViewBag.Client == null)
+{
+    <div class="alert alert-info">
+        <h5><i class="bi bi-info-circle"></i> Complete seu cadastro</h5>
+        <p>Para contratar um endereço fiscal, você precisa completar seu cadastro primeiro.</p>
+        <a href="@Url.Action("RegisterClient", "Client")" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Completar Cadastro
+        </a>
+    </div>
+}
+else
+{
+    var client = ViewBag.Client as KlyonEF.Models.Client;
+    var activeContracts = client?.Contracts?.Where(c => c.Status == KlyonEF.Models.ContractStatus.Active).ToList() ?? new List<KlyonEF.Models.Contract>();
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
+                    <h2 class="display-4">@activeContracts.Count</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-check-circle"></i> Status</h5>
+                    <h4>Ativo</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-geo-alt"></i> Endereços</h5>
+                    <h4>@activeContracts.Count</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-file-earmark-text"></i> Meus Contratos</h5>
+        </div>
+        <div class="card-body">
+            @if (activeContracts.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Endereço</th>
+                                <th>Valor Mensal</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var contract in activeContracts)
+                            {
+                                <tr>
+                                    <td>@contract.ContractNumber</td>
+                                    <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
+                                    <td>R$ @contract.MonthlyValue.ToString("F2")</td>
+                                    <td>
+                                        <span class="badge bg-success">@contract.Status</span>
+                                    </td>
+                                    <td>
+                                        <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-eye"></i> Ver Detalhes
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <p>Você ainda não possui contratos ativos.</p>
+                    <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Contratar Endereço Fiscal
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+}

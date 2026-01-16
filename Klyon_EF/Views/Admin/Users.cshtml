@@ -1,0 +1,251 @@
+@{
+    ViewData["Title"] = "Gerenciar Usuários";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonEF.Models.User>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people"></i> Gerenciar Usuários</h2>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("Users", "Admin")" class="row g-3">
+            <div class="col-md-3">
+                <label for="search" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="@ViewBag.Search" placeholder="Nome ou Email">
+            </div>
+            <div class="col-md-2">
+                <label for="role" class="form-label">Perfil</label>
+                <select class="form-select" id="role" name="role">
+                    <option value="">Todos</option>
+                    @foreach (var roleOption in ViewBag.AvailableRoles as List<string> ?? new List<string>())
+                    {
+                        <option value="@roleOption" selected="@(ViewBag.SelectedRole == roleOption)">@roleOption</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    <option value="active" selected="@(ViewBag.Status == "active")">Ativos</option>
+                    <option value="inactive" selected="@(ViewBag.Status == "inactive")">Inativos</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="emailVerified" class="form-label">Email</label>
+                <select class="form-select" id="emailVerified" name="emailVerified">
+                    <option value="">Todos</option>
+                    <option value="verified" selected="@(ViewBag.EmailVerified == "verified")">Verificados</option>
+                    <option value="unverified" selected="@(ViewBag.EmailVerified == "unverified")">Não Verificados</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("Users", "Admin")" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Informações de paginação -->
+@if (ViewBag.TotalItems != null)
+{
+    <div class="mb-3">
+        <small class="text-muted">
+            Mostrando @((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1) a @(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems)) 
+            de @ViewBag.TotalItems usuário(s)
+        </small>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Status</th>
+                            <th>Email Verificado</th>
+                            <th>Data Cadastro</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in Model)
+                        {
+                            <tr>
+                                <td>@user.Id</td>
+                                <td>@user.FullName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    @foreach (var userRole in user.UserRoles)
+                                    {
+                                        <span class="badge bg-primary me-1">@userRole.Role.Name</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-@(user.IsActive ? "success" : "danger")">
+                                        @(user.IsActive ? "Ativo" : "Inativo")
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (user.EmailVerified)
+                                    {
+                                        <i class="bi bi-check-circle text-success"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-x-circle text-danger"></i>
+                                    }
+                                </td>
+                                <td>@user.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="@Url.Action("ViewUser", "Admin", new { id = user.Id })" class="btn btn-sm btn-info" title="Visualizar">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="@Url.Action("EditUser", "Admin", new { id = user.Id })" class="btn btn-sm btn-warning" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a href="@Url.Action("ViewUser", "Admin", new { id = user.Id })#resetPassword" class="btn btn-sm btn-danger" title="Resetar Senha">
+                                            <i class="bi bi-key"></i>
+                                        </a>
+                                        @if (!user.EmailVerified)
+                                        {
+                                            <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = user.Id })" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-success" title="Verificar Email" onclick="return confirm('Deseja verificar o email deste usuário?')">
+                                                    <i class="bi bi-envelope-check"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum usuário encontrado com os filtros aplicados.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Paginação -->
+@if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
+{
+    <nav aria-label="Paginação de usuários" class="mt-4">
+        <ul class="pagination justify-content-center">
+            @if (ViewBag.CurrentPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                        search = ViewBag.Search, 
+                        role = ViewBag.SelectedRole, 
+                        status = ViewBag.Status, 
+                        emailVerified = ViewBag.EmailVerified, 
+                        page = ViewBag.CurrentPage - 1 
+                    })">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </a>
+                </li>
+            }
+
+            @{
+                int startPage = Math.Max(1, ViewBag.CurrentPage - 2);
+                int endPage = Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2);
+            }
+
+            @if (startPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                        search = ViewBag.Search, 
+                        role = ViewBag.SelectedRole, 
+                        status = ViewBag.Status, 
+                        emailVerified = ViewBag.EmailVerified, 
+                        page = 1 
+                    })">
+                        1
+                    </a>
+                </li>
+                @if (startPage > 2)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+            }
+
+            @for (int i = startPage; i <= endPage; i++)
+            {
+                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                        search = ViewBag.Search, 
+                        role = ViewBag.SelectedRole, 
+                        status = ViewBag.Status, 
+                        emailVerified = ViewBag.EmailVerified, 
+                        page = i 
+                    })">
+                        @i
+                    </a>
+                </li>
+            }
+
+            @if (endPage < ViewBag.TotalPages)
+            {
+                @if (endPage < ViewBag.TotalPages - 1)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                        search = ViewBag.Search, 
+                        role = ViewBag.SelectedRole, 
+                        status = ViewBag.Status, 
+                        emailVerified = ViewBag.EmailVerified, 
+                        page = ViewBag.TotalPages 
+                    })">
+                        @ViewBag.TotalPages
+                    </a>
+                </li>
+            }
+
+            @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                        search = ViewBag.Search, 
+                        role = ViewBag.SelectedRole, 
+                        status = ViewBag.Status, 
+                        emailVerified = ViewBag.EmailVerified, 
+                        page = ViewBag.CurrentPage + 1 
+                    })">
+                        Próxima <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

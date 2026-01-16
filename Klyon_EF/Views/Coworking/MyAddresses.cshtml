@@ -1,0 +1,196 @@
+@{
+    ViewData["Title"] = "Meus Endereços";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonEF.Models.CoworkingAddress>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-geo-alt"></i> Meus Endereços</h2>
+    <a href="@Url.Action("AddAddress", "Coworking")" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Adicionar Endereço
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("MyAddresses", "Coworking")" class="row g-3">
+            <div class="col-md-4">
+                <label for="search" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="@ViewBag.Search" placeholder="Endereço, cidade, bairro ou estado">
+            </div>
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    <option value="available" selected="@(ViewBag.Status == "available")">Disponíveis</option>
+                    <option value="unavailable" selected="@(ViewBag.Status == "unavailable")">Indisponíveis</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="locationId" class="form-label">Localidade</label>
+                <select class="form-select" id="locationId" name="locationId">
+                    <option value="">Todas</option>
+                    @foreach (var location in ViewBag.Locations as List<KlyonEF.Models.Location> ?? new List<KlyonEF.Models.Location>())
+                    {
+                        <option value="@location.Id" selected="@(ViewBag.LocationId != null && ViewBag.LocationId == location.Id)">@location.City/@location.State</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Informações de paginação -->
+@if (ViewBag.TotalItems != null)
+{
+    <div class="mb-3">
+        <p class="text-muted mb-0">
+            Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
+            <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
+            <strong>@ViewBag.TotalItems</strong> endereço(s)
+        </p>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Endereço</th>
+                            <th>Cidade/Estado</th>
+                            <th>Localidade</th>
+                            <th>Preço Base</th>
+                            <th>Contratos</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var address in Model)
+                        {
+                            <tr>
+                                <td>
+                                    @address.Address, @address.Number
+                                    @if (!string.IsNullOrEmpty(address.Complement))
+                                    {
+                                        <br><small class="text-muted">@address.Complement</small>
+                                    }
+                                </td>
+                                <td>@address.City/@address.State</td>
+                                <td>
+                                    @if (address.Location != null)
+                                    {
+                                        <span class="badge bg-info">@address.Location.City/@address.Location.State</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td><strong>R$ @address.BasePrice.ToString("F2")</strong></td>
+                                <td>
+                                    <span class="badge bg-@(address.CurrentContracts >= address.MaxContracts ? "danger" : "secondary")">
+                                        @address.CurrentContracts / @address.MaxContracts
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-@(address.IsAvailable ? "success" : "danger")">
+                                        @(address.IsAvailable ? "Disponível" : "Indisponível")
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="@Url.Action("EditAddress", "Coworking", new { id = address.Id })" class="btn btn-sm btn-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center mt-3">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    locationId = ViewBag.LocationId, 
+                                    page = ViewBag.CurrentPage - 1 
+                                })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    locationId = ViewBag.LocationId, 
+                                    page = i 
+                                })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    locationId = ViewBag.LocationId, 
+                                    page = ViewBag.CurrentPage + 1 
+                                })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum endereço encontrado.
+                @if (ViewBag.Search != null || ViewBag.Status != null || ViewBag.LocationId != null)
+                {
+                    <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle"></i> Limpar Filtros
+                    </a>
+                }
+                else
+                {
+                    <a href="@Url.Action("AddAddress", "Coworking")" class="btn btn-primary mt-2">
+                        <i class="bi bi-plus-circle"></i> Cadastrar Primeiro Endereço
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>

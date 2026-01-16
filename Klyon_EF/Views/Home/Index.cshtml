@@ -1,0 +1,82 @@
+@{
+    ViewData["Title"] = "Início";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-8 text-center">
+            <h1 class="display-4 mb-4">
+                <i class="bi bi-building text-primary"></i> Klyon Endereço Fiscal
+            </h1>
+            <p class="lead mb-5">
+                Plataforma completa para comercialização automatizada de endereço fiscal.
+                Conectamos clientes, coworkings e facilitamos todo o processo.
+            </p>
+            
+            @if (User.Identity?.IsAuthenticated != true)
+            {
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <a href="@Url.Action("Register", "Auth")" class="btn btn-primary btn-lg me-md-2">
+                        <i class="bi bi-person-plus"></i> Criar Conta
+                    </a>
+                    <a href="@Url.Action("Login", "Auth")" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-box-arrow-in-right"></i> Entrar
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-building display-4 text-primary mb-3"></i>
+                    <h5 class="card-title">Para Empresas</h5>
+                    <p class="card-text">
+                        Contrate um endereço fiscal válido para sua empresa de forma rápida e segura.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-shop display-4 text-success mb-3"></i>
+                    <h5 class="card-title">Para Coworkings</h5>
+                    <p class="card-text">
+                        Cadastre seus endereços e receba comissões automáticas pelos contratos.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-shield-check display-4 text-info mb-3"></i>
+                    <h5 class="card-title">100% Automatizado</h5>
+                    <p class="card-text">
+                        Contratos, pagamentos e repasses totalmente automatizados.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rodapé -->
+<footer class="bg-dark text-light mt-5 py-4" style="margin-top: auto !important;">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 text-center">
+                <p class="mb-1 small">
+                    © @DateTime.Now.Year <strong>Klyon Tecnologia</strong>. Todos os direitos reservados.
+                </p>
+                <p class="mb-0 small text-white-50">
+                    <i class="bi bi-image"></i> Todos os direitos de imagens são da <strong>Klyon Tecnologia</strong>.
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>

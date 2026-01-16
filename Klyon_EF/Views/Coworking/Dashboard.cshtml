@@ -1,0 +1,93 @@
+@{
+    ViewData["Title"] = "Dashboard Coworking";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+</div>
+
+@if (ViewBag.Coworking == null)
+{
+    <div class="alert alert-info">
+        <h5><i class="bi bi-info-circle"></i> Complete seu cadastro</h5>
+        <p>Para começar a cadastrar endereços, você precisa completar o cadastro do seu coworking.</p>
+        <a href="@Url.Action("Register", "Coworking")" class="btn btn-primary">
+            <i class="bi bi-building"></i> Cadastrar Coworking
+        </a>
+    </div>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
+                    <h2 class="display-4">@ViewBag.ActiveContracts</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-cash-coin"></i> Comissões Pendentes</h5>
+                    <h2 class="display-4">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>
+                    <h2 class="display-4">@(ViewBag.TotalAddresses ?? 0)</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-cash-coin"></i> Comissões Pendentes</h5>
+        </div>
+        <div class="card-body">
+            @if (ViewBag.Commissions != null && ((List<KlyonEF.Models.Commission>)ViewBag.Commissions).Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Valor do Pagamento</th>
+                                <th>Comissão (%)</th>
+                                <th>Valor da Comissão</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var commission in (List<KlyonEF.Models.Commission>)ViewBag.Commissions)
+                            {
+                                <tr>
+                                    <td>@commission.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                    <td>R$ @commission.TotalPaymentAmount.ToString("F2")</td>
+                                    <td>@commission.Percentage.ToString("F2")%</td>
+                                    <td><strong>R$ @commission.Amount.ToString("F2")</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <form method="post" action="@Url.Action("RequestTransfer", "Coworking")">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-arrow-left-right"></i> Solicitar Repasse
+                    </button>
+                </form>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Não há comissões pendentes no momento.
+                </div>
+            }
+        </div>
+    </div>
+}

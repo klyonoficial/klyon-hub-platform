@@ -1,0 +1,105 @@
+@{
+    ViewData["Title"] = "Cadastro de Cliente";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person-plus"></i> Cadastro de Cliente</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="@Url.Action("RegisterClient", "Client")">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="RazaoSocial" class="form-label">Razão Social</label>
+                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
+                    <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="CNPJ" class="form-label">CNPJ</label>
+                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="CPF" class="form-label">CPF (se pessoa física)</label>
+                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ContactName" class="form-label">Nome do Contato</label>
+                    <input type="text" class="form-control" id="ContactName" name="ContactName" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ContactEmail" class="form-label">Email de Contato</label>
+                    <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
+                           value="@ViewBag.UserEmail" readonly required>
+                    <small class="form-text text-muted">Este email é o mesmo do seu cadastro e não pode ser alterado.</small>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ContactPhone" class="form-label">Telefone</label>
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ZipCode" class="form-label">CEP</label>
+                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" placeholder="00000-000">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label for="Address" class="form-label">Endereço</label>
+                    <input type="text" class="form-control" id="Address" name="Address">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="City" class="form-label">Cidade</label>
+                    <input type="text" class="form-control" id="City" name="City">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="State" class="form-label">Estado <span class="text-danger">*</span></label>
+                    <select class="form-select" id="State" name="State" required>
+                        <option value="">Selecione o estado</option>
+                        <option value="AC">AC - Acre</option>
+                        <option value="AL">AL - Alagoas</option>
+                        <option value="AP">AP - Amapá</option>
+                        <option value="AM">AM - Amazonas</option>
+                        <option value="BA">BA - Bahia</option>
+                        <option value="CE">CE - Ceará</option>
+                        <option value="DF">DF - Distrito Federal</option>
+                        <option value="ES">ES - Espírito Santo</option>
+                        <option value="GO">GO - Goiás</option>
+                        <option value="MA">MA - Maranhão</option>
+                        <option value="MT">MT - Mato Grosso</option>
+                        <option value="MS">MS - Mato Grosso do Sul</option>
+                        <option value="MG">MG - Minas Gerais</option>
+                        <option value="PA">PA - Pará</option>
+                        <option value="PB">PB - Paraíba</option>
+                        <option value="PR">PR - Paraná</option>
+                        <option value="PE">PE - Pernambuco</option>
+                        <option value="PI">PI - Piauí</option>
+                        <option value="RJ">RJ - Rio de Janeiro</option>
+                        <option value="RN">RN - Rio Grande do Norte</option>
+                        <option value="RS">RS - Rio Grande do Sul</option>
+                        <option value="RO">RO - Rondônia</option>
+                        <option value="RR">RR - Roraima</option>
+                        <option value="SC">SC - Santa Catarina</option>
+                        <option value="SP">SP - São Paulo</option>
+                        <option value="SE">SE - Sergipe</option>
+                        <option value="TO">TO - Tocantins</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle"></i> Salvar Cadastro
+            </button>
+        </form>
+    </div>
+</div>

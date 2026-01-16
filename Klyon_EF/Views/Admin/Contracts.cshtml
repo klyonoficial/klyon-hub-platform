@@ -1,0 +1,236 @@
+@{
+    ViewData["Title"] = "Gerenciar Contratos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonEF.Models.Contract>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-text"></i> Gerenciar Contratos</h2>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("Contracts", "Admin")" class="row g-3">
+            <div class="col-md-4">
+                <label for="search" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="@ViewBag.Search" placeholder="Número, cliente ou endereço">
+            </div>
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    <option value="Active" selected="@(ViewBag.Status == "Active")">Ativos</option>
+                    <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspensos</option>
+                    <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelados</option>
+                    <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirados</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="clientId" class="form-label">Cliente</label>
+                <select class="form-select" id="clientId" name="clientId">
+                    <option value="">Todos</option>
+                    @foreach (var client in ViewBag.Clients as List<KlyonEF.Models.Client> ?? new List<KlyonEF.Models.Client>())
+                    {
+                        <option value="@client.Id" selected="@(ViewBag.ClientId != null && ViewBag.ClientId == client.Id)">
+                            @(client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? "N/A")
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("Contracts", "Admin")" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Informações de paginação -->
+@if (ViewBag.TotalItems != null)
+{
+    <div class="mb-3">
+        <p class="text-muted mb-0">
+            Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
+            <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
+            <strong>@ViewBag.TotalItems</strong> contrato(s)
+        </p>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Cliente</th>
+                            <th>Endereço</th>
+                            <th>Localidade</th>
+                            <th>Valor Mensal</th>
+                            <th>Status</th>
+                            <th>Data Início</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var contract in Model)
+                        {
+                            <tr>
+                                <td><strong>@contract.ContractNumber</strong></td>
+                                <td>
+                                    @(contract.Client?.RazaoSocial ?? contract.Client?.NomeFantasia ?? contract.Client?.ContactName ?? "N/A")
+                                    @if (!string.IsNullOrEmpty(contract.Client?.CNPJ))
+                                    {
+                                        <br><small class="text-muted">CNPJ: @contract.Client.CNPJ</small>
+                                    }
+                                    else if (!string.IsNullOrEmpty(contract.Client?.CPF))
+                                    {
+                                        <br><small class="text-muted">CPF: @contract.Client.CPF</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (contract.CoworkingAddress != null)
+                                    {
+                                        <small>@contract.CoworkingAddress.Address, @contract.CoworkingAddress.Number<br>
+                                        @contract.CoworkingAddress.City/@contract.CoworkingAddress.State</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (contract.CoworkingAddress?.Location != null)
+                                    {
+                                        <span class="badge bg-info">
+                                            @contract.CoworkingAddress.Location.City/@contract.CoworkingAddress.Location.State
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td><strong>R$ @contract.MonthlyValue.ToString("F2")</strong></td>
+                                <td>
+                                    @{
+                                        var statusClass = contract.Status switch
+                                        {
+                                            KlyonEF.Models.ContractStatus.Active => "success",
+                                            KlyonEF.Models.ContractStatus.Suspended => "warning",
+                                            KlyonEF.Models.ContractStatus.Cancelled => "danger",
+                                            KlyonEF.Models.ContractStatus.Expired => "secondary",
+                                            _ => "secondary"
+                                        };
+                                        var statusText = contract.Status switch
+                                        {
+                                            KlyonEF.Models.ContractStatus.Active => "Ativo",
+                                            KlyonEF.Models.ContractStatus.Suspended => "Suspenso",
+                                            KlyonEF.Models.ContractStatus.Cancelled => "Cancelado",
+                                            KlyonEF.Models.ContractStatus.Expired => "Expirado",
+                                            _ => contract.Status.ToString()
+                                        };
+                                    }
+                                    <span class="badge bg-@statusClass">@statusText</span>
+                                </td>
+                                <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" 
+                                       class="btn btn-sm btn-info" title="Visualizar">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if (contract.Status == KlyonEF.Models.ContractStatus.Active)
+                                    {
+                                        <button class="btn btn-sm btn-warning" onclick="suspendContract(@contract.Id)" title="Suspender">
+                                            <i class="bi bi-pause"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center mt-3">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Contracts", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    clientId = ViewBag.ClientId, 
+                                    page = ViewBag.CurrentPage - 1 
+                                })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Contracts", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    clientId = ViewBag.ClientId, 
+                                    page = i 
+                                })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Contracts", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    clientId = ViewBag.ClientId, 
+                                    page = ViewBag.CurrentPage + 1 
+                                })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum contrato encontrado.
+                @if (ViewBag.Search != null || ViewBag.Status != null || ViewBag.ClientId != null)
+                {
+                    <a href="@Url.Action("Contracts", "Admin")" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle"></i> Limpar Filtros
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+function suspendContract(contractId) {
+    if (confirm('Tem certeza que deseja suspender este contrato?')) {
+        alert('Funcionalidade de suspensão será implementada em breve. Contrato ID: ' + contractId);
+    }
+}
+</script>

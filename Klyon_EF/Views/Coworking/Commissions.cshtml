@@ -1,0 +1,131 @@
+@{
+    ViewData["Title"] = "Comissões";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonEF.Models.Commission>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cash-coin"></i> Comissões</h2>
+    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h6 class="card-title text-primary">Total de Comissões</h6>
+                <h3>R$ @(Model.Sum(c => c.Amount).ToString("N2"))</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h6 class="card-title text-warning">Pendentes</h6>
+                <h3>R$ @(Model.Where(c => !c.IsTransferred).Sum(c => c.Amount).ToString("N2"))</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-body">
+                <h6 class="card-title text-success">Transferidas</h6>
+                <h3>R$ @(Model.Where(c => c.IsTransferred).Sum(c => c.Amount).ToString("N2"))</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-list-check"></i> Histórico de Comissões</h5>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Valor do Pagamento</th>
+                            <th>Comissão (%)</th>
+                            <th>Valor da Comissão</th>
+                            <th>Status</th>
+                            <th>Data Transferência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var commission in Model)
+                        {
+                            <tr>
+                                <td>@commission.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>R$ @commission.TotalPaymentAmount.ToString("N2")</td>
+                                <td>@commission.Percentage.ToString("F2")%</td>
+                                <td><strong>R$ @commission.Amount.ToString("N2")</strong></td>
+                                <td>
+                                    @if (commission.IsTransferred)
+                                    {
+                                        <span class="badge bg-success">Transferida</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning">Pendente</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (commission.TransferredAt.HasValue)
+                                    {
+                                        @commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.Any(c => !c.IsTransferred))
+            {
+                <div class="mt-3">
+                    <form method="post" action="@Url.Action("RequestTransfer", "Coworking")">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-success" onclick="return confirm('Deseja solicitar o repasse de todas as comissões pendentes?')">
+                            <i class="bi bi-arrow-left-right"></i> Solicitar Repasse de Comissões Pendentes
+                        </button>
+                    </form>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhuma comissão encontrada.
+            </div>
+        }
+    </div>
+</div>
