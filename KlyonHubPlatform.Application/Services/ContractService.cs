@@ -100,8 +100,18 @@ namespace KlyonHubPlatform.Application.Services
             // }
             // await _coworkingRepository.UpdateAddressAsync(address);
 
-            // Gerar documento do contrato
-            await _documentService.GenerateContractDocumentAsync(createdContract.Id);
+            // Gerar documento do contrato (opcional - não deve impedir a criação do contrato)
+            try
+            {
+                await _documentService.GenerateContractDocumentAsync(createdContract.Id);
+            }
+            catch (Exception ex)
+            {
+                // Log do erro mas não impede a criação do contrato
+                // O documento pode ser gerado posteriormente
+                // Em produção, usar um logger adequado
+                System.Diagnostics.Debug.WriteLine($"Erro ao gerar documento do contrato: {ex.Message}");
+            }
 
             return createdContract;
         }

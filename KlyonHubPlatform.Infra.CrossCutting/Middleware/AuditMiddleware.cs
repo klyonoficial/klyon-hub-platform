@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
+using Microsoft.AspNetCore.Http;
 
 namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
 {

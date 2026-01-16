@@ -5,6 +5,7 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         Active,
         Suspended,
         Cancelled,
-        Expired
+        Expired,
+        PendingCancellation
     }
 }

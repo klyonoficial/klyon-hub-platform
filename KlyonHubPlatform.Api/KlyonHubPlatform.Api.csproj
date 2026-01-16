@@ -4,8 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>KlyonHubPlatform</RootNamespace>
-    <AssemblyName>klyon-hub-platform</AssemblyName>
+    <RootNamespace>KlyonHubPlatform.Api</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,5 +23,11 @@
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\KlyonHubPlatform.Application\KlyonHubPlatform.Application.csproj" />
+    <ProjectReference Include="..\KlyonHubPlatform.Domain\KlyonHubPlatform.Domain.csproj" />
+    <ProjectReference Include="..\KlyonHubPlatform.Infra.Data\KlyonHubPlatform.Infra.Data.csproj" />
+    <ProjectReference Include="..\KlyonHubPlatform.Infra.CrossCutting\KlyonHubPlatform.Infra.CrossCutting.csproj" />
+  </ItemGroup>
 
 </Project>

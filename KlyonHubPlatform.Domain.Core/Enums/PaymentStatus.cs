@@ -4,6 +4,7 @@ namespace KlyonHubPlatform.Domain.Core.Enums
     {
         Pending,
         Processing,
+        AwaitingValidation,
         Paid,
         Failed,
         Refunded,

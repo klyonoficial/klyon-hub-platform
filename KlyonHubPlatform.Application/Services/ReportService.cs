@@ -100,12 +100,20 @@ namespace KlyonHubPlatform.Application.Services
         {
             var dateFrom = DateTime.UtcNow.AddDays(-days);
             return await _context.Payments
-                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt >= dateFrom)
-                .OrderByDescending(p => p.PaidAt)
+                .Where(p => 
+                    (p.Status == PaymentStatus.Paid && p.PaidAt >= dateFrom) ||
+                    (p.Status == PaymentStatus.Pending && p.CreatedAt >= dateFrom) ||
+                    (p.Status == PaymentStatus.AwaitingValidation && p.CreatedAt >= dateFrom) ||
+                    (p.Status == PaymentStatus.Processing && p.CreatedAt >= dateFrom)
+                )
+                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                 .Take(take)
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.Client)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
                 .ToListAsync();
         }
     }

@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "Visualizar Coworking";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.Coworking
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Visualizar Coworking - @Model.Name</h2>
+    <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dados Básicos</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Nome do Coworking</label>
+                        <p class="form-control-plaintext">@Model.Name</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">CNPJ</label>
+                        <p class="form-control-plaintext">@Model.CNPJ</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Nome Fantasia</label>
+                        <p class="form-control-plaintext">@(Model.TradeName ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Status</label>
+                        <p>
+                            <span class="badge bg-@(Model.IsActive ? "success" : "danger")">
+                                @(Model.IsActive ? "Ativo" : "Inativo")
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Tipo</label>
+                        <p>
+                            <span class="badge bg-@(Model.IsPartner ? "primary" : "secondary")">
+                                @(Model.IsPartner ? "Parceiro" : "Próprio")
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Data de Cadastro</label>
+                        <p class="form-control-plaintext">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-telephone"></i> Contatos</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Email de Contato</label>
+                        <p class="form-control-plaintext">@(Model.ContactEmail ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Telefone</label>
+                        <p class="form-control-plaintext">@(Model.ContactPhone ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Email Secundário</label>
+                        <p class="form-control-plaintext">@(Model.SecondaryEmail ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Telefone Secundário</label>
+                        <p class="form-control-plaintext">@(Model.SecondaryPhone ?? "-")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bank"></i> Dados Bancários</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Banco</label>
+                        <p class="form-control-plaintext">@(Model.BankName ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Agência</label>
+                        <p class="form-control-plaintext">@(Model.BankAgency ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Conta</label>
+                        <p class="form-control-plaintext">@(Model.BankAccount ?? "-")</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Chave PIX</label>
+                        <p class="form-control-plaintext">@(Model.BankPixKey ?? "-")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços (@(Model.Addresses?.Count ?? 0))</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Addresses != null && Model.Addresses.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Endereço</th>
+                                    <th>Cidade</th>
+                                    <th>Estado</th>
+                                    <th>Status</th>
+                                    <th>Contratos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var address in Model.Addresses)
+                                {
+                                    <tr>
+                                        <td>@address.Address, @address.Number</td>
+                                        <td>@address.City</td>
+                                        <td>@address.State</td>
+                                        <td>
+                                            <span class="badge bg-@(address.IsAvailable ? "success" : "danger")">
+                                                @(address.IsAvailable ? "Disponível" : "Indisponível")
+                                            </span>
+                                        </td>
+                                        <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Nenhum endereço cadastrado.</p>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-images"></i> Fotos (@(Model.Photos?.Count ?? 0))</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Photos != null && Model.Photos.Any())
+                {
+                    <div class="row">
+                        @foreach (var photo in Model.Photos)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="card">
+                                    <img src="@photo.FilePath" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;">
+                                    @if (!string.IsNullOrEmpty(photo.Description))
+                                    {
+                                        <div class="card-body">
+                                            <p class="card-text small">@photo.Description</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Nenhuma foto cadastrada.</p>
+                }
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="@Url.Action("EditCoworking", "Admin", new { id = Model.Id })" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>

@@ -149,6 +149,37 @@ namespace KlyonHubPlatform.Application.Services
             return await _paymentRepository.UpdateAsync(payment);
         }
 
+        public async Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+
+            if (payment.Status != PaymentStatus.Pending)
+                throw new InvalidOperationException("Apenas pagamentos pendentes podem ter o método alterado");
+
+            payment.Method = method;
+            
+            // Limpar códigos anteriores
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.BoletoCode = null;
+            payment.BoletoBarcode = null;
+            payment.BoletoExpiresAt = null;
+
+            // Gerar novo código baseado no método
+            if (method == PaymentMethod.PIX)
+            {
+                await GeneratePixCodeAsync(paymentId);
+            }
+            else if (method == PaymentMethod.BankTransfer)
+            {
+                await GenerateBoletoCodeAsync(paymentId);
+            }
+
+            return await _paymentRepository.UpdateAsync(payment);
+        }
+
         public async Task<string> GeneratePixCodeAsync(int paymentId)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -159,9 +190,29 @@ namespace KlyonHubPlatform.Application.Services
             var pixCode = $"00020126580014BR.GOV.BCB.PIX0136{payment.ExternalPaymentId}5204000053039865802BR5925KLYON ENDERECO FISCAL6009SAO PAULO62070503***6304{GenerateCRC16($"00020126580014BR.GOV.BCB.PIX0136{payment.ExternalPaymentId}5204000053039865802BR5925KLYON ENDERECO FISCAL6009SAO PAULO62070503***")}";
 
             payment.PixCode = pixCode;
+            payment.PixExpiresAt = DateTime.UtcNow.AddHours(24); // Expira em 24 horas
             await _paymentRepository.UpdateAsync(payment);
 
             return pixCode;
+        }
+
+        public async Task<string> GenerateBoletoCodeAsync(int paymentId)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+
+            // TODO: Integrar com gerador de boleto real
+            // Por enquanto, gerar um código de barras simulado
+            var boletoCode = $"34191.{DateTime.UtcNow:yyyyMMdd}00000{payment.Id:D10}{payment.Amount * 100:F0}";
+            var barcode = boletoCode.Replace(".", "").Replace("-", "");
+
+            payment.BoletoCode = boletoCode;
+            payment.BoletoBarcode = barcode;
+            payment.BoletoExpiresAt = payment.DueDate; // Expira na data de vencimento
+            await _paymentRepository.UpdateAsync(payment);
+
+            return boletoCode;
         }
 
         public async Task<List<Payment>> GetPendingPaymentsAsync()

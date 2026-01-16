@@ -226,6 +226,16 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
+                    // Storage Provider Settings
+                    new SystemConfiguration
+                    {
+                        Key = "Storage.Provider",
+                        Value = "AWS",
+                        Description = "Provedor de armazenamento: AWS ou FTP",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
                     // AWS S3 Settings
                     new SystemConfiguration
                     {
@@ -277,6 +287,88 @@ namespace KlyonHubPlatform.Application.Services
                         Key = "AWS.S3.PhotosFolder",
                         Value = "coworking-photos",
                         Description = "Pasta no bucket para armazenar fotos dos coworkings",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    // FTP Settings
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.Host",
+                        Value = "ftp.example.com",
+                        Description = "Endereço do servidor FTP",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.Port",
+                        Value = "21",
+                        Description = "Porta do servidor FTP (padrão: 21)",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.Username",
+                        Value = "ftp_user",
+                        Description = "Usuário para acesso ao servidor FTP",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.Password",
+                        Value = "ftp_password",
+                        Description = "Senha para acesso ao servidor FTP",
+                        Category = "Storage",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.RootPath",
+                        Value = "/documents",
+                        Description = "Caminho raiz no servidor FTP para armazenamento",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.ContractsFolder",
+                        Value = "contracts",
+                        Description = "Pasta no servidor FTP para armazenar contratos",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.PhotosFolder",
+                        Value = "coworking-photos",
+                        Description = "Pasta no servidor FTP para armazenar fotos dos coworkings",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.UsePassiveMode",
+                        Value = "true",
+                        Description = "Usar modo passivo no FTP (recomendado para firewalls)",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "FTP.UseSSL",
+                        Value = "false",
+                        Description = "Usar SSL/TLS para conexão FTP (FTPS)",
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false

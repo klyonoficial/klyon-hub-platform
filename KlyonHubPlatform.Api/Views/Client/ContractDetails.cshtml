@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Detalhes do Contrato";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -27,9 +28,27 @@
                     <tr>
                         <th>Status:</th>
                         <td>
-                            <span class="badge bg-@(Model.Status == ContractStatus.Active ? "success" : "secondary")">
-                                @Model.Status
-                            </span>
+                            @switch (Model.Status)
+                            {
+                                case ContractStatus.Active:
+                                    <span class="badge bg-success">Ativo</span>
+                                    break;
+                                case ContractStatus.Suspended:
+                                    <span class="badge bg-warning">Suspenso</span>
+                                    break;
+                                case ContractStatus.Cancelled:
+                                    <span class="badge bg-danger">Cancelado</span>
+                                    break;
+                                case ContractStatus.PendingCancellation:
+                                    <span class="badge bg-warning"><i class="bi bi-clock-history"></i> Cancelamento Pendente</span>
+                                    break;
+                                case ContractStatus.Expired:
+                                    <span class="badge bg-secondary">Expirado</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-secondary">@Model.Status</span>
+                                    break;
+                            }
                         </td>
                     </tr>
                     <tr>
@@ -65,16 +84,30 @@
                     <h5>Cancelar Contrato</h5>
                 </div>
                 <div class="card-body">
-                    <form method="post" action="@Url.Action("CancelContract", "Client")">
-                        <input type="hidden" name="contractId" value="@Model.Id">
-                        <div class="mb-3">
-                            <label for="reason" class="form-label">Motivo do Cancelamento</label>
-                            <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja cancelar este contrato?')">
-                            <i class="bi bi-x-circle"></i> Cancelar Contrato
-                        </button>
-                    </form>
+                    <p class="text-muted mb-3">
+                        Se deseja cancelar este contrato, clique no botão abaixo. O cancelamento requer aprovação administrativa.
+                    </p>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelContractModal">
+                        <i class="bi bi-x-circle"></i> Solicitar Cancelamento
+                    </button>
+                </div>
+            </div>
+        }
+        else if (Model.Status == ContractStatus.PendingCancellation)
+        {
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h5><i class="bi bi-clock-history"></i> Cancelamento Pendente</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i> <strong>Sua solicitação de cancelamento está aguardando aprovação.</strong>
+                    </div>
+                    <p><strong>Motivo informado:</strong></p>
+                    <p class="text-muted">@Model.CancellationRequestReason</p>
+                    <p class="text-muted small">
+                        <i class="bi bi-calendar"></i> Solicitado em: @Model.CancellationRequestedAt?.ToString("dd/MM/yyyy HH:mm")
+                    </p>
                 </div>
             </div>
         }
@@ -104,6 +137,49 @@
                     <p class="text-muted">Nenhum documento disponível.</p>
                 }
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cancelamento -->
+<div class="modal fade" id="cancelContractModal" tabindex="-1" aria-labelledby="cancelContractModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="cancelContractModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Solicitar Cancelamento de Contrato
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form method="post" action="@Url.Action("RequestContractCancellation", "Client")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="contractId" value="@Model.Id">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Atenção:</strong> O cancelamento deste contrato não gera extorno de valores já pagos. Todos os pagamentos realizados até o momento não serão reembolsados.
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Esta solicitação será enviada para aprovação administrativa. Você será notificado quando a solicitação for aprovada ou rejeitada.
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="cancellationReason" class="form-label">
+                            <strong>Motivo do Cancelamento <span class="text-danger">*</span></strong>
+                        </label>
+                        <textarea class="form-control" id="cancellationReason" name="reason" rows="4" required placeholder="Descreva o motivo do cancelamento..."></textarea>
+                        <small class="form-text text-muted">Este campo é obrigatório e será analisado pela administração.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-check-circle"></i> Confirmar Solicitação
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

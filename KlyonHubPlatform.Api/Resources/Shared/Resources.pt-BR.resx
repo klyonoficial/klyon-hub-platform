@@ -58,6 +58,12 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <metadata name=".NETFramework,Version" type="System.String" mimetype="application/x-microsoft-net.object.single.string">
+    <value>v4.8</value>
+  </metadata>
+  <metadata name="System.Resources.Tools.StronglyTypedResourceBuilder" type="System.String" mimetype="application/x-microsoft-net.object.single.string">
+    <value>KlyonHubPlatform.Api.Resources.Shared.Resources</value>
+  </metadata>
   <data name="Menu_Dashboard" xml:space="preserve">
     <value>Dashboard</value>
   </data>
@@ -177,5 +183,149 @@
   </data>
   <data name="Message_ErrorOccurred" xml:space="preserve">
     <value>Ocorreu um erro. Tente novamente.</value>
+  </data>
+  <data name="Menu_DashboardAdmin" xml:space="preserve">
+    <value>Dashboard Admin</value>
+  </data>
+  <data name="Menu_Reports" xml:space="preserve">
+    <value>Relatórios</value>
+  </data>
+  <data name="Menu_SystemConfigurations" xml:space="preserve">
+    <value>Configurações do Sistema</value>
+  </data>
+  <data name="Menu_ActiveContracts" xml:space="preserve">
+    <value>Contratos Ativos</value>
+  </data>
+  <data name="Menu_Commissions" xml:space="preserve">
+    <value>Comissões</value>
+  </data>
+  <data name="Menu_Transfers" xml:space="preserve">
+    <value>Repasses</value>
+  </data>
+  <data name="Menu_MyPayments" xml:space="preserve">
+    <value>Minhas Cobranças</value>
+  </data>
+  <data name="Menu_NewContract" xml:space="preserve">
+    <value>Novo Contrato</value>
+  </data>
+  <data name="App_Title" xml:space="preserve">
+    <value>Klyon Gestão de Endereço Fiscal</value>
+  </data>
+  <data name="App_Subtitle" xml:space="preserve">
+    <value>Klyon Endereço Fiscal</value>
+  </data>
+  <data name="SystemConfig_Title" xml:space="preserve">
+    <value>Configurações do Sistema</value>
+  </data>
+  <data name="SystemConfig_Key" xml:space="preserve">
+    <value>Chave</value>
+  </data>
+  <data name="SystemConfig_Value" xml:space="preserve">
+    <value>Valor</value>
+  </data>
+  <data name="SystemConfig_Description" xml:space="preserve">
+    <value>Descrição</value>
+  </data>
+  <data name="SystemConfig_Type" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="SystemConfig_LastUpdate" xml:space="preserve">
+    <value>Última Atualização</value>
+  </data>
+  <data name="SystemConfig_Actions" xml:space="preserve">
+    <value>Ações</value>
+  </data>
+  <data name="SystemConfig_Sensitive" xml:space="preserve">
+    <value>Sensível</value>
+  </data>
+  <data name="SystemConfig_Encrypted" xml:space="preserve">
+    <value>Criptografado</value>
+  </data>
+  <data name="SystemConfig_NotDefined" xml:space="preserve">
+    <value>Não definido</value>
+  </data>
+  <data name="SystemConfig_NoDescription" xml:space="preserve">
+    <value>Sem descrição</value>
+  </data>
+  <data name="SystemConfig_NeverUpdated" xml:space="preserve">
+    <value>Nunca atualizado</value>
+  </data>
+  <data name="SystemConfig_Note" xml:space="preserve">
+    <value>Nota</value>
+  </data>
+  <data name="SystemConfig_NoteText" xml:space="preserve">
+    <value>Valores marcados como "Sensível" são mascarados por segurança. Apenas administradores podem visualizar e editar essas configurações.</value>
+  </data>
+  <data name="Common_By" xml:space="preserve">
+    <value>por</value>
+  </data>
+  <data name="Common_Administrator" xml:space="preserve">
+    <value>Administrador</value>
+  </data>
+  <data name="Coworking_Register" xml:space="preserve">
+    <value>Cadastro de Coworking</value>
+  </data>
+  <data name="Coworking_Name" xml:space="preserve">
+    <value>Nome do Coworking</value>
+  </data>
+  <data name="Coworking_CNPJ" xml:space="preserve">
+    <value>CNPJ</value>
+  </data>
+  <data name="Coworking_TradeName" xml:space="preserve">
+    <value>Nome Fantasia</value>
+  </data>
+  <data name="Coworking_ContactEmail" xml:space="preserve">
+    <value>Email de Contato</value>
+  </data>
+  <data name="Coworking_ContactPhone" xml:space="preserve">
+    <value>Telefone</value>
+  </data>
+  <data name="Coworking_Photos" xml:space="preserve">
+    <value>Galeria de Fotos</value>
+  </data>
+  <data name="Coworking_PhotosDescription" xml:space="preserve">
+    <value>Fotos do Coworking</value>
+  </data>
+  <data name="Coworking_PhotosHint" xml:space="preserve">
+    <value>Selecione uma ou mais fotos do seu coworking (máximo 10 fotos, formatos: JPG, PNG)</value>
+  </data>
+  <data name="Coworking_RequiredDocuments" xml:space="preserve">
+    <value>Documentos Obrigatórios</value>
+  </data>
+  <data name="Coworking_DocumentsInfo" xml:space="preserve">
+    <value>Os documentos abaixo são obrigatórios para o cadastro. Certifique-se de que estão atualizados e em nome do coworking.</value>
+  </data>
+  <data name="Coworking_UtilityBill" xml:space="preserve">
+    <value>Conta de Água, Luz ou IPTU</value>
+  </data>
+  <data name="Coworking_UtilityBillHint" xml:space="preserve">
+    <value>Emitido em nome do coworking, atual (últimos 90 dias)</value>
+  </data>
+  <data name="Coworking_AddressAuthorization" xml:space="preserve">
+    <value>Declaração de Autorização de Uso de Endereço Fiscal</value>
+  </data>
+  <data name="Coworking_AddressAuthorizationHint" xml:space="preserve">
+    <value>Assinada, em papel timbrado, com CNPJ do coworking</value>
+  </data>
+  <data name="Coworking_CNPJCard" xml:space="preserve">
+    <value>Cartão CNPJ do Coworking</value>
+  </data>
+  <data name="Coworking_CNPJCardHint" xml:space="preserve">
+    <value>Documento que mostra que o coworking está ativo e com CNAE compatível</value>
+  </data>
+  <data name="Coworking_BankData" xml:space="preserve">
+    <value>Dados Bancários</value>
+  </data>
+  <data name="Coworking_BankName" xml:space="preserve">
+    <value>Banco</value>
+  </data>
+  <data name="Coworking_BankAgency" xml:space="preserve">
+    <value>Agência</value>
+  </data>
+  <data name="Coworking_BankAccount" xml:space="preserve">
+    <value>Conta</value>
+  </data>
+  <data name="Coworking_BankPixKey" xml:space="preserve">
+    <value>Chave PIX</value>
   </data>
 </root>

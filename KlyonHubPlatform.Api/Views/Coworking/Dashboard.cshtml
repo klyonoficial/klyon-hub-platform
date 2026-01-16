@@ -20,7 +20,7 @@
 else
 {
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
@@ -28,7 +28,21 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagamentos Pendentes</h5>
+                    <h2 class="display-4">@(ViewBag.PendingPaymentsCount ?? 0)</h2>
+                    @if ((ViewBag.PendingPaymentsCount ?? 0) > 0)
+                    {
+                        <a href="@Url.Action("PendingPayments", "Coworking")" class="btn btn-light btn-sm mt-2">
+                            <i class="bi bi-arrow-right"></i> Validar Agora
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-cash-coin"></i> Comissões Pendentes</h5>
@@ -36,7 +50,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>

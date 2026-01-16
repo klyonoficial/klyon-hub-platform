@@ -176,10 +176,10 @@
 
 <script>
 function viewCoworking(coworkingId) {
-    alert('Visualizar coworking: ' + coworkingId);
+    window.location.href = '@Url.Action("ViewCoworking", "Admin")?id=' + coworkingId;
 }
 
 function editCoworking(coworkingId) {
-    alert('Editar coworking: ' + coworkingId);
+    window.location.href = '@Url.Action("EditCoworking", "Admin")?id=' + coworkingId;
 }
 </script>

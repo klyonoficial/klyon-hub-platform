@@ -7,5 +7,9 @@ CREATE DATABASE IF NOT EXISTS klyon_hub_platform CHARACTER SET utf8mb4 COLLATE u
 -- Usar o banco
 USE klyon_hub_platform;
 
+-- Garantir que o usuário tem todas as permissões necessárias
+GRANT ALL PRIVILEGES ON klyon_hub_platform.* TO 'klyon_user'@'%';
+FLUSH PRIVILEGES;
+
 -- O Entity Framework Core criará as tabelas automaticamente
 -- Este script pode ser usado para dados iniciais ou configurações específicas

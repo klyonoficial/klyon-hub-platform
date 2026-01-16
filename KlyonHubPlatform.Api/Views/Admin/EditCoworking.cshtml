@@ -1,0 +1,66 @@
+@{
+    ViewData["Title"] = "Editar Coworking";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.Coworking
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Editar Coworking - @Model.Name</h2>
+    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Para editar os dados do coworking, utilize a funcionalidade de perfil do próprio coworking. 
+    Esta página permite visualizar e gerenciar informações administrativas.
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                <p><strong>ID:</strong> @Model.Id</p>
+                <p><strong>Nome:</strong> @Model.Name</p>
+                <p><strong>CNPJ:</strong> @Model.CNPJ</p>
+                <p><strong>Email:</strong> @Model.ContactEmail</p>
+                <p><strong>Status:</strong> 
+                    <span class="badge bg-@(Model.IsActive ? "success" : "danger")">
+                        @(Model.IsActive ? "Ativo" : "Inativo")
+                    </span>
+                </p>
+                <p><strong>Tipo:</strong> 
+                    <span class="badge bg-@(Model.IsPartner ? "primary" : "secondary")">
+                        @(Model.IsPartner ? "Parceiro" : "Próprio")
+                    </span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mt-3">
+    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-info">
+        <i class="bi bi-eye"></i> Visualizar Detalhes
+    </a>
+    <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Lista
+    </a>
+</div>

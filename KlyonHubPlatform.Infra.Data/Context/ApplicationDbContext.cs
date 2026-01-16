@@ -25,6 +25,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<Location> Locations { get; set; }
         public DbSet<LocationCommission> LocationCommissions { get; set; }
         public DbSet<CoworkingPhoto> CoworkingPhotos { get; set; }
+        public DbSet<CoworkingDocument> CoworkingDocuments { get; set; }
         public DbSet<CoworkingPartner> CoworkingPartners { get; set; }
         public DbSet<Language> Languages { get; set; }
         public DbSet<Translation> Translations { get; set; }
@@ -103,6 +104,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             {
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Subscription).WithMany(s => s.Payments).HasForeignKey(e => e.SubscriptionId);
+                entity.HasOne(e => e.Validator).WithMany().HasForeignKey(e => e.ValidatedBy).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasConversion<string>();
                 entity.Property(e => e.Method).HasConversion<string>();
             });
@@ -171,6 +173,16 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Coworking)
                     .WithMany(c => c.Photos)
                     .HasForeignKey(e => e.CoworkingId);
+            });
+
+            // CoworkingDocument configuration
+            modelBuilder.Entity<CoworkingDocument>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany(c => c.Documents)
+                    .HasForeignKey(e => e.CoworkingId);
+                entity.Property(e => e.Type).HasConversion<string>();
             });
 
             // CoworkingPartner configuration

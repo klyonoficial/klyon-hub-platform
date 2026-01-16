@@ -105,6 +105,7 @@
                 @if (!Model.EmailVerified)
                 {
                     <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = Model.Id })" class="mt-2">
+                        @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-success w-100" onclick="return confirm('Deseja verificar o email deste usuário?')">
                             <i class="bi bi-envelope-check"></i> Verificar Email
                         </button>
@@ -118,6 +119,7 @@
                     <small><i class="bi bi-info-circle"></i> Você pode alterar a senha de qualquer usuário, incluindo Coworking Partners.</small>
                 </div>
                 <form method="post" action="@Url.Action("ResetUserPassword", "Admin")" id="resetPasswordForm">
+                    @Html.AntiForgeryToken()
                     <input type="hidden" name="userId" value="@Model.Id">
                     <div class="mb-3">
                         <label for="newPassword" class="form-label">Nova Senha</label>

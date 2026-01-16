@@ -26,6 +26,7 @@
             </div>
             <div class="card-body">
                 <form method="post" action="@Url.Action("CreateLocation", "Admin")">
+                    @Html.AntiForgeryToken()
                     <div class="mb-3">
                         <label for="city" class="form-label">Cidade <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="city" name="city" required maxlength="100" placeholder="Ex: São Paulo">
@@ -35,9 +36,12 @@
                         <label for="state" class="form-label">Estado (UF) <span class="text-danger">*</span></label>
                         <select class="form-select" id="state" name="state" required>
                             <option value="">Selecione o estado</option>
-                            @foreach (var stateOption in ViewBag.BrazilianStates as List<string>)
+                            @if (ViewBag.States != null)
                             {
-                                <option value="@stateOption">@stateOption</option>
+                                @foreach (var stateOption in ViewBag.States as List<string>)
+                                {
+                                    <option value="@stateOption">@stateOption</option>
+                                }
                             }
                         </select>
                     </div>
@@ -46,9 +50,12 @@
                         <label for="region" class="form-label">Região</label>
                         <select class="form-select" id="region" name="region">
                             <option value="">Selecione a região</option>
-                            @foreach (var regionOption in ViewBag.Regions as List<string>)
+                            @if (ViewBag.Regions != null)
                             {
-                                <option value="@regionOption">@regionOption</option>
+                                @foreach (var regionOption in ViewBag.Regions as List<string>)
+                                {
+                                    <option value="@regionOption">@regionOption</option>
+                                }
                             }
                         </select>
                     </div>

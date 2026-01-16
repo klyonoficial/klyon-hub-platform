@@ -10,7 +10,9 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> ProcessPaymentAsync(int paymentId);
         Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
+        Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method);
         Task<string> GeneratePixCodeAsync(int paymentId);
+        Task<string> GenerateBoletoCodeAsync(int paymentId);
         Task<List<Payment>> GetPendingPaymentsAsync();
         Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId);
         Task<Payment?> GetPaymentByIdAsync(int paymentId);

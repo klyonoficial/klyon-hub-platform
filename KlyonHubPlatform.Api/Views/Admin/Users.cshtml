@@ -128,6 +128,7 @@
                                         @if (!user.EmailVerified)
                                         {
                                             <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = user.Id })" class="d-inline">
+                                                @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-success" title="Verificar Email" onclick="return confirm('Deseja verificar o email deste usuário?')">
                                                     <i class="bi bi-envelope-check"></i>
                                                 </button>

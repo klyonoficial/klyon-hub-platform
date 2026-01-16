@@ -4,6 +4,7 @@
     ViewData["Title"] = "Detalhes do Pagamento";
     var contract = Model.Subscription?.Contract;
     var isPending = Model.Status == PaymentStatus.Pending;
+    var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
     var isExpired = Model.PixExpiresAt.HasValue && Model.PixExpiresAt.Value < DateTime.UtcNow;
 }
@@ -50,17 +51,56 @@
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
-                        @switch (Model.Method)
+                        @if (isPending)
                         {
-                            case PaymentMethod.PIX:
-                                <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
-                                break;
-                            case PaymentMethod.CreditCard:
-                                <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
-                                break;
-                            case PaymentMethod.BankTransfer:
-                                <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>
-                                break;
+                            <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="paymentId" value="@Model.Id" />
+                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)">
+                                    @if (Model.Method == PaymentMethod.PIX)
+                                    {
+                                        <option value="PIX" selected>PIX</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="PIX">PIX</option>
+                                    }
+                                    @if (Model.Method == PaymentMethod.BankTransfer)
+                                    {
+                                        <option value="BankTransfer" selected>Boleto Bancário</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="BankTransfer">Boleto Bancário</option>
+                                    }
+                                    @if (Model.Method == PaymentMethod.CreditCard)
+                                    {
+                                        <option value="CreditCard" selected>Cartão de Crédito</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="CreditCard">Cartão de Crédito</option>
+                                    }
+                                </select>
+                                <small class="text-muted d-block mt-1">
+                                    <i class="bi bi-info-circle"></i> Você pode alterar o método de pagamento a qualquer momento
+                                </small>
+                            </form>
+                        }
+                        else
+                        {
+                            @switch (Model.Method)
+                            {
+                                case PaymentMethod.PIX:
+                                    <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                    break;
+                                case PaymentMethod.CreditCard:
+                                    <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
+                                    break;
+                                case PaymentMethod.BankTransfer:
+                                    <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>
+                                    break;
+                            }
                         }
                     </dd>
 
@@ -73,6 +113,9 @@
                                 break;
                             case PaymentStatus.Processing:
                                 <span class="badge bg-info">Processando</span>
+                                break;
+                            case PaymentStatus.AwaitingValidation:
+                                <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
                                 break;
                             case PaymentStatus.Paid:
                                 <span class="badge bg-success">Pago</span>
@@ -110,51 +153,121 @@
             </div>
         </div>
 
-        @if (isPix && isPending)
+        @if (isPending)
         {
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
-                </div>
-                <div class="card-body text-center">
-                    @if (isExpired)
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Este código PIX expirou. Um novo código será gerado ao confirmar o pagamento.
-                        </div>
-                    }
-                    else if (!string.IsNullOrEmpty(Model.PixCode))
-                    {
-                        <div class="mb-3">
-                            <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="pixCode" value="@Model.PixCode" readonly>
-                                <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode()">
-                                    <i class="bi bi-clipboard"></i> Copiar
-                                </button>
+            @if (Model.Method == PaymentMethod.PIX)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        @if (isExpired)
+                        {
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Este código PIX expirou. Um novo código será gerado ao confirmar o pagamento.
                             </div>
+                        }
+                        else if (!string.IsNullOrEmpty(Model.PixCode))
+                        {
+                            <div class="mb-3">
+                                <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="pixCode" value="@Model.PixCode" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode()">
+                                        <i class="bi bi-clipboard"></i> Copiar
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                @if (Model.PixExpiresAt.HasValue)
+                                {
+                                    <text>Este código expira em: @Model.PixExpiresAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
+                                }
+                                else
+                                {
+                                    <text>Escaneie o QR Code ou copie o código para pagar via PIX</text>
+                                }
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Gerando código PIX...</p>
+                        }
+                    </div>
+                </div>
+            }
+            else if (Model.Method == PaymentMethod.BankTransfer)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto Bancário</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(Model.BoletoCode))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Código de Barras:</strong></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control font-monospace" id="boletoBarcode" value="@Model.BoletoBarcode" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoBarcode()">
+                                        <i class="bi bi-clipboard"></i> Copiar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Linha Digitável:</strong></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control font-monospace" id="boletoCode" value="@Model.BoletoCode" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoCode()">
+                                        <i class="bi bi-clipboard"></i> Copiar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                <strong>Instruções:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
+                                    <li>O boleto vence em: <strong>@Model.DueDate.ToString("dd/MM/yyyy")</strong></li>
+                                    <li>Após o pagamento, envie o comprovante para validação</li>
+                                </ul>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Gerando boleto...</p>
+                        }
+                    </div>
+                </div>
+            }
+            else if (Model.Method == PaymentMethod.CreditCard)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Instruções:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>O pagamento com cartão será processado ao enviar o comprovante</li>
+                                <li>Após o processamento, seu contrato será ativado automaticamente</li>
+                                <li>Você receberá uma confirmação por email</li>
+                            </ul>
                         </div>
                         <p class="text-muted">
-                            <i class="bi bi-info-circle"></i> 
-                            @if (Model.PixExpiresAt.HasValue)
-                            {
-                                <text>Este código expira em: @Model.PixExpiresAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
-                            }
-                            else
-                            {
-                                <text>Escaneie o QR Code ou copie o código para pagar via PIX</text>
-                            }
+                            <strong>Valor:</strong> R$ @Model.Amount.ToString("N2")<br>
+                            <strong>Vencimento:</strong> @Model.DueDate.ToString("dd/MM/yyyy")
                         </p>
-                    }
-                    else
-                    {
-                        <p class="text-muted">Gerando código PIX...</p>
-                    }
+                    </div>
                 </div>
-            </div>
+            }
         }
     </div>
 
@@ -166,24 +279,35 @@
             <div class="card-body">
                 @if (isPending)
                 {
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        <strong>Atenção:</strong> Seu contrato será ativado automaticamente após a confirmação do pagamento.
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Instruções:</strong> Após realizar o pagamento, envie o comprovante para validação.
                     </div>
 
-                    <form method="post" action="@Url.Action("ConfirmPayment", "Client")">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="paymentId" value="@Model.Id" />
-                        <button type="submit" class="btn btn-success w-100 mb-2">
-                            <i class="bi bi-check-circle"></i> Confirmar Pagamento
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#confirmPaymentModal">
+                        <i class="bi bi-upload"></i> Enviar Comprovante
+                    </button>
 
                     <p class="text-muted small mt-3">
                         <i class="bi bi-info-circle"></i> 
-                        Clique em "Confirmar Pagamento" após realizar o pagamento via PIX, boleto ou cartão.
-                        O sistema verificará e ativará seu contrato automaticamente.
+                        Após o envio do comprovante, o coworking validará o pagamento manualmente.
+                        Seu contrato será ativado após a aprovação.
                     </p>
+                }
+                else if (isAwaitingValidation)
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-clock-history"></i> 
+                        <strong>Comprovante Enviado!</strong><br>
+                        Seu comprovante está aguardando validação pelo coworking.
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
+                    {
+                        <a href="@Url.Action("DownloadReceipt", "Client", new { paymentId = Model.Id })" class="btn btn-outline-primary w-100 mb-2" target="_blank">
+                            <i class="bi bi-download"></i> Ver Comprovante Enviado
+                        </a>
+                    }
                 }
                 else if (Model.Status == PaymentStatus.Paid)
                 {
@@ -214,6 +338,47 @@
     </div>
 </div>
 
+<!-- Modal para Enviar Comprovante -->
+<div class="modal fade" id="confirmPaymentModal" tabindex="-1" aria-labelledby="confirmPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmPaymentModalLabel">
+                    <i class="bi bi-upload"></i> Enviar Comprovante de Pagamento
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("ConfirmPayment", "Client")" enctype="multipart/form-data" id="confirmPaymentForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        Envie uma foto ou PDF do comprovante de pagamento. 
+                        O coworking validará manualmente antes de ativar seu contrato.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="receiptFile" class="form-label">Comprovante (JPG, PNG ou PDF)</label>
+                        <input type="file" class="form-control" id="receiptFile" name="receiptFile" accept=".jpg,.jpeg,.png,.pdf" required>
+                        <small class="form-text text-muted">Tamanho máximo: 10MB</small>
+                    </div>
+
+                    <div id="filePreview" class="mt-3" style="display: none;">
+                        <img id="previewImage" src="" alt="Preview" class="img-thumbnail" style="max-width: 100%; max-height: 300px;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Enviar Comprovante
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
@@ -235,7 +400,7 @@
             }, 2000);
         }
 
-        @if (isPix && !string.IsNullOrEmpty(Model.PixCode) && !isExpired)
+        @if (isPending && Model.Method == PaymentMethod.PIX && !string.IsNullOrEmpty(Model.PixCode) && !isExpired)
         {
             <text>
             // Gerar QR Code
@@ -246,5 +411,60 @@
             });
             </text>
         }
+
+        function copyBoletoBarcode() {
+            const barcode = document.getElementById('boletoBarcode');
+            barcode.select();
+            document.execCommand('copy');
+            alert('Código de barras copiado!');
+        }
+
+        function copyBoletoCode() {
+            const code = document.getElementById('boletoCode');
+            code.select();
+            document.execCommand('copy');
+            alert('Linha digitável copiada!');
+        }
+
+        function updatePaymentMethod(selectElement) {
+            if (confirm('Deseja alterar o método de pagamento? Um novo código será gerado.')) {
+                selectElement.form.submit();
+            } else {
+                // Restaurar valor anterior recarregando a página
+                location.reload();
+            }
+        }
+
+        // Preview de imagem ao selecionar arquivo
+        document.getElementById('receiptFile')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('filePreview');
+            const previewImage = document.getElementById('previewImage');
+            
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.style.display = 'none';
+            }
+        });
+
+        // Validação de tamanho de arquivo
+        document.getElementById('confirmPaymentForm')?.addEventListener('submit', function(e) {
+            const fileInput = document.getElementById('receiptFile');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const maxSize = 10 * 1024 * 1024; // 10MB
+                if (file.size > maxSize) {
+                    e.preventDefault();
+                    alert('O arquivo é muito grande. Tamanho máximo: 10MB');
+                    return false;
+                }
+            }
+        });
     </script>
 }

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.IO;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
@@ -15,16 +17,22 @@ namespace KlyonHubPlatform.Controllers
     {
         private readonly ICoworkingService _coworkingService;
         private readonly ICommissionService _commissionService;
+        private readonly IPaymentService _paymentService;
         private readonly ApplicationDbContext _context;
+        private readonly StorageServiceFactory _storageFactory;
 
         public CoworkingController(
             ICoworkingService coworkingService,
             ICommissionService commissionService,
-            ApplicationDbContext context)
+            IPaymentService paymentService,
+            ApplicationDbContext context,
+            StorageServiceFactory storageFactory)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
+            _paymentService = paymentService;
             _context = context;
+            _storageFactory = storageFactory;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -52,11 +60,21 @@ namespace KlyonHubPlatform.Controllers
             var commissions = await _commissionService.GetPendingCommissionsAsync(coworkingEntity.Id);
             var totalPending = commissions.Sum(c => c.Amount);
 
+            // Contar pagamentos aguardando validação
+            var pendingPaymentsCount = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                .Where(p => p.Status == PaymentStatus.AwaitingValidation
+                    && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                .CountAsync();
+
             ViewBag.Coworking = coworkingWithAddresses ?? coworkingEntity;
             ViewBag.ActiveContracts = contracts.Count(c => c.Status == ContractStatus.Active);
             ViewBag.PendingCommissions = totalPending;
             ViewBag.Commissions = commissions;
             ViewBag.TotalAddresses = coworkingWithAddresses?.Addresses?.Count ?? 0;
+            ViewBag.PendingPaymentsCount = pendingPaymentsCount;
 
             return View();
         }
@@ -64,19 +82,102 @@ namespace KlyonHubPlatform.Controllers
         [HttpGet]
         public IActionResult Register()
         {
+            // Preencher o email do usuário logado automaticamente
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            ViewBag.UserEmail = userEmail;
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(Coworking coworking)
+        public async Task<IActionResult> Register(Coworking coworking, 
+            List<IFormFile>? Photos, 
+            IFormFile? UtilityBill, 
+            IFormFile? AddressAuthorization, 
+            IFormFile? CNPJCard)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            coworking.UserId = userId;
-            coworking.IsActive = true;
-            coworking.IsPartner = true;
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                coworking.UserId = userId;
+                coworking.IsActive = true;
+                coworking.IsPartner = true;
 
-            await _coworkingService.CreateAsync(coworking);
-            return RedirectToAction("Dashboard");
+                var createdCoworking = await _coworkingService.CreateAsync(coworking);
+                var storageService = await _storageFactory.GetStorageServiceAsync();
+
+                // Processar fotos
+                if (Photos != null && Photos.Count > 0)
+                {
+                    var photoCount = 0;
+                    foreach (var photo in Photos.Take(10)) // Máximo 10 fotos
+                    {
+                        if (photo.Length > 0)
+                        {
+                            using var stream = new MemoryStream();
+                            await photo.CopyToAsync(stream);
+                            var fileBytes = stream.ToArray();
+                            var fileName = $"photo_{createdCoworking.Id}_{photoCount}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(photo.FileName)}";
+                            var filePath = await storageService.SaveFileAsync(fileBytes, fileName, $"coworkings/{createdCoworking.Id}/photos");
+
+                            var coworkingPhoto = new CoworkingPhoto
+                            {
+                                CoworkingId = createdCoworking.Id,
+                                FilePath = filePath,
+                                Description = photo.FileName,
+                                IsMain = photoCount == 0,
+                                DisplayOrder = photoCount
+                            };
+
+                            _context.CoworkingPhotos.Add(coworkingPhoto);
+                            photoCount++;
+                        }
+                    }
+                }
+
+                // Processar documentos obrigatórios
+                var documentsToProcess = new[]
+                {
+                    (UtilityBill, CoworkingDocumentType.UtilityBill, "utility_bill"),
+                    (AddressAuthorization, CoworkingDocumentType.AddressAuthorization, "address_authorization"),
+                    (CNPJCard, CoworkingDocumentType.CNPJCard, "cnpj_card")
+                };
+
+                foreach (var (file, docType, folderName) in documentsToProcess)
+                {
+                    if (file != null && file.Length > 0)
+                    {
+                        using var stream = new MemoryStream();
+                        await file.CopyToAsync(stream);
+                        var fileBytes = stream.ToArray();
+                        var fileName = $"{folderName}_{createdCoworking.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(file.FileName)}";
+                        var filePath = await storageService.SaveFileAsync(fileBytes, fileName, $"coworkings/{createdCoworking.Id}/documents");
+
+                        var coworkingDocument = new CoworkingDocument
+                        {
+                            CoworkingId = createdCoworking.Id,
+                            Type = docType,
+                            FileName = file.FileName,
+                            FilePath = filePath,
+                            IsValid = true,
+                            ExpiresAt = docType == CoworkingDocumentType.UtilityBill 
+                                ? DateTime.UtcNow.AddDays(90) 
+                                : null
+                        };
+
+                        _context.CoworkingDocuments.Add(coworkingDocument);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Coworking cadastrado com sucesso!";
+                return RedirectToAction("Dashboard");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao cadastrar coworking: {ex.Message}";
+                return View(coworking);
+            }
         }
 
         [HttpGet]
@@ -345,7 +446,15 @@ namespace KlyonHubPlatform.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ActiveContracts()
+        public async Task<IActionResult> ActiveContracts(
+            string? search = null,
+            string? status = null,
+            int? locationId = null,
+            string? clientName = null,
+            DateTime? startDateFrom = null,
+            DateTime? startDateTo = null,
+            int page = 1,
+            int pageSize = 15)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -356,11 +465,97 @@ namespace KlyonHubPlatform.Controllers
                 return RedirectToAction("Register");
             }
 
-            var contracts = await _context.Contracts
+            // Query base - por padrão mostra apenas ativos se não houver filtro de status
+            var query = _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.CoworkingAddress)
-                .Where(c => c.CoworkingAddress.CoworkingId == coworkingEntity.Id && c.Status == ContractStatus.Active)
+                    .ThenInclude(a => a.Location)
+                .Include(c => c.Subscription)
+                .Where(c => c.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                .AsQueryable();
+
+            // Se não houver filtro de status, mostrar apenas ativos por padrão
+            if (string.IsNullOrEmpty(status))
+            {
+                query = query.Where(c => c.Status == ContractStatus.Active);
+            }
+            else if (Enum.TryParse<ContractStatus>(status, out var contractStatus))
+            {
+                query = query.Where(c => c.Status == contractStatus);
+            }
+
+            // Filtro de busca (cliente, endereço, cidade, estado, número do contrato)
+            if (!string.IsNullOrEmpty(search))
+            {
+                query = query.Where(c =>
+                    (c.Client != null && (c.Client.RazaoSocial != null && c.Client.RazaoSocial.Contains(search) ||
+                                         c.Client.ContactName != null && c.Client.ContactName.Contains(search) ||
+                                         c.Client.CNPJ != null && c.Client.CNPJ.Contains(search) ||
+                                         c.Client.CPF != null && c.Client.CPF.Contains(search))) ||
+                    (c.CoworkingAddress != null && (c.CoworkingAddress.Address != null && c.CoworkingAddress.Address.Contains(search) ||
+                                                    c.CoworkingAddress.City != null && c.CoworkingAddress.City.Contains(search) ||
+                                                    c.CoworkingAddress.State != null && c.CoworkingAddress.State.Contains(search) ||
+                                                    (c.CoworkingAddress.Location != null && (c.CoworkingAddress.Location.City != null && c.CoworkingAddress.Location.City.Contains(search) ||
+                                                                                             c.CoworkingAddress.Location.State != null && c.CoworkingAddress.Location.State.Contains(search))))) ||
+                    (c.ContractNumber != null && c.ContractNumber.Contains(search)));
+            }
+
+            // Filtro por localidade
+            if (locationId.HasValue && locationId.Value > 0)
+            {
+                query = query.Where(c => c.CoworkingAddress != null && c.CoworkingAddress.LocationId == locationId.Value);
+            }
+
+            // Filtro por nome do cliente
+            if (!string.IsNullOrEmpty(clientName))
+            {
+                query = query.Where(c => c.Client != null && 
+                    (c.Client.RazaoSocial != null && c.Client.RazaoSocial.Contains(clientName) ||
+                     c.Client.ContactName != null && c.Client.ContactName.Contains(clientName)));
+            }
+
+            // Filtro por data de início (de)
+            if (startDateFrom.HasValue)
+            {
+                query = query.Where(c => c.StartDate >= startDateFrom.Value);
+            }
+
+            // Filtro por data de início (até)
+            if (startDateTo.HasValue)
+            {
+                query = query.Where(c => c.StartDate <= startDateTo.Value);
+            }
+
+            // Contagem total para paginação
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+            // Ordenação e paginação
+            var contracts = await query
+                .OrderByDescending(c => c.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
+
+            // ViewBag para manter os filtros
+            ViewBag.Search = search;
+            ViewBag.Status = status;
+            ViewBag.LocationId = locationId;
+            ViewBag.ClientName = clientName;
+            ViewBag.StartDateFrom = startDateFrom?.ToString("yyyy-MM-dd");
+            ViewBag.StartDateTo = startDateTo?.ToString("yyyy-MM-dd");
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            // Lista de localidades para o filtro
+            var locations = await _context.Locations
+                .Where(l => l.IsActive)
+                .OrderBy(l => l.City)
+                .ThenBy(l => l.State)
+                .ToListAsync();
+            ViewBag.Locations = locations;
 
             return View(contracts);
         }
@@ -449,6 +644,7 @@ namespace KlyonHubPlatform.Controllers
             var coworkingWithDetails = await _context.Coworkings
                 .Include(c => c.Photos)
                 .Include(c => c.Partners)
+                .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == coworkingEntity.Id);
 
             return View(coworkingWithDetails ?? coworkingEntity);
@@ -506,6 +702,716 @@ namespace KlyonHubPlatform.Controllers
                 TempData["Error"] = $"Erro ao atualizar dados: {ex.Message}";
                 return RedirectToAction("Profile");
             }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PendingPayments()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            // Buscar pagamentos aguardando validação dos contratos deste coworking
+            var payments = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.Client)
+                .Where(p => p.Status == PaymentStatus.AwaitingValidation
+                    && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+
+            return View(payments);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ValidatePayment(int id)
+        {
+            var payment = await _paymentService.GetPaymentByIdAsync(id);
+            if (payment == null)
+            {
+                TempData["Error"] = "Pagamento não encontrado.";
+                return RedirectToAction("PendingPayments");
+            }
+
+            // Verificar se o pagamento pertence a um contrato deste coworking
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            var contract = await _context.Contracts
+                .Include(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+
+            if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+            {
+                TempData["Error"] = "Você não tem permissão para validar este pagamento.";
+                return RedirectToAction("PendingPayments");
+            }
+
+            // Carregar dados completos
+            payment = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.Client)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            return View(payment);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApprovePayment(int paymentId)
+        {
+            try
+            {
+                var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                // Verificar se o pagamento pertence a um contrato deste coworking
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    return RedirectToAction("Register");
+                }
+
+                var contract = await _context.Contracts
+                    .Include(c => c.CoworkingAddress)
+                    .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+
+                if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+                {
+                    TempData["Error"] = "Você não tem permissão para validar este pagamento.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                if (payment.Status != PaymentStatus.AwaitingValidation)
+                {
+                    TempData["Error"] = "Este pagamento já foi processado.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                // Aprovar pagamento
+                payment.Status = PaymentStatus.Paid;
+                payment.PaidAt = DateTime.UtcNow;
+                payment.ValidatedBy = userId;
+                payment.ValidatedAt = DateTime.UtcNow;
+                payment.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                // Ativar contrato
+                contract.Status = ContractStatus.Active;
+                contract.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                // Atualizar contador de contratos do endereço
+                if (contract.CoworkingAddress != null)
+                {
+                    contract.CoworkingAddress.CurrentContracts++;
+                    if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                    {
+                        contract.CoworkingAddress.IsAvailable = false;
+                    }
+                    await _coworkingService.UpdateAddressAsync(contract.CoworkingAddress);
+                }
+
+                // Criar comissão
+                await _commissionService.CreateCommissionAsync(payment.Id);
+
+                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!";
+                return RedirectToAction("PendingPayments");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar pagamento: {ex.Message}";
+                return RedirectToAction("PendingPayments");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectPayment(int paymentId, string validationNotes)
+        {
+            try
+            {
+                var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                // Verificar se o pagamento pertence a um contrato deste coworking
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    return RedirectToAction("Register");
+                }
+
+                var contract = await _context.Contracts
+                    .Include(c => c.CoworkingAddress)
+                    .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+
+                if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+                {
+                    TempData["Error"] = "Você não tem permissão para validar este pagamento.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                if (payment.Status != PaymentStatus.AwaitingValidation)
+                {
+                    TempData["Error"] = "Este pagamento já foi processado.";
+                    return RedirectToAction("PendingPayments");
+                }
+
+                if (string.IsNullOrWhiteSpace(validationNotes))
+                {
+                    TempData["Error"] = "Por favor, informe a justificativa da reprovação.";
+                    return RedirectToAction("ValidatePayment", new { id = paymentId });
+                }
+
+                // Reprovar pagamento
+                payment.Status = PaymentStatus.Failed;
+                payment.FailureReason = validationNotes;
+                payment.ValidatedBy = userId;
+                payment.ValidatedAt = DateTime.UtcNow;
+                payment.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Pagamento reprovado. O cliente foi notificado.";
+                return RedirectToAction("PendingPayments");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao reprovar pagamento: {ex.Message}";
+                return RedirectToAction("PendingPayments");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadPaymentReceipt(int paymentId)
+        {
+            var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+            if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
+            {
+                return NotFound();
+            }
+
+            // Verificar se o pagamento pertence a um contrato deste coworking
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            var contract = await _context.Contracts
+                .Include(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+
+            if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+            {
+                return Forbid();
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(payment.ReceiptFilePath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var fileName = Path.GetFileName(payment.ReceiptFilePath);
+            var contentType = fileName.EndsWith(".pdf") ? "application/pdf" : "image/jpeg";
+            
+            return File(fileBytes, contentType, fileName);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadPhotos(List<IFormFile> Photos)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Register");
+                }
+
+                if (Photos == null || Photos.Count == 0)
+                {
+                    TempData["Error"] = "Por favor, selecione pelo menos uma foto.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Verificar limite de fotos (máximo 10)
+                var existingPhotosCount = await _context.CoworkingPhotos
+                    .Where(p => p.CoworkingId == coworkingEntity.Id)
+                    .CountAsync();
+
+                var photosToAdd = Photos.Take(10 - existingPhotosCount);
+                if (!photosToAdd.Any())
+                {
+                    TempData["Error"] = "Você já atingiu o limite máximo de 10 fotos.";
+                    return RedirectToAction("Profile");
+                }
+
+                var storageService = await _storageFactory.GetStorageServiceAsync();
+                var coworkingFolder = $"coworkings/{coworkingEntity.Id}/photos";
+                var photoCount = existingPhotosCount;
+
+                foreach (var photo in photosToAdd)
+                {
+                    if (photo.Length > 0 && photo.Length <= 5 * 1024 * 1024) // 5MB
+                    {
+                        using var stream = new MemoryStream();
+                        await photo.CopyToAsync(stream);
+                        var fileBytes = stream.ToArray();
+                        var fileName = $"photo_{coworkingEntity.Id}_{photoCount}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(photo.FileName)}";
+                        var filePath = await storageService.SaveFileAsync(fileBytes, fileName, coworkingFolder);
+
+                        var coworkingPhoto = new CoworkingPhoto
+                        {
+                            CoworkingId = coworkingEntity.Id,
+                            FilePath = filePath,
+                            Description = photo.FileName,
+                            IsMain = existingPhotosCount == 0 && photoCount == existingPhotosCount, // Primeira foto como principal
+                            DisplayOrder = photoCount,
+                            CreatedAt = DateTime.UtcNow
+                        };
+
+                        _context.CoworkingPhotos.Add(coworkingPhoto);
+                        photoCount++;
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = $"{photosToAdd.Count()} foto(s) adicionada(s) com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao fazer upload das fotos: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPhoto(int photoId)
+        {
+            var photo = await _context.CoworkingPhotos.FindAsync(photoId);
+            if (photo == null)
+            {
+                return NotFound();
+            }
+
+            // Verificar se a foto pertence ao coworking do usuário logado
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null || photo.CoworkingId != coworkingEntity.Id)
+            {
+                if (!User.IsInRole("Administrator"))
+                {
+                    return Forbid();
+                }
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(photo.FilePath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var contentType = photo.FilePath.EndsWith(".png") ? "image/png" : "image/jpeg";
+            return File(fileBytes, contentType);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetMainPhoto(int photoId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var photo = await _context.CoworkingPhotos
+                    .FirstOrDefaultAsync(p => p.Id == photoId && p.CoworkingId == coworkingEntity.Id);
+
+                if (photo == null)
+                {
+                    TempData["Error"] = "Foto não encontrada.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Remover principal de todas as fotos
+                var allPhotos = await _context.CoworkingPhotos
+                    .Where(p => p.CoworkingId == coworkingEntity.Id)
+                    .ToListAsync();
+
+                foreach (var p in allPhotos)
+                {
+                    p.IsMain = false;
+                }
+
+                // Definir nova principal
+                photo.IsMain = true;
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Foto principal atualizada com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao atualizar foto principal: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePhoto(int photoId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var photo = await _context.CoworkingPhotos
+                    .FirstOrDefaultAsync(p => p.Id == photoId && p.CoworkingId == coworkingEntity.Id);
+
+                if (photo == null)
+                {
+                    TempData["Error"] = "Foto não encontrada.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Deletar arquivo do storage
+                try
+                {
+                    var storageService = await _storageFactory.GetStorageServiceAsync();
+                    await storageService.DeleteFileAsync(photo.FilePath);
+                }
+                catch
+                {
+                    // Continuar mesmo se não conseguir deletar o arquivo
+                }
+
+                _context.CoworkingPhotos.Remove(photo);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Foto excluída com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao excluir foto: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddPartner(CoworkingPartner partner)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                partner.CoworkingId = coworkingEntity.Id;
+                partner.CreatedAt = DateTime.UtcNow;
+
+                _context.CoworkingPartners.Add(partner);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Sócio adicionado com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao adicionar sócio: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var existingPartner = await _context.CoworkingPartners
+                    .FirstOrDefaultAsync(p => p.Id == partner.Id && p.CoworkingId == coworkingEntity.Id);
+
+                if (existingPartner == null)
+                {
+                    TempData["Error"] = "Sócio não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                existingPartner.Name = partner.Name;
+                existingPartner.CPF = partner.CPF;
+                existingPartner.Email = partner.Email;
+                existingPartner.Phone = partner.Phone;
+                existingPartner.Role = partner.Role;
+                existingPartner.SharePercentage = partner.SharePercentage;
+                existingPartner.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Sócio atualizado com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao atualizar sócio: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePartner(int partnerId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var partner = await _context.CoworkingPartners
+                    .FirstOrDefaultAsync(p => p.Id == partnerId && p.CoworkingId == coworkingEntity.Id);
+
+                if (partner == null)
+                {
+                    TempData["Error"] = "Sócio não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                _context.CoworkingPartners.Remove(partner);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Sócio excluído com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao excluir sócio: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadDocument(int documentType, IFormFile documentFile)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Register");
+                }
+
+                if (documentFile == null || documentFile.Length == 0)
+                {
+                    TempData["Error"] = "Por favor, selecione um arquivo.";
+                    return RedirectToAction("Profile");
+                }
+
+                if (documentFile.Length > 10 * 1024 * 1024) // 10MB
+                {
+                    TempData["Error"] = "O arquivo excede o tamanho máximo de 10MB.";
+                    return RedirectToAction("Profile");
+                }
+
+                var docType = (CoworkingDocumentType)documentType;
+                var storageService = await _storageFactory.GetStorageServiceAsync();
+                
+                using var stream = new MemoryStream();
+                await documentFile.CopyToAsync(stream);
+                var fileBytes = stream.ToArray();
+                
+                var folderName = docType switch
+                {
+                    CoworkingDocumentType.AddressCessionContract => "address_cession_contract",
+                    CoworkingDocumentType.AddressProof => "address_proof",
+                    CoworkingDocumentType.CNPJCard => "cnpj_card",
+                    CoworkingDocumentType.AddressAuthorization => "address_authorization",
+                    _ => "other"
+                };
+                
+                var fileName = $"{folderName}_{coworkingEntity.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(documentFile.FileName)}";
+                var filePath = await storageService.SaveFileAsync(fileBytes, fileName, $"coworkings/{coworkingEntity.Id}/documents");
+
+                // Verificar se já existe um documento deste tipo
+                var existingDoc = await _context.CoworkingDocuments
+                    .FirstOrDefaultAsync(d => d.CoworkingId == coworkingEntity.Id && d.Type == docType);
+
+                if (existingDoc != null)
+                {
+                    // Substituir documento existente
+                    try
+                    {
+                        await storageService.DeleteFileAsync(existingDoc.FilePath);
+                    }
+                    catch
+                    {
+                        // Ignorar erro ao deletar arquivo antigo
+                    }
+
+                    existingDoc.FileName = documentFile.FileName;
+                    existingDoc.FilePath = filePath;
+                    existingDoc.UpdatedAt = DateTime.UtcNow;
+                    existingDoc.IsValid = true;
+                    
+                    // Definir data de expiração para comprovante de endereço (90 dias)
+                    if (docType == CoworkingDocumentType.AddressProof)
+                    {
+                        existingDoc.ExpiresAt = DateTime.UtcNow.AddDays(90);
+                    }
+                }
+                else
+                {
+                    // Criar novo documento
+                    var coworkingDocument = new CoworkingDocument
+                    {
+                        CoworkingId = coworkingEntity.Id,
+                        Type = docType,
+                        FileName = documentFile.FileName,
+                        FilePath = filePath,
+                        IsValid = true,
+                        ExpiresAt = docType == CoworkingDocumentType.AddressProof 
+                            ? DateTime.UtcNow.AddDays(90) 
+                            : null
+                    };
+
+                    _context.CoworkingDocuments.Add(coworkingDocument);
+                }
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Documento enviado com sucesso!";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao enviar documento: {ex.Message}";
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadDocument(int documentId)
+        {
+            var document = await _context.CoworkingDocuments.FindAsync(documentId);
+            if (document == null)
+            {
+                return NotFound();
+            }
+
+            // Verificar se o documento pertence ao coworking do usuário logado
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null || document.CoworkingId != coworkingEntity.Id)
+            {
+                if (!User.IsInRole("Administrator"))
+                {
+                    return Forbid();
+                }
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(document.FilePath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var contentType = document.FileName.EndsWith(".pdf") ? "application/pdf" : "image/jpeg";
+            return File(fileBytes, contentType, document.FileName);
         }
     }
 }

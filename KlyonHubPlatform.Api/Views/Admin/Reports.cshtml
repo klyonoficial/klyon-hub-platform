@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Relatórios";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -20,18 +21,26 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h5 class="card-title">Total Recebido</h5>
-                <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
+                <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title">Pendentes</h5>
+                <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Where(p => p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card text-white bg-info">
             <div class="card-body">
-                <h5 class="card-title">Pagamentos</h5>
+                <h5 class="card-title">Total de Pagamentos</h5>
                 <h3>@(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Count ?? 0)</h3>
             </div>
         </div>
@@ -61,9 +70,31 @@
                         @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)
                         {
                             <tr>
-                                <td>@payment.PaidAt?.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    @if (payment.PaidAt.HasValue)
+                                    {
+                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                    }
+                                    else
+                                    {
+                                        @payment.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                    }
+                                </td>
                                 <td>R$ @payment.Amount.ToString("F2")</td>
-                                <td>@payment.Method</td>
+                                <td>
+                                    @switch (payment.Method)
+                                    {
+                                        case PaymentMethod.PIX:
+                                            <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                            break;
+                                        case PaymentMethod.CreditCard:
+                                            <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
+                                            break;
+                                        case PaymentMethod.BankTransfer:
+                                            <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>
+                                            break;
+                                    }
+                                </td>
                                 <td>
                                     @(payment.Subscription?.Contract?.Client?.RazaoSocial ?? 
                                       payment.Subscription?.Contract?.Client?.NomeFantasia ?? 
@@ -74,9 +105,33 @@
                                     @(payment.Subscription?.Contract?.CoworkingAddress?.State ?? "")
                                 </td>
                                 <td>
-                                    <span class="badge bg-@(payment.Status == PaymentStatus.Paid ? "success" : "warning")">
-                                        @payment.Status
-                                    </span>
+                                    @switch (payment.Status)
+                                    {
+                                        case PaymentStatus.Pending:
+                                            <span class="badge bg-warning">Pendente</span>
+                                            break;
+                                        case PaymentStatus.Processing:
+                                            <span class="badge bg-info">Processando</span>
+                                            break;
+                                        case PaymentStatus.AwaitingValidation:
+                                            <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                            break;
+                                        case PaymentStatus.Paid:
+                                            <span class="badge bg-success">Pago</span>
+                                            break;
+                                        case PaymentStatus.Failed:
+                                            <span class="badge bg-danger">Falhou</span>
+                                            break;
+                                        case PaymentStatus.Refunded:
+                                            <span class="badge bg-secondary">Reembolsado</span>
+                                            break;
+                                        case PaymentStatus.Cancelled:
+                                            <span class="badge bg-dark">Cancelado</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary">@payment.Status</span>
+                                            break;
+                                    }
                                 </td>
                             </tr>
                         }

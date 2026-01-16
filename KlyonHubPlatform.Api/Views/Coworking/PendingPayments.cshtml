@@ -1,0 +1,97 @@
+@model List<KlyonHubPlatform.Domain.Entities.Payment>
+@using KlyonHubPlatform.Domain.Core.Enums
+@{
+    ViewData["Title"] = "Pagamentos Pendentes de Validação";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history"></i> Pagamentos Pendentes de Validação</h2>
+    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (Model.Any())
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nº Pagamento</th>
+                            <th>Cliente</th>
+                            <th>Endereço</th>
+                            <th>Valor</th>
+                            <th>Método</th>
+                            <th>Data Envio</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in Model)
+                        {
+                            var contract = payment.Subscription?.Contract;
+                            var client = contract?.Client;
+                            <tr>
+                                <td><strong>#@payment.Id</strong></td>
+                                <td>
+                                    @(client?.RazaoSocial ?? client?.ContactName ?? "N/A")<br>
+                                    <small class="text-muted">@(client?.CNPJ ?? client?.CPF ?? "")</small>
+                                </td>
+                                <td>
+                                    @(contract?.CoworkingAddress?.Address ?? "N/A"), @(contract?.CoworkingAddress?.Number ?? "")<br>
+                                    <small class="text-muted">@(contract?.CoworkingAddress?.City ?? "")/@(contract?.CoworkingAddress?.State ?? "")</small>
+                                </td>
+                                <td><strong>R$ @payment.Amount.ToString("N2")</strong></td>
+                                <td>
+                                    @switch (payment.Method)
+                                    {
+                                        case PaymentMethod.PIX:
+                                            <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                            break;
+                                        case PaymentMethod.CreditCard:
+                                            <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
+                                            break;
+                                        case PaymentMethod.BankTransfer:
+                                            <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>@payment.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    <a href="@Url.Action("ValidatePayment", "Coworking", new { id = payment.Id })" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> Validar
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Não há pagamentos pendentes de validação no momento.
+    </div>
+}

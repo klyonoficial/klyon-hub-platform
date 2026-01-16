@@ -19,6 +19,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
         public string? CancellationReason { get; set; }
+        public DateTime? CancellationRequestedAt { get; set; }
+        public string? CancellationRequestReason { get; set; }
+        public int? CancellationApprovedBy { get; set; }
+        public DateTime? CancellationApprovedAt { get; set; }
+        public string? CancellationRejectionReason { get; set; }
 
         // Navigation properties
         public virtual Client Client { get; set; } = null!;

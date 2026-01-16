@@ -4,6 +4,9 @@
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
+@using KlyonHubPlatform.Domain.Core.Enums
+
+@Html.AntiForgeryToken()
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
@@ -63,6 +66,11 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="partners-tab" data-bs-toggle="tab" data-bs-target="#partners" type="button" role="tab">
             <i class="bi bi-people"></i> Sócios
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+            <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
     </li>
 </ul>
@@ -222,7 +230,19 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="BankName" class="form-label">Banco</label>
-                            <input type="text" class="form-control" id="BankName" name="BankName" value="@Model.BankName">
+                            <select class="form-select" id="BankName" name="BankName">
+                                <option value="">Selecione o banco</option>
+                                @{
+                                    var banks = KlyonHubPlatform.Domain.Core.Constants.BrazilianBanks.GetBanks();
+                                    foreach (var bank in banks.OrderBy(b => b.Value))
+                                    {
+                                        var isSelected = !string.IsNullOrEmpty(Model.BankName) && 
+                                                         (Model.BankName == bank.Key || Model.BankName == bank.Value || 
+                                                          Model.BankName.Contains(bank.Value) || Model.BankName.Contains(bank.Key));
+                                        <option value="@bank.Key" selected="@isSelected">@bank.Key - @bank.Value</option>
+                                    }
+                                }
+                            </select>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="BankAgency" class="form-label">Agência</label>
@@ -303,10 +323,95 @@
     <div class="tab-pane fade" id="photos" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <h5 class="mb-3"><i class="bi bi-images"></i> Galeria de Fotos</h5>
-                <p class="text-muted">Funcionalidade de upload de fotos será implementada em breve.</p>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Em breve você poderá fazer upload de fotos do seu coworking aqui.
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-images"></i> Galeria de Fotos</h5>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadPhotoModal">
+                        <i class="bi bi-plus-circle"></i> Adicionar Fotos
+                    </button>
+                </div>
+
+                @if (Model.Photos != null && Model.Photos.Any())
+                {
+                    <div class="row">
+                        @foreach (var photo in Model.Photos.OrderBy(p => p.DisplayOrder).ThenBy(p => p.CreatedAt))
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="card position-relative">
+                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" 
+                                         class="card-img-top" 
+                                         alt="@photo.Description" 
+                                         style="height: 200px; object-fit: cover; cursor: pointer;"
+                                         onclick="viewPhoto(@photo.Id)">
+                                    <div class="card-body p-2">
+                                        @if (photo.IsMain)
+                                        {
+                                            <span class="badge bg-success mb-2">Principal</span>
+                                        }
+                                        <div class="btn-group btn-group-sm w-100" role="group">
+                                            <button type="button" class="btn btn-outline-primary" onclick="setMainPhoto(@photo.Id)" title="Definir como principal">
+                                                <i class="bi bi-star"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger" onclick="deletePhoto(@photo.Id)" title="Excluir">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhuma foto cadastrada. Clique em "Adicionar Fotos" para começar.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Upload de Fotos -->
+    <div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadPhotoModalLabel">
+                        <i class="bi bi-upload"></i> Adicionar Fotos
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="@Url.Action("UploadPhotos", "Coworking")" enctype="multipart/form-data" id="uploadPhotoForm">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="Photos" class="form-label">Selecione as fotos (máximo 10)</label>
+                            <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" required>
+                            <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB por foto.</small>
+                        </div>
+                        <div id="photoPreview" class="row"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Enviar Fotos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Visualizar Foto -->
+    <div class="modal fade" id="viewPhotoModal" tabindex="-1" aria-labelledby="viewPhotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewPhotoModalLabel">Visualizar Foto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="viewPhotoImg" src="" alt="Foto" class="img-fluid">
                 </div>
             </div>
         </div>
@@ -318,15 +423,450 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="bi bi-people"></i> Sócios e Parceiros</h5>
-                    <button class="btn btn-primary btn-sm" onclick="alert('Funcionalidade será implementada em breve')">
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPartnerModal">
                         <i class="bi bi-plus-circle"></i> Adicionar Sócio
                     </button>
                 </div>
-                <p class="text-muted">Funcionalidade de gerenciamento de sócios será implementada em breve.</p>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Em breve você poderá cadastrar e gerenciar sócios e parceiros do coworking aqui.
+
+                @if (Model.Partners != null && Model.Partners.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>CPF</th>
+                                    <th>Email</th>
+                                    <th>Telefone</th>
+                                    <th>Cargo/Função</th>
+                                    <th>Participação</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var partner in Model.Partners.OrderBy(p => p.Name))
+                                {
+                                    <tr>
+                                        <td><strong>@partner.Name</strong></td>
+                                        <td>@(partner.CPF ?? "-")</td>
+                                        <td>@(partner.Email ?? "-")</td>
+                                        <td>@(partner.Phone ?? "-")</td>
+                                        <td>@(partner.Role ?? "-")</td>
+                                        <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F2}%" : "-")</td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editPartner(@partner.Id, '@partner.Name', '@(partner.CPF ?? "")', '@(partner.Email ?? "")', '@(partner.Phone ?? "")', '@(partner.Role ?? "")', @(partner.SharePercentage?.ToString() ?? "null"))" title="Editar">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir este sócio?')">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="partnerId" value="@partner.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum sócio cadastrado. Clique em "Adicionar Sócio" para começar.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar/Editar Sócio -->
+    <div class="modal fade" id="addPartnerModal" tabindex="-1" aria-labelledby="addPartnerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addPartnerModalLabel">
+                        <i class="bi bi-person-plus"></i> <span id="modalTitle">Adicionar Sócio</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="@Url.Action("AddPartner", "Coworking")" id="partnerForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Id" id="partnerId" value="0" />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="partnerName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="partnerName" name="Name" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerCPF" class="form-label">CPF</label>
+                                <input type="text" class="form-control" id="partnerCPF" name="CPF" placeholder="000.000.000-00" maxlength="14">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerPhone" class="form-label">Telefone</label>
+                                <input type="text" class="form-control" id="partnerPhone" name="Phone" placeholder="(00) 00000-0000" maxlength="15">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="partnerEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="partnerEmail" name="Email" placeholder="email@exemplo.com">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerRole" class="form-label">Cargo/Função</label>
+                                <input type="text" class="form-control" id="partnerRole" name="Role" placeholder="Ex: Sócio, Diretor, Gerente">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerShare" class="form-label">Participação (%)</label>
+                                <input type="number" class="form-control" id="partnerShare" name="SharePercentage" min="0" max="100" step="0.01" placeholder="0.00" oninput="this.value = Math.max(0, Math.min(100, this.value))">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> <span id="modalSubmitText">Adicionar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documentos Obrigatórios -->
+    <div class="tab-pane fade" id="documents" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-4"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios</h5>
+                <p class="text-muted mb-4">
+                    <i class="bi bi-info-circle"></i> 
+                    Os documentos abaixo são obrigatórios para o cadastro do coworking. 
+                    Certifique-se de anexar todos os documentos solicitados.
+                </p>
+
+                @{
+                    var requiredDocuments = new[]
+                    {
+                        (CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
+                        (CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                        (CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
+                        (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+                    };
+
+                    var existingDocuments = Model.Documents?.ToDictionary(d => d.Type) ?? new Dictionary<CoworkingDocumentType, CoworkingDocument>();
+                }
+
+                <div class="row">
+                    @foreach (var (docType, docName, docDescription) in requiredDocuments)
+                    {
+                        var existingDoc = existingDocuments.ContainsKey(docType) ? existingDocuments[docType] : null;
+                        var hasDocument = existingDoc != null;
+                        var isExpired = existingDoc?.ExpiresAt.HasValue == true && existingDoc.ExpiresAt.Value < DateTime.UtcNow;
+                        
+                        <div class="col-md-6 mb-4">
+                            <div class="card @(hasDocument && !isExpired ? "border-success" : "border-warning")">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h6 class="card-title mb-1">
+                                                @if (hasDocument && !isExpired)
+                                                {
+                                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-exclamation-circle-fill text-warning"></i>
+                                                }
+                                                @docName
+                                            </h6>
+                                            <small class="text-muted">@docDescription</small>
+                                        </div>
+                                    </div>
+
+                                    @if (hasDocument)
+                                    {
+                                        <div class="mb-3">
+                                            <p class="mb-1">
+                                                <strong>Arquivo:</strong> @existingDoc.FileName
+                                            </p>
+                                            <p class="mb-1">
+                                                <strong>Enviado em:</strong> @existingDoc.CreatedAt.ToString("dd/MM/yyyy")
+                                            </p>
+                                            @if (existingDoc.ExpiresAt.HasValue)
+                                            {
+                                                <p class="mb-1 @(isExpired ? "text-danger" : "")">
+                                                    <strong>Válido até:</strong> @existingDoc.ExpiresAt.Value.ToString("dd/MM/yyyy")
+                                                    @if (isExpired)
+                                                    {
+                                                        <span class="badge bg-danger ms-2">Expirado</span>
+                                                    }
+                                                </p>
+                                            }
+                                        </div>
+                                        <div class="btn-group w-100">
+                                            <a href="@Url.Action("DownloadDocument", "Coworking", new { documentId = existingDoc.Id })" 
+                                               class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="bi bi-download"></i> Visualizar
+                                            </a>
+                                        </div>
+                                        <form method="post" action="@Url.Action("UploadDocument", "Coworking")" 
+                                              enctype="multipart/form-data" class="mt-2 document-upload-form" 
+                                              data-doc-type="@((int)docType)">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="documentType" value="@((int)docType)">
+                                            <div class="mb-2">
+                                                <input type="file" class="form-control form-control-sm" 
+                                                       name="documentFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                                                <small class="text-muted">Formatos aceitos: PDF, JPG, PNG. Tamanho máximo: 10MB</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-warning w-100">
+                                                <i class="bi bi-upload"></i> Substituir Documento
+                                            </button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <form method="post" action="@Url.Action("UploadDocument", "Coworking")" 
+                                              enctype="multipart/form-data" class="document-upload-form" 
+                                              data-doc-type="@((int)docType)">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="documentType" value="@((int)docType)">
+                                            <div class="mb-3">
+                                                <input type="file" class="form-control form-control-sm" 
+                                                       name="documentFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                                                <small class="text-muted">Formatos aceitos: PDF, JPG, PNG. Tamanho máximo: 10MB</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                                                <i class="bi bi-upload"></i> Enviar Documento
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Preview de fotos ao selecionar
+        document.getElementById('Photos')?.addEventListener('change', function(e) {
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+            
+            if (e.target.files.length > 0) {
+                Array.from(e.target.files).slice(0, 10).forEach((file, index) => {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const col = document.createElement('div');
+                            col.className = 'col-md-3 mb-2';
+                            col.innerHTML = `
+                                <div class="card">
+                                    <img src="${e.target.result}" class="card-img-top" style="height: 150px; object-fit: cover;">
+                                    <div class="card-body p-2">
+                                        <small class="text-muted">${file.name}</small>
+                                    </div>
+                                </div>
+                            `;
+                            preview.appendChild(col);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+        });
+
+        // Visualizar foto
+        function viewPhoto(photoId) {
+            const img = document.getElementById('viewPhotoImg');
+            img.src = '@Url.Action("GetPhoto", "Coworking")?photoId=' + photoId;
+            const modal = new bootstrap.Modal(document.getElementById('viewPhotoModal'));
+            modal.show();
+        }
+
+        // Definir foto como principal
+        function setMainPhoto(photoId) {
+            if (!confirm('Deseja definir esta foto como principal?')) {
+                return;
+            }
+
+            // Criar formulário dinamicamente
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '@Url.Action("SetMainPhoto", "Coworking")';
+            
+            // Buscar token anti-forgery
+            const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+            const token = tokenInput ? tokenInput.value : '';
+            
+            if (token) {
+                const tokenField = document.createElement('input');
+                tokenField.type = 'hidden';
+                tokenField.name = '__RequestVerificationToken';
+                tokenField.value = token;
+                form.appendChild(tokenField);
+            }
+            
+            const photoIdInput = document.createElement('input');
+            photoIdInput.type = 'hidden';
+            photoIdInput.name = 'photoId';
+            photoIdInput.value = photoId;
+            form.appendChild(photoIdInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Deletar foto
+        function deletePhoto(photoId) {
+            if (!confirm('Tem certeza que deseja excluir esta foto?')) {
+                return;
+            }
+
+            // Criar formulário dinamicamente
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '@Url.Action("DeletePhoto", "Coworking")';
+            
+            // Buscar token anti-forgery
+            const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+            const token = tokenInput ? tokenInput.value : '';
+            
+            if (token) {
+                const tokenField = document.createElement('input');
+                tokenField.type = 'hidden';
+                tokenField.name = '__RequestVerificationToken';
+                tokenField.value = token;
+                form.appendChild(tokenField);
+            }
+            
+            const photoIdInput = document.createElement('input');
+            photoIdInput.type = 'hidden';
+            photoIdInput.name = 'photoId';
+            photoIdInput.value = photoId;
+            form.appendChild(photoIdInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Função para aplicar máscara de CPF
+        function applyCPFMask(value) {
+            if (!value) return '';
+            let numbers = value.replace(/\D/g, '');
+            if (numbers.length <= 11) {
+                numbers = numbers.replace(/(\d{3})(\d)/, '$1.$2');
+                numbers = numbers.replace(/(\d{3})(\d)/, '$1.$2');
+                numbers = numbers.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            }
+            return numbers;
+        }
+
+        // Função para aplicar máscara de Telefone
+        function applyPhoneMask(value) {
+            if (!value) return '';
+            let numbers = value.replace(/\D/g, '');
+            if (numbers.length <= 11) {
+                if (numbers.length <= 10) {
+                    numbers = numbers.replace(/(\d{2})(\d)/, '($1) $2');
+                    numbers = numbers.replace(/(\d{4})(\d)/, '$1-$2');
+                } else {
+                    numbers = numbers.replace(/(\d{2})(\d)/, '($1) $2');
+                    numbers = numbers.replace(/(\d{5})(\d)/, '$1-$2');
+                }
+            }
+            return numbers;
+        }
+
+        // Função para editar sócio
+        function editPartner(id, name, cpf, email, phone, role, sharePercentage) {
+            document.getElementById('partnerId').value = id;
+            document.getElementById('partnerName').value = name;
+            document.getElementById('partnerCPF').value = applyCPFMask(cpf || '');
+            document.getElementById('partnerEmail').value = email || '';
+            document.getElementById('partnerPhone').value = applyPhoneMask(phone || '');
+            document.getElementById('partnerRole').value = role || '';
+            // Garantir que participação não seja negativa e formatar para 2 casas decimais
+            var share = sharePercentage && sharePercentage !== 'null' ? parseFloat(sharePercentage) : '';
+            if (share !== '' && share < 0) share = 0;
+            if (share !== '' && !isNaN(share)) {
+                share = parseFloat(share.toFixed(2));
+            }
+            document.getElementById('partnerShare').value = share;
+            
+            document.getElementById('modalTitle').textContent = 'Editar Sócio';
+            document.getElementById('modalSubmitText').textContent = 'Salvar Alterações';
+            document.getElementById('partnerForm').action = '@Url.Action("UpdatePartner", "Coworking")';
+            
+            const modal = new bootstrap.Modal(document.getElementById('addPartnerModal'));
+            modal.show();
+        }
+
+        // Máscaras são aplicadas automaticamente pelo masks.js global
+
+        // Validação de participação (não permitir negativo)
+        document.getElementById('partnerShare')?.addEventListener('input', function(e) {
+            let value = parseFloat(e.target.value);
+            if (isNaN(value) || value < 0) {
+                e.target.value = '';
+            } else if (value > 100) {
+                e.target.value = '100';
+            }
+        });
+
+        // Resetar modal ao fechar
+        document.getElementById('addPartnerModal')?.addEventListener('hidden.bs.modal', function() {
+            document.getElementById('partnerForm').reset();
+            document.getElementById('partnerId').value = '0';
+            document.getElementById('modalTitle').textContent = 'Adicionar Sócio';
+            document.getElementById('modalSubmitText').textContent = 'Adicionar';
+            document.getElementById('partnerForm').action = '@Url.Action("AddPartner", "Coworking")';
+        });
+
+
+        // Validação de tamanho de arquivo para documentos
+        document.querySelectorAll('.document-upload-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                const fileInput = this.querySelector('input[type="file"]');
+                if (fileInput && fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    if (file.size > 10 * 1024 * 1024) { // 10MB
+                        e.preventDefault();
+                        alert('O arquivo excede o tamanho máximo de 10MB.');
+                        return false;
+                    }
+                }
+            });
+        });
+
+        // Validação de tamanho de arquivo
+        document.getElementById('uploadPhotoForm')?.addEventListener('submit', function(e) {
+            const fileInput = document.getElementById('Photos');
+            if (fileInput.files.length > 0) {
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                const maxFiles = 10;
+                
+                if (fileInput.files.length > maxFiles) {
+                    e.preventDefault();
+                    alert(`Você pode enviar no máximo ${maxFiles} fotos por vez.`);
+                    return false;
+                }
+
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    if (fileInput.files[i].size > maxSize) {
+                        e.preventDefault();
+                        alert(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: 5MB`);
+                        return false;
+                    }
+                }
+            }
+        });
+    </script>
+}

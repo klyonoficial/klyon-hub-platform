@@ -4,6 +4,7 @@
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Contract>
+@using KlyonHubPlatform.Domain.Core.Enums
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h2>
@@ -27,6 +28,77 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" action="@Url.Action("ActiveContracts", "Coworking")" id="filterForm">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="@ViewBag.Search" placeholder="Cliente, endereço, cidade...">
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="Active" selected="@(ViewBag.Status == "Active")">Ativo</option>
+                        <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspenso</option>
+                        <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelado</option>
+                        <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirado</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="locationId" class="form-label">Localidade</label>
+                    <select class="form-select" id="locationId" name="locationId">
+                        <option value="">Todas</option>
+                        @if (ViewBag.Locations != null)
+                        {
+                            @foreach (var location in (List<KlyonHubPlatform.Domain.Entities.Location>)ViewBag.Locations)
+                            {
+                                <option value="@location.Id" selected="@(ViewBag.LocationId != null && ViewBag.LocationId.ToString() == location.Id.ToString())">
+                                    @location.City/@location.State
+                                </option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="startDateFrom" class="form-label">Data Início (De)</label>
+                    <input type="date" class="form-control" id="startDateFrom" name="startDateFrom" 
+                           value="@ViewBag.StartDateFrom">
+                </div>
+                <div class="col-md-2">
+                    <label for="startDateTo" class="form-label">Data Início (Até)</label>
+                    <input type="date" class="form-control" id="startDateTo" name="startDateTo" 
+                           value="@ViewBag.StartDateTo">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(ViewBag.Search as string) || 
+                 !string.IsNullOrEmpty(ViewBag.Status as string) || 
+                 ViewBag.LocationId != null ||
+                 !string.IsNullOrEmpty(ViewBag.StartDateFrom as string) ||
+                 !string.IsNullOrEmpty(ViewBag.StartDateTo as string))
+            {
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <a href="@Url.Action("ActiveContracts", "Coworking")" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-x-circle"></i> Limpar Filtros
+                        </a>
+                    </div>
+                </div>
+            }
+        </form>
+    </div>
+</div>
 
 <div class="card">
     <div class="card-header">
@@ -73,9 +145,24 @@
                                 </td>
                                 <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
                                 <td>
-                                    <span class="badge bg-@(contract.Status == ContractStatus.Active ? "success" : "secondary")">
-                                        @contract.Status
-                                    </span>
+                                    @switch (contract.Status)
+                                    {
+                                        case ContractStatus.Active:
+                                            <span class="badge bg-success">Ativo</span>
+                                            break;
+                                        case ContractStatus.Suspended:
+                                            <span class="badge bg-warning">Suspenso</span>
+                                            break;
+                                        case ContractStatus.Cancelled:
+                                            <span class="badge bg-danger">Cancelado</span>
+                                            break;
+                                        case ContractStatus.Expired:
+                                            <span class="badge bg-secondary">Expirado</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary">@contract.Status</span>
+                                            break;
+                                    }
                                 </td>
                                 <td>
                                     <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" 
@@ -91,9 +178,34 @@
 
             <div class="mt-3">
                 <p class="text-muted">
-                    <strong>Total de contratos ativos:</strong> @Model.Count
+                    <strong>Total de contratos:</strong> @(ViewBag.TotalItems ?? Model.Count)
+                    @if (ViewBag.TotalItems != null && ViewBag.TotalItems > Model.Count)
+                    {
+                        <text>(Mostrando @Model.Count de @ViewBag.TotalItems)</text>
+                    }
                 </p>
             </div>
+
+            @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("ActiveContracts", "Coworking", new { 
+                                    search = ViewBag.Search, 
+                                    status = ViewBag.Status, 
+                                    locationId = ViewBag.LocationId,
+                                    startDateFrom = ViewBag.StartDateFrom,
+                                    startDateTo = ViewBag.StartDateTo,
+                                    page = i 
+                                })">@i</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
         }
         else
         {

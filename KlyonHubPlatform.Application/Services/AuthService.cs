@@ -9,6 +9,7 @@ using KlyonHubPlatform.Infra.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 namespace KlyonHubPlatform.Application.Services
 {

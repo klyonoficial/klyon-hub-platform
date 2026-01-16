@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Mail;
 using System.Text;
 using KlyonHubPlatform.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace KlyonHubPlatform.Application.Services
 {

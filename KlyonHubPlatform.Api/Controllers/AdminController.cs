@@ -250,6 +250,45 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> ViewCoworking(int id)
+        {
+            var coworking = await _context.Coworkings
+                .Include(c => c.User)
+                .Include(c => c.Addresses)
+                    .ThenInclude(a => a.Location)
+                .Include(c => c.Photos)
+                .Include(c => c.Documents)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (coworking == null)
+            {
+                TempData["Error"] = "Coworking não encontrado.";
+                return RedirectToAction("Coworkings");
+            }
+
+            return View(coworking);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditCoworking(int id)
+        {
+            var coworking = await _context.Coworkings
+                .Include(c => c.User)
+                .Include(c => c.Addresses)
+                .Include(c => c.Photos)
+                .Include(c => c.Documents)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (coworking == null)
+            {
+                TempData["Error"] = "Coworking não encontrado.";
+                return RedirectToAction("Coworkings");
+            }
+
+            return View(coworking);
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Contracts(string? search = null, string? status = null, int? clientId = null, int page = 1, int pageSize = 15)
         {
             var contracts = await _adminService.GetContractsFilteredAsync(search, status, clientId, page, pageSize);
@@ -342,7 +381,20 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao criar localidade: {ex.Message}";
-                return RedirectToAction("CreateLocation");
+                
+                // Recarregar ViewBag para não perder os dados ao retornar a view
+                ViewBag.States = new List<string>
+                {
+                    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+                    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+                    "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+                };
+                ViewBag.Regions = new List<string>
+                {
+                    "Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"
+                };
+                
+                return View();
             }
         }
 
@@ -435,7 +487,8 @@ namespace KlyonHubPlatform.Api.Controllers
             var startDate = DateTime.UtcNow.AddMonths(-1);
             var endDate = DateTime.UtcNow;
 
-            var payments = await _reportService.GetRecentPaymentsAsync(30, 100);
+            // Buscar pagamentos dos últimos 30 dias incluindo pendentes
+            var payments = await _reportService.GetRecentPaymentsAsync(30, 500);
 
             ViewBag.Payments = payments;
             ViewBag.StartDate = startDate;
@@ -450,8 +503,12 @@ namespace KlyonHubPlatform.Api.Controllers
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
             
+            // Obter o provedor de storage atual
+            var currentProvider = await _systemConfigurationService.GetValueAsync("Storage.Provider") ?? "AWS";
+            
             ViewBag.GroupedConfigurations = groupedByCategory;
             ViewBag.Categories = groupedByCategory.Select(g => g.Key).ToList();
+            ViewBag.CurrentStorageProvider = currentProvider;
             
             return View(configurations);
         }

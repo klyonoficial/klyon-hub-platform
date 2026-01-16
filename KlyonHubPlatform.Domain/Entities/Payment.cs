@@ -15,11 +15,19 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? TransactionId { get; set; }
         public string? PixCode { get; set; }
         public DateTime? PixExpiresAt { get; set; }
+        public string? BoletoCode { get; set; }
+        public string? BoletoBarcode { get; set; }
+        public DateTime? BoletoExpiresAt { get; set; }
         public string? FailureReason { get; set; }
+        public string? ReceiptFilePath { get; set; }
+        public string? ValidationNotes { get; set; }
+        public int? ValidatedBy { get; set; }
+        public DateTime? ValidatedAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Subscription Subscription { get; set; } = null!;
+        public virtual User? Validator { get; set; }
     }
 }

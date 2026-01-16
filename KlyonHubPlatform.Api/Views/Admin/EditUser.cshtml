@@ -17,6 +17,7 @@
         <div class="card">
             <div class="card-body">
                 <form method="post" action="@Url.Action("EditUser", "Admin", new { id = Model.Id })">
+                    @Html.AntiForgeryToken()
                     <input type="hidden" name="id" value="@Model.Id">
                     
                     <div class="mb-3">

@@ -117,6 +117,9 @@
                                         case PaymentStatus.Processing:
                                             <span class="badge bg-info">Processando</span>
                                             break;
+                                        case PaymentStatus.AwaitingValidation:
+                                            <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                            break;
                                         case PaymentStatus.Paid:
                                             <span class="badge bg-success">Pago</span>
                                             break;
