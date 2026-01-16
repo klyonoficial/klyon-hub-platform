@@ -1,6 +1,7 @@
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Application.DTOs.PagBank;
 
 namespace KlyonHubPlatform.Application.Interfaces
 {
@@ -13,6 +14,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method);
         Task<string> GeneratePixCodeAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
+        Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null);
         Task<List<Payment>> GetPendingPaymentsAsync();
         Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId);
         Task<Payment?> GetPaymentByIdAsync(int paymentId);

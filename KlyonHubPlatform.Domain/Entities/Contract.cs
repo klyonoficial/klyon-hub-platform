@@ -10,6 +10,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string ContractNumber { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
+        public DateTime? ExpiryDate { get; set; } // Data de validade do endereço fiscal (1 ano após primeiro pagamento)
+        public DateTime? LastExpiryNotificationSent { get; set; } // Última vez que foi enviada notificação de vencimento
         public ContractStatus Status { get; set; } = ContractStatus.Active;
         public decimal MonthlyValue { get; set; }
         public string? ContractDocumentPath { get; set; }

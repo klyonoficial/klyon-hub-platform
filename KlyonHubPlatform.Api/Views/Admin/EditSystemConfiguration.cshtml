@@ -52,11 +52,33 @@
                     <input type="password" class="form-control" id="value" name="value" value="@Model.Value" required>
                     <small class="form-text text-muted">
                         <i class="bi bi-lock"></i> Este é um campo sensível. Digite o novo valor para atualizar.
+                        @if (Model.Key == "PagBank.AccessToken")
+                        {
+                            <text>
+                                <br />
+                                <i class="bi bi-info-circle"></i> <strong>Dica:</strong> Obtenha o token em 
+                                <a href="https://sandbox.pagseguro.uol.com.br/" target="_blank">PagBank Sandbox</a> (testes) ou 
+                                <a href="https://pagseguro.uol.com.br/" target="_blank">PagBank Produção</a> - Integrações - APIs
+                            </text>
+                        }
                     </small>
                 }
                 else
                 {
-                    <textarea class="form-control" id="value" name="value" rows="3" required>@Model.Value</textarea>
+                    @if (Model.Key == "PagBank.UseSandbox")
+                    {
+                        <select class="form-control" id="value" name="value" required>
+                            <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Ambiente de Testes - Sandbox)</option>
+                            <option value="false" selected="@(Model.Value?.ToLower() == "false")">false (Ambiente de Produção)</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i> Use <strong>true</strong> para testes ou <strong>false</strong> para pagamentos reais.
+                        </small>
+                    }
+                    else
+                    {
+                        <textarea class="form-control" id="value" name="value" rows="3" required>@Model.Value</textarea>
+                    }
                 }
             </div>
 

@@ -4,6 +4,11 @@
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Location>
+@using KlyonHubPlatform.Domain.Core.Constants
+
+@{
+    var availableAddressesCount = ViewBag.AvailableAddressesCount as Dictionary<int, int> ?? new Dictionary<int, int>();
+}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-geo-alt"></i> Escolher Localidade</h2>
@@ -12,19 +17,43 @@
 <div class="row">
     @foreach (var location in Model)
     {
+        var hasAvailableAddresses = availableAddressesCount.ContainsKey(location.Id) && availableAddressesCount[location.Id] > 0;
+        var addressCount = hasAvailableAddresses ? availableAddressesCount[location.Id] : 0;
+        var cityImageUrl = CityImages.GetCityImageUrl(location.City, location.State);
+        
         <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-geo-alt-fill text-primary"></i> @location.City
-                    </h5>
-                    <p class="card-text">
-                        <strong>Estado:</strong> @location.State<br>
-                        <strong>Região:</strong> @location.Region
-                    </p>
-                    <a href="@Url.Action("AvailableAddresses", "Client", new { locationId = location.Id })" class="btn btn-primary">
-                        <i class="bi bi-arrow-right"></i> Ver Endereços Disponíveis
-                    </a>
+            <div class="card h-100 @(hasAvailableAddresses ? "border-success" : "border-secondary")" style="position: relative;">
+                @if (hasAvailableAddresses)
+                {
+                    <span class="badge bg-success position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                        <i class="bi bi-check-circle"></i> @addressCount @(addressCount == 1 ? "endereço disponível" : "endereços disponíveis")
+                    </span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                        <i class="bi bi-x-circle"></i> Sem endereços
+                    </span>
+                }
+                
+                <div class="card-body p-0">
+                    <div class="position-relative" style="height: 250px; overflow: hidden;">
+                        <img src="@cityImageUrl" 
+                             alt="@location.City" 
+                             class="card-img-top" 
+                             style="width: 100%; height: 100%; object-fit: cover;"
+                             onerror="this.src='https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop';">
+                    </div>
+                    <div class="p-3">
+                        <p class="card-text mb-2">
+                            <strong>Estado:</strong> @location.State<br>
+                            <strong>Região:</strong> @location.Region
+                        </p>
+                        <a href="@Url.Action("AvailableAddresses", "Client", new { locationId = location.Id })" 
+                           class="btn btn-primary w-100 @(hasAvailableAddresses ? "" : "disabled")">
+                            <i class="bi bi-arrow-right"></i> Ver Endereços Disponíveis
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

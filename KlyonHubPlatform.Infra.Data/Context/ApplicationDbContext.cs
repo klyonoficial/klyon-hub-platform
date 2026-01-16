@@ -30,6 +30,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<Language> Languages { get; set; }
         public DbSet<Translation> Translations { get; set; }
         public DbSet<SystemConfiguration> SystemConfigurations { get; set; }
+        public DbSet<CreditCard> CreditCards { get; set; }
+        public DbSet<AddressDeclaration> AddressDeclarations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -87,6 +89,14 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.CNPJ).IsUnique();
                 entity.HasIndex(e => e.CPF).IsUnique();
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
+            });
+
+            // CreditCard configuration
+            modelBuilder.Entity<CreditCard>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client).WithMany().HasForeignKey(e => e.ClientId);
+                entity.HasIndex(e => new { e.ClientId, e.LastFourDigits, e.ExpiryMonth, e.ExpiryYear }).IsUnique();
             });
 
             // Contract configuration
@@ -226,6 +236,18 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Description).HasMaxLength(500);
                 entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.UpdatedBy).HasMaxLength(255);
+            });
+
+            // AddressDeclaration configuration
+            modelBuilder.Entity<AddressDeclaration>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Contract)
+                    .WithMany()
+                    .HasForeignKey(e => e.ContractId);
+                entity.HasIndex(e => e.DeclarationNumber).IsUnique();
+                entity.HasIndex(e => new { e.ContractId, e.Version });
+                entity.Property(e => e.DeclarationNumber).IsRequired().HasMaxLength(50);
             });
         }
     }

@@ -28,13 +28,39 @@
     </div>
 }
 
+@{
+    var mainPhotos = ViewBag.MainPhotos as Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto> ?? new Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
+}
+
 @if (Model.Any())
 {
     <div class="row">
         @foreach (var address in Model)
         {
+            var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
+            var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
+            
             <div class="col-md-6 mb-4">
                 <div class="card h-100">
+                    @if (hasMainPhoto && mainPhoto != null)
+                    {
+                        <div class="position-relative" style="height: 250px; overflow: hidden; background-color: #f0f0f0;">
+                            <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = mainPhoto.Id })" 
+                                 alt="Foto do Coworking" 
+                                 class="card-img-top" 
+                                 style="width: 100%; height: 100%; object-fit: cover;"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'250\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'250\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'18\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';">
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="position-relative" style="height: 250px; overflow: hidden; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-image" style="font-size: 3rem;"></i>
+                                <p class="mt-2 mb-0">Foto não disponível</p>
+                            </div>
+                        </div>
+                    }
                     <div class="card-body">
                         <h5 class="card-title">
                             <i class="bi bi-geo-alt"></i> @address.Address, @address.Number

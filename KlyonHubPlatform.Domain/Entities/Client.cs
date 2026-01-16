@@ -22,5 +22,6 @@ namespace KlyonHubPlatform.Domain.Entities
         // Navigation properties
         public virtual User User { get; set; } = null!;
         public virtual ICollection<Contract> Contracts { get; set; } = new List<Contract>();
+        public virtual ICollection<CreditCard> CreditCards { get; set; } = new List<CreditCard>();
     }
 }

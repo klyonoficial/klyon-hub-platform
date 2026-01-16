@@ -13,6 +13,7 @@ using KlyonHubPlatform.Infra.CrossCutting.Middleware;
 using Microsoft.AspNetCore.Localization;
 using System.Globalization;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -99,10 +100,24 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 
+// PagBank Service
+builder.Services.AddHttpClient<PagBankService>();
+builder.Services.AddScoped<IPagBankService, PagBankService>();
+
+// Address Declaration Service
+builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService>();
+
 // Storage Services
 builder.Services.AddScoped<AWSStorageService>();
 builder.Services.AddScoped<FTPStorageService>();
 builder.Services.AddScoped<StorageServiceFactory>();
+
+// Contract Expiry Notification Service
+builder.Services.AddScoped<ContractExpiryNotificationService>();
+
+// Background Services
+builder.Services.AddHostedService<ContractExpiryBackgroundService>();
+builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(Program));
@@ -148,32 +163,70 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     
-    // Verificar se o banco existe, se não existir, criar
-    if (!dbContext.Database.CanConnect())
+    try
     {
-        dbContext.Database.EnsureCreated();
+        // Verificar se o banco existe e pode conectar
+        if (dbContext.Database.CanConnect())
+        {
+            // Verificar se a tabela Roles existe (indicador de que as tabelas foram criadas)
+            var rolesTableExists = false;
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync("SELECT 1 FROM Roles LIMIT 1");
+                rolesTableExists = true;
+            }
+            catch
+            {
+                // Tabela não existe
+                rolesTableExists = false;
+            }
+            
+            if (!rolesTableExists)
+            {
+                // Se o banco existe mas não tem tabelas, criar todas as tabelas
+                await dbContext.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                // Se as tabelas existem, aplicar migrações pendentes
+                try
+                {
+                    await dbContext.Database.MigrateAsync();
+                }
+                catch
+                {
+                    // Se não houver migrações, apenas continuar
+                }
+            }
+        }
+        else
+        {
+            // Se não conseguir conectar, criar o banco e as tabelas
+            await dbContext.Database.EnsureCreatedAsync();
+        }
+        
+        // Seed initial data
+        var seedService = new SeedService(dbContext);
+        await seedService.SeedInitialDataAsync();
     }
-    else
+    catch (Exception ex)
     {
-        // Se o banco já existe, verificar e adicionar colunas faltantes
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Erro ao inicializar banco de dados. Tentando criar tabelas...");
+        
+        // Tentar criar as tabelas mesmo em caso de erro
         try
         {
-            // Tentar uma query simples para verificar se as colunas existem
-            var testQuery = await dbContext.Payments
-                .Where(p => p.Id == -1) // Query que nunca retorna resultados
-                .Select(p => new { p.ReceiptFilePath, p.ValidationNotes, p.ValidatedBy, p.ValidatedAt })
-                .FirstOrDefaultAsync();
+            await dbContext.Database.EnsureCreatedAsync();
+            var seedService = new SeedService(dbContext);
+            await seedService.SeedInitialDataAsync();
         }
-        catch
+        catch (Exception ex2)
         {
-            // Se falhar, as colunas não existem - mas já foram adicionadas manualmente
-            // O EF vai recarregar o modelo na próxima query
+            logger.LogError(ex2, "Erro crítico ao criar tabelas do banco de dados");
+            throw;
         }
     }
-    
-    // Seed initial data
-    var seedService = new SeedService(dbContext);
-    await seedService.SeedInitialDataAsync();
 }
 
 app.Run();

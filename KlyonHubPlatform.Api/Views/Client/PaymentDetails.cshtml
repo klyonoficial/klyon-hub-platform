@@ -32,6 +32,14 @@
     </div>
 }
 
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Warning"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
 <div class="row">
     <div class="col-md-8">
         <div class="card mb-4">
@@ -196,7 +204,18 @@
                         }
                         else
                         {
-                            <p class="text-muted">Gerando código PIX...</p>
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                <strong>Código PIX não gerado.</strong>
+                                <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
+                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-qr-code"></i> Gerar Código PIX
+                                    </button>
+                                </form>
+                            </div>
                         }
                     </div>
                 </div>
@@ -252,19 +271,52 @@
                         <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito</h5>
                     </div>
                     <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong>
-                            <ul class="mb-0 mt-2">
-                                <li>O pagamento com cartão será processado ao enviar o comprovante</li>
-                                <li>Após o processamento, seu contrato será ativado automaticamente</li>
-                                <li>Você receberá uma confirmação por email</li>
-                            </ul>
-                        </div>
-                        <p class="text-muted">
+                        <p class="text-muted mb-3">
                             <strong>Valor:</strong> R$ @Model.Amount.ToString("N2")<br>
                             <strong>Vencimento:</strong> @Model.DueDate.ToString("dd/MM/yyyy")
                         </p>
+                        
+                        @if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Selecione um cartão cadastrado:</strong></label>
+                                <div class="list-group">
+                                    @foreach (var card in (List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
+                                    {
+                                        <div class="list-group-item">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="selectedCard" id="card_@card.Id" value="@card.Id" @(card.IsDefault ? "checked" : "")>
+                                                <label class="form-check-label w-100" for="card_@card.Id">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <i class="bi bi-credit-card-2-front"></i> 
+                                                            <strong>@card.Brand</strong> •••• @card.LastFourDigits
+                                                            <br>
+                                                            <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
+                                                        </div>
+                                                        @if (card.IsDefault)
+                                                        {
+                                                            <span class="badge bg-primary">Padrão</span>
+                                                        }
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                Você não possui cartões cadastrados. Adicione um cartão para realizar o pagamento.
+                            </div>
+                        }
+
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                            <i class="bi bi-plus-circle"></i> Adicionar Novo Cartão
+                        </button>
                     </div>
                 </div>
             }
@@ -279,20 +331,36 @@
             <div class="card-body">
                 @if (isPending)
                 {
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> 
-                        <strong>Instruções:</strong> Após realizar o pagamento, envie o comprovante para validação.
-                    </div>
+                    @if (Model.Method == PaymentMethod.PIX || Model.Method == PaymentMethod.BankTransfer)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Instruções:</strong> Após realizar o pagamento, envie o comprovante para validação.
+                        </div>
 
-                    <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#confirmPaymentModal">
-                        <i class="bi bi-upload"></i> Enviar Comprovante
-                    </button>
+                        <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#confirmPaymentModal">
+                            <i class="bi bi-upload"></i> Enviar Comprovante
+                        </button>
 
-                    <p class="text-muted small mt-3">
-                        <i class="bi bi-info-circle"></i> 
-                        Após o envio do comprovante, o coworking validará o pagamento manualmente.
-                        Seu contrato será ativado após a aprovação.
-                    </p>
+                        <p class="text-muted small mt-3">
+                            <i class="bi bi-info-circle"></i> 
+                            Após o envio do comprovante, o coworking validará o pagamento manualmente.
+                            Seu contrato será ativado após a aprovação.
+                        </p>
+                    }
+                    else if (Model.Method == PaymentMethod.CreditCard)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Instruções:</strong> Selecione um cartão cadastrado ou adicione um novo cartão para processar o pagamento.
+                        </div>
+
+                        <p class="text-muted small mt-3">
+                            <i class="bi bi-info-circle"></i> 
+                            O pagamento será processado automaticamente após a confirmação.
+                            Seu contrato será ativado imediatamente após o processamento.
+                        </p>
+                    }
                 }
                 else if (isAwaitingValidation)
                 {
@@ -379,6 +447,76 @@
     </div>
 </div>
 
+<!-- Modal para Adicionar Cartão -->
+<div class="modal fade" id="addCardModal" tabindex="-1" aria-labelledby="addCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCardModalLabel">
+                    <i class="bi bi-credit-card"></i> Adicionar Novo Cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("AddCreditCard", "Client")" id="addCardForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="cardNumber" class="form-label">Número do Cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cardNumber" name="cardNumber" 
+                               placeholder="0000 0000 0000 0000" maxlength="19" required>
+                        <small class="form-text text-muted">Digite apenas os números do cartão</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cardHolderName" class="form-label">Nome no Cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cardHolderName" name="cardHolderName" 
+                               placeholder="NOME COMO ESTÁ NO CARTÃO" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="expiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
+                            <select class="form-select" id="expiryMonth" name="expiryMonth" required>
+                                <option value="">MM</option>
+                                @for (int i = 1; i <= 12; i++)
+                                {
+                                    <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="expiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
+                            <select class="form-select" id="expiryYear" name="expiryYear" required>
+                                <option value="">AAAA</option>
+                                @for (int year = DateTime.Now.Year; year <= DateTime.Now.Year + 10; year++)
+                                {
+                                    <option value="@year">@year</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cvv" class="form-label">CVV <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cvv" name="cvv" 
+                               placeholder="000" maxlength="4" required>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isDefault" name="isDefault" value="true">
+                        <label class="form-check-label" for="isDefault">
+                            Definir como cartão padrão
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar Cartão
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
@@ -434,6 +572,18 @@
                 location.reload();
             }
         }
+
+        // Formatação do número do cartão
+        document.getElementById('cardNumber')?.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+            e.target.value = formattedValue;
+        });
+
+        // Máscara para CVV
+        document.getElementById('cvv')?.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
 
         // Preview de imagem ao selecionar arquivo
         document.getElementById('receiptFile')?.addEventListener('change', function(e) {

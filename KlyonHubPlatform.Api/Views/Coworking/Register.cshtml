@@ -1,10 +1,10 @@
 @{
-    ViewData["Title"] = Localizer["Coworking_Register"];
+    ViewData["Title"] = "Cadastro de Coworking";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-building"></i> @Localizer["Coworking_Register"]</h2>
+    <h2><i class="bi bi-building"></i> Cadastro de Coworking</h2>
 </div>
 
 <div class="card">
@@ -12,70 +12,70 @@
         <form method="post" action="@Url.Action("Register", "Coworking")" enctype="multipart/form-data">
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="Name" class="form-label">@Localizer["Coworking_Name"]</label>
+                    <label for="Name" class="form-label">Nome do Coworking</label>
                     <input type="text" class="form-control" id="Name" name="Name" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="CNPJ" class="form-label">@Localizer["Coworking_CNPJ"]</label>
-                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" required>
+                    <label for="CNPJ" class="form-label">CNPJ</label>
+                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="TradeName" class="form-label">@Localizer["Coworking_TradeName"]</label>
+                    <label for="TradeName" class="form-label">Nome Fantasia</label>
                     <input type="text" class="form-control" id="TradeName" name="TradeName">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="ContactEmail" class="form-label">@Localizer["Coworking_ContactEmail"]</label>
+                    <label for="ContactEmail" class="form-label">Email de Contato</label>
                     <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" value="@ViewBag.UserEmail" required>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactPhone" class="form-label">@Localizer["Coworking_ContactPhone"]</label>
-                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000">
+                    <label for="ContactPhone" class="form-label">Telefone de Contato</label>
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15">
                 </div>
             </div>
             <hr>
-            <h5><i class="bi bi-images"></i> @Localizer["Coworking_Photos"]</h5>
+            <h5><i class="bi bi-images"></i> Fotos do Coworking</h5>
             <div class="mb-3">
-                <label for="Photos" class="form-label">@Localizer["Coworking_PhotosDescription"]</label>
+                <label for="Photos" class="form-label">Envie fotos do seu coworking</label>
                 <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*">
-                <small class="form-text text-muted">@Localizer["Coworking_PhotosHint"]</small>
+                <small class="form-text text-muted">Você pode enviar até 10 fotos</small>
             </div>
             <hr>
-            <h5><i class="bi bi-file-earmark-text"></i> @Localizer["Coworking_RequiredDocuments"]</h5>
+            <h5><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios</h5>
             <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> @Localizer["Coworking_DocumentsInfo"]
+                <i class="bi bi-info-circle"></i> Por favor, envie os documentos obrigatórios para completar seu cadastro
             </div>
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="UtilityBill" class="form-label">
-                        @Localizer["Coworking_UtilityBill"] <span class="text-danger">*</span>
+                        Comprovante de Endereço <span class="text-danger">*</span>
                     </label>
                     <input type="file" class="form-control" id="UtilityBill" name="UtilityBill" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">@Localizer["Coworking_UtilityBillHint"]</small>
+                    <small class="form-text text-muted">Conta de água, luz ou IPTU (últimos 90 dias)</small>
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="AddressAuthorization" class="form-label">
-                        @Localizer["Coworking_AddressAuthorization"] <span class="text-danger">*</span>
+                        Declaração de Autorização <span class="text-danger">*</span>
                     </label>
                     <input type="file" class="form-control" id="AddressAuthorization" name="AddressAuthorization" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">@Localizer["Coworking_AddressAuthorizationHint"]</small>
+                    <small class="form-text text-muted">Declaração de autorização de uso de endereço fiscal</small>
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="CNPJCard" class="form-label">
-                        @Localizer["Coworking_CNPJCard"] <span class="text-danger">*</span>
+                        Cartão CNPJ <span class="text-danger">*</span>
                     </label>
                     <input type="file" class="form-control" id="CNPJCard" name="CNPJCard" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">@Localizer["Coworking_CNPJCardHint"]</small>
+                    <small class="form-text text-muted">Cartão CNPJ do coworking</small>
                 </div>
             </div>
             <hr>
-            <h5>@Localizer["Coworking_BankData"]</h5>
+            <h5>Dados Bancários</h5>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="BankName" class="form-label">@Localizer["Coworking_BankName"]</label>
+                    <label for="BankName" class="form-label">Banco</label>
                     <select class="form-select" id="BankName" name="BankName">
                         <option value="">Selecione o banco</option>
                         @{
@@ -88,22 +88,22 @@
                     </select>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="BankAgency" class="form-label">@Localizer["Coworking_BankAgency"]</label>
+                    <label for="BankAgency" class="form-label">Agência</label>
                     <input type="text" class="form-control" id="BankAgency" name="BankAgency">
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="BankAccount" class="form-label">@Localizer["Coworking_BankAccount"]</label>
+                    <label for="BankAccount" class="form-label">Conta</label>
                     <input type="text" class="form-control" id="BankAccount" name="BankAccount">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="BankPixKey" class="form-label">@Localizer["Coworking_BankPixKey"]</label>
+                    <label for="BankPixKey" class="form-label">Chave PIX</label>
                     <input type="text" class="form-control" id="BankPixKey" name="BankPixKey">
                 </div>
             </div>
             <button type="submit" class="btn btn-primary">
-                <i class="bi bi-check-circle"></i> @Localizer["Common_Save"]
+                <i class="bi bi-check-circle"></i> Salvar
             </button>
         </form>
     </div>

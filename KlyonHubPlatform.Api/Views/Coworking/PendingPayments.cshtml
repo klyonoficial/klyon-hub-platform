@@ -28,6 +28,77 @@
     </div>
 }
 
+@{
+    var search = ViewBag.Search as string ?? "";
+    var method = ViewBag.Method as string ?? "";
+    var dateFrom = ViewBag.DateFrom as DateTime?;
+    var dateTo = ViewBag.DateTo as DateTime?;
+    var minValue = ViewBag.MinValue as decimal?;
+    var maxValue = ViewBag.MaxValue as decimal?;
+}
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros de Pesquisa</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" action="@Url.Action("PendingPayments", "Coworking")" id="filterForm">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="@search" placeholder="Nº pagamento, cliente ou documento">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label for="method" class="form-label">Método</label>
+                    <select class="form-select" id="method" name="method">
+                        <option value="">Todos</option>
+                        <option value="PIX" selected="@(method == "PIX")">PIX</option>
+                        <option value="CreditCard" selected="@(method == "CreditCard")">Cartão</option>
+                        <option value="BankTransfer" selected="@(method == "BankTransfer")">Boleto</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label for="dateFrom" class="form-label">Data De</label>
+                    <input type="date" class="form-control" id="dateFrom" name="dateFrom" 
+                           value="@(dateFrom?.ToString("yyyy-MM-dd") ?? "")">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label for="dateTo" class="form-label">Data Até</label>
+                    <input type="date" class="form-control" id="dateTo" name="dateTo" 
+                           value="@(dateTo?.ToString("yyyy-MM-dd") ?? "")">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label for="minValue" class="form-label">Valor Mín.</label>
+                    <input type="number" step="0.01" class="form-control" id="minValue" name="minValue" 
+                           value="@(minValue?.ToString("F2") ?? "")" placeholder="0,00">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label for="maxValue" class="form-label">Valor Máx.</label>
+                    <input type="number" step="0.01" class="form-control" id="maxValue" name="maxValue" 
+                           value="@(maxValue?.ToString("F2") ?? "")" placeholder="0,00">
+                </div>
+                <div class="col-md-1 mb-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Pesquisar
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(method) || dateFrom.HasValue || dateTo.HasValue || minValue.HasValue || maxValue.HasValue)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <a href="@Url.Action("PendingPayments", "Coworking")" class="btn btn-secondary btn-sm">
+                            <i class="bi bi-x-circle"></i> Limpar Filtros
+                        </a>
+                    </div>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
 @if (Model.Any())
 {
     <div class="card">
@@ -92,6 +163,14 @@
 else
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> Não há pagamentos pendentes de validação no momento.
+        <i class="bi bi-info-circle"></i> 
+        @if (!string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(method) || dateFrom.HasValue || dateTo.HasValue || minValue.HasValue || maxValue.HasValue)
+        {
+            <text>Nenhum pagamento encontrado com os filtros aplicados.</text>
+        }
+        else
+        {
+            <text>Não há pagamentos pendentes de validação no momento.</text>
+        }
     </div>
 }

@@ -11,5 +11,6 @@ namespace KlyonHubPlatform.Domain.Interfaces
         Task<Payment> UpdateAsync(Payment payment);
         Task<List<Payment>> GetPendingPaymentsAsync();
         Task<List<Payment>> GetByStatusAsync(PaymentStatus status);
+        Task<Payment?> GetByExternalPaymentIdAsync(string externalPaymentId);
     }
 }

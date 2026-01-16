@@ -5,6 +5,7 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -18,6 +19,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IPaymentService _paymentService;
         private readonly ApplicationDbContext _context;
+        private readonly IPagBankService _pagBankService;
 
         public AdminController(
             IUserService userService,
@@ -26,7 +28,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAdminService adminService,
             ISystemConfigurationService systemConfigurationService,
             IPaymentService paymentService,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IPagBankService pagBankService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -35,6 +38,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _systemConfigurationService = systemConfigurationService;
             _paymentService = paymentService;
             _context = context; // Mantido apenas para operações de roles que ainda não foram movidas
+            _pagBankService = pagBankService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -552,6 +556,263 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 TempData["Error"] = $"Erro ao atualizar configuração: {ex.Message}";
                 return RedirectToAction("EditSystemConfiguration", new { id });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateStorageToFTP()
+        {
+            try
+            {
+                // Atualizar Storage.Provider para FTP
+                var storageProvider = await _context.SystemConfigurations
+                    .FirstOrDefaultAsync(c => c.Key == "Storage.Provider");
+                if (storageProvider != null)
+                {
+                    storageProvider.Value = "FTP";
+                    storageProvider.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
+                    {
+                        Key = "Storage.Provider",
+                        Value = "FTP",
+                        Description = "Provedor de armazenamento: AWS ou FTP",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                // Atualizar configurações FTP
+                var ftpConfigs = new Dictionary<string, string>
+                {
+                    { "FTP.Host", "187.110.161.110" },
+                    { "FTP.Port", "21" },
+                    { "FTP.Username", "gestorhub" },
+                    { "FTP.Password", "F@z3rd@rC3rt0" },
+                    { "FTP.UsePassiveMode", "true" },
+                    { "FTP.UseSSL", "false" }
+                };
+
+                foreach (var config in ftpConfigs)
+                {
+                    var existing = await _context.SystemConfigurations
+                        .FirstOrDefaultAsync(c => c.Key == config.Key);
+                    
+                    if (existing != null)
+                    {
+                        existing.Value = config.Value;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
+                        {
+                            Key = config.Key,
+                            Value = config.Value,
+                            Description = config.Key switch
+                            {
+                                "FTP.Host" => "Endereço do servidor FTP",
+                                "FTP.Port" => "Porta do servidor FTP (padrão: 21)",
+                                "FTP.Username" => "Usuário para acesso ao servidor FTP",
+                                "FTP.Password" => "Senha para acesso ao servidor FTP",
+                                "FTP.UsePassiveMode" => "Usar modo passivo no FTP (recomendado para firewalls)",
+                                "FTP.UseSSL" => "Usar SSL/TLS para conexão FTP (FTPS)",
+                                _ => ""
+                            },
+                            Category = "Storage",
+                            IsSensitive = config.Key == "FTP.Password",
+                            IsEncrypted = false,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Configurações FTP atualizadas com sucesso! O sistema agora usa FTP como provedor de armazenamento.";
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao atualizar configurações: {ex.Message}";
+                return RedirectToAction("SystemConfigurations");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateAddressDeclarationsTable()
+        {
+            try
+            {
+                // Verificar se a tabela já existe usando information_schema
+                var tableExists = false;
+                try
+                {
+                    var connection = _context.Database.GetDbConnection();
+                    var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                    if (!wasOpen)
+                    {
+                        await connection.OpenAsync();
+                    }
+                    try
+                    {
+                        using var command = connection.CreateCommand();
+                        command.CommandText = @"
+                            SELECT COUNT(*) 
+                            FROM information_schema.tables 
+                            WHERE table_schema = DATABASE() 
+                            AND table_name = 'AddressDeclarations'";
+                        var result = await command.ExecuteScalarAsync();
+                        tableExists = Convert.ToInt32(result) > 0;
+                    }
+                    finally
+                    {
+                        if (!wasOpen)
+                        {
+                            await connection.CloseAsync();
+                        }
+                    }
+                }
+                catch
+                {
+                    // Se houver erro na verificação, tentar criar mesmo assim
+                    tableExists = false;
+                }
+
+                if (!tableExists)
+                {
+                    // Criar a tabela AddressDeclarations
+                    // Dividir em comandos menores para evitar problemas com múltiplos statements
+                    var createTableSql = @"
+                        CREATE TABLE IF NOT EXISTS `AddressDeclarations` (
+                            `Id` int NOT NULL AUTO_INCREMENT,
+                            `ContractId` int NOT NULL,
+                            `DeclarationNumber` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+                            `Version` int NOT NULL,
+                            `StartDate` datetime(6) NOT NULL,
+                            `EndDate` datetime(6) NOT NULL,
+                            `FilePath` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+                            `DigitalSignature` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+                            `IsValid` tinyint(1) NOT NULL,
+                            `InvalidatedAt` datetime(6) NULL,
+                            `InvalidationReason` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+                            `CreatedAt` datetime(6) NOT NULL,
+                            `UpdatedAt` datetime(6) NULL,
+                            PRIMARY KEY (`Id`),
+                            CONSTRAINT `FK_AddressDeclarations_Contracts_ContractId` FOREIGN KEY (`ContractId`) REFERENCES `Contracts` (`Id`) ON DELETE CASCADE,
+                            INDEX `IX_AddressDeclarations_ContractId_Version` (`ContractId`, `Version`),
+                            INDEX `IX_AddressDeclarations_DeclarationNumber` (`DeclarationNumber`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+                    await _context.Database.ExecuteSqlRawAsync(createTableSql);
+
+                    TempData["Success"] = "Tabela AddressDeclarations criada com sucesso!";
+                }
+                else
+                {
+                    TempData["Info"] = "A tabela AddressDeclarations já existe no banco de dados.";
+                }
+
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Erro ao criar tabela: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" Detalhes: {ex.InnerException.Message}";
+                }
+                TempData["Error"] = errorMessage;
+                return RedirectToAction("SystemConfigurations");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfigurePagBankSandbox()
+        {
+            try
+            {
+                // Atualizar configurações do PagBank para Sandbox
+                var configs = new Dictionary<string, string>
+                {
+                    { "PagBank.AccessToken", "db3453dd-8c96-46c8-9c91-b5549372ed51c6e68eb54829b960fbe67c1d261e73a27c75-0f2a-47d9-9fbe-da8211abbff4" },
+                    { "PagBank.UseSandbox", "true" }
+                };
+
+                foreach (var config in configs)
+                {
+                    var existing = await _context.SystemConfigurations
+                        .FirstOrDefaultAsync(c => c.Key == config.Key);
+                    
+                    if (existing != null)
+                    {
+                        existing.Value = config.Value;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedBy = User.Identity?.Name;
+                    }
+                    else
+                    {
+                        _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
+                        {
+                            Key = config.Key,
+                            Value = config.Value,
+                            Description = config.Key switch
+                            {
+                                "PagBank.AccessToken" => "Token de acesso da API PagBank (Bearer Token)",
+                                "PagBank.UseSandbox" => "Usar ambiente sandbox do PagBank (true/false)",
+                                _ => ""
+                            },
+                            Category = "Payment",
+                            IsSensitive = config.Key == "PagBank.AccessToken",
+                            IsEncrypted = false,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Configurações do PagBank (Sandbox) atualizadas com sucesso!";
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao configurar PagBank: {ex.Message}";
+                return RedirectToAction("SystemConfigurations");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TestPagBankConnection()
+        {
+            try
+            {
+                // Tentar fazer uma requisição simples para testar a conexão
+                // Vamos tentar criar um pedido de teste muito pequeno (R$ 0,01)
+                var testOrder = await _pagBankService.CreateOrderAsync(
+                    referenceId: $"TEST-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                    amount: 0.01m,
+                    method: PaymentMethod.PIX,
+                    clientName: "Teste Conexão",
+                    clientEmail: "teste@teste.com",
+                    clientTaxId: "12345678909"
+                );
+
+                TempData["Success"] = $"Conexão com PagBank testada com sucesso! Pedido de teste criado: {testOrder.Id}";
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao testar conexão PagBank: {ex.Message}";
+                return RedirectToAction("SystemConfigurations");
             }
         }
 

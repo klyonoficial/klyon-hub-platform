@@ -61,5 +61,12 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Where(p => p.Status == status)
                 .ToListAsync();
         }
+
+        public async Task<Payment?> GetByExternalPaymentIdAsync(string externalPaymentId)
+        {
+            return await _context.Payments
+                .Include(p => p.Subscription)
+                .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalPaymentId);
+        }
     }
 }

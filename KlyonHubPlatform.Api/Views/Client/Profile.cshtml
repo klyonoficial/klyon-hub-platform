@@ -1,0 +1,153 @@
+@{
+    ViewData["Title"] = "Meu Perfil";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.Client
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person-badge"></i> Meu Perfil</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-person"></i> Dados Cadastrais</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="@Url.Action("UpdateProfile", "Client")">
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="RazaoSocial" class="form-label">Razão Social</label>
+                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@Model.RazaoSocial">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
+                    <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia" value="@Model.NomeFantasia">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="CNPJ" class="form-label">CNPJ</label>
+                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" value="@Model.CNPJ" placeholder="00.000.000/0000-00" maxlength="18">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="CPF" class="form-label">CPF (se pessoa física)</label>
+                    <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ContactName" class="form-label">Nome do Contato</label>
+                    <input type="text" class="form-control" id="ContactName" name="ContactName" value="@Model.ContactName" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ContactEmail" class="form-label">Email de Contato</label>
+                    <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
+                           value="@ViewBag.UserEmail" readonly required>
+                    <small class="form-text text-muted">Este email é o mesmo do seu cadastro e não pode ser alterado.</small>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ContactPhone" class="form-label">Telefone</label>
+                    @{
+                        var phoneValue = Model.ContactPhone;
+                        if (!string.IsNullOrEmpty(phoneValue) && phoneValue.Length >= 10)
+                        {
+                            if (phoneValue.Length == 10)
+                            {
+                                phoneValue = $"({phoneValue.Substring(0, 2)}) {phoneValue.Substring(2, 4)}-{phoneValue.Substring(6, 4)}";
+                            }
+                            else if (phoneValue.Length == 11)
+                            {
+                                phoneValue = $"({phoneValue.Substring(0, 2)}) {phoneValue.Substring(2, 5)}-{phoneValue.Substring(7, 4)}";
+                            }
+                        }
+                    }
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" value="@phoneValue" placeholder="(00) 00000-0000" maxlength="15">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ZipCode" class="form-label">CEP</label>
+                    @{
+                        var zipCodeValue = Model.ZipCode;
+                        if (!string.IsNullOrEmpty(zipCodeValue) && zipCodeValue.Length == 8)
+                        {
+                            zipCodeValue = $"{zipCodeValue.Substring(0, 5)}-{zipCodeValue.Substring(5, 3)}";
+                        }
+                    }
+                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" value="@zipCodeValue" placeholder="00000-000" maxlength="9">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label for="Address" class="form-label">Endereço</label>
+                    <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="City" class="form-label">Cidade</label>
+                    <input type="text" class="form-control" id="City" name="City" value="@Model.City">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="State" class="form-label">Estado</label>
+                    <select class="form-select" id="State" name="State">
+                        <option value="">Selecione o estado</option>
+                        @if (Model.State == "AC") { <option value="AC" selected>AC - Acre</option> } else { <option value="AC">AC - Acre</option> }
+                        @if (Model.State == "AL") { <option value="AL" selected>AL - Alagoas</option> } else { <option value="AL">AL - Alagoas</option> }
+                        @if (Model.State == "AP") { <option value="AP" selected>AP - Amapá</option> } else { <option value="AP">AP - Amapá</option> }
+                        @if (Model.State == "AM") { <option value="AM" selected>AM - Amazonas</option> } else { <option value="AM">AM - Amazonas</option> }
+                        @if (Model.State == "BA") { <option value="BA" selected>BA - Bahia</option> } else { <option value="BA">BA - Bahia</option> }
+                        @if (Model.State == "CE") { <option value="CE" selected>CE - Ceará</option> } else { <option value="CE">CE - Ceará</option> }
+                        @if (Model.State == "DF") { <option value="DF" selected>DF - Distrito Federal</option> } else { <option value="DF">DF - Distrito Federal</option> }
+                        @if (Model.State == "ES") { <option value="ES" selected>ES - Espírito Santo</option> } else { <option value="ES">ES - Espírito Santo</option> }
+                        @if (Model.State == "GO") { <option value="GO" selected>GO - Goiás</option> } else { <option value="GO">GO - Goiás</option> }
+                        @if (Model.State == "MA") { <option value="MA" selected>MA - Maranhão</option> } else { <option value="MA">MA - Maranhão</option> }
+                        @if (Model.State == "MT") { <option value="MT" selected>MT - Mato Grosso</option> } else { <option value="MT">MT - Mato Grosso</option> }
+                        @if (Model.State == "MS") { <option value="MS" selected>MS - Mato Grosso do Sul</option> } else { <option value="MS">MS - Mato Grosso do Sul</option> }
+                        @if (Model.State == "MG") { <option value="MG" selected>MG - Minas Gerais</option> } else { <option value="MG">MG - Minas Gerais</option> }
+                        @if (Model.State == "PA") { <option value="PA" selected>PA - Pará</option> } else { <option value="PA">PA - Pará</option> }
+                        @if (Model.State == "PB") { <option value="PB" selected>PB - Paraíba</option> } else { <option value="PB">PB - Paraíba</option> }
+                        @if (Model.State == "PR") { <option value="PR" selected>PR - Paraná</option> } else { <option value="PR">PR - Paraná</option> }
+                        @if (Model.State == "PE") { <option value="PE" selected>PE - Pernambuco</option> } else { <option value="PE">PE - Pernambuco</option> }
+                        @if (Model.State == "PI") { <option value="PI" selected>PI - Piauí</option> } else { <option value="PI">PI - Piauí</option> }
+                        @if (Model.State == "RJ") { <option value="RJ" selected>RJ - Rio de Janeiro</option> } else { <option value="RJ">RJ - Rio de Janeiro</option> }
+                        @if (Model.State == "RN") { <option value="RN" selected>RN - Rio Grande do Norte</option> } else { <option value="RN">RN - Rio Grande do Norte</option> }
+                        @if (Model.State == "RS") { <option value="RS" selected>RS - Rio Grande do Sul</option> } else { <option value="RS">RS - Rio Grande do Sul</option> }
+                        @if (Model.State == "RO") { <option value="RO" selected>RO - Rondônia</option> } else { <option value="RO">RO - Rondônia</option> }
+                        @if (Model.State == "RR") { <option value="RR" selected>RR - Roraima</option> } else { <option value="RR">RR - Roraima</option> }
+                        @if (Model.State == "SC") { <option value="SC" selected>SC - Santa Catarina</option> } else { <option value="SC">SC - Santa Catarina</option> }
+                        @if (Model.State == "SP") { <option value="SP" selected>SP - São Paulo</option> } else { <option value="SP">SP - São Paulo</option> }
+                        @if (Model.State == "SE") { <option value="SE" selected>SE - Sergipe</option> } else { <option value="SE">SE - Sergipe</option> }
+                        @if (Model.State == "TO") { <option value="TO" selected>TO - Tocantins</option> } else { <option value="TO">TO - Tocantins</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> Salvar Alterações
+                </button>
+                <a href="@Url.Action("Dashboard", "Client")" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>

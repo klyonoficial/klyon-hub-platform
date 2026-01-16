@@ -23,12 +23,15 @@ namespace KlyonHubPlatform.Application.Services
         {
             var provider = await _systemConfigService.GetValueAsync("Storage.Provider");
             
-            // Se não houver provider configurado, tenta usar FTP primeiro (mais comum em desenvolvimento)
-            if (string.IsNullOrEmpty(provider))
+            // Se não houver provider configurado ou estiver vazio, verifica FTP primeiro
+            if (string.IsNullOrEmpty(provider) || string.IsNullOrWhiteSpace(provider))
             {
                 // Verifica se FTP está configurado
                 var ftpHost = await _systemConfigService.GetValueAsync("FTP.Host");
-                if (!string.IsNullOrEmpty(ftpHost))
+                var ftpUsername = await _systemConfigService.GetValueAsync("FTP.Username");
+                var ftpPassword = await _systemConfigService.GetValueAsync("FTP.Password");
+                
+                if (!string.IsNullOrEmpty(ftpHost) && !string.IsNullOrEmpty(ftpUsername) && !string.IsNullOrEmpty(ftpPassword))
                 {
                     return _ftpStorageService;
                 }
@@ -36,11 +39,14 @@ namespace KlyonHubPlatform.Application.Services
                 return _awsStorageService;
             }
             
-            return provider.ToUpper() switch
+            // Normalizar o provider (remover espaços e converter para maiúsculas)
+            var normalizedProvider = provider.Trim().ToUpper();
+            
+            return normalizedProvider switch
             {
                 "FTP" => _ftpStorageService,
                 "AWS" or "S3" => _awsStorageService,
-                _ => _awsStorageService // Default para AWS
+                _ => _ftpStorageService // Default para FTP se não reconhecer (mais seguro)
             };
         }
     }

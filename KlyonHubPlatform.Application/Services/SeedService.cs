@@ -57,24 +57,68 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
-            // Seed Locations
-            if (!_context.Locations.Any())
+            // Seed Locations - Uma localidade por estado brasileiro
+            // Dicionário com capital de cada estado e sua região
+            var brazilianStates = new Dictionary<string, (string City, string Region)>
             {
-                _context.Locations.AddRange(
-                    new Location { City = "São Paulo", State = "SP", Region = "Sudeste", IsActive = true },
-                    new Location { City = "Rio de Janeiro", State = "RJ", Region = "Sudeste", IsActive = true },
-                    new Location { City = "Belo Horizonte", State = "MG", Region = "Sudeste", IsActive = true },
-                    new Location { City = "Curitiba", State = "PR", Region = "Sul", IsActive = true },
-                    new Location { City = "Porto Alegre", State = "RS", Region = "Sul", IsActive = true }
-                );
+                { "AC", ("Rio Branco", "Norte") },
+                { "AL", ("Maceió", "Nordeste") },
+                { "AP", ("Macapá", "Norte") },
+                { "AM", ("Manaus", "Norte") },
+                { "BA", ("Salvador", "Nordeste") },
+                { "CE", ("Fortaleza", "Nordeste") },
+                { "DF", ("Brasília", "Centro-Oeste") },
+                { "ES", ("Vitória", "Sudeste") },
+                { "GO", ("Goiânia", "Centro-Oeste") },
+                { "MA", ("São Luís", "Nordeste") },
+                { "MT", ("Cuiabá", "Centro-Oeste") },
+                { "MS", ("Campo Grande", "Centro-Oeste") },
+                { "MG", ("Belo Horizonte", "Sudeste") },
+                { "PA", ("Belém", "Norte") },
+                { "PB", ("João Pessoa", "Nordeste") },
+                { "PR", ("Curitiba", "Sul") },
+                { "PE", ("Recife", "Nordeste") },
+                { "PI", ("Teresina", "Nordeste") },
+                { "RJ", ("Rio de Janeiro", "Sudeste") },
+                { "RN", ("Natal", "Nordeste") },
+                { "RS", ("Porto Alegre", "Sul") },
+                { "RO", ("Porto Velho", "Norte") },
+                { "RR", ("Boa Vista", "Norte") },
+                { "SC", ("Florianópolis", "Sul") },
+                { "SP", ("São Paulo", "Sudeste") },
+                { "SE", ("Aracaju", "Nordeste") },
+                { "TO", ("Palmas", "Norte") }
+            };
+
+            // Buscar localidades existentes por estado
+            var existingLocations = await _context.Locations.ToListAsync();
+            var existingStates = existingLocations.Select(l => l.State).ToHashSet();
+
+            // Adicionar apenas as localidades que faltam
+            var locationsToAdd = brazilianStates
+                .Where(state => !existingStates.Contains(state.Key))
+                .Select(state => new Location
+                {
+                    City = state.Value.City,
+                    State = state.Key,
+                    Region = state.Value.Region,
+                    IsActive = true
+                }).ToList();
+
+            if (locationsToAdd.Any())
+            {
+                _context.Locations.AddRange(locationsToAdd);
                 await _context.SaveChangesAsync();
             }
 
-            // Seed Location Commissions
-            if (!_context.LocationCommissions.Any())
+            // Seed Location Commissions - Garantir que todas as localidades tenham comissão
+            var allLocations = await _context.Locations.ToListAsync();
+            var existingCommissions = await _context.LocationCommissions.ToListAsync();
+            var locationsWithCommission = existingCommissions.Select(c => c.LocationId).ToHashSet();
+
+            foreach (var location in allLocations)
             {
-                var locations = await _context.Locations.ToListAsync();
-                foreach (var location in locations)
+                if (!locationsWithCommission.Contains(location.Id))
                 {
                     _context.LocationCommissions.Add(new LocationCommission
                     {
@@ -83,8 +127,8 @@ namespace KlyonHubPlatform.Application.Services
                         IsActive = true
                     });
                 }
-                await _context.SaveChangesAsync();
             }
+            await _context.SaveChangesAsync();
 
             // Seed Languages
             if (!_context.Languages.Any())
@@ -147,8 +191,8 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Email.SmtpUsername",
-                        Value = "seu-email@gmail.com",
-                        Description = "Usuário do servidor SMTP",
+                        Value = "klyonoficial@gmail.com",
+                        Description = "Usuário do servidor SMTP (Gmail)",
                         Category = "Email",
                         IsSensitive = false,
                         IsEncrypted = false
@@ -156,8 +200,8 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Email.SmtpPassword",
-                        Value = "sua-senha-de-app",
-                        Description = "Senha do servidor SMTP (App Password)",
+                        Value = "yxgb vizz jmxk veci",
+                        Description = "Senha do servidor SMTP (App Password do Gmail)",
                         Category = "Email",
                         IsSensitive = true,
                         IsEncrypted = false
@@ -189,30 +233,57 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
+                    new SystemConfiguration
+                    {
+                        Key = "Email.ReplyToEmail",
+                        Value = "",
+                        Description = "E-mail para resposta (Reply-To). Deixe vazio para usar o FromEmail",
+                        Category = "Email",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "AppSettings.BaseUrl",
+                        Value = "https://localhost:5001",
+                        Description = "URL base da aplicação (usado em links de email)",
+                        Category = "General",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
                     // Payment Settings
                     new SystemConfiguration
                     {
                         Key = "Payment.Provider",
-                        Value = "Stripe",
-                        Description = "Provedor de pagamento (Stripe, PagSeguro, etc.)",
+                        Value = "PagBank",
+                        Description = "Provedor de pagamento (PagBank, Stripe, etc.)",
                         Category = "Payment",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "Payment.ApiKey",
-                        Value = "sk_test_your_key_here",
-                        Description = "Chave de API do provedor de pagamento",
+                        Key = "PagBank.AccessToken",
+                        Value = "",
+                        Description = "Token de acesso da API PagBank (Bearer Token)",
                         Category = "Payment",
                         IsSensitive = true,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "Payment.WebhookSecret",
-                        Value = "whsec_your_webhook_secret",
-                        Description = "Secret do webhook do provedor de pagamento",
+                        Key = "PagBank.UseSandbox",
+                        Value = "true",
+                        Description = "Usar ambiente sandbox do PagBank (true/false)",
+                        Category = "Payment",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "PagBank.WebhookSecret",
+                        Value = "",
+                        Description = "Secret para validação de webhooks do PagBank",
                         Category = "Payment",
                         IsSensitive = true,
                         IsEncrypted = false
@@ -230,7 +301,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Storage.Provider",
-                        Value = "AWS",
+                        Value = "FTP",
                         Description = "Provedor de armazenamento: AWS ou FTP",
                         Category = "Storage",
                         IsSensitive = false,
@@ -295,7 +366,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "FTP.Host",
-                        Value = "ftp.example.com",
+                        Value = "187.110.161.110",
                         Description = "Endereço do servidor FTP",
                         Category = "Storage",
                         IsSensitive = false,
@@ -313,7 +384,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "FTP.Username",
-                        Value = "ftp_user",
+                        Value = "gestorhub",
                         Description = "Usuário para acesso ao servidor FTP",
                         Category = "Storage",
                         IsSensitive = false,
@@ -322,7 +393,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "FTP.Password",
-                        Value = "ftp_password",
+                        Value = "F@z3rd@rC3rt0",
                         Description = "Senha para acesso ao servidor FTP",
                         Category = "Storage",
                         IsSensitive = true,

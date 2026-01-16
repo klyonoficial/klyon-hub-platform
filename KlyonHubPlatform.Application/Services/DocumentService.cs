@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using PdfDocument = iTextSharp.text.Document;
 using DocumentModel = KlyonHubPlatform.Domain.Entities.Document;
 using KlyonHubPlatform.Domain.Interfaces;
+using System.Linq;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -86,18 +87,78 @@ namespace KlyonHubPlatform.Application.Services
 
                 // Informações do cliente
                 pdfDocument.Add(new Paragraph("DADOS DO CONTRATANTE", headerFont));
+                
+                // Razão Social
                 if (!string.IsNullOrEmpty(contract.Client.RazaoSocial))
                 {
                     pdfDocument.Add(new Paragraph($"Razão Social: {contract.Client.RazaoSocial}", companyFont));
                 }
+                
+                // Nome Fantasia
+                if (!string.IsNullOrEmpty(contract.Client.NomeFantasia))
+                {
+                    pdfDocument.Add(new Paragraph($"Nome Fantasia: {contract.Client.NomeFantasia}", companyFont));
+                }
+                
+                // CNPJ ou CPF
                 if (!string.IsNullOrEmpty(contract.Client.CNPJ))
                 {
                     pdfDocument.Add(new Paragraph($"CNPJ: {contract.Client.CNPJ}", companyFont));
                 }
-                if (!string.IsNullOrEmpty(contract.Client.CPF))
+                else if (!string.IsNullOrEmpty(contract.Client.CPF))
                 {
                     pdfDocument.Add(new Paragraph($"CPF: {contract.Client.CPF}", companyFont));
                 }
+                
+                // Nome do Contato/Responsável
+                if (!string.IsNullOrEmpty(contract.Client.ContactName))
+                {
+                    pdfDocument.Add(new Paragraph($"Nome do Responsável: {contract.Client.ContactName}", companyFont));
+                }
+                
+                // Email
+                if (!string.IsNullOrEmpty(contract.Client.ContactEmail))
+                {
+                    pdfDocument.Add(new Paragraph($"E-mail: {contract.Client.ContactEmail}", companyFont));
+                }
+                
+                // Telefone
+                if (!string.IsNullOrEmpty(contract.Client.ContactPhone))
+                {
+                    pdfDocument.Add(new Paragraph($"Telefone: {contract.Client.ContactPhone}", companyFont));
+                }
+                
+                // Endereço do Cliente
+                var hasClientAddress = !string.IsNullOrEmpty(contract.Client.Address) || 
+                                      !string.IsNullOrEmpty(contract.Client.City) || 
+                                      !string.IsNullOrEmpty(contract.Client.State);
+                
+                if (hasClientAddress)
+                {
+                    pdfDocument.Add(new Paragraph("\nEndereço do Contratante:", companyFont));
+                    
+                    if (!string.IsNullOrEmpty(contract.Client.Address))
+                    {
+                        pdfDocument.Add(new Paragraph($"  {contract.Client.Address}", companyFont));
+                    }
+                    
+                    var clientCityState = new List<string>();
+                    if (!string.IsNullOrEmpty(contract.Client.City))
+                        clientCityState.Add(contract.Client.City);
+                    if (!string.IsNullOrEmpty(contract.Client.State))
+                        clientCityState.Add(contract.Client.State);
+                    
+                    if (clientCityState.Any())
+                    {
+                        pdfDocument.Add(new Paragraph($"  {string.Join("/", clientCityState)}", companyFont));
+                    }
+                    
+                    if (!string.IsNullOrEmpty(contract.Client.ZipCode))
+                    {
+                        pdfDocument.Add(new Paragraph($"  CEP: {contract.Client.ZipCode}", companyFont));
+                    }
+                }
+                
                 pdfDocument.Add(new Paragraph("\n"));
 
                 // Informações do endereço
@@ -126,7 +187,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "AWS";
+            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
             var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
             var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
             
@@ -178,7 +239,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "AWS";
+            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
             var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
             var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
             
@@ -229,7 +290,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "AWS";
+            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
             var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
             var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
             

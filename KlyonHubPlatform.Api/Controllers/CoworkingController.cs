@@ -20,19 +20,22 @@ namespace KlyonHubPlatform.Controllers
         private readonly IPaymentService _paymentService;
         private readonly ApplicationDbContext _context;
         private readonly StorageServiceFactory _storageFactory;
+        private readonly IAddressDeclarationService _addressDeclarationService;
 
         public CoworkingController(
             ICoworkingService coworkingService,
             ICommissionService commissionService,
             IPaymentService paymentService,
             ApplicationDbContext context,
-            StorageServiceFactory storageFactory)
+            StorageServiceFactory storageFactory,
+            IAddressDeclarationService addressDeclarationService)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
             _paymentService = paymentService;
             _context = context;
             _storageFactory = storageFactory;
+            _addressDeclarationService = addressDeclarationService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -80,8 +83,20 @@ namespace KlyonHubPlatform.Controllers
         }
 
         [HttpGet]
-        public IActionResult Register()
+        public async Task<IActionResult> Register()
         {
+            // Verificar se já existe um coworking cadastrado
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = existingCoworking.FirstOrDefault();
+
+            if (coworkingEntity != null)
+            {
+                // Se já existe, redirecionar para o Profile para editar
+                TempData["Info"] = $"Você já possui um coworking cadastrado: {coworkingEntity.Name}. Redirecionando para o perfil...";
+                return RedirectToAction("Profile");
+            }
+
             // Preencher o email do usuário logado automaticamente
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
@@ -695,17 +710,29 @@ namespace KlyonHubPlatform.Controllers
                 await _coworkingService.UpdateAsync(coworkingEntity);
 
                 TempData["Success"] = "Dados do coworking atualizados com sucesso!";
+                // Manter a aba ativa após salvar
+                var activeTab = Request.Form["activeTab"].ToString();
+                if (!string.IsNullOrEmpty(activeTab))
+                {
+                    TempData["ActiveTab"] = activeTab;
+                }
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao atualizar dados: {ex.Message}";
+                // Manter a aba ativa mesmo em caso de erro
+                var activeTab = Request.Form["activeTab"].ToString();
+                if (!string.IsNullOrEmpty(activeTab))
+                {
+                    TempData["ActiveTab"] = activeTab;
+                }
                 return RedirectToAction("Profile");
             }
         }
 
         [HttpGet]
-        public async Task<IActionResult> PendingPayments()
+        public async Task<IActionResult> PendingPayments(string? search = null, string? method = null, DateTime? dateFrom = null, DateTime? dateTo = null, decimal? minValue = null, decimal? maxValue = null)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -717,7 +744,7 @@ namespace KlyonHubPlatform.Controllers
             }
 
             // Buscar pagamentos aguardando validação dos contratos deste coworking
-            var payments = await _context.Payments
+            var query = _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.CoworkingAddress)
@@ -725,9 +752,58 @@ namespace KlyonHubPlatform.Controllers
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.Client)
                 .Where(p => p.Status == PaymentStatus.AwaitingValidation
-                    && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                    && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id);
+
+            // Aplicar filtros
+            if (!string.IsNullOrEmpty(search))
+            {
+                query = query.Where(p => 
+                    p.Id.ToString().Contains(search) ||
+                    (p.Subscription.Contract.Client.RazaoSocial != null && p.Subscription.Contract.Client.RazaoSocial.Contains(search)) ||
+                    (p.Subscription.Contract.Client.ContactName != null && p.Subscription.Contract.Client.ContactName.Contains(search)) ||
+                    (p.Subscription.Contract.Client.CNPJ != null && p.Subscription.Contract.Client.CNPJ.Contains(search)) ||
+                    (p.Subscription.Contract.Client.CPF != null && p.Subscription.Contract.Client.CPF.Contains(search)));
+            }
+
+            if (!string.IsNullOrEmpty(method))
+            {
+                if (Enum.TryParse<PaymentMethod>(method, out var paymentMethod))
+                {
+                    query = query.Where(p => p.Method == paymentMethod);
+                }
+            }
+
+            if (dateFrom.HasValue)
+            {
+                query = query.Where(p => p.CreatedAt >= dateFrom.Value);
+            }
+
+            if (dateTo.HasValue)
+            {
+                query = query.Where(p => p.CreatedAt <= dateTo.Value.AddDays(1).AddTicks(-1));
+            }
+
+            if (minValue.HasValue)
+            {
+                query = query.Where(p => p.Amount >= minValue.Value);
+            }
+
+            if (maxValue.HasValue)
+            {
+                query = query.Where(p => p.Amount <= maxValue.Value);
+            }
+
+            var payments = await query
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
+
+            // Passar valores dos filtros para a view
+            ViewBag.Search = search;
+            ViewBag.Method = method;
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            ViewBag.MinValue = minValue;
+            ViewBag.MaxValue = maxValue;
 
             return View(payments);
         }
@@ -822,9 +898,25 @@ namespace KlyonHubPlatform.Controllers
                 payment.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
+                // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
+                var previousPaidPayments = await _context.Payments
+                    .Where(p => p.SubscriptionId == payment.SubscriptionId && 
+                               p.Id != paymentId && 
+                               p.Status == PaymentStatus.Paid)
+                    .CountAsync();
+
+                var isFirstPayment = previousPaidPayments == 0;
+
                 // Ativar contrato
                 contract.Status = ContractStatus.Active;
                 contract.UpdatedAt = DateTime.UtcNow;
+                
+                // Se for o primeiro pagamento, definir validade de 1 ano a partir do pagamento
+                if (isFirstPayment && contract.ExpiryDate == null)
+                {
+                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                }
+                
                 await _context.SaveChangesAsync();
 
                 // Atualizar contador de contratos do endereço
@@ -841,7 +933,23 @@ namespace KlyonHubPlatform.Controllers
                 // Criar comissão
                 await _commissionService.CreateCommissionAsync(payment.Id);
 
-                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!";
+                // Gerar declaração automaticamente se for o primeiro pagamento e o contrato tiver ExpiryDate
+                if (isFirstPayment && contract.ExpiryDate.HasValue)
+                {
+                    try
+                    {
+                        await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log do erro mas não impede a aprovação do pagamento
+                        // A declaração pode ser gerada manualmente depois se necessário
+                        System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                    }
+                }
+
+                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!" + 
+                    (isFirstPayment && contract.ExpiryDate.HasValue ? " Declaração gerada automaticamente." : "");
                 return RedirectToAction("PendingPayments");
             }
             catch (Exception ex)
@@ -1039,17 +1147,22 @@ namespace KlyonHubPlatform.Controllers
                 return NotFound();
             }
 
-            // Verificar se a foto pertence ao coworking do usuário logado
+            // Verificar se a foto pertence ao coworking do usuário logado OU se o usuário é cliente (pode ver fotos de qualquer coworking)
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
-            if (coworkingEntity == null || photo.CoworkingId != coworkingEntity.Id)
+            // Permitir acesso se:
+            // 1. É o dono do coworking
+            // 2. É administrador
+            // 3. É cliente (pode ver fotos de qualquer coworking para escolher endereços)
+            var canAccess = User.IsInRole("Administrator") || 
+                          (coworkingEntity != null && photo.CoworkingId == coworkingEntity.Id) ||
+                          User.IsInRole("Client");
+
+            if (!canAccess)
             {
-                if (!User.IsInRole("Administrator"))
-                {
-                    return Forbid();
-                }
+                return Forbid();
             }
 
             var storageService = await _storageFactory.GetStorageServiceAsync();

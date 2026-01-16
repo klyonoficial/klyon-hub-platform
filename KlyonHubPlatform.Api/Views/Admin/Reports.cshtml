@@ -11,13 +11,21 @@
 </div>
 
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card text-white bg-primary">
             <div class="card-body">
                 <h5 class="card-title">Período</h5>
                 <p class="card-text">
                     @ViewBag.StartDate.ToString("dd/MM/yyyy") até @ViewBag.EndDate.ToString("dd/MM/yyyy")
                 </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Total de Pagamentos</h5>
+                <h3>@(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Count ?? 0)</h3>
             </div>
         </div>
     </div>
@@ -34,14 +42,6 @@
             <div class="card-body">
                 <h5 class="card-title">Pendentes</h5>
                 <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Where(p => p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Total de Pagamentos</h5>
-                <h3>@(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Count ?? 0)</h3>
             </div>
         </div>
     </div>

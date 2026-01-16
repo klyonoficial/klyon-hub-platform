@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Dashboard Administrativo";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -187,11 +188,37 @@
                                 @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments)
                                 {
                                     <tr>
-                                        <td>@(payment.PaidAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                        <td>@(payment.CreatedAt.ToString("dd/MM/yyyy HH:mm"))</td>
                                         <td>@(payment.Subscription?.Contract?.Client?.RazaoSocial ?? payment.Subscription?.Contract?.Client?.ContactName ?? "N/A")</td>
                                         <td>R$ @(payment.Amount.ToString("N2"))</td>
                                         <td>
-                                            <span class="badge bg-success">Pago</span>
+                                            @switch (payment.Status)
+                                            {
+                                                case PaymentStatus.Pending:
+                                                    <span class="badge bg-warning">Pendente</span>
+                                                    break;
+                                                case PaymentStatus.Processing:
+                                                    <span class="badge bg-info">Processando</span>
+                                                    break;
+                                                case PaymentStatus.AwaitingValidation:
+                                                    <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                                    break;
+                                                case PaymentStatus.Paid:
+                                                    <span class="badge bg-success">Pago</span>
+                                                    break;
+                                                case PaymentStatus.Failed:
+                                                    <span class="badge bg-danger">Falhou</span>
+                                                    break;
+                                                case PaymentStatus.Refunded:
+                                                    <span class="badge bg-secondary">Reembolsado</span>
+                                                    break;
+                                                case PaymentStatus.Cancelled:
+                                                    <span class="badge bg-dark">Cancelado</span>
+                                                    break;
+                                                default:
+                                                    <span class="badge bg-secondary">@payment.Status</span>
+                                                    break;
+                                            }
                                         </td>
                                     </tr>
                                 }

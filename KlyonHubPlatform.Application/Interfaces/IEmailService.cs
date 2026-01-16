@@ -5,5 +5,6 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<bool> SendEmailAsync(string to, string subject, string body, bool isHtml = true);
         Task<bool> SendVerificationEmailAsync(string to, string name, string token);
         Task<bool> SendPasswordResetEmailAsync(string to, string name, string token);
+        Task<bool> SendContractExpiryNotificationAsync(string to, string clientName, string contractNumber, DateTime expiryDate, int daysRemaining);
     }
 }

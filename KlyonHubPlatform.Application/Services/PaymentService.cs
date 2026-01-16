@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.DTOs.PagBank;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
@@ -16,7 +17,9 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ICommissionService _commissionService;
         private readonly IContractRepository _contractRepository;
         private readonly ICoworkingRepository _coworkingRepository;
+        private readonly IPagBankService _pagBankService;
         private readonly ApplicationDbContext _context;
+        private readonly IAddressDeclarationService? _addressDeclarationService;
 
         public PaymentService(
             IPaymentRepository paymentRepository,
@@ -24,14 +27,18 @@ namespace KlyonHubPlatform.Application.Services
             ICommissionService commissionService,
             IContractRepository contractRepository,
             ICoworkingRepository coworkingRepository,
-            ApplicationDbContext context)
+            IPagBankService pagBankService,
+            ApplicationDbContext context,
+            IAddressDeclarationService? addressDeclarationService = null)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
             _commissionService = commissionService;
             _contractRepository = contractRepository;
             _coworkingRepository = coworkingRepository;
+            _pagBankService = pagBankService;
             _context = context;
+            _addressDeclarationService = addressDeclarationService;
         }
 
         public async Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method)
@@ -106,8 +113,9 @@ namespace KlyonHubPlatform.Application.Services
 
                     if (previousPaidPayments == 0)
                     {
-                        // Primeiro pagamento - ativar contrato
+                        // Primeiro pagamento - ativar contrato e definir validade de 1 ano
                         contract.Status = ContractStatus.Active;
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
                         await _contractRepository.UpdateAsync(contract);
 
                         // Atualizar contador de contratos do endereço
@@ -120,7 +128,47 @@ namespace KlyonHubPlatform.Application.Services
                             }
                             await _coworkingRepository.UpdateAddressAsync(contract.CoworkingAddress);
                         }
+
+                        // Gerar declaração automaticamente após o primeiro pagamento
+                        if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
+                        {
+                            try
+                            {
+                                await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log do erro mas não impede a confirmação do pagamento
+                                System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                            }
+                        }
                     }
+                    else
+                    {
+                        // Renovação - estender validade por mais 1 ano
+                        if (contract.ExpiryDate.HasValue)
+                        {
+                            contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                        }
+                        else
+                        {
+                            contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                        }
+                        await _contractRepository.UpdateAsync(contract);
+                    }
+                }
+                else if (contract != null && contract.Status == ContractStatus.Active)
+                {
+                    // Renovação de contrato ativo - estender validade por mais 1 ano
+                    if (contract.ExpiryDate.HasValue)
+                    {
+                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                    }
+                    else
+                    {
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    }
+                    await _contractRepository.UpdateAsync(contract);
                 }
             }
 
@@ -186,14 +234,50 @@ namespace KlyonHubPlatform.Application.Services
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
 
-            // TODO: Integrar com gerador de PIX real
-            var pixCode = $"00020126580014BR.GOV.BCB.PIX0136{payment.ExternalPaymentId}5204000053039865802BR5925KLYON ENDERECO FISCAL6009SAO PAULO62070503***6304{GenerateCRC16($"00020126580014BR.GOV.BCB.PIX0136{payment.ExternalPaymentId}5204000053039865802BR5925KLYON ENDERECO FISCAL6009SAO PAULO62070503***")}";
+            // Buscar informações do cliente
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (subscription == null)
+                throw new InvalidOperationException("Assinatura não encontrada");
 
-            payment.PixCode = pixCode;
-            payment.PixExpiresAt = DateTime.UtcNow.AddHours(24); // Expira em 24 horas
+            var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+            if (contract == null)
+                throw new InvalidOperationException("Contrato não encontrado");
+
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
+            if (client == null)
+                throw new InvalidOperationException("Cliente não encontrado");
+
+            // Criar pedido no PagBank
+            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+            var orderResponse = await _pagBankService.CreateOrderAsync(
+                referenceId: payment.ExternalPaymentId,
+                amount: payment.Amount,
+                method: PaymentMethod.PIX,
+                clientName: clientName,
+                clientEmail: clientEmail,
+                clientTaxId: clientTaxId,
+                clientPhone: clientPhone
+            );
+
+            // Atualizar payment com dados do PagBank
+            payment.ExternalPaymentId = orderResponse.Id;
+            
+            if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
+            {
+                var qrCode = orderResponse.QrCodes.First();
+                payment.PixCode = qrCode.Text;
+                payment.PixExpiresAt = qrCode.ExpirationDate;
+            }
+
             await _paymentRepository.UpdateAsync(payment);
 
-            return pixCode;
+            return payment.PixCode ?? "";
         }
 
         public async Task<string> GenerateBoletoCodeAsync(int paymentId)
@@ -202,17 +286,129 @@ namespace KlyonHubPlatform.Application.Services
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
 
-            // TODO: Integrar com gerador de boleto real
-            // Por enquanto, gerar um código de barras simulado
-            var boletoCode = $"34191.{DateTime.UtcNow:yyyyMMdd}00000{payment.Id:D10}{payment.Amount * 100:F0}";
-            var barcode = boletoCode.Replace(".", "").Replace("-", "");
+            // Buscar informações do cliente
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (subscription == null)
+                throw new InvalidOperationException("Assinatura não encontrada");
 
-            payment.BoletoCode = boletoCode;
-            payment.BoletoBarcode = barcode;
-            payment.BoletoExpiresAt = payment.DueDate; // Expira na data de vencimento
+            var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+            if (contract == null)
+                throw new InvalidOperationException("Contrato não encontrado");
+
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
+            if (client == null)
+                throw new InvalidOperationException("Cliente não encontrado");
+
+            // Criar pedido no PagBank
+            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+            var orderResponse = await _pagBankService.CreateOrderAsync(
+                referenceId: payment.ExternalPaymentId,
+                amount: payment.Amount,
+                method: PaymentMethod.BankTransfer,
+                clientName: clientName,
+                clientEmail: clientEmail,
+                clientTaxId: clientTaxId,
+                clientPhone: clientPhone
+            );
+
+            // Atualizar payment com dados do PagBank
+            payment.ExternalPaymentId = orderResponse.Id;
+            
+            if (orderResponse.Charges != null && orderResponse.Charges.Any())
+            {
+                var charge = orderResponse.Charges.First();
+                if (charge.PaymentMethod?.Boleto != null)
+                {
+                    payment.BoletoBarcode = charge.PaymentMethod.Boleto.Barcode;
+                    payment.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode;
+                    payment.BoletoExpiresAt = charge.PaymentMethod.Boleto.DueDate;
+                }
+            }
+
             await _paymentRepository.UpdateAsync(payment);
 
-            return boletoCode;
+            return payment.BoletoCode ?? payment.BoletoBarcode ?? "";
+        }
+
+        public async Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+
+            if (payment.Status != PaymentStatus.Pending)
+                throw new InvalidOperationException("Apenas pagamentos pendentes podem ser processados");
+
+            // Buscar informações do cliente
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (subscription == null)
+                throw new InvalidOperationException("Assinatura não encontrada");
+
+            var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+            if (contract == null)
+                throw new InvalidOperationException("Contrato não encontrado");
+
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
+            if (client == null)
+                throw new InvalidOperationException("Cliente não encontrado");
+
+            // Criar pedido no PagBank com cartão
+            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+            var orderResponse = await _pagBankService.CreateOrderAsync(
+                referenceId: payment.ExternalPaymentId,
+                amount: payment.Amount,
+                method: PaymentMethod.CreditCard,
+                clientName: clientName,
+                clientEmail: clientEmail,
+                clientTaxId: clientTaxId,
+                clientPhone: clientPhone,
+                card: card,
+                installments: installments
+            );
+
+            // Atualizar payment com dados do PagBank
+            payment.ExternalPaymentId = orderResponse.Id;
+            payment.Status = PaymentStatus.Processing;
+
+            if (orderResponse.Charges != null && orderResponse.Charges.Any())
+            {
+                var charge = orderResponse.Charges.First();
+                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid : 
+                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed : 
+                                 PaymentStatus.Processing;
+                
+                if (charge.PaidAt.HasValue)
+                {
+                    payment.PaidAt = charge.PaidAt.Value;
+                }
+
+                if (charge.PaymentMethod?.Card != null)
+                {
+                    payment.TransactionId = charge.Id;
+                }
+            }
+
+            await _paymentRepository.UpdateAsync(payment);
+
+            // Se o pagamento foi aprovado, confirmar
+            if (payment.Status == PaymentStatus.Paid)
+            {
+                await ConfirmPaymentAsync(payment.Id, payment.TransactionId);
+            }
+
+            return payment;
         }
 
         public async Task<List<Payment>> GetPendingPaymentsAsync()
@@ -267,8 +463,9 @@ namespace KlyonHubPlatform.Application.Services
 
                     if (previousPaidPayments == 0)
                     {
-                        // Primeiro pagamento - ativar contrato
+                        // Primeiro pagamento - ativar contrato e definir validade de 1 ano
                         contract.Status = ContractStatus.Active;
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
                         await _contractRepository.UpdateAsync(contract);
 
                         // Atualizar contador de contratos do endereço
@@ -281,7 +478,47 @@ namespace KlyonHubPlatform.Application.Services
                             }
                             await _coworkingRepository.UpdateAddressAsync(contract.CoworkingAddress);
                         }
+
+                        // Gerar declaração automaticamente após o primeiro pagamento
+                        if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
+                        {
+                            try
+                            {
+                                await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log do erro mas não impede a confirmação do pagamento
+                                System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                            }
+                        }
                     }
+                    else
+                    {
+                        // Renovação - estender validade por mais 1 ano
+                        if (contract.ExpiryDate.HasValue)
+                        {
+                            contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                        }
+                        else
+                        {
+                            contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                        }
+                        await _contractRepository.UpdateAsync(contract);
+                    }
+                }
+                else if (contract != null && contract.Status == ContractStatus.Active)
+                {
+                    // Renovação de contrato ativo - estender validade por mais 1 ano
+                    if (contract.ExpiryDate.HasValue)
+                    {
+                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                    }
+                    else
+                    {
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    }
+                    await _contractRepository.UpdateAsync(contract);
                 }
             }
 
