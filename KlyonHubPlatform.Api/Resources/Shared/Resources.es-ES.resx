@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Menu_Dashboard" xml:space="preserve">
+    <value>Panel</value>
+  </data>
+  <data name="Menu_Users" xml:space="preserve">
+    <value>Usuarios</value>
+  </data>
+  <data name="Menu_Locations" xml:space="preserve">
+    <value>Localidades</value>
+  </data>
+  <data name="Menu_Coworkings" xml:space="preserve">
+    <value>Coworkings</value>
+  </data>
+  <data name="Menu_Contracts" xml:space="preserve">
+    <value>Contratos</value>
+  </data>
+  <data name="Menu_MyAddresses" xml:space="preserve">
+    <value>Mis Direcciones</value>
+  </data>
+  <data name="Menu_MyContracts" xml:space="preserve">
+    <value>Mis Contratos</value>
+  </data>
+  <data name="Menu_Profile" xml:space="preserve">
+    <value>Mi Perfil</value>
+  </data>
+  <data name="Menu_Logout" xml:space="preserve">
+    <value>Salir</value>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Common_Edit" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="Common_View" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="Common_Search" xml:space="preserve">
+    <value>Buscar</value>
+  </data>
+  <data name="Common_Filter" xml:space="preserve">
+    <value>Filtrar</value>
+  </data>
+  <data name="Common_Add" xml:space="preserve">
+    <value>Agregar</value>
+  </data>
+  <data name="Common_New" xml:space="preserve">
+    <value>Nuevo</value>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="Common_Next" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Common_Previous" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Common_Loading" xml:space="preserve">
+    <value>Cargando...</value>
+  </data>
+  <data name="Common_Success" xml:space="preserve">
+    <value>Éxito</value>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Common_Warning" xml:space="preserve">
+    <value>Advertencia</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Common_Yes" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="Common_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Auth_Login" xml:space="preserve">
+    <value>Iniciar Sesión</value>
+  </data>
+  <data name="Auth_Register" xml:space="preserve">
+    <value>Registrarse</value>
+  </data>
+  <data name="Auth_Email" xml:space="preserve">
+    <value>Correo Electrónico</value>
+  </data>
+  <data name="Auth_Password" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="Auth_ForgotPassword" xml:space="preserve">
+    <value>Olvidé mi contraseña</value>
+  </data>
+  <data name="Auth_RememberMe" xml:space="preserve">
+    <value>Recordarme</value>
+  </data>
+  <data name="Validation_Required" xml:space="preserve">
+    <value>Este campo es obligatorio</value>
+  </data>
+  <data name="Validation_InvalidEmail" xml:space="preserve">
+    <value>Correo electrónico inválido</value>
+  </data>
+  <data name="Validation_MinLength" xml:space="preserve">
+    <value>Este campo debe tener al menos {0} caracteres</value>
+  </data>
+  <data name="Message_SavedSuccessfully" xml:space="preserve">
+    <value>¡Guardado con éxito!</value>
+  </data>
+  <data name="Message_DeletedSuccessfully" xml:space="preserve">
+    <value>¡Eliminado con éxito!</value>
+  </data>
+  <data name="Message_ErrorOccurred" xml:space="preserve">
+    <value>Ocurrió un error. Por favor, intente nuevamente.</value>
+  </data>
+</root>

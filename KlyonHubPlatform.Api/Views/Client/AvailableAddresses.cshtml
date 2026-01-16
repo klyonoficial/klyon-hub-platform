@@ -1,0 +1,51 @@
+@{
+    ViewData["Title"] = "Endereços Disponíveis";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Endereços Disponíveis</h2>
+    <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (Model.Any())
+{
+    <div class="row">
+        @foreach (var address in Model)
+        {
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-geo-alt"></i> @address.Address, @address.Number
+                        </h5>
+                        <p class="card-text">
+                            <strong>Bairro:</strong> @address.Neighborhood<br>
+                            <strong>Cidade:</strong> @address.City/@address.State<br>
+                            <strong>CEP:</strong> @address.ZipCode
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h4 class="text-primary mb-0">R$ @address.BasePrice.ToString("F2")/mês</h4>
+                            <form method="post" action="@Url.Action("CreateContract", "Client")">
+                                <input type="hidden" name="coworkingAddressId" value="@address.Id">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> Contratar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Não há endereços disponíveis nesta localidade no momento.
+    </div>
+}

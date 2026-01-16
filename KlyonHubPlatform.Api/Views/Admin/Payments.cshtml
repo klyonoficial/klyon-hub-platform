@@ -1,0 +1,196 @@
+@model List<KlyonHubPlatform.Domain.Entities.Payment>
+@using KlyonHubPlatform.Domain.Core.Enums
+@{
+    ViewData["Title"] = "Gerenciar Pagamentos";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-credit-card"></i> Gerenciar Pagamentos</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("Payments", "Admin")" class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" name="search" placeholder="Buscar por ID, contrato ou cliente..." value="@ViewBag.Search">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="status">
+                    <option value="">Todos os status</option>
+                    <option value="Pending" selected="@(ViewBag.Status == "Pending")">Pendente</option>
+                    <option value="Processing" selected="@(ViewBag.Status == "Processing")">Processando</option>
+                    <option value="Paid" selected="@(ViewBag.Status == "Paid")">Pago</option>
+                    <option value="Failed" selected="@(ViewBag.Status == "Failed")">Falhou</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+            <div class="col-md-3">
+                <a href="@Url.Action("Payments", "Admin")" class="btn btn-secondary w-100">
+                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cliente</th>
+                        <th>Contrato</th>
+                        <th>Valor</th>
+                        <th>Método</th>
+                        <th>Status</th>
+                        <th>Vencimento</th>
+                        <th>Pago em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model == null || !Model.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">
+                                Nenhum pagamento encontrado.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var payment in Model)
+                        {
+                            <tr>
+                                <td><code>@payment.ExternalPaymentId.Substring(0, Math.Min(8, payment.ExternalPaymentId.Length))</code></td>
+                                <td>
+                                    <strong>@(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")</strong><br>
+                                    <small class="text-muted">@payment.Subscription?.Contract?.Client?.ContactEmail</small>
+                                </td>
+                                <td>
+                                    <strong>@payment.Subscription?.Contract?.ContractNumber</strong><br>
+                                    <small class="text-muted">@payment.Subscription?.Contract?.CoworkingAddress?.Address</small>
+                                </td>
+                                <td><strong>R$ @payment.Amount.ToString("N2")</strong></td>
+                                <td>
+                                    @switch (payment.Method)
+                                    {
+                                        case PaymentMethod.PIX:
+                                            <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                            break;
+                                        case PaymentMethod.CreditCard:
+                                            <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
+                                            break;
+                                        case PaymentMethod.BankTransfer:
+                                            <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>
+                                    @switch (payment.Status)
+                                    {
+                                        case PaymentStatus.Pending:
+                                            <span class="badge bg-warning">Pendente</span>
+                                            break;
+                                        case PaymentStatus.Processing:
+                                            <span class="badge bg-info">Processando</span>
+                                            break;
+                                        case PaymentStatus.Paid:
+                                            <span class="badge bg-success">Pago</span>
+                                            break;
+                                        case PaymentStatus.Failed:
+                                            <span class="badge bg-danger">Falhou</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary">@payment.Status</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>
+                                    @payment.DueDate.ToString("dd/MM/yyyy")
+                                    @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
+                                    {
+                                        <br><small class="text-danger">Vencido</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (payment.PaidAt.HasValue)
+                                    {
+                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (payment.Status == PaymentStatus.Pending)
+                                    {
+                                        <form method="post" action="@Url.Action("ConfirmPayment", "Admin")" style="display: inline;">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Confirmar pagamento? O contrato será ativado automaticamente.')">
+                                                <i class="bi bi-check-circle"></i> Confirmar
+                                            </button>
+                                        </form>
+                                    }
+                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = payment.Id })" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (ViewBag.TotalPages > 1)
+{
+    <nav aria-label="Paginação">
+        <ul class="pagination justify-content-center">
+            @if (ViewBag.CurrentPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Payments", new { page = ViewBag.CurrentPage - 1, search = ViewBag.Search, status = ViewBag.Status })">Anterior</a>
+                </li>
+            }
+            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+            {
+                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                    <a class="page-link" href="@Url.Action("Payments", new { page = i, search = ViewBag.Search, status = ViewBag.Status })">@i</a>
+                </li>
+            }
+            @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("Payments", new { page = ViewBag.CurrentPage + 1, search = ViewBag.Search, status = ViewBag.Status })">Próximo</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

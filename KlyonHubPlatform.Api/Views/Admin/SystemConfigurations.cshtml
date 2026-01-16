@@ -1,0 +1,131 @@
+@model List<KlyonHubPlatform.Domain.Entities.SystemConfiguration>
+@{
+    ViewData["Title"] = "Configurações do Sistema";
+    var groupedConfigurations = ViewBag.GroupedConfigurations as IEnumerable<IGrouping<string, KlyonHubPlatform.Domain.Entities.SystemConfiguration>>;
+    var categories = ViewBag.Categories as List<string> ?? new List<string>();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-gear"></i> Configurações do Sistema</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        <div class="accordion" id="configAccordion">
+            @foreach (var categoryGroup in groupedConfigurations)
+            {
+                var category = categoryGroup.Key;
+                var categoryId = category.Replace(" ", "").Replace(".", "");
+                var isFirst = categoryGroup == groupedConfigurations.First();
+                
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading@(categoryId)">
+                        <button class="accordion-button @(isFirst ? "" : "collapsed")" type="button" data-bs-toggle="collapse" data-bs-target="#collapse@(categoryId)" aria-expanded="@(isFirst ? "true" : "false")">
+                            <i class="bi bi-folder me-2"></i> <strong>@category</strong>
+                            <span class="badge bg-secondary ms-2">@categoryGroup.Count()</span>
+                        </button>
+                    </h2>
+                    <div id="collapse@(categoryId)" class="accordion-collapse collapse @(isFirst ? "show" : "")" aria-labelledby="heading@(categoryId)" data-bs-parent="#configAccordion">
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Chave</th>
+                                            <th>Valor</th>
+                                            <th>Descrição</th>
+                                            <th>Tipo</th>
+                                            <th>Última Atualização</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var config in categoryGroup)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <code>@config.Key</code>
+                                                </td>
+                                                <td>
+                                                    @if (config.IsSensitive)
+                                                    {
+                                                        <span class="text-muted">
+                                                            <i class="bi bi-lock"></i> 
+                                                            @(config.Value.Length > 0 ? new string('*', Math.Min(config.Value.Length, 20)) : "Não definido")
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@(config.Value.Length > 100 ? config.Value.Substring(0, 100) + "..." : config.Value)</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">@(config.Description ?? "Sem descrição")</small>
+                                                </td>
+                                                <td>
+                                                    @if (config.IsSensitive)
+                                                    {
+                                                        <span class="badge bg-danger">Sensível</span>
+                                                    }
+                                                    @if (config.IsEncrypted)
+                                                    {
+                                                        <span class="badge bg-warning">Criptografado</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        @if (config.UpdatedAt.HasValue)
+                                                        {
+                                                            @config.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                                            @if (!string.IsNullOrEmpty(config.UpdatedBy))
+                                                            {
+                                                                <br><span class="text-muted">por @config.UpdatedBy</span>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">Nunca atualizado</span>
+                                                        }
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <a href="@Url.Action("EditSystemConfiguration", "Admin", new { id = config.Id })" class="btn btn-sm btn-primary">
+                                                        <i class="bi bi-pencil"></i> Editar
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <small class="text-muted">
+        <i class="bi bi-info-circle"></i> 
+        <strong>Nota:</strong> Valores marcados como "Sensível" são mascarados por segurança. 
+        Apenas administradores podem visualizar e editar essas configurações.
+    </small>
+</div>

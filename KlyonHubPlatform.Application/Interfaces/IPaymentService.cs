@@ -1,0 +1,18 @@
+using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
+using KlyonHubPlatform.Domain.Core.Constants;
+
+namespace KlyonHubPlatform.Application.Interfaces
+{
+    public interface IPaymentService
+    {
+        Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method);
+        Task<Payment> ProcessPaymentAsync(int paymentId);
+        Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
+        Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
+        Task<string> GeneratePixCodeAsync(int paymentId);
+        Task<List<Payment>> GetPendingPaymentsAsync();
+        Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId);
+        Task<Payment?> GetPaymentByIdAsync(int paymentId);
+    }
+}

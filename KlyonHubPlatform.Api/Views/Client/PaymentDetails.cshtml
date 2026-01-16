@@ -1,0 +1,250 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@{
+    ViewData["Title"] = "Detalhes do Pagamento";
+    var contract = Model.Subscription?.Contract;
+    var isPending = Model.Status == PaymentStatus.Pending;
+    var isPix = Model.Method == PaymentMethod.PIX;
+    var isExpired = Model.PixExpiresAt.HasValue && Model.PixExpiresAt.Value < DateTime.UtcNow;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-credit-card"></i> Detalhes do Pagamento</h2>
+    <a href="@Url.Action("MyPayments", "Client")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Informações do Pagamento</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Número do Contrato:</dt>
+                    <dd class="col-sm-8"><strong>@contract?.ContractNumber</strong></dd>
+
+                    <dt class="col-sm-4">Endereço:</dt>
+                    <dd class="col-sm-8">@contract?.CoworkingAddress?.Address, @contract?.CoworkingAddress?.City/@contract?.CoworkingAddress?.State</dd>
+
+                    <dt class="col-sm-4">Valor:</dt>
+                    <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4></dd>
+
+                    <dt class="col-sm-4">Método de Pagamento:</dt>
+                    <dd class="col-sm-8">
+                        @switch (Model.Method)
+                        {
+                            case PaymentMethod.PIX:
+                                <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                break;
+                            case PaymentMethod.CreditCard:
+                                <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
+                                break;
+                            case PaymentMethod.BankTransfer:
+                                <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>
+                                break;
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Status:</dt>
+                    <dd class="col-sm-8">
+                        @switch (Model.Status)
+                        {
+                            case PaymentStatus.Pending:
+                                <span class="badge bg-warning">Pendente</span>
+                                break;
+                            case PaymentStatus.Processing:
+                                <span class="badge bg-info">Processando</span>
+                                break;
+                            case PaymentStatus.Paid:
+                                <span class="badge bg-success">Pago</span>
+                                break;
+                            case PaymentStatus.Failed:
+                                <span class="badge bg-danger">Falhou</span>
+                                break;
+                            default:
+                                <span class="badge bg-secondary">@Model.Status</span>
+                                break;
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Data de Vencimento:</dt>
+                    <dd class="col-sm-8">
+                        @Model.DueDate.ToString("dd/MM/yyyy")
+                        @if (Model.DueDate < DateTime.UtcNow && isPending)
+                        {
+                            <span class="badge bg-danger ms-2">Vencido</span>
+                        }
+                    </dd>
+
+                    @if (Model.PaidAt.HasValue)
+                    {
+                        <dt class="col-sm-4">Data do Pagamento:</dt>
+                        <dd class="col-sm-8">@Model.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</dd>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.TransactionId))
+                    {
+                        <dt class="col-sm-4">ID da Transação:</dt>
+                        <dd class="col-sm-8"><code>@Model.TransactionId</code></dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        @if (isPix && isPending)
+        {
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
+                </div>
+                <div class="card-body text-center">
+                    @if (isExpired)
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Este código PIX expirou. Um novo código será gerado ao confirmar o pagamento.
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(Model.PixCode))
+                    {
+                        <div class="mb-3">
+                            <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="pixCode" value="@Model.PixCode" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode()">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            @if (Model.PixExpiresAt.HasValue)
+                            {
+                                <text>Este código expira em: @Model.PixExpiresAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
+                            }
+                            else
+                            {
+                                <text>Escaneie o QR Code ou copie o código para pagar via PIX</text>
+                            }
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Gerando código PIX...</p>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Ações</h5>
+            </div>
+            <div class="card-body">
+                @if (isPending)
+                {
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Atenção:</strong> Seu contrato será ativado automaticamente após a confirmação do pagamento.
+                    </div>
+
+                    <form method="post" action="@Url.Action("ConfirmPayment", "Client")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                        <button type="submit" class="btn btn-success w-100 mb-2">
+                            <i class="bi bi-check-circle"></i> Confirmar Pagamento
+                        </button>
+                    </form>
+
+                    <p class="text-muted small mt-3">
+                        <i class="bi bi-info-circle"></i> 
+                        Clique em "Confirmar Pagamento" após realizar o pagamento via PIX, boleto ou cartão.
+                        O sistema verificará e ativará seu contrato automaticamente.
+                    </p>
+                }
+                else if (Model.Status == PaymentStatus.Paid)
+                {
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> 
+                        <strong>Pagamento Confirmado!</strong><br>
+                        Seu contrato está ativo.
+                    </div>
+                    <a href="@Url.Action("ContractDetails", "Client", new { id = contract?.Id })" class="btn btn-primary w-100">
+                        <i class="bi bi-file-text"></i> Ver Contrato
+                    </a>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        Este pagamento está sendo processado ou já foi processado.
+                    </div>
+                }
+
+                <hr>
+
+                <a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-list"></i> Ver Todas as Cobranças
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        function copyPixCode() {
+            const pixCode = document.getElementById('pixCode');
+            pixCode.select();
+            document.execCommand('copy');
+            
+            const button = event.target.closest('button');
+            const originalHtml = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Copiado!';
+            button.classList.add('btn-success');
+            button.classList.remove('btn-outline-secondary');
+            
+            setTimeout(() => {
+                button.innerHTML = originalHtml;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        }
+
+        @if (isPix && !string.IsNullOrEmpty(Model.PixCode) && !isExpired)
+        {
+            <text>
+            // Gerar QR Code
+            new QRCode(document.getElementById("qrcode"), {
+                text: "@Model.PixCode",
+                width: 200,
+                height: 200
+            });
+            </text>
+        }
+    </script>
+}

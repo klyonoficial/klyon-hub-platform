@@ -1,0 +1,172 @@
+@{
+    ViewData["Title"] = "Visualizar Usuário";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.User
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person"></i> Visualizar Usuário</h2>
+    <a href="@Url.Action("Users", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Informações Pessoais</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tr>
+                        <th>ID:</th>
+                        <td>@Model.Id</td>
+                    </tr>
+                    <tr>
+                        <th>Nome Completo:</th>
+                        <td>@Model.FullName</td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td>@Model.Email</td>
+                    </tr>
+                    <tr>
+                        <th>Telefone:</th>
+                        <td>@(Model.Phone ?? "Não informado")</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            <span class="badge bg-@(Model.IsActive ? "success" : "danger")">
+                                @(Model.IsActive ? "Ativo" : "Inativo")
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Email Verificado:</th>
+                        <td>
+                            @if (Model.EmailVerified)
+                            {
+                                <text><i class="bi bi-check-circle text-success"></i> Sim</text>
+                            }
+                            else
+                            {
+                                <text><i class="bi bi-x-circle text-danger"></i> Não</text>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Data de Cadastro:</th>
+                        <td>@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                    </tr>
+                    @if (Model.UpdatedAt.HasValue)
+                    {
+                        <tr>
+                            <th>Última Atualização:</th>
+                            <td>@Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Roles (Perfis)</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.UserRoles != null && Model.UserRoles.Any())
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var userRole in Model.UserRoles)
+                        {
+                            <span class="badge bg-primary">@userRole.Role.Name</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Nenhum perfil atribuído.</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Ações</h5>
+            </div>
+            <div class="card-body">
+                <a href="@Url.Action("EditUser", "Admin", new { id = Model.Id })" class="btn btn-primary w-100 mb-2">
+                    <i class="bi bi-pencil"></i> Editar Usuário
+                </a>
+                @if (!Model.EmailVerified)
+                {
+                    <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = Model.Id })" class="mt-2">
+                        <button type="submit" class="btn btn-success w-100" onclick="return confirm('Deseja verificar o email deste usuário?')">
+                            <i class="bi bi-envelope-check"></i> Verificar Email
+                        </button>
+                    </form>
+                }
+                <hr>
+                <h6 class="mb-3" id="resetPassword">
+                    <i class="bi bi-key"></i> Resetar Senha
+                </h6>
+                <div class="alert alert-info">
+                    <small><i class="bi bi-info-circle"></i> Você pode alterar a senha de qualquer usuário, incluindo Coworking Partners.</small>
+                </div>
+                <form method="post" action="@Url.Action("ResetUserPassword", "Admin")" id="resetPasswordForm">
+                    <input type="hidden" name="userId" value="@Model.Id">
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">Nova Senha</label>
+                        <input type="password" class="form-control" id="newPassword" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres">
+                        <small class="form-text text-muted">A senha será alterada imediatamente após a confirmação.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmNewPassword" class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" class="form-control" id="confirmNewPassword" name="confirmNewPassword" required minlength="6" placeholder="Digite novamente">
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100" onclick="return validatePasswordReset()">
+                        <i class="bi bi-key"></i> Resetar Senha
+                    </button>
+                </form>
+                <script>
+                    function validatePasswordReset() {
+                        var password = document.getElementById('newPassword').value;
+                        var confirmPassword = document.getElementById('confirmNewPassword').value;
+                        
+                        if (password !== confirmPassword) {
+                            alert('As senhas não coincidem!');
+                            return false;
+                        }
+                        
+                        if (password.length < 6) {
+                            alert('A senha deve ter no mínimo 6 caracteres!');
+                            return false;
+                        }
+                        
+                        return confirm('Deseja realmente resetar a senha deste usuário? Esta ação não pode ser desfeita.');
+                    }
+                </script>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
