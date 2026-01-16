@@ -7,7 +7,7 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         Task<OrderResponse> CreateOrderAsync(string referenceId, decimal amount, PaymentMethod method, 
             string clientName, string clientEmail, string clientTaxId, string? clientPhone = null,
-            PagBankCard? card = null, int? installments = null);
+            PagBankCard? card = null, int? installments = null, PagBankAddress? clientAddress = null);
         
         Task<OrderResponse> GetOrderAsync(string orderId);
         

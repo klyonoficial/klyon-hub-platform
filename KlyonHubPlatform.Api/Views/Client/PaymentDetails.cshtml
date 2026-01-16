@@ -52,7 +52,35 @@
                     <dd class="col-sm-8"><strong>@contract?.ContractNumber</strong></dd>
 
                     <dt class="col-sm-4">Endereço:</dt>
-                    <dd class="col-sm-8">@contract?.CoworkingAddress?.Address, @contract?.CoworkingAddress?.City/@contract?.CoworkingAddress?.State</dd>
+                    <dd class="col-sm-8">
+                        @{
+                            var hasAddress = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.Address);
+                            var hasCity = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.City);
+                            var hasState = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.State);
+                            
+                            if (hasAddress || hasCity || hasState)
+                            {
+                                var addressParts = new List<string>();
+                                if (hasAddress)
+                                {
+                                    addressParts.Add(contract.CoworkingAddress.Address);
+                                }
+                                if (hasCity && hasState)
+                                {
+                                    addressParts.Add($"{contract.CoworkingAddress.City}/{contract.CoworkingAddress.State}");
+                                }
+                                else if (hasCity)
+                                {
+                                    addressParts.Add(contract.CoworkingAddress.City);
+                                }
+                                else if (hasState)
+                                {
+                                    addressParts.Add(contract.CoworkingAddress.State);
+                                }
+                                <text>@string.Join(", ", addressParts)</text>
+                            }
+                        }
+                    </dd>
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4></dd>

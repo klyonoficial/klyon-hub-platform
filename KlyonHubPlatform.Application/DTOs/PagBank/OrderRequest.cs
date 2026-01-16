@@ -200,6 +200,34 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
         public string? Email { get; set; }
 
         [JsonPropertyName("address")]
-        public PagBankAddress? Address { get; set; }
+        public PagBankBoletoHolderAddress? Address { get; set; }
+    }
+
+    // Endereço específico para holder do boleto - usa "region" ao invés de "region_code"
+    public class PagBankBoletoHolderAddress
+    {
+        [JsonPropertyName("street")]
+        public string Street { get; set; } = string.Empty;
+
+        [JsonPropertyName("number")]
+        public string Number { get; set; } = string.Empty;
+
+        [JsonPropertyName("complement")]
+        public string? Complement { get; set; }
+
+        [JsonPropertyName("locality")]
+        public string Locality { get; set; } = string.Empty; // Bairro
+
+        [JsonPropertyName("city")]
+        public string City { get; set; } = string.Empty;
+
+        [JsonPropertyName("region")]
+        public string Region { get; set; } = string.Empty; // UF - usa "region" ao invés de "region_code"
+
+        [JsonPropertyName("country")]
+        public string Country { get; set; } = "BRA";
+
+        [JsonPropertyName("postal_code")]
+        public string PostalCode { get; set; } = string.Empty;
     }
 }

@@ -7,6 +7,7 @@ using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
+using System.Linq;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -306,6 +307,82 @@ namespace KlyonHubPlatform.Application.Services
             var clientEmail = client.ContactEmail ?? client.User.Email;
             var clientTaxId = client.CNPJ ?? client.CPF ?? "";
             var clientPhone = client.ContactPhone ?? client.User.Phone;
+            
+            // Função auxiliar para validar e preencher campos
+            string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+            {
+                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+            }
+            
+            // Preparar endereço do cliente para o boleto com validação completa
+            // Street (Rua) - obrigatório
+            var street = GetValueOrDefault(client.Address, "Não informado");
+            
+            // Number (Número) - obrigatório
+            var number = "S/N"; // Padrão se não informado
+            
+            // Locality (Bairro) - obrigatório
+            var locality = "Não informado";
+            
+            // City (Cidade) - obrigatório
+            var city = GetValueOrDefault(client.City, "Não informado");
+            
+            // RegionCode (UF) - obrigatório, validar formato
+            var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
+                                  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", 
+                                  "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
+            var regionCode = "SP"; // Padrão
+            if (!string.IsNullOrWhiteSpace(client.State))
+            {
+                var stateTemp = client.State.Trim().ToUpper();
+                if (stateTemp.Length >= 2)
+                {
+                    stateTemp = stateTemp.Substring(0, 2);
+                    if (validUFs.Contains(stateTemp))
+                    {
+                        regionCode = stateTemp;
+                    }
+                }
+            }
+            
+            // Country - obrigatório, sempre "BRA"
+            var country = "BRA";
+            
+            // PostalCode (CEP) - obrigatório, validar formato (8 dígitos)
+            var postalCode = "00000000"; // Padrão
+            if (!string.IsNullOrWhiteSpace(client.ZipCode))
+            {
+                var postalCodeTemp = client.ZipCode
+                    .Replace("-", "")
+                    .Replace(".", "")
+                    .Replace(" ", "")
+                    .Trim();
+                
+                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
+                {
+                    postalCode = postalCodeTemp;
+                }
+                else if (postalCodeTemp.Length > 8)
+                {
+                    postalCode = postalCodeTemp.Substring(0, 8);
+                }
+                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
+                {
+                    postalCode = postalCodeTemp.PadLeft(8, '0');
+                }
+            }
+            
+            var clientAddress = new PagBankAddress
+            {
+                Street = street,
+                Number = number,
+                Complement = null, // Opcional
+                Locality = locality,
+                City = city,
+                RegionCode = regionCode,
+                Country = country,
+                PostalCode = postalCode
+            };
 
             var orderResponse = await _pagBankService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
@@ -314,7 +391,8 @@ namespace KlyonHubPlatform.Application.Services
                 clientName: clientName,
                 clientEmail: clientEmail,
                 clientTaxId: clientTaxId,
-                clientPhone: clientPhone
+                clientPhone: clientPhone,
+                clientAddress: clientAddress
             );
 
             // Atualizar payment com dados do PagBank

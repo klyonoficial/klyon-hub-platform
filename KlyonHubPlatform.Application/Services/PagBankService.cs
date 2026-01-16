@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -53,7 +55,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<OrderResponse> CreateOrderAsync(string referenceId, decimal amount, PaymentMethod method,
             string clientName, string clientEmail, string clientTaxId, string? clientPhone = null,
-            PagBankCard? card = null, int? installments = null)
+            PagBankCard? card = null, int? installments = null, PagBankAddress? clientAddress = null)
         {
             try
             {
@@ -96,9 +98,105 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 else if (method == PaymentMethod.BankTransfer)
                 {
-                    // Preparar dados do titular do boleto
-                    var holderName = clientName;
-                    var holderTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "");
+                    // Função auxiliar para validar e preencher campos obrigatórios
+                    string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+                    {
+                        return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+                    }
+                    
+                    // Validar e preparar dados do titular do boleto (todos obrigatórios)
+                    var holderName = GetValueOrDefault(clientName, "Não informado");
+                    if (string.IsNullOrWhiteSpace(holderName) || holderName == "Não informado")
+                    {
+                        holderName = "Cliente";
+                    }
+                    
+                    // TaxId (CPF/CNPJ) - obrigatório, remover formatação
+                    var holderTaxId = !string.IsNullOrWhiteSpace(clientTaxId)
+                        ? clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim()
+                        : "00000000000"; // CPF padrão se não informado
+                    
+                    // Garantir que TaxId tenha pelo menos 11 dígitos (CPF mínimo)
+                    if (holderTaxId.Length < 11)
+                    {
+                        holderTaxId = holderTaxId.PadLeft(11, '0');
+                    }
+                    
+                    // Email - obrigatório, validar formato básico
+                    var holderEmail = GetValueOrDefault(clientEmail, "noreply@klyon.com.br");
+                    if (!holderEmail.Contains("@") || holderEmail.Length < 5)
+                    {
+                        holderEmail = "noreply@klyon.com.br";
+                    }
+                    
+                    // Preparar endereço do holder (todos os campos são obrigatórios)
+                    // O holder.address usa "region" ao invés de "region_code"
+                    var holderStreet = GetValueOrDefault(clientAddress?.Street, "Não informado");
+                    var holderNumber = GetValueOrDefault(clientAddress?.Number, "S/N");
+                    var holderComplement = clientAddress?.Complement; // Opcional
+                    var holderLocality = GetValueOrDefault(clientAddress?.Locality, "Não informado");
+                    var holderCity = GetValueOrDefault(clientAddress?.City, "Não informado");
+                    
+                    // Region (UF) - obrigatório, deve ser 2 caracteres maiúsculas
+                    var holderRegion = "SP"; // Padrão
+                    if (!string.IsNullOrWhiteSpace(clientAddress?.RegionCode))
+                    {
+                        var regionTemp = clientAddress.RegionCode.Trim().ToUpper();
+                        holderRegion = regionTemp.Length >= 2 ? regionTemp.Substring(0, 2) : "SP";
+                    }
+                    
+                    // Validar se é uma UF válida do Brasil (lista básica)
+                    var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
+                                          "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", 
+                                          "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
+                    if (!validUFs.Contains(holderRegion))
+                    {
+                        holderRegion = "SP";
+                    }
+                    
+                    // Country - obrigatório, sempre "BRA" para Brasil
+                    var holderCountry = GetValueOrDefault(clientAddress?.Country, "BRA");
+                    if (holderCountry != "BRA")
+                    {
+                        holderCountry = "BRA";
+                    }
+                    
+                    // PostalCode (CEP) - obrigatório, deve ter 8 dígitos
+                    var holderPostalCode = "00000000"; // Padrão
+                    if (!string.IsNullOrWhiteSpace(clientAddress?.PostalCode))
+                    {
+                        var postalCodeTemp = clientAddress.PostalCode
+                            .Replace("-", "")
+                            .Replace(".", "")
+                            .Replace(" ", "")
+                            .Trim();
+                        
+                        if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
+                        {
+                            holderPostalCode = postalCodeTemp;
+                        }
+                        else if (postalCodeTemp.Length > 8)
+                        {
+                            holderPostalCode = postalCodeTemp.Substring(0, 8);
+                        }
+                        else
+                        {
+                            holderPostalCode = postalCodeTemp.PadLeft(8, '0');
+                        }
+                    }
+                    
+                    // Criar endereço do holder com todos os campos validados
+                    var holderAddress = new PagBankBoletoHolderAddress
+                    {
+                        Street = holderStreet,
+                        Number = holderNumber,
+                        Complement = holderComplement,
+                        Locality = holderLocality,
+                        City = holderCity,
+                        Region = holderRegion,
+                        Country = holderCountry,
+                        PostalCode = holderPostalCode
+                    };
                     
                     orderRequest.Charges = new List<PagBankCharge>
                     {
@@ -125,7 +223,9 @@ namespace KlyonHubPlatform.Application.Services
                                     Holder = new PagBankBoletoHolder
                                     {
                                         Name = holderName,
-                                        TaxId = holderTaxId
+                                        TaxId = holderTaxId,
+                                        Email = holderEmail,
+                                        Address = holderAddress
                                     }
                                 }
                             }
