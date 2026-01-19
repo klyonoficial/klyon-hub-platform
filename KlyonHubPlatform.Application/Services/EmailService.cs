@@ -97,7 +97,7 @@ namespace KlyonHubPlatform.Application.Services
         .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
         .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
         .content {{ padding: 20px; background-color: #f9f9f9; }}
-        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
     </style>
 </head>
@@ -145,7 +145,7 @@ namespace KlyonHubPlatform.Application.Services
         .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
         .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
         .content {{ padding: 20px; background-color: #f9f9f9; }}
-        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
         .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }}
     </style>
@@ -196,7 +196,7 @@ namespace KlyonHubPlatform.Application.Services
         .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
         .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
         .content {{ padding: 20px; background-color: #f9f9f9; }}
-        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
         .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
         .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }}
         .danger {{ background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 15px 0; }}
