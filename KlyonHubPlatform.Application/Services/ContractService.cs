@@ -58,11 +58,11 @@ namespace KlyonHubPlatform.Application.Services
                 }
 
                 // Verificar se já existe contrato ativo neste endereço
-                var activeContract = await _contractRepository.GetActiveContractByAddressIdAsync(coworkingAddressId);
-                if (activeContract != null)
-                {
-                    throw new InvalidOperationException("Já existe um contrato ativo neste endereço");
-                }
+                //var activeContract = await _contractRepository.GetActiveContractByAddressIdAsync(coworkingAddressId);
+                //if (activeContract != null)
+                //{
+                //    throw new InvalidOperationException("Já existe um contrato ativo neste endereço");
+                //}
 
                 // Criar contrato inicialmente como Suspended (aguardando pagamento)
                 var contract = new Contract
@@ -72,7 +72,7 @@ namespace KlyonHubPlatform.Application.Services
                     ContractNumber = await GenerateContractNumberAsync(),
                     StartDate = DateTime.UtcNow,
                     MonthlyValue = monthlyValue,
-                    Status = ContractStatus.Suspended // Inicia suspenso até pagamento
+                    Status = ContractStatus.PendingPayment
                 };
 
                 var createdContract = await _contractRepository.CreateAsync(contract);

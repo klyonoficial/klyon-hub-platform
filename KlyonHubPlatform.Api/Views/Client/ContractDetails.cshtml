@@ -31,22 +31,45 @@
                             @switch (Model.Status)
                             {
                                 case ContractStatus.Active:
-                                    <span class="badge bg-success">Ativo</span>
+                                    <span class="badge bg-active">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Ativo
+                                    </span>
                                     break;
+
                                 case ContractStatus.Suspended:
-                                    <span class="badge bg-warning">Suspenso</span>
+                                    <span class="badge bg-suspended">
+                                        <i class="bi bi-pause-circle-fill me-1"></i> Suspenso
+                                    </span>
                                     break;
-                                case ContractStatus.Cancelled:
-                                    <span class="badge bg-danger">Cancelado</span>
+
+                                case ContractStatus.PendingPayment:
+                                    <span class="badge bg-pending-payment">
+                                        <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                    </span>
                                     break;
+
                                 case ContractStatus.PendingCancellation:
-                                    <span class="badge bg-warning"><i class="bi bi-clock-history"></i> Cancelamento Pendente</span>
+                                    <span class="badge bg-pending-cancellation">
+                                        <i class="bi bi-clock-history me-1"></i> Cancelamento Pendente
+                                    </span>
                                     break;
+
+                                case ContractStatus.Cancelled:
+                                    <span class="badge bg-cancelled">
+                                        <i class="bi bi-x-circle-fill me-1"></i> Cancelado
+                                    </span>
+                                    break;
+
                                 case ContractStatus.Expired:
-                                    <span class="badge bg-secondary">Expirado</span>
+                                    <span class="badge bg-expired">
+                                        <i class="bi bi-calendar-x-fill me-1"></i> Expirado
+                                    </span>
                                     break;
+
                                 default:
-                                    <span class="badge bg-secondary">@Model.Status</span>
+                                    <span class="badge bg-expired">
+                                        <i class="bi bi-question-circle-fill me-1"></i> @Model.Status
+                                    </span>
                                     break;
                             }
                         </td>

@@ -101,22 +101,30 @@
                                     @{
                                         var statusClass = contract.Status switch
                                         {
-                                            ContractStatus.Active => "success",
-                                            ContractStatus.Suspended => "warning",
-                                            ContractStatus.Cancelled => "danger",
-                                            ContractStatus.Expired => "secondary",
-                                            _ => "secondary"
+                                            ContractStatus.Active => "active",
+                                            ContractStatus.PendingPayment => "pending-payment",
+                                            ContractStatus.Suspended => "suspended",
+                                            ContractStatus.PendingCancellation => "pending-cancellation",
+                                            ContractStatus.Cancelled => "cancelled",
+                                            ContractStatus.Expired => "expired",
+                                            _ => "expired"
                                         };
-                                        var statusText = contract.Status switch
+
+                                        var (statusText, statusIcon) = contract.Status switch
                                         {
-                                            ContractStatus.Active => "Ativo",
-                                            ContractStatus.Suspended => "Suspenso",
-                                            ContractStatus.Cancelled => "Cancelado",
-                                            ContractStatus.Expired => "Expirado",
-                                            _ => contract.Status.ToString()
+                                            ContractStatus.Active => ("Ativo", "bi-check-circle-fill"),
+                                            ContractStatus.PendingPayment => ("Aguardando Pagamento", "bi-cash-coin"),
+                                            ContractStatus.Suspended => ("Suspenso", "bi-pause-circle-fill"),
+                                            ContractStatus.PendingCancellation => ("Cancelamento Pendente", "bi-clock-history"),
+                                            ContractStatus.Cancelled => ("Cancelado", "bi-x-circle-fill"),
+                                            ContractStatus.Expired => ("Expirado", "bi-calendar-x-fill"),
+                                            _ => (contract.Status.ToString(), "bi-question-circle-fill")
                                         };
                                     }
-                                    <span class="badge bg-@statusClass">@statusText</span>
+                                    <span class="badge bg-@statusClass">
+                                        <i class="bi @statusIcon me-1"></i>
+                                        @statusText
+                                    </span>
                                 </td>
                                 <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
                                 <td>

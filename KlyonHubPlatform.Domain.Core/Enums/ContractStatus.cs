@@ -4,6 +4,7 @@ namespace KlyonHubPlatform.Domain.Core.Enums
     {
         Active,
         Suspended,
+        PendingPayment,
         Cancelled,
         Expired,
         PendingCancellation

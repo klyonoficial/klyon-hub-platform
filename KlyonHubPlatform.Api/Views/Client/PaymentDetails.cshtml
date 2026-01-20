@@ -145,22 +145,39 @@
                         @switch (Model.Status)
                         {
                             case PaymentStatus.Pending:
-                                <span class="badge bg-warning">Pendente</span>
+                                <span class="badge bg-pending-payment">
+                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                </span>
                                 break;
+                        
                             case PaymentStatus.Processing:
-                                <span class="badge bg-info">Processando</span>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Processando
+                                </span>
                                 break;
+                        
                             case PaymentStatus.AwaitingValidation:
-                                <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                </span>
                                 break;
+                        
                             case PaymentStatus.Paid:
-                                <span class="badge bg-success">Pago</span>
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Pago
+                                </span>
                                 break;
+                        
                             case PaymentStatus.Failed:
-                                <span class="badge bg-danger">Falhou</span>
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Falhou
+                                </span>
                                 break;
+                        
                             default:
-                                <span class="badge bg-secondary">@Model.Status</span>
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-question-circle-fill me-1"></i> @Model.Status
+                                </span>
                                 break;
                         }
                     </dd>
