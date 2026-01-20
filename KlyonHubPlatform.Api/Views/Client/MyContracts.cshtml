@@ -27,9 +27,12 @@
                     <option value="">Todos</option>
                     <option value="Active" selected="@(ViewBag.Status == "Active")">Ativos</option>
                     <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspensos</option>
+                    <option value="PendingPayment" selected="@(ViewBag.Status == "PendingPayment")">Aguardando Pagamento</option>
                     <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelados</option>
                     <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirados</option>
+                    <option value="PendingCancellation" selected="@(ViewBag.Status == "PendingCancellation")">Cancelamento Pendente</option>
                 </select>
+
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
