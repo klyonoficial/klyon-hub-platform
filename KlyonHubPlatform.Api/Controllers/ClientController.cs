@@ -526,7 +526,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 query = query.Where(c => 
                     c.ContractNumber.Contains(search) || 
                     c.CoworkingAddress.Address.Contains(search) ||
-                    c.CoworkingAddress.City.Contains(search));
+                    c.CoworkingAddress.Location.City.Contains(search));
             }
 
             // Filtro por status
