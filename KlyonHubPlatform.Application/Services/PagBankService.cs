@@ -194,6 +194,7 @@ namespace KlyonHubPlatform.Application.Services
                         Locality = holderLocality,
                         City = holderCity,
                         Region = holderRegion,
+                        RegionCode = holderRegion,
                         Country = holderCountry,
                         PostalCode = holderPostalCode
                     };
@@ -273,7 +274,6 @@ namespace KlyonHubPlatform.Application.Services
                 json = json.Replace("\"referenceId\"", "\"reference_id\"")
                           .Replace("\"taxId\"", "\"tax_id\"")
                           .Replace("\"unitAmount\"", "\"unit_amount\"")
-                          .Replace("\"regionCode\"", "\"region_code\"")
                           .Replace("\"postalCode\"", "\"postal_code\"")
                           .Replace("\"instructionLines\"", "\"instruction_lines\"")
                           .Replace("\"line1\"", "\"line_1\"")

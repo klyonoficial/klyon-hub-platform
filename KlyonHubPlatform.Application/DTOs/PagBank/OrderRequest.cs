@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace KlyonHubPlatform.Application.DTOs.PagBank
@@ -203,31 +204,78 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
         public PagBankBoletoHolderAddress? Address { get; set; }
     }
 
-    // Endereço específico para holder do boleto - usa "region" ao invés de "region_code"
     public class PagBankBoletoHolderAddress
     {
+        /// <summary>
+        /// Rua do endereço.
+        /// </summary>
+        [Required]
+        [StringLength(160, MinimumLength = 1)]
         [JsonPropertyName("street")]
         public string Street { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Número do endereço.
+        /// </summary>
+        [Required]
+        [StringLength(20, MinimumLength = 1)]
         [JsonPropertyName("number")]
         public string Number { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Complemento do endereço.
+        /// </summary>
+        [StringLength(40)]
         [JsonPropertyName("complement")]
         public string? Complement { get; set; }
 
+        /// <summary>
+        /// Bairro do endereço.
+        /// </summary>
+        [Required]
+        [StringLength(60, MinimumLength = 1)]
         [JsonPropertyName("locality")]
-        public string Locality { get; set; } = string.Empty; // Bairro
+        public string Locality { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Cidade do endereço.
+        /// </summary>
+        [Required]
+        [StringLength(90, MinimumLength = 1)]
         [JsonPropertyName("city")]
         public string City { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Nome do Estado.
+        /// </summary>
+        [Required]
+        [StringLength(50, MinimumLength = 1)]
         [JsonPropertyName("region")]
-        public string Region { get; set; } = string.Empty; // UF - usa "region" ao invés de "region_code"
+        public string Region { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Código do Estado (ISO 3166-2).
+        /// </summary>
+        [Required]
+        [StringLength(2, MinimumLength = 2)]
+        [JsonPropertyName("region_code")]
+        public string RegionCode { get; set; } = string.Empty;
+
+        /// <summary>
+        /// País do endereço (ISO 3166-1 alpha-3).
+        /// </summary>
+        [Required]
+        [StringLength(3, MinimumLength = 3)]
         [JsonPropertyName("country")]
         public string Country { get; set; } = "BRA";
 
+        /// <summary>
+        /// CEP do endereço (somente números).
+        /// </summary>
+        [Required]
+        [RegularExpression(@"^\d{8}$", ErrorMessage = "PostalCode deve conter 8 dígitos numéricos.")]
         [JsonPropertyName("postal_code")]
         public string PostalCode { get; set; } = string.Empty;
     }
+
 }
