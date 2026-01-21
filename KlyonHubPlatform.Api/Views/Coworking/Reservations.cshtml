@@ -51,6 +51,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-calendar-check"></i> Reservas</h2>
+    <a href="@Url.Action("RoomRevenueReport", "Coworking")" class="btn btn-success"><i class="bi bi-currency-dollar"></i> Ver minha receita de salas</a>
 </div>
 
 @if (TempData["Success"] != null)
@@ -320,6 +321,9 @@
                                     <td>
                                         @{
                                             var reservationId = GetValue<int>(reservationObj, "Id");
+                                            var resStatus = GetValue<string>(reservationObj, "Status", "");
+                                            var cowConfirmed = GetValue(reservationObj, "CoworkingConfirmedAt");
+                                            var cowConfirmedAt = (cowConfirmed == null || cowConfirmed == DBNull.Value) ? (DateTime?)null : (DateTime?)cowConfirmed;
                                         }
                                         @if (isInterest)
                                         {
@@ -329,7 +333,21 @@
                                                 </button>
                                             </div>
                                         }
-                                        else
+                                        else if (isReservation && resStatus == "Confirmed" && !cowConfirmedAt.HasValue)
+                                        {
+                                            <form method="post" action="@Url.Action("ConfirmReservationAttended", "Coworking")" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@reservationId" />
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Confirmar que o cliente compareceu e utilizou o espaço">
+                                                    <i class="bi bi-person-check"></i> Confirmar comparecimento
+                                                </button>
+                                            </form>
+                                        }
+                                        else if (isReservation && cowConfirmedAt.HasValue && resStatus == "Confirmed")
+                                        {
+                                            <small class="text-success"><i class="bi bi-check-circle"></i> Comparecimento confirmado. Aguardando cliente.</small>
+                                        }
+                                        else if (isReservation)
                                         {
                                             <span class="text-muted small">Reserva confirmada</span>
                                         }

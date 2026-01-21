@@ -47,7 +47,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenInclude(c => c.Products)
                 .Where(a => a.Coworking.IsActive && 
                            a.Coworking.IsPartner &&
-                           (a.OffersSharedRoom || a.OffersPrivateRoom)) // Apenas endereços que oferecem salas
+                           a.Coworking.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved &&
+                           (a.OffersSharedRoom || a.OffersPrivateRoom)) // Apenas endereços aprovados que oferecem salas
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search.State))
@@ -95,6 +96,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var citiesQuery = _context.CoworkingAddresses
                 .Where(a => a.Coworking.IsActive && 
                            a.Coworking.IsPartner &&
+                           a.Coworking.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved &&
                            (a.OffersSharedRoom || a.OffersPrivateRoom));
             if (!string.IsNullOrWhiteSpace(search.State))
             {
@@ -202,6 +204,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .FirstOrDefaultAsync(a => a.Id == id);
 
             if (address == null) return NotFound();
+            if (address.Coworking.ApprovalStatus != KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved) return NotFound();
 
             var photos = address.Coworking.Photos?.OrderByDescending(p => p.IsMain)
                 .ThenBy(p => p.DisplayOrder)
@@ -562,6 +565,148 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 TempData["Error"] = $"Erro ao criar reserva: {ex.Message}";
                 return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+            }
+        }
+
+        /// <summary>
+        /// Retorna, para cada dia do mês, fullyBooked (dia todo ocupado) e occupied (intervalos já reservados).
+        /// Usado pela tela BookRoom para desabilitar dias e esconder horários indisponíveis.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetAvailabilityForMonth(int addressId, string roomType, int year, int month)
+        {
+            try
+            {
+                var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId);
+                if (address == null)
+                    return Json(new { error = "Endereço não encontrado" });
+
+                if (roomType != "Shared" && roomType != "Private")
+                    return Json(new { error = "Tipo de sala inválido" });
+
+                if (roomType == "Shared" && !address.OffersSharedRoom)
+                    return Json(new { error = "Endereço não oferece sala compartilhada" });
+                if (roomType == "Private" && !address.OffersPrivateRoom)
+                    return Json(new { error = "Endereço não oferece sala privativa" });
+
+                var opStart = new TimeSpan(8, 0, 0);
+                var opEnd = new TimeSpan(23, 0, 0);
+                var daysInMonth = DateTime.DaysInMonth(year, month);
+                var dates = new Dictionary<string, object>();
+
+                // Reservas do mês para este endereço e tipo
+                var first = new DateTime(year, month, 1);
+                var last = new DateTime(year, month, daysInMonth);
+                var reservations = await _context.Reservations
+                    .Where(r => r.CoworkingAddressId == addressId &&
+                               r.ReservationDate >= first && r.ReservationDate <= last &&
+                               r.RoomType == roomType &&
+                               r.Status != "Cancelled" &&
+                               r.StartTime.HasValue && r.EndTime.HasValue)
+                    .Select(r => new { r.ReservationDate, r.StartTime, r.EndTime })
+                    .ToListAsync();
+
+                var today = DateTime.Today;
+
+                for (var d = 1; d <= daysInMonth; d++)
+                {
+                    var dt = new DateTime(year, month, d);
+                    var key = dt.ToString("yyyy-MM-dd");
+                    if (dt < today)
+                    {
+                        dates[key] = new { fullyBooked = true, occupied = Array.Empty<object>() };
+                        continue;
+                    }
+
+                    var dayRes = reservations.Where(r => r.ReservationDate.Date == dt).ToList();
+
+                    if (roomType == "Private")
+                    {
+                        var intervals = dayRes
+                            .Select(r => (s: r.StartTime!.Value, e: r.EndTime!.Value))
+                            .OrderBy(x => x.s)
+                            .ToList();
+                        var merged = new List<(TimeSpan s, TimeSpan e)>();
+                        foreach (var (s, e) in intervals)
+                        {
+                            if (merged.Count > 0 && s <= merged[merged.Count - 1].e)
+                                merged[merged.Count - 1] = (merged[merged.Count - 1].s, merged[merged.Count - 1].e > e ? merged[merged.Count - 1].e : e);
+                            else
+                                merged.Add((s, e));
+                        }
+                        var occupied = merged.Select(m => new { start = m.s.ToString(@"hh\:mm"), end = m.e.ToString(@"hh\:mm") }).ToList<object>();
+
+                        var fullyBooked = merged.Count > 0 &&
+                                          merged[0].s <= opStart &&
+                                          merged[merged.Count - 1].e >= opEnd;
+                        if (fullyBooked && merged.Count > 1)
+                        {
+                            for (var i = 0; i < merged.Count - 1; i++)
+                            {
+                                if (merged[i].e < merged[i + 1].s) { fullyBooked = false; break; }
+                            }
+                        }
+
+                        dates[key] = new { fullyBooked, occupied };
+                    }
+                    else
+                    {
+                        var maxSeats = address.SharedRoomMaxSeats ?? 0;
+                        if (maxSeats <= 0)
+                        {
+                            dates[key] = new { fullyBooked = false, occupied = Array.Empty<object>() };
+                            continue;
+                        }
+
+                        var slotStarts = new List<TimeSpan>();
+                        var t = opStart;
+                        while (t < opEnd)
+                        {
+                            slotStarts.Add(t);
+                            t = t.Add(TimeSpan.FromMinutes(30));
+                        }
+
+                        var fullSlots = new List<TimeSpan>();
+                        foreach (var slotStart in slotStarts)
+                        {
+                            var slotEnd = slotStart.Add(TimeSpan.FromMinutes(30));
+                            var count = dayRes.Count(r => !(r.EndTime <= slotStart || r.StartTime >= slotEnd));
+                            if (count >= maxSeats)
+                                fullSlots.Add(slotStart);
+                        }
+
+                        var occupied = new List<object>();
+                        if (fullSlots.Count > 0)
+                        {
+                            fullSlots.Sort((a, b) => a.CompareTo(b));
+                            var segStart = fullSlots[0];
+                            var segEnd = segStart.Add(TimeSpan.FromMinutes(30));
+                            for (var i = 1; i < fullSlots.Count; i++)
+                            {
+                                if (fullSlots[i] == segEnd)
+                                {
+                                    segEnd = fullSlots[i].Add(TimeSpan.FromMinutes(30));
+                                }
+                                else
+                                {
+                                    occupied.Add(new { start = segStart.ToString(@"hh\:mm"), end = segEnd.ToString(@"hh\:mm") });
+                                    segStart = fullSlots[i];
+                                    segEnd = segStart.Add(TimeSpan.FromMinutes(30));
+                                }
+                            }
+                            occupied.Add(new { start = segStart.ToString(@"hh\:mm"), end = segEnd.ToString(@"hh\:mm") });
+                        }
+
+                        var fullyBooked = fullSlots.Count == slotStarts.Count;
+                        dates[key] = new { fullyBooked, occupied };
+                    }
+                }
+
+                return Json(new { dates });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
             }
         }
 

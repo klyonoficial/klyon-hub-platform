@@ -21,6 +21,8 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ApplicationDbContext _context;
         private readonly StorageServiceFactory _storageFactory;
         private readonly IAddressDeclarationService _addressDeclarationService;
+        private readonly IAuditService _auditService;
+        private readonly IReservationTransferService _reservationTransferService;
 
         public CoworkingController(
             ICoworkingService coworkingService,
@@ -28,7 +30,9 @@ namespace KlyonHubPlatform.Api.Controllers
             IPaymentService paymentService,
             ApplicationDbContext context,
             StorageServiceFactory storageFactory,
-            IAddressDeclarationService addressDeclarationService)
+            IAddressDeclarationService addressDeclarationService,
+            IAuditService auditService,
+            IReservationTransferService reservationTransferService)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
@@ -36,6 +40,18 @@ namespace KlyonHubPlatform.Api.Controllers
             _context = context;
             _storageFactory = storageFactory;
             _addressDeclarationService = addressDeclarationService;
+            _auditService = auditService;
+            _reservationTransferService = reservationTransferService;
+        }
+
+        /// <summary>Se o cadastro está Aprovado, qualquer alteração retorna para Em análise.</summary>
+        private async Task ReturnToReviewIfApprovedAsync(Domain.Entities.Coworking c, int userId, string reason)
+        {
+            if (c.ApprovalStatus != CoworkingApprovalStatus.Approved) return;
+            c.ApprovalStatus = CoworkingApprovalStatus.UnderReview;
+            c.SubmittedAt = DateTime.UtcNow;
+            var reasonEsc = System.Text.Json.JsonSerializer.Serialize(reason);
+            await _auditService.LogActionAsync(userId, "ReturnedToReview", "Coworking", c.Id, "{\"ApprovalStatus\":\"Approved\"}", "{\"ApprovalStatus\":\"UnderReview\",\"Reason\":" + reasonEsc + "}");
         }
 
         public async Task<IActionResult> Dashboard()
@@ -150,6 +166,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 coworking.IsPartner = true;
 
                 var createdCoworking = await _coworkingService.CreateAsync(coworking);
+                createdCoworking.ApprovalStatus = CoworkingApprovalStatus.UnderReview;
+                createdCoworking.SubmittedAt = DateTime.UtcNow;
+                await _auditService.LogActionAsync(userId, "Submitted", "Coworking", createdCoworking.Id, null, "{\"ApprovalStatus\":\"UnderReview\"}");
                 var storageService = await _storageFactory.GetStorageServiceAsync();
 
                 // Processar fotos
@@ -308,9 +327,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         public async Task<IActionResult> AddAddress(int locationId, string address, string number, string? complement, 
-            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts,
-            bool offersSharedRoom = false, decimal? sharedRoomPricePerHour = null, int? sharedRoomMaxSeats = null,
-            bool offersPrivateRoom = false, decimal? privateRoomPricePerHour = null, int? privateRoomMaxSeats = null)
+            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts)
         {
             try
             {
@@ -343,40 +360,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return View(locations);
                 }
 
-                // Validar configurações de salas
-                if (offersSharedRoom && (!sharedRoomPricePerHour.HasValue || sharedRoomPricePerHour.Value <= 0))
-                {
-                    TempData["Error"] = "Por favor, informe o valor por hora da sala compartilhada.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    return View(locations);
-                }
-
-                if (offersSharedRoom && (!sharedRoomMaxSeats.HasValue || sharedRoomMaxSeats.Value < 1))
-                {
-                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala compartilhada.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    return View(locations);
-                }
-
-                if (offersPrivateRoom && (!privateRoomPricePerHour.HasValue || privateRoomPricePerHour.Value <= 0))
-                {
-                    TempData["Error"] = "Por favor, informe o valor por hora da sala privativa.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    return View(locations);
-                }
-
-                if (offersPrivateRoom && (!privateRoomMaxSeats.HasValue || privateRoomMaxSeats.Value < 1))
-                {
-                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala privativa.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    return View(locations);
-                }
-
-                // Criar objeto CoworkingAddress
+                // Salas para aluguel são configuradas em Produtos > Aluguéis de Sala (CoworkingRoom)
                 var coworkingAddress = new CoworkingAddress
                 {
                     CoworkingId = coworkingEntity.Id,
@@ -391,15 +375,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     BasePrice = basePrice,
                     MaxContracts = maxContracts,
                     IsAvailable = true,
-                    CurrentContracts = 0,
-                    OffersSharedRoom = offersSharedRoom,
-                    SharedRoomPricePerHour = offersSharedRoom ? sharedRoomPricePerHour : null,
-                    SharedRoomMaxSeats = offersSharedRoom ? sharedRoomMaxSeats : null,
-                    OffersPrivateRoom = offersPrivateRoom,
-                    PrivateRoomPricePerHour = offersPrivateRoom ? privateRoomPricePerHour : null,
-                    PrivateRoomMaxSeats = offersPrivateRoom ? privateRoomMaxSeats : null
+                    CurrentContracts = 0
                 };
 
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço adicionado");
                 await _coworkingService.CreateAddressAsync(coworkingAddress);
                 
                 TempData["Success"] = "Endereço cadastrado com sucesso!";
@@ -445,10 +424,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditAddress(int id, int locationId, string address, string number, string? complement,
-            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts, bool isAvailable,
-            bool offersSharedRoom = false, decimal? sharedRoomPricePerHour = null, int? sharedRoomMaxSeats = null,
-            bool offersPrivateRoom = false, decimal? privateRoomPricePerHour = null, int? privateRoomMaxSeats = null)
+            string neighborhood, string city, string state, string zipCode, [FromForm(Name = "BasePrice")] decimal basePrice, int maxContracts, bool isAvailable)
         {
             try
             {
@@ -493,43 +471,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     return View(existingAddress);
                 }
 
-                // Validar configurações de salas
-                if (offersSharedRoom && (!sharedRoomPricePerHour.HasValue || sharedRoomPricePerHour.Value <= 0))
-                {
-                    TempData["Error"] = "Por favor, informe o valor por hora da sala compartilhada.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    ViewBag.Address = existingAddress;
-                    return View(existingAddress);
-                }
-
-                if (offersSharedRoom && (!sharedRoomMaxSeats.HasValue || sharedRoomMaxSeats.Value < 1))
-                {
-                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala compartilhada.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    ViewBag.Address = existingAddress;
-                    return View(existingAddress);
-                }
-
-                if (offersPrivateRoom && (!privateRoomPricePerHour.HasValue || privateRoomPricePerHour.Value <= 0))
-                {
-                    TempData["Error"] = "Por favor, informe o valor por hora da sala privativa.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    ViewBag.Address = existingAddress;
-                    return View(existingAddress);
-                }
-
-                if (offersPrivateRoom && (!privateRoomMaxSeats.HasValue || privateRoomMaxSeats.Value < 1))
-                {
-                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala privativa.";
-                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
-                    ViewBag.Locations = locations;
-                    ViewBag.Address = existingAddress;
-                    return View(existingAddress);
-                }
-
                 // Validar maxContracts (não pode ser menor que currentContracts)
                 if (maxContracts < existingAddress.CurrentContracts)
                 {
@@ -540,7 +481,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return View(existingAddress);
                 }
 
-                // Atualizar o endereço
+                // Atualizar o endereço (salas para aluguel em Produtos > Aluguéis de Sala)
                 existingAddress.LocationId = locationId;
                 existingAddress.Address = address;
                 existingAddress.Number = number;
@@ -552,14 +493,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingAddress.BasePrice = basePrice;
                 existingAddress.MaxContracts = maxContracts;
                 existingAddress.IsAvailable = isAvailable;
-                existingAddress.OffersSharedRoom = offersSharedRoom;
-                existingAddress.SharedRoomPricePerHour = offersSharedRoom ? sharedRoomPricePerHour : null;
-                existingAddress.SharedRoomMaxSeats = offersSharedRoom ? sharedRoomMaxSeats : null;
-                existingAddress.OffersPrivateRoom = offersPrivateRoom;
-                existingAddress.PrivateRoomPricePerHour = offersPrivateRoom ? privateRoomPricePerHour : null;
-                existingAddress.PrivateRoomMaxSeats = offersPrivateRoom ? privateRoomMaxSeats : null;
                 existingAddress.UpdatedAt = DateTime.UtcNow;
 
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço atualizado");
                 await _coworkingService.UpdateAddressAsync(existingAddress);
 
                 TempData["Success"] = "Endereço atualizado com sucesso!";
@@ -848,7 +784,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 ["CreatedAt"] = r.CreatedAt,
                 ["RoomType"] = r.RoomType ?? "",
                 ["TotalValue"] = (object?)r.TotalValue ?? DBNull.Value,
-                ["CreditsUsed"] = (object?)r.CreditsUsed ?? DBNull.Value
+                ["CreditsUsed"] = (object?)r.CreditsUsed ?? DBNull.Value,
+                ["ClientConfirmedAt"] = r.ClientConfirmedAt ?? (object)DBNull.Value,
+                ["CoworkingConfirmedAt"] = r.CoworkingConfirmedAt ?? (object)DBNull.Value
             }).Concat(interests.Select(i => new Dictionary<string, object>
             {
                 ["Id"] = i.Id,
@@ -938,6 +876,161 @@ namespace KlyonHubPlatform.Api.Controllers
 
             TempData["Success"] = "Status da reserva atualizado com sucesso!";
             return RedirectToAction("Reservations");
+        }
+
+        /// <summary>
+        /// Coworking confirma que o cliente compareceu e utilizou o espaço. Após dupla confirmação
+        /// (cliente + coworking), o sistema repassa os créditos ao coworking e aplica a comissão da plataforma.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmReservationAttended(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Reservations"); }
+
+            var r = await _context.Reservations
+                .Include(x => x.CoworkingAddress)
+                .FirstOrDefaultAsync(x => x.Id == id && x.CoworkingAddress != null && x.CoworkingAddress.CoworkingId == coworkingEntity.Id);
+            if (r == null) { TempData["Error"] = "Reserva não encontrada."; return RedirectToAction("Reservations"); }
+            if (string.Equals(r.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("Reservations"); }
+            if (string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase)) { TempData["Success"] = "Reserva já concluída e créditos repassados."; return RedirectToAction("Reservations"); }
+
+            if (r.CoworkingConfirmedAt == null)
+            {
+                r.CoworkingConfirmedAt = DateTime.UtcNow;
+                r.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);
+            TempData["Success"] = "Comparecimento confirmado. Após a confirmação do cliente, os créditos serão repassados automaticamente.";
+            return RedirectToAction("Reservations");
+        }
+
+        /// <summary>
+        /// Relatório de receita de aluguel de salas: total, por tipo de sala (qual produto mais faturou) e por cliente.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null) return RedirectToAction("Register");
+
+            var q = _context.Reservations
+                .Include(r => r.Client)
+                .Include(r => r.CoworkingAddress)
+                .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == cow.Id && r.Status != "Cancelled");
+
+            if (dateFrom.HasValue)
+                q = q.Where(r => r.ReservationDate >= dateFrom.Value.Date);
+            if (dateTo.HasValue)
+                q = q.Where(r => r.ReservationDate <= dateTo.Value.Date.AddDays(1));
+
+            var list = await q.ToListAsync();
+            var listIds = list.Select(r => r.Id).ToList();
+            
+            // Buscar comissões e transfers (se as tabelas existirem)
+            var commissions = new List<ReservationCommission>();
+            var transfers = new List<Transfer>();
+            
+            try
+            {
+                if (listIds.Any())
+                {
+                    commissions = await _context.ReservationCommissions
+                        .Where(rc => listIds.Contains(rc.ReservationId))
+                        .ToListAsync();
+                    transfers = await _context.Transfers
+                        .Where(t => t.ReservationId.HasValue && listIds.Contains(t.ReservationId.Value))
+                        .ToListAsync();
+                }
+            }
+            catch
+            {
+                // Se as tabelas não existirem ainda (migrations não aplicadas), continua sem comissões/transfers
+                // Isso permite que a página funcione mesmo sem essas informações
+                commissions = new List<ReservationCommission>();
+                transfers = new List<Transfer>();
+            }
+
+            string ClientDisplayName(Reservation r) => r.Client != null
+                ? (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "—")
+                : "Cliente não identificado";
+
+            var total = list.Sum(r => r.TotalValue);
+            var byRoomType = new[]
+            {
+                ("Shared", "Sala compartilhada", list.Where(r => r.RoomType == "Shared").ToList()),
+                ("Private", "Sala privativa", list.Where(r => r.RoomType == "Private").ToList()),
+                ("Auditorium", "Auditório", list.Where(r => r.RoomType == "Auditorium").ToList())
+            }.Select(x => new Dictionary<string, object>
+            {
+                ["RoomTypeKey"] = x.Item1,
+                ["Label"] = x.Item2,
+                ["Revenue"] = (decimal)x.Item3.Sum(r => r.TotalValue),
+                ["Count"] = x.Item3.Count,
+                ["Details"] = x.Item3.Select(r =>
+                {
+                    var comm = commissions.FirstOrDefault(c => c.ReservationId == r.Id);
+                    var tr = transfers.FirstOrDefault(t => t.ReservationId == r.Id);
+                    return new Dictionary<string, object>
+                    {
+                        ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                        ["ClientName"] = ClientDisplayName(r),
+                        ["Value"] = r.TotalValue,
+                        ["Credits"] = r.CreditsUsed,
+                        ["Lucro"] = comm != null ? (object)comm.CoworkingAmount : null,
+                        ["RepasseEm"] = tr != null ? (tr.ProcessedAt ?? tr.CreatedAt).ToString("dd/MM/yyyy HH:mm") : null
+                    };
+                }).ToList()
+            }).ToList();
+
+            var byClient = list
+                .GroupBy(r => r.ClientId)
+                .Select(g =>
+                {
+                    var firstReservation = g.FirstOrDefault();
+                    if (firstReservation == null) return null;
+                    
+                    return new Dictionary<string, object>
+                    {
+                        ["ClientId"] = g.Key,
+                        ["ClientName"] = ClientDisplayName(firstReservation),
+                        ["Count"] = g.Count(),
+                        ["Revenue"] = (decimal)g.Sum(r => r.TotalValue),
+                        ["Credits"] = g.Sum(r => r.CreditsUsed),
+                        ["Details"] = g.Select(r =>
+                        {
+                            var comm = commissions.FirstOrDefault(c => c.ReservationId == r.Id);
+                            var tr = transfers.FirstOrDefault(t => t.ReservationId == r.Id);
+                            return new Dictionary<string, object>
+                            {
+                                ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                                ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
+                                ["Value"] = r.TotalValue,
+                                ["Credits"] = r.CreditsUsed,
+                                ["Lucro"] = comm != null ? (object)comm.CoworkingAmount : null,
+                                ["RepasseEm"] = tr != null ? (tr.ProcessedAt ?? tr.CreatedAt).ToString("dd/MM/yyyy HH:mm") : null
+                            };
+                        }).ToList()
+                    };
+                })
+                .Where(x => x != null)
+                .Cast<Dictionary<string, object>>()
+                .OrderByDescending(x => (decimal)x["Revenue"])
+                .ToList();
+
+            ViewBag.TotalRevenue = total;
+            ViewBag.ByRoomType = byRoomType;
+            ViewBag.ByClient = byClient;
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            ViewBag.CoworkingName = cow.Name;
+            return View();
         }
 
         [HttpGet]
@@ -1148,18 +1241,187 @@ namespace KlyonHubPlatform.Api.Controllers
                     _context.CoworkingProducts.AddRange(newProducts);
                 }
 
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Produtos atualizados");
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Produtos atualizados com sucesso!";
-                TempData["ActiveTab"] = "products";
-                return RedirectToAction("Profile");
+                return RedirectToAction("Products");
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao atualizar produtos: {ex.Message}";
-                TempData["ActiveTab"] = "products";
-                return RedirectToAction("Profile");
+                return RedirectToAction("Products");
             }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Products()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null)
+            {
+                return RedirectToAction("Register");
+            }
+            var products = await _context.CoworkingProducts
+                .Where(p => p.CoworkingId == cow.Id && p.IsActive)
+                .Select(p => p.ProductType)
+                .ToListAsync();
+            var addresses = await _context.CoworkingAddresses
+                .Include(a => a.Rooms)
+                .Where(a => a.CoworkingId == cow.Id)
+                .OrderBy(a => a.City).ThenBy(a => a.Address)
+                .ToListAsync();
+            ViewBag.CurrentProducts = products;
+            ViewBag.Addresses = addresses;
+            ViewBag.Coworking = cow;
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> AddressRooms(int addressId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null) return RedirectToAction("Register");
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Rooms)
+                .ThenInclude(r => r.Photos)
+                .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado.";
+                return RedirectToAction("Products");
+            }
+            ViewBag.Address = address;
+            ViewBag.RoomTypes = RoomTypes.All;
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddRoom(int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, IFormFile[]? RoomPhotos)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
+            if (address == null) { TempData["Error"] = "Endereço não encontrado."; return RedirectToAction("Products"); }
+            if (!RoomTypes.All.Contains(RoomType)) { TempData["Error"] = "Tipo de sala inválido."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (Capacity < 1 || CreditsPerHour < 0) { TempData["Error"] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction("AddressRooms", new { addressId }); }
+            var room = new CoworkingRoom
+            {
+                CoworkingAddressId = addressId,
+                RoomType = RoomType,
+                Name = Name ?? "Sala",
+                Capacity = Capacity,
+                CreditsPerHour = CreditsPerHour,
+                IsActive = true,
+                DisplayOrder = 0,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.CoworkingRooms.Add(room);
+            await _context.SaveChangesAsync();
+            var storage = await _storageFactory.GetStorageServiceAsync();
+            var folder = $"coworkings/{cow.Id}/rooms/{room.Id}";
+            if (RoomPhotos != null && RoomPhotos.Length > 0)
+            {
+                int order = 0;
+                foreach (var f in RoomPhotos.Take(10))
+                {
+                    if (f == null || f.Length == 0 || f.Length > 5 * 1024 * 1024) continue;
+                    var ext = Path.GetExtension(f.FileName); if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
+                    using var ms = new MemoryStream();
+                    await f.CopyToAsync(ms);
+                    var path = await storage.SaveFileAsync(ms.ToArray(), $"photo_{order}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}", folder);
+                    _context.CoworkingRoomPhotos.Add(new CoworkingRoomPhoto { CoworkingRoomId = room.Id, FilePath = path, IsMain = order == 0, DisplayOrder = order, CreatedAt = DateTime.UtcNow });
+                    order++;
+                }
+                await _context.SaveChangesAsync();
+            }
+            TempData["Success"] = "Sala adicionada com sucesso.";
+            return RedirectToAction("AddressRooms", new { addressId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateRoom(int roomId, int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, bool IsActive, IFormFile[]? RoomPhotos)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
+            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
+            if (address == null) { TempData["Error"] = "Endereço não encontrado."; return RedirectToAction("Products"); }
+            var room = await _context.CoworkingRooms.FirstOrDefaultAsync(r => r.Id == roomId && r.CoworkingAddressId == addressId);
+            if (room == null) { TempData["Error"] = "Sala não encontrada."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (!RoomTypes.All.Contains(RoomType)) { TempData["Error"] = "Tipo de sala inválido."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (Capacity < 1 || CreditsPerHour < 0) { TempData["Error"] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction("AddressRooms", new { addressId }); }
+            room.RoomType = RoomType;
+            room.Name = Name ?? "Sala";
+            room.Capacity = Capacity;
+            room.CreditsPerHour = CreditsPerHour;
+            room.IsActive = IsActive;
+            room.UpdatedAt = DateTime.UtcNow;
+            if (RoomPhotos != null && RoomPhotos.Length > 0)
+            {
+                var storage = await _storageFactory.GetStorageServiceAsync();
+                var folder = $"coworkings/{cow.Id}/rooms/{room.Id}";
+                var maxOrder = await _context.CoworkingRoomPhotos.Where(p => p.CoworkingRoomId == room.Id).MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
+                int order = maxOrder + 1;
+                foreach (var f in RoomPhotos.Take(10))
+                {
+                    if (f == null || f.Length == 0 || f.Length > 5 * 1024 * 1024) continue;
+                    var ext = Path.GetExtension(f.FileName); if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
+                    using var ms = new MemoryStream();
+                    await f.CopyToAsync(ms);
+                    var path = await storage.SaveFileAsync(ms.ToArray(), $"photo_{order}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}", folder);
+                    _context.CoworkingRoomPhotos.Add(new CoworkingRoomPhoto { CoworkingRoomId = room.Id, FilePath = path, IsMain = false, DisplayOrder = order, CreatedAt = DateTime.UtcNow });
+                    order++;
+                }
+            }
+            await _context.SaveChangesAsync();
+            TempData["Success"] = "Sala atualizada com sucesso.";
+            return RedirectToAction("AddressRooms", new { addressId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteRoom(int roomId, int addressId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
+            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            var room = await _context.CoworkingRooms.Include(r => r.Photos).Include(r => r.CoworkingAddress).FirstOrDefaultAsync(r => r.Id == roomId && r.CoworkingAddress.CoworkingId == cow.Id);
+            if (room == null) { TempData["Error"] = "Sala não encontrada."; return RedirectToAction("AddressRooms", new { addressId }); }
+            var storage = await _storageFactory.GetStorageServiceAsync();
+            foreach (var p in room.Photos)
+            {
+                try { await storage.DeleteFileAsync(p.FilePath); } catch { }
+            }
+            await ReturnToReviewIfApprovedAsync(cow, userId, "Sala excluída");
+            _context.CoworkingRooms.Remove(room);
+            await _context.SaveChangesAsync();
+            TempData["Success"] = "Sala excluída.";
+            return RedirectToAction("AddressRooms", new { addressId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetRoomPhoto(int photoId)
+        {
+            var photo = await _context.CoworkingRoomPhotos.Include(p => p.CoworkingRoom).ThenInclude(r => r.CoworkingAddress).FirstOrDefaultAsync(p => p.Id == photoId);
+            if (photo == null) return NotFound();
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
+            if (cow == null || photo.CoworkingRoom.CoworkingAddress.CoworkingId != cow.Id) { if (!User.IsInRole("Administrator")) return Forbid(); }
+            var storage = await _storageFactory.GetStorageServiceAsync();
+            var bytes = await storage.GetFileAsync(photo.FilePath);
+            if (bytes == null) return NotFound();
+            var lower = photo.FilePath.ToLower();
+            var ct = lower.EndsWith(".png") ? "image/png" : lower.EndsWith(".gif") ? "image/gif" : lower.EndsWith(".webp") ? "image/webp" : "image/jpeg";
+            return File(bytes, ct);
         }
 
         [HttpGet]
@@ -1670,6 +1932,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Definir nova principal
                 photo.IsMain = true;
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto principal alterada");
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Foto principal atualizada com sucesso!";
@@ -1718,6 +1981,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Continuar mesmo se não conseguir deletar o arquivo
                 }
 
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto excluída");
                 _context.CoworkingPhotos.Remove(photo);
                 await _context.SaveChangesAsync();
 
@@ -1733,7 +1997,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddPartner(CoworkingPartner partner)
+        public async Task<IActionResult> AddPartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false)
         {
             try
             {
@@ -1749,23 +2013,45 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 partner.CoworkingId = coworkingEntity.Id;
                 partner.CreatedAt = DateTime.UtcNow;
+                partner.IsPrincipal = IsPrincipal;
+
+                if (IsPrincipal)
+                {
+                    var others = await _context.CoworkingPartners.Where(p => p.CoworkingId == coworkingEntity.Id).ToListAsync();
+                    foreach (var p in others) { p.IsPrincipal = false; }
+                }
 
                 _context.CoworkingPartners.Add(partner);
                 await _context.SaveChangesAsync();
 
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= 5 * 1024 * 1024)
+                {
+                    var storageService = await _storageFactory.GetStorageServiceAsync();
+                    var folder = $"coworkings/{coworkingEntity.Id}/partners";
+                    var ext = Path.GetExtension(partnerPhoto.FileName);
+                    if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
+                    var fileName = $"partner_{partner.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}";
+                    using var stream = new MemoryStream();
+                    await partnerPhoto.CopyToAsync(stream);
+                    partner.PhotoPath = await storageService.SaveFileAsync(stream.ToArray(), fileName, folder);
+                    await _context.SaveChangesAsync();
+                }
+
                 TempData["Success"] = "Sócio adicionado com sucesso!";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao adicionar sócio: {ex.Message}";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner)
+        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false)
         {
             try
             {
@@ -1794,16 +2080,44 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingPartner.Phone = partner.Phone;
                 existingPartner.Role = partner.Role;
                 existingPartner.SharePercentage = partner.SharePercentage;
+                existingPartner.IsPrincipal = IsPrincipal;
                 existingPartner.UpdatedAt = DateTime.UtcNow;
 
+                if (IsPrincipal)
+                {
+                    var others = await _context.CoworkingPartners
+                        .Where(p => p.CoworkingId == coworkingEntity.Id && p.Id != existingPartner.Id)
+                        .ToListAsync();
+                    foreach (var p in others) p.IsPrincipal = false;
+                }
+
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= 5 * 1024 * 1024)
+                {
+                    var storageService = await _storageFactory.GetStorageServiceAsync();
+                    if (!string.IsNullOrEmpty(existingPartner.PhotoPath))
+                    {
+                        try { await storageService.DeleteFileAsync(existingPartner.PhotoPath); } catch { }
+                    }
+                    var folder = $"coworkings/{coworkingEntity.Id}/partners";
+                    var ext = Path.GetExtension(partnerPhoto.FileName);
+                    if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
+                    var fileName = $"partner_{existingPartner.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}";
+                    using var stream = new MemoryStream();
+                    await partnerPhoto.CopyToAsync(stream);
+                    existingPartner.PhotoPath = await storageService.SaveFileAsync(stream.ToArray(), fileName, folder);
+                }
+
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Sócio atualizado");
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Sócio atualizado com sucesso!";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao atualizar sócio: {ex.Message}";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
         }
@@ -1833,17 +2147,74 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Profile");
                 }
 
+                if (!string.IsNullOrEmpty(partner.PhotoPath))
+                {
+                    try
+                    {
+                        var storageService = await _storageFactory.GetStorageServiceAsync();
+                        await storageService.DeleteFileAsync(partner.PhotoPath);
+                    }
+                    catch { }
+                }
+
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Sócio excluído");
                 _context.CoworkingPartners.Remove(partner);
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Sócio excluído com sucesso!";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao excluir sócio: {ex.Message}";
+                TempData["ActiveTab"] = "partners";
                 return RedirectToAction("Profile");
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResubmitForApproval()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Dashboard"); }
+            if (cow.ApprovalStatus != CoworkingApprovalStatus.AwaitingAdjustment)
+            {
+                TempData["Error"] = "Apenas cadastros com status Aguardando ajuste podem ser reenviados.";
+                return RedirectToAction("Profile");
+            }
+            cow.ApprovalStatus = CoworkingApprovalStatus.UnderReview;
+            cow.SubmittedAt = DateTime.UtcNow;
+            await _coworkingService.UpdateAsync(cow);
+            await _auditService.LogActionAsync(userId, "ResubmitForApproval", "Coworking", cow.Id, "{\"ApprovalStatus\":\"AwaitingAdjustment\"}", "{\"ApprovalStatus\":\"UnderReview\"}");
+            TempData["Success"] = "Cadastro reenviado para análise. Aguarde a aprovação do administrador.";
+            return RedirectToAction("Profile");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPartnerPhoto(int partnerId)
+        {
+            var partner = await _context.CoworkingPartners.Include(p => p.Coworking).FirstOrDefaultAsync(p => p.Id == partnerId);
+            if (partner == null || string.IsNullOrEmpty(partner.PhotoPath)) return NotFound();
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var cow = coworking.FirstOrDefault();
+            if (cow == null || partner.CoworkingId != cow.Id)
+            {
+                if (!User.IsInRole("Administrator")) return Forbid();
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(partner.PhotoPath);
+            if (fileBytes == null) return NotFound();
+
+            var lower = partner.PhotoPath.ToLower();
+            var contentType = lower.EndsWith(".png") ? "image/png" : lower.EndsWith(".gif") ? "image/gif" : lower.EndsWith(".webp") ? "image/webp" : "image/jpeg";
+            return File(fileBytes, contentType);
         }
 
         [HttpPost]
@@ -1938,6 +2309,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     _context.CoworkingDocuments.Add(coworkingDocument);
                 }
 
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Documento enviado");
                 await _context.SaveChangesAsync();
                 TempData["Success"] = "Documento enviado com sucesso!";
                 return RedirectToAction("Profile");

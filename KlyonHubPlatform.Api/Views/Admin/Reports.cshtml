@@ -1,14 +1,51 @@
-@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Application.Interfaces
 @{
     ViewData["Title"] = "Relatórios";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var report = ViewBag.Report as ReportFinancialResult;
+    var startDate = ViewBag.StartDate as DateTime? ?? DateTime.UtcNow.AddMonths(-1);
+    var endDate = ViewBag.EndDate as DateTime? ?? DateTime.UtcNow;
+    var product = ViewBag.Product as string ?? ReportProductFilter.Todos;
 }
-
-@model List<KlyonHubPlatform.Domain.Entities.Payment>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-graph-up"></i> Relatórios Financeiros</h2>
 </div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-primary"><i class="bi bi-wallet2"></i> Créditos por Cliente</a>
+    <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-primary"><i class="bi bi-building"></i> Receita por Coworking</a>
+</div>
+
+<form method="get" action="@Url.Action("Reports", "Admin")" class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Data inicial</label>
+                <input type="date" name="startDate" class="form-control" value="@startDate.ToString("yyyy-MM-dd")">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data final</label>
+                <input type="date" name="endDate" class="form-control" value="@endDate.ToString("yyyy-MM-dd")">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Produto</label>
+                <select name="product" class="form-select">
+                    @if (product == ReportProductFilter.Todos) { <option value="" selected>Todos</option> } else { <option value="">Todos</option> }
+                    @if (product == ReportProductFilter.EnderecoFiscal) { <option value="@ReportProductFilter.EnderecoFiscal" selected>Endereço fiscal</option> } else { <option value="@ReportProductFilter.EnderecoFiscal">Endereço fiscal</option> }
+                    @if (product == ReportProductFilter.AluguelSalas) { <option value="@ReportProductFilter.AluguelSalas" selected>Aluguel de salas</option> } else { <option value="@ReportProductFilter.AluguelSalas">Aluguel de salas</option> }
+                    @if (product == ReportProductFilter.CertificadoDigitais) { <option value="@ReportProductFilter.CertificadoDigitais" selected>Certificado digitais</option> } else { <option value="@ReportProductFilter.CertificadoDigitais">Certificado digitais</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
+            </div>
+        </div>
+    </div>
+</form>
 
 <div class="row mb-4">
     <div class="col-md-3">
@@ -16,7 +53,7 @@
             <div class="card-body">
                 <h5 class="card-title">Período</h5>
                 <p class="card-text">
-                    @ViewBag.StartDate.ToString("dd/MM/yyyy") até @ViewBag.EndDate.ToString("dd/MM/yyyy")
+                    @startDate.ToString("dd/MM/yyyy") até @endDate.ToString("dd/MM/yyyy")
                 </p>
             </div>
         </div>
@@ -25,7 +62,7 @@
         <div class="card text-white bg-info">
             <div class="card-body">
                 <h5 class="card-title">Total de Pagamentos</h5>
-                <h3>@(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Count ?? 0)</h3>
+                <h3>@(report?.TotalPayments ?? 0)</h3>
             </div>
         </div>
     </div>
@@ -33,7 +70,7 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h5 class="card-title">Total Recebido</h5>
-                <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
+                <h3>R$ @(report?.TotalReceived.ToString("F2") ?? "0,00")</h3>
             </div>
         </div>
     </div>
@@ -41,7 +78,7 @@
         <div class="card text-white bg-warning">
             <div class="card-body">
                 <h5 class="card-title">Pendentes</h5>
-                <h3>R$ @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)?.Where(p => p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("F2") ?? "0.00")</h3>
+                <h3>R$ @(report?.Pending.ToString("F2") ?? "0,00")</h3>
             </div>
         </div>
     </div>
@@ -52,13 +89,14 @@
         <h5><i class="bi bi-list-ul"></i> Detalhamento de Pagamentos</h5>
     </div>
     <div class="card-body">
-        @if (ViewBag.Payments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments).Any())
+        @if (report != null && report.Rows.Any())
         {
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
                             <th>Data</th>
+                            <th>Produto</th>
                             <th>Valor</th>
                             <th>Método</th>
                             <th>Cliente</th>
@@ -67,71 +105,26 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)
+                        @foreach (var row in report.Rows)
                         {
                             <tr>
+                                <td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@row.ProductType</td>
+                                <td>R$ @row.Amount.ToString("F2")</td>
                                 <td>
-                                    @if (payment.PaidAt.HasValue)
-                                    {
-                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
-                                    }
-                                    else
-                                    {
-                                        @payment.CreatedAt.ToString("dd/MM/yyyy HH:mm")
-                                    }
+                                    @if (row.Method == "PIX") { <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span> }
+                                    else if (row.Method == "Cartão") { <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span> }
+                                    else if (row.Method == "Boleto") { <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span> }
+                                    else { <span class="badge bg-secondary">@(row.Method ?? "-")</span> }
                                 </td>
-                                <td>R$ @payment.Amount.ToString("F2")</td>
+                                <td>@row.Client</td>
+                                <td>@row.Location</td>
                                 <td>
-                                    @switch (payment.Method)
-                                    {
-                                        case PaymentMethod.PIX:
-                                            <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
-                                            break;
-                                        case PaymentMethod.CreditCard:
-                                            <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
-                                            break;
-                                        case PaymentMethod.BankTransfer:
-                                            <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>
-                                            break;
-                                    }
-                                </td>
-                                <td>
-                                    @(payment.Subscription?.Contract?.Client?.RazaoSocial ?? 
-                                      payment.Subscription?.Contract?.Client?.NomeFantasia ?? 
-                                      "N/A")
-                                </td>
-                                <td>
-                                    @(payment.Subscription?.Contract?.CoworkingAddress?.City ?? "N/A")/
-                                    @(payment.Subscription?.Contract?.CoworkingAddress?.State ?? "")
-                                </td>
-                                <td>
-                                    @switch (payment.Status)
-                                    {
-                                        case PaymentStatus.Pending:
-                                            <span class="badge bg-warning">Pendente</span>
-                                            break;
-                                        case PaymentStatus.Processing:
-                                            <span class="badge bg-info">Processando</span>
-                                            break;
-                                        case PaymentStatus.AwaitingValidation:
-                                            <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
-                                            break;
-                                        case PaymentStatus.Paid:
-                                            <span class="badge bg-success">Pago</span>
-                                            break;
-                                        case PaymentStatus.Failed:
-                                            <span class="badge bg-danger">Falhou</span>
-                                            break;
-                                        case PaymentStatus.Refunded:
-                                            <span class="badge bg-secondary">Reembolsado</span>
-                                            break;
-                                        case PaymentStatus.Cancelled:
-                                            <span class="badge bg-dark">Cancelado</span>
-                                            break;
-                                        default:
-                                            <span class="badge bg-secondary">@payment.Status</span>
-                                            break;
-                                    }
+                                    @if (row.Status == "Pago") { <span class="badge bg-success">Pago</span> }
+                                    else if (row.Status == "Pendente") { <span class="badge bg-warning">Pendente</span> }
+                                    else if (row.Status == "Processando" || row.Status == "Aguardando Validação") { <span class="badge bg-info">@row.Status</span> }
+                                    else if (row.Status == "Falhou" || row.Status == "Cancelado") { <span class="badge bg-danger">@row.Status</span> }
+                                    else { <span class="badge bg-secondary">@row.Status</span> }
                                 </td>
                             </tr>
                         }
@@ -142,7 +135,7 @@
         else
         {
             <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Nenhum pagamento encontrado no período selecionado.
+                <i class="bi bi-info-circle"></i> Nenhum pagamento encontrado no período e produto selecionados.
             </div>
         }
     </div>

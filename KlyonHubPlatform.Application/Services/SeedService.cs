@@ -443,10 +443,31 @@ namespace KlyonHubPlatform.Application.Services
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Platform.CommissionPercentage",
+                        Value = "20",
+                        Description = "Percentual de comissão da plataforma sobre reservas (ex: 20 = 20%). Alterável em Configurações do Sistema.",
+                        Category = "Platform",
+                        IsSensitive = false,
+                        IsEncrypted = false
                     }
                 );
                 await _context.SaveChangesAsync();
             }
+
+            // Garantir que existe uma linha em PlatformCreditBalances (conta do administrador).
+            // Só roda se a tabela já existir (após a migração AddReservationDoubleConfirmAndPlatformCredits).
+            try
+            {
+                if (_context.PlatformCreditBalances.Any() == false)
+                {
+                    _context.PlatformCreditBalances.Add(new PlatformCreditBalance { TotalCredits = 0 });
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (Exception) { /* Tabela PlatformCreditBalances pode não existir ainda; executar a migração AddReservationDoubleConfirmAndPlatformCredits. */ }
         }
     }
 }

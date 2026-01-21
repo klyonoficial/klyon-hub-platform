@@ -113,34 +113,35 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.Roles.Select(r => r.Name).ToListAsync();
         }
 
-        public async Task<List<Coworking>> GetCoworkingsFilteredAsync(string? search = null, string? status = null, string? isPartner = null, int page = 1, int pageSize = 15)
+        public async Task<List<Coworking>> GetCoworkingsFilteredAsync(string? search = null, string? status = null, string? isPartner = null, string? approvalStatus = null, int page = 1, int pageSize = 15)
         {
-            var query = BuildCoworkingsFilterQuery(search, status, isPartner);
-            query = query.OrderByDescending(c => c.CreatedAt);
+            var query = BuildCoworkingsFilterQuery(search, status, isPartner, approvalStatus);
+            query = query.OrderByDescending(c => c.SubmittedAt ?? c.CreatedAt);
 
             return await query
                 .Include(c => c.Addresses)
+                .Include(c => c.User)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
         }
 
-        public async Task<int> GetCoworkingsFilteredCountAsync(string? search = null, string? status = null, string? isPartner = null)
+        public async Task<int> GetCoworkingsFilteredCountAsync(string? search = null, string? status = null, string? isPartner = null, string? approvalStatus = null)
         {
-            var query = BuildCoworkingsFilterQuery(search, status, isPartner);
+            var query = BuildCoworkingsFilterQuery(search, status, isPartner, approvalStatus);
             return await query.CountAsync();
         }
 
-        private IQueryable<Coworking> BuildCoworkingsFilterQuery(string? search, string? status, string? isPartner)
+        private IQueryable<Coworking> BuildCoworkingsFilterQuery(string? search, string? status, string? isPartner, string? approvalStatus)
         {
             var query = _context.Coworkings.AsQueryable();
 
             if (!string.IsNullOrEmpty(search))
             {
                 query = query.Where(c => 
-                    c.Name.Contains(search) || 
-                    c.CNPJ.Contains(search) || 
-                    c.ContactEmail.Contains(search));
+                    (c.Name != null && c.Name.Contains(search)) || 
+                    (c.CNPJ != null && c.CNPJ.Contains(search)) || 
+                    (c.ContactEmail != null && c.ContactEmail.Contains(search)));
             }
 
             if (!string.IsNullOrEmpty(status))
@@ -153,6 +154,11 @@ namespace KlyonHubPlatform.Application.Services
             {
                 bool partner = isPartner == "true";
                 query = query.Where(c => c.IsPartner == partner);
+            }
+
+            if (!string.IsNullOrEmpty(approvalStatus) && Enum.TryParse<CoworkingApprovalStatus>(approvalStatus, out var appStatus))
+            {
+                query = query.Where(c => c.ApprovalStatus == appStatus);
             }
 
             return query;

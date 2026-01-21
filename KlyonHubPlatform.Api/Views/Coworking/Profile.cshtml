@@ -31,6 +31,33 @@
     </div>
 }
 
+@if (Model.ApprovalStatus == CoworkingApprovalStatus.UnderReview)
+{
+    <div class="alert alert-warning mb-4">
+        <i class="bi bi-hourglass-split"></i> <strong>Em análise.</strong> Seu cadastro está sendo analisado. Qualquer alteração feita aqui fará o cadastro retornar para nova análise.
+    </div>
+}
+else if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
+{
+    <div class="alert alert-secondary mb-4">
+        <strong><i class="bi bi-exclamation-diamond"></i> Aguardando ajuste.</strong>
+        @if (!string.IsNullOrEmpty(Model.RejectionReason))
+        {
+            <p class="mb-2 mt-2">Justificativa / itens a corrigir: <span class="text-dark">@Model.RejectionReason</span></p>
+        }
+        <form method="post" action="@Url.Action("ResubmitForApproval", "Coworking")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Reenviar para análise</button>
+        </form>
+    </div>
+}
+else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
+{
+    <div class="alert alert-success mb-4">
+        <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> Seu espaço está no marketplace. Ao alterar qualquer informação, o cadastro voltará para análise.
+    </div>
+}
+
 <!-- Abas -->
 <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -69,11 +96,6 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">
-            <i class="bi bi-box-seam"></i> Produtos Oferecidos
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
         <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
             <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
@@ -106,10 +128,10 @@
                             <input type="text" class="form-control" id="TradeName" name="TradeName" value="@Model.TradeName">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="Description" class="form-label">Descrição</label>
-                        <textarea class="form-control" id="Description" name="Description" rows="4">@Model.Description</textarea>
-                        <small class="form-text text-muted">Descreva seu coworking, serviços oferecidos, diferenciais, etc.</small>
+                    <div class="mb-4">
+                        <label for="Description" class="form-label fw-bold">Descrição breve sobre o coworking</label>
+                        <textarea class="form-control" id="Description" name="Description" rows="4" placeholder="Conte em poucas linhas o que seu espaço oferece, seu diferencial e o tipo de público que atende. Essa descrição aparecerá para quem visualizar seu perfil.">@Model.Description</textarea>
+                        <small class="form-text text-muted"><i class="bi bi-lightbulb"></i> Uma boa descrição ajuda clientes a conhecerem seu espaço antes de entrar em contato.</small>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">
@@ -470,38 +492,43 @@
                 @if (Model.Partners != null && Model.Partners.Any())
                 {
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-hover align-middle">
                             <thead>
                                 <tr>
+                                    <th style="width:60px">Foto</th>
                                     <th>Nome</th>
-                                    <th>CPF</th>
-                                    <th>Email</th>
-                                    <th>Telefone</th>
                                     <th>Cargo/Função</th>
                                     <th>Participação</th>
-                                    <th>Ações</th>
+                                    <th>Principal</th>
+                                    <th class="text-end">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var partner in Model.Partners.OrderBy(p => p.Name))
+                                @foreach (var partner in Model.Partners.OrderByDescending(p => p.IsPrincipal).ThenBy(p => p.Name))
                                 {
                                     <tr>
-                                        <td><strong>@partner.Name</strong></td>
-                                        <td>@(partner.CPF ?? "-")</td>
-                                        <td>@(partner.Email ?? "-")</td>
-                                        <td>@(partner.Phone ?? "-")</td>
-                                        <td>@(partner.Role ?? "-")</td>
-                                        <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F2}%" : "-")</td>
                                         <td>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editPartner(@partner.Id, '@partner.Name', '@(partner.CPF ?? "")', '@(partner.Email ?? "")', '@(partner.Phone ?? "")', '@(partner.Role ?? "")', @(partner.SharePercentage?.ToString() ?? "null"))" title="Editar">
+                                            @if (!string.IsNullOrEmpty(partner.PhotoPath))
+                                            {
+                                                <img src="@Url.Action("GetPartnerPhoto", "Coworking", new { partnerId = partner.Id })" alt="" class="rounded-circle" style="width:40px;height:40px;object-fit:cover;">
+                                            }
+                                            else
+                                            {
+                                                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width:40px;height:40px;"><i class="bi bi-person text-muted"></i></div>
+                                            }
+                                        </td>
+                                        <td><strong>@partner.Name</strong><br><small class="text-muted">@(partner.Email ?? partner.Phone ?? "-")</small></td>
+                                        <td>@(partner.Role ?? "-")</td>
+                                        <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F0}%" : "-")</td>
+                                        <td>@if (partner.IsPrincipal) { <span class="badge bg-success"><i class="bi bi-star-fill"></i> Principal</span> } else { <span class="text-muted">-</span> }</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir este sócio?')">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="partnerId" value="@partner.Id" />
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
@@ -519,125 +546,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Modal para Adicionar/Editar Sócio -->
-    <div class="modal fade" id="addPartnerModal" tabindex="-1" aria-labelledby="addPartnerModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="addPartnerModalLabel">
-                        <i class="bi bi-person-plus"></i> <span id="modalTitle">Adicionar Sócio</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form method="post" action="@Url.Action("AddPartner", "Coworking")" id="partnerForm">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="Id" id="partnerId" value="0" />
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="partnerName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="partnerName" name="Name" required>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="partnerCPF" class="form-label">CPF</label>
-                                <input type="text" class="form-control" id="partnerCPF" name="CPF" placeholder="000.000.000-00" maxlength="14">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="partnerPhone" class="form-label">Telefone</label>
-                                <input type="text" class="form-control" id="partnerPhone" name="Phone" placeholder="(00) 00000-0000" maxlength="15">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="partnerEmail" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="partnerEmail" name="Email" placeholder="email@exemplo.com">
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="partnerRole" class="form-label">Cargo/Função</label>
-                                <input type="text" class="form-control" id="partnerRole" name="Role" placeholder="Ex: Sócio, Diretor, Gerente">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="partnerShare" class="form-label">Participação (%)</label>
-                                <input type="number" class="form-control" id="partnerShare" name="SharePercentage" min="0" max="100" step="0.01" placeholder="0.00" oninput="this.value = Math.max(0, Math.min(100, this.value))">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-circle"></i> <span id="modalSubmitText">Adicionar</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Produtos Oferecidos -->
-    <div class="tab-pane fade" id="products" role="tabpanel">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-box-seam"></i> Produtos que você oferece</h5>
-            </div>
-            <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProducts", "Coworking")">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="activeTab" value="products" />
-                    
-                    <p class="text-muted mb-3">Selecione os produtos que seu coworking oferece aos clientes:</p>
-                    
-                    @{
-                        var currentProducts = Model.Products?.Where(p => p.IsActive).Select(p => p.ProductType).ToList() ?? new List<string>();
-                    }
-                    
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="product_fiscal" name="productTypes" value="FiscalAddress" 
-                                   @(currentProducts.Contains("FiscalAddress") ? "checked" : "")>
-                            <label class="form-check-label" for="product_fiscal">
-                                <strong>Endereço Fiscal</strong>
-                                <small class="text-muted d-block">Permite que clientes comprem endereço fiscal</small>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="product_rental" name="productTypes" value="RoomRental" 
-                                   @(currentProducts.Contains("RoomRental") ? "checked" : "")>
-                            <label class="form-check-label" for="product_rental">
-                                <strong>Aluguéis de Sala</strong>
-                                <small class="text-muted d-block">Permite que clientes façam reservas de salas através do marketplace</small>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="product_certificate" name="productTypes" value="DigitalCertificate" 
-                                   @(currentProducts.Contains("DigitalCertificate") ? "checked" : "") disabled>
-                            <label class="form-check-label" for="product_certificate" style="opacity: 0.6;">
-                                <strong>Certificado Digital</strong>
-                                <small class="text-muted d-block">Permite venda de certificados digitais (em breve)</small>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> 
-                        <strong>Importante:</strong> Ao marcar "Aluguéis de Sala", seu coworking aparecerá no marketplace e clientes poderão fazer reservas. 
-                        Você receberá notificações de todas as reservas na seção "Reservas" do seu dashboard.
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Salvar Produtos
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
     </div>
 
     <!-- Documentos Obrigatórios -->
@@ -757,6 +665,90 @@
         </div>
     </div>
 </div>
+
+    <!-- Modal para Adicionar/Editar Sócio (fora das abas para abrir corretamente ao editar) -->
+    <div class="modal fade" id="addPartnerModal" tabindex="-1" aria-labelledby="addPartnerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addPartnerModalLabel">
+                        <i class="bi bi-person-plus"></i> <span id="modalTitle">Adicionar Sócio</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="@Url.Action("AddPartner", "Coworking")" id="partnerForm" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Id" id="partnerId" value="0" />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="partnerName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="partnerName" name="Name" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerCPF" class="form-label">CPF</label>
+                                <input type="text" class="form-control" id="partnerCPF" name="CPF" placeholder="000.000.000-00" maxlength="14">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerPhone" class="form-label">Telefone</label>
+                                <input type="text" class="form-control" id="partnerPhone" name="Phone" placeholder="(00) 00000-0000" maxlength="15">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="partnerEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="partnerEmail" name="Email" placeholder="email@exemplo.com">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerRole" class="form-label">Cargo/Função</label>
+                                <select class="form-select" id="partnerRole" name="Role">
+                                    <option value="">Selecione</option>
+                                    <option value="Sócio">Sócio</option>
+                                    <option value="Diretor">Diretor</option>
+                                    <option value="Gerente">Gerente</option>
+                                    <option value="Coordenador">Coordenador</option>
+                                    <option value="Administrador">Administrador</option>
+                                    <option value="Representante Legal">Representante Legal</option>
+                                    <option value="Superintendente">Superintendente</option>
+                                    <option value="Contador">Contador</option>
+                                    <option value="Sócio-Administrador">Sócio-Administrador</option>
+                                    <option value="Manager">Manager</option>
+                                    <option value="Outro">Outro</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="partnerShare" class="form-label">Participação (%)</label>
+                                <input type="number" class="form-control" id="partnerShare" name="SharePercentage" min="0" max="100" step="0.01" placeholder="0.00" oninput="this.value = Math.max(0, Math.min(100, this.value))">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Foto do sócio</label>
+                            <div id="partnerPhotoCurrentWrap" class="mb-2" style="display:none;">
+                                <span class="text-muted d-block small">Foto atual:</span>
+                                <img id="partnerPhotoCurrent" src="" alt="" class="rounded-circle border" style="width:80px;height:80px;object-fit:cover;">
+                            </div>
+                            <input type="file" class="form-control" id="partnerPhotoInput" name="partnerPhoto" accept="image/jpeg,image/png,image/gif,image/webp">
+                            <div id="partnerPhotoPreviewWrap" class="mt-2" style="display:none;">
+                                <span class="text-muted d-block small">Nova foto:</span>
+                                <img id="partnerPhotoPreview" src="" alt="" class="rounded-circle border" style="width:80px;height:80px;object-fit:cover;">
+                            </div>
+                            <small class="form-text text-muted">JPG, PNG, GIF ou WebP. Máx. 5MB.</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="IsPrincipal" value="true" id="partnerIsPrincipal">
+                            <label class="form-check-label" for="partnerIsPrincipal">Sócio principal (será exibido ao clicar no coworking)</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> <span id="modalSubmitText">Adicionar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
 @section Scripts {
     <script>
@@ -890,31 +882,88 @@
             return numbers;
         }
 
-        // Função para editar sócio
-        function editPartner(id, name, cpf, email, phone, role, sharePercentage) {
-            document.getElementById('partnerId').value = id;
-            document.getElementById('partnerName').value = name;
-            document.getElementById('partnerCPF').value = applyCPFMask(cpf || '');
-            document.getElementById('partnerEmail').value = email || '';
-            document.getElementById('partnerPhone').value = applyPhoneMask(phone || '');
-            document.getElementById('partnerRole').value = role || '';
-            // Garantir que participação não seja negativa e formatar para 2 casas decimais
-            var share = sharePercentage && sharePercentage !== 'null' ? parseFloat(sharePercentage) : '';
-            if (share !== '' && share < 0) share = 0;
-            if (share !== '' && !isNaN(share)) {
-                share = parseFloat(share.toFixed(2));
+        // Função para editar sócio a partir de data-partner-json
+        function editPartnerFromData(btn) {
+            var raw = btn.getAttribute('data-partner-json');
+            if (!raw || raw.trim() === '') {
+                console.error('editPartnerFromData: data-partner-json vazio ou não encontrado');
+                return;
             }
+            var d;
+            try { 
+                d = JSON.parse(raw); 
+            } catch (e) { 
+                console.error('editPartnerFromData: JSON inválido', e, 'Raw:', raw); 
+                alert('Erro ao carregar dados do sócio. Por favor, recarregue a página.');
+                return; 
+            }
+            var pid = document.getElementById('partnerId');
+            var pname = document.getElementById('partnerName');
+            if (!pid || !pname) return;
+            pid.value = d.Id || 0;
+            pname.value = d.Name || '';
+            document.getElementById('partnerCPF').value = applyCPFMask(d.CPF || '');
+            document.getElementById('partnerEmail').value = d.Email || '';
+            document.getElementById('partnerPhone').value = applyPhoneMask(d.Phone || '');
+            var share = d.SharePercentage != null && d.SharePercentage !== '' ? parseFloat(d.SharePercentage) : '';
+            if (share !== '' && !isNaN(share)) { share = Math.max(0, Math.min(100, share)); share = parseFloat(share.toFixed(2)); }
             document.getElementById('partnerShare').value = share;
-            
+            document.getElementById('partnerIsPrincipal').checked = !!d.IsPrincipal;
+            // Cargo/Função: select
+            var sel = document.getElementById('partnerRole');
+            var role = d.Role || '';
+            if (role && !Array.from(sel.options).some(function(o) { return o.value === role; })) {
+                var opt = document.createElement('option');
+                opt.value = role;
+                opt.textContent = role;
+                sel.appendChild(opt);
+            }
+            sel.value = role;
+            // Foto atual (só em edição com Id e quando existe PhotoPath)
+            var wrap = document.getElementById('partnerPhotoCurrentWrap');
+            var imgCur = document.getElementById('partnerPhotoCurrent');
+            if (d.Id && d.Id > 0 && d.PhotoPath) {
+                imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id;
+                wrap.style.display = 'block';
+            } else {
+                imgCur.src = '';
+                wrap.style.display = 'none';
+            }
+            document.getElementById('partnerPhotoInput').value = '';
+            document.getElementById('partnerPhotoPreviewWrap').style.display = 'none';
+            document.getElementById('partnerPhotoPreview').src = '';
             document.getElementById('modalTitle').textContent = 'Editar Sócio';
             document.getElementById('modalSubmitText').textContent = 'Salvar Alterações';
             document.getElementById('partnerForm').action = '@Url.Action("UpdatePartner", "Coworking")';
-            
-            const modal = new bootstrap.Modal(document.getElementById('addPartnerModal'));
+            var modalEl = document.getElementById('addPartnerModal');
+            if (!modalEl) return;
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
             modal.show();
         }
 
-        // Máscaras são aplicadas automaticamente pelo masks.js global
+        // Preview da nova foto ao selecionar arquivo
+        document.getElementById('partnerPhotoInput')?.addEventListener('change', function(e) {
+            var wrap = document.getElementById('partnerPhotoPreviewWrap');
+            var img = document.getElementById('partnerPhotoPreview');
+            if (e.target.files && e.target.files[0]) {
+                var r = new FileReader();
+                r.onload = function(ev) { img.src = ev.target.result; wrap.style.display = 'block'; };
+                r.readAsDataURL(e.target.files[0]);
+            } else {
+                img.src = '';
+                wrap.style.display = 'none';
+            }
+        });
+
+        // Validação de tamanho da foto do sócio (5MB) no submit
+        document.getElementById('partnerForm')?.addEventListener('submit', function(e) {
+            var fi = document.getElementById('partnerPhotoInput');
+            if (fi && fi.files && fi.files[0] && fi.files[0].size > 5 * 1024 * 1024) {
+                e.preventDefault();
+                alert('A foto não pode exceder 5MB.');
+                return false;
+            }
+        });
 
         // Validação de participação (não permitir negativo)
         document.getElementById('partnerShare')?.addEventListener('input', function(e) {
@@ -933,6 +982,18 @@
             document.getElementById('modalTitle').textContent = 'Adicionar Sócio';
             document.getElementById('modalSubmitText').textContent = 'Adicionar';
             document.getElementById('partnerForm').action = '@Url.Action("AddPartner", "Coworking")';
+            document.getElementById('partnerIsPrincipal').checked = false;
+            document.getElementById('partnerRole').value = '';
+            var pi = document.getElementById('partnerPhotoInput');
+            if (pi) pi.value = '';
+            var w = document.getElementById('partnerPhotoCurrentWrap');
+            var img = document.getElementById('partnerPhotoCurrent');
+            if (w) w.style.display = 'none';
+            if (img) img.src = '';
+            w = document.getElementById('partnerPhotoPreviewWrap');
+            img = document.getElementById('partnerPhotoPreview');
+            if (w) w.style.display = 'none';
+            if (img) img.src = '';
         });
 
 

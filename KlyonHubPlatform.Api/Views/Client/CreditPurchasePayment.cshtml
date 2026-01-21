@@ -107,7 +107,7 @@
                             <p class="lead">Escaneie o QR Code ou copie o código PIX para pagar</p>
                             
                             <div class="mb-4">
-                                <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
+                                <div class="d-inline-block p-3 bg-white border rounded"><canvas id="qrcode"></canvas></div>
                             </div>
 
                             <div class="mb-3">
@@ -485,10 +485,10 @@
                     alert(result.message);
                     window.location.reload();
                 } else {
-                    alert('Erro: ' + result.error);
+                    alert(result.error || 'Falha no pagamento.');
                 }
             } catch (error) {
-                alert('Erro ao processar pagamento: ' + error.message);
+                alert('Erro de conexão: ' + error.message);
             }
         });
     </script>

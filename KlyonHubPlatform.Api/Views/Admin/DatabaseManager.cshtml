@@ -1,3 +1,5 @@
+@using System.Linq
+@using System.Collections.Generic
 @{
     ViewData["Title"] = "Gerenciador de Banco de Dados";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -43,11 +45,71 @@
             <div class="card-body">
                 <p class="mb-2"><strong>Esta ferramenta permite executar queries SQL diretamente no banco de dados.</strong></p>
                 <ul class="mb-0">
-                    <li>Use apenas para <strong>ALTER TABLE</strong>, <strong>CREATE TABLE</strong> ou <strong>ADD COLUMN</strong></li>
+                    <li>Use apenas para <strong>ALTER TABLE</strong>, <strong>CREATE TABLE</strong>, <strong>CREATE INDEX</strong> ou <strong>ADD COLUMN</strong></li>
                     <li>Operações perigosas como <strong>DROP</strong>, <strong>DELETE</strong> e <strong>TRUNCATE</strong> são bloqueadas</li>
                     <li>Sempre faça backup antes de executar queries que alteram a estrutura do banco</li>
                     <li>Teste as queries em ambiente de desenvolvimento primeiro</li>
                 </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@{
+    var pendingMigrations = ViewBag.PendingMigrations as List<string> ?? new List<string>();
+    var appliedMigrations = ViewBag.AppliedMigrations as IEnumerable<string> ?? Enumerable.Empty<string>();
+}
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Migrations do Entity Framework</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">Execute as <strong>migrations pendentes</strong> para criar ou alterar tabelas e colunas (ex.: CoworkingRooms, CoworkingRoomPhotos, Reservations.CoworkingRoomId). Equivale ao <code>dotnet ef database update</code>.</p>
+                @if (pendingMigrations.Any())
+                {
+                    <div class="alert alert-warning mb-3">
+                        <strong><i class="bi bi-exclamation-triangle"></i> @pendingMigrations.Count migration(s) pendente(s):</strong>
+                        <ul class="mb-0 mt-2">
+                            @foreach (var m in pendingMigrations)
+                            {
+                                <li><code>@m</code></li>
+                            }
+                        </ul>
+                    </div>
+                    <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-primary" onclick="return confirm('Executar as @pendingMigrations.Count migration(s) pendente(s) no banco?');">
+                            <i class="bi bi-play-circle"></i> Executar migrations pendentes
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <p class="text-success mb-2"><i class="bi bi-check-circle"></i> Nenhuma migration pendente. O banco está atualizado.</p>
+                    <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Tentar executar novamente</button>
+                    </form>
+                }
+                @if (appliedMigrations.Any())
+                {
+                    <details class="mt-3">
+                        <summary class="text-muted small">Ver migrations já aplicadas</summary>
+                        <ul class="small text-muted mb-0 mt-1" style="max-height: 200px; overflow-y: auto;">
+                            @foreach (var m in appliedMigrations.Take(50))
+                            {
+                                <li><code>@m</code></li>
+                            }
+                            @if (appliedMigrations.Count() > 50)
+                            {
+                                <li>... e mais @(appliedMigrations.Count() - 50)</li>
+                            }
+                        </ul>
+                    </details>
+                }
             </div>
         </div>
     </div>
@@ -207,6 +269,21 @@
     FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL
 );</code></pre>
                                 <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('CREATE TABLE IF NOT EXISTS CoworkingRatings (Id INT AUTO_INCREMENT PRIMARY KEY, CoworkingId INT NOT NULL, ClientId INT NULL, Rating INT NOT NULL CHECK (Rating >= 1 AND Rating <= 5), Comment VARCHAR(1000) NULL, CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, UpdatedAt DATETIME NULL, FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE, FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL);')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#exampleIndex">
+                                Criar índice de desempenho
+                            </button>
+                        </h2>
+                        <div id="exampleIndex" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>CREATE INDEX IX_Reservations_ClientId ON Reservations (ClientId);</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('CREATE INDEX IX_Reservations_ClientId ON Reservations (ClientId);')">
                                     <i class="bi bi-clipboard"></i> Copiar
                                 </button>
                             </div>

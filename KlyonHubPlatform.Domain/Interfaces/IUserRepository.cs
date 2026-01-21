@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Interfaces
     {
         Task<User?> GetByIdAsync(int id);
         Task<User?> GetByEmailAsync(string email);
+        /// <summary>Busca por email com UserRoles e Role para login. Usa AsNoTracking.</summary>
+        Task<User?> GetByEmailForAuthenticationAsync(string email);
         Task<User> CreateAsync(User user);
         Task<User> UpdateAsync(User user);
         Task<bool> DeleteAsync(int id);

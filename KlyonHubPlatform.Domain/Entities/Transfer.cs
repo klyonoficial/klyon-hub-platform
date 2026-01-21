@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Entities
     {
         public int Id { get; set; }
         public int CoworkingId { get; set; }
+        /// <summary>Quando preenchido, é repasse automático de reserva (dupla confirmação).</summary>
+        public int? ReservationId { get; set; }
         public decimal Amount { get; set; }
         public TransferStatus Status { get; set; } = TransferStatus.Pending;
         public string? ExternalTransferId { get; set; }
@@ -18,5 +20,6 @@ namespace KlyonHubPlatform.Domain.Entities
 
         // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
+        public virtual Reservation? Reservation { get; set; }
     }
 }

@@ -6,6 +6,7 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Security.Claims;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -20,6 +21,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly ApplicationDbContext _context;
         private readonly IPagBankService _pagBankService;
+        private readonly IAuditService _auditService;
 
         public AdminController(
             IUserService userService,
@@ -29,7 +31,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ISystemConfigurationService systemConfigurationService,
             IPaymentService paymentService,
             ApplicationDbContext context,
-            IPagBankService pagBankService)
+            IPagBankService pagBankService,
+            IAuditService auditService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -37,8 +40,9 @@ namespace KlyonHubPlatform.Api.Controllers
             _adminService = adminService;
             _systemConfigurationService = systemConfigurationService;
             _paymentService = paymentService;
-            _context = context; // Mantido apenas para operações de roles que ainda não foram movidas
+            _context = context;
             _pagBankService = pagBankService;
+            _auditService = auditService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -70,11 +74,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ToListAsync();
                 ViewBag.ProductsByType = productsStats;
                 
-                var totalReservations = await _context.Interests.CountAsync();
+                var totalReservations = await _context.Reservations.CountAsync();
                 ViewBag.TotalReservations = totalReservations;
                 
-                var reservationsByStatus = await _context.Interests
-                    .GroupBy(i => i.Status)
+                var reservationsByStatus = await _context.Reservations
+                    .GroupBy(r => r.Status)
                     .Select(g => new { status = g.Key, count = g.Count() })
                     .ToListAsync();
                 ViewBag.ReservationsByStatus = reservationsByStatus;
@@ -262,15 +266,16 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Coworkings(string? search = null, string? status = null, string? isPartner = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Coworkings(string? search = null, string? status = null, string? isPartner = null, string? approvalStatus = null, int page = 1, int pageSize = 15)
         {
-            var coworkings = await _adminService.GetCoworkingsFilteredAsync(search, status, isPartner, page, pageSize);
-            var totalItems = await _adminService.GetCoworkingsFilteredCountAsync(search, status, isPartner);
+            var coworkings = await _adminService.GetCoworkingsFilteredAsync(search, status, isPartner, approvalStatus, page, pageSize);
+            var totalItems = await _adminService.GetCoworkingsFilteredCountAsync(search, status, isPartner, approvalStatus);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
             
             ViewBag.Search = search;
             ViewBag.Status = status;
             ViewBag.IsPartner = isPartner;
+            ViewBag.ApprovalStatus = approvalStatus;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
@@ -297,6 +302,61 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return View(coworking);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveCoworking(int id, string? search, string? status, string? isPartner, string? approvalStatus, int? page)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _context.Coworkings.FindAsync(id);
+            if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
+            var oldStatus = coworking.ApprovalStatus;
+            coworking.ApprovalStatus = CoworkingApprovalStatus.Approved;
+            coworking.ApprovedAt = DateTime.UtcNow;
+            coworking.ApprovedBy = userId;
+            coworking.RejectionReason = null;
+            coworking.RejectedAt = null;
+            coworking.RejectedBy = null;
+            coworking.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"Approved\"}");
+            TempData["Success"] = $"Cadastro de '{coworking.Name}' aprovado. O espaço já está disponível no marketplace.";
+            if (page.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(isPartner) || !string.IsNullOrEmpty(approvalStatus))
+                return RedirectToAction("Coworkings", new { search, status, isPartner, approvalStatus, page });
+            return RedirectToAction("ViewCoworking", new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectCoworking(int id, string rejectionReason, string? search, string? status, string? isPartner, string? approvalStatus, int? page)
+        {
+            if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe a justificativa ou os itens que precisam de correção."; return RedirectToAction("ViewCoworking", new { id }); }
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _context.Coworkings.FindAsync(id);
+            if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
+            var oldStatus = coworking.ApprovalStatus;
+            coworking.ApprovalStatus = CoworkingApprovalStatus.AwaitingAdjustment;
+            coworking.RejectionReason = rejectionReason.Trim();
+            coworking.RejectedAt = DateTime.UtcNow;
+            coworking.RejectedBy = userId;
+            coworking.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"AwaitingAdjustment\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(coworking.RejectionReason) + "}");
+            TempData["Success"] = "Cadastro reprovado. O coworking foi notificado e poderá reenviar após os ajustes.";
+            if (page.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(isPartner) || !string.IsNullOrEmpty(approvalStatus))
+                return RedirectToAction("Coworkings", new { search, status, isPartner, approvalStatus, page });
+            return RedirectToAction("ViewCoworking", new { id });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CoworkingHistory(int id)
+        {
+            var coworking = await _context.Coworkings.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == id);
+            if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
+            var logs = await _auditService.GetLogsByEntityAsync("Coworking", id);
+            ViewBag.Coworking = coworking;
+            return View(logs);
         }
 
         [HttpGet]
@@ -343,6 +403,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     search = Request.Query["search"],
                     status = Request.Query["status"],
                     isPartner = Request.Query["isPartner"],
+                    approvalStatus = Request.Query["approvalStatus"],
                     page = Request.Query["page"]
                 });
             }
@@ -547,19 +608,50 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Reports()
+        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product)
         {
-            var startDate = DateTime.UtcNow.AddMonths(-1);
-            var endDate = DateTime.UtcNow;
+            var start = startDate?.Date ?? DateTime.UtcNow.AddMonths(-1).Date;
+            var end = endDate?.Date ?? DateTime.UtcNow.Date;
+            if (end < start) end = start;
 
-            // Buscar pagamentos dos últimos 30 dias incluindo pendentes
-            var payments = await _reportService.GetRecentPaymentsAsync(30, 500);
+            var report = await _reportService.GetFinancialReportAsync(start, end, product);
 
-            ViewBag.Payments = payments;
-            ViewBag.StartDate = startDate;
-            ViewBag.EndDate = endDate;
+            ViewBag.Report = report;
+            ViewBag.StartDate = start;
+            ViewBag.EndDate = end;
+            ViewBag.Product = product ?? ReportProductFilter.Todos;
 
             return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportCredits()
+        {
+            var list = await _reportService.GetClientCreditsReportAsync();
+            return View(list);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportClientCreditStatement(int clientId, DateTime? dateFrom, DateTime? dateTo)
+        {
+            var dto = await _reportService.GetClientCreditStatementAsync(clientId, dateFrom, dateTo);
+            return View(dto);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportCoworkingRevenue()
+        {
+            var list = await _reportService.GetCoworkingRevenueReportAsync();
+            return View(list);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportCoworkingRevenueDetail(int id, DateTime? dateFrom, DateTime? dateTo)
+        {
+            var dto = await _reportService.GetCoworkingRevenueDetailAsync(id, dateFrom, dateTo);
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            return View(dto);
         }
 
         [HttpGet]
@@ -950,9 +1042,181 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public IActionResult DatabaseManager()
+        public async Task<IActionResult> DatabaseManager()
         {
+            try
+            {
+                var pending = await _context.Database.GetPendingMigrationsAsync();
+                ViewBag.PendingMigrations = pending.ToList();
+                ViewBag.AppliedMigrations = await _context.Database.GetAppliedMigrationsAsync();
+            }
+            catch
+            {
+                ViewBag.PendingMigrations = new List<string>();
+                ViewBag.AppliedMigrations = new List<string>();
+            }
             return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RunMigrations()
+        {
+            try
+            {
+                var pending = await _context.Database.GetPendingMigrationsAsync();
+                var list = pending.ToList();
+                if (list.Count == 0)
+                {
+                    TempData["Info"] = "Não há migrations pendentes. O banco já está atualizado.";
+                    return RedirectToAction("DatabaseManager");
+                }
+                await _context.Database.MigrateAsync();
+                TempData["Success"] = $"Migrations executadas com sucesso: {string.Join(", ", list)}";
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = "Erro ao executar migrations: " + msg;
+            }
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Cria índices de desempenho no banco (MySQL). Idempotente: ignora índices que já existem.
+        /// Melhora consultas em Reservations, CreditPurchases, ClientCredits, Payments, Contracts, Coworkings, etc.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApplyIndexes()
+        {
+            var created = new List<string>();
+            var indexes = new (string Name, string Sql)[]
+            {
+                ("IX_Reservations_CoworkingAddressId_ReservationDate", "CREATE INDEX IX_Reservations_CoworkingAddressId_ReservationDate ON Reservations (CoworkingAddressId, ReservationDate)"),
+                ("IX_Reservations_ClientId_Status", "CREATE INDEX IX_Reservations_ClientId_Status ON Reservations (ClientId, Status)"),
+                ("IX_Reservations_ReservationDate_Status", "CREATE INDEX IX_Reservations_ReservationDate_Status ON Reservations (ReservationDate, Status)"),
+                ("IX_CreditPurchases_ClientId_Status", "CREATE INDEX IX_CreditPurchases_ClientId_Status ON CreditPurchases (ClientId, Status)"),
+                ("IX_CreditPurchases_Status", "CREATE INDEX IX_CreditPurchases_Status ON CreditPurchases (Status)"),
+                ("IX_CreditPurchases_PaidAt", "CREATE INDEX IX_CreditPurchases_PaidAt ON CreditPurchases (PaidAt)"),
+                ("IX_CreditPurchases_CreatedAt", "CREATE INDEX IX_CreditPurchases_CreatedAt ON CreditPurchases (CreatedAt)"),
+                ("IX_ClientCredits_ClientId_ExpiresAt", "CREATE INDEX IX_ClientCredits_ClientId_ExpiresAt ON ClientCredits (ClientId, ExpiresAt)"),
+                ("IX_Payments_SubscriptionId_Status", "CREATE INDEX IX_Payments_SubscriptionId_Status ON Payments (SubscriptionId, Status(100))"),
+                ("IX_Payments_Status", "CREATE INDEX IX_Payments_Status ON Payments (Status(100))"),
+                ("IX_Payments_PaidAt", "CREATE INDEX IX_Payments_PaidAt ON Payments (PaidAt)"),
+                ("IX_Contracts_Status", "CREATE INDEX IX_Contracts_Status ON Contracts (Status(100))"),
+                ("IX_Coworkings_ApprovalStatus", "CREATE INDEX IX_Coworkings_ApprovalStatus ON Coworkings (ApprovalStatus)"),
+                ("IX_Coworkings_IsActive_IsPartner", "CREATE INDEX IX_Coworkings_IsActive_IsPartner ON Coworkings (IsActive, IsPartner)"),
+                ("IX_Subscriptions_Status", "CREATE INDEX IX_Subscriptions_Status ON Subscriptions (Status(100))"),
+                ("IX_Transfers_CoworkingId", "CREATE INDEX IX_Transfers_CoworkingId ON Transfers (CoworkingId)"),
+                ("IX_Interests_CoworkingAddressId", "CREATE INDEX IX_Interests_CoworkingAddressId ON Interests (CoworkingAddressId)"),
+                ("IX_Commissions_PaymentId", "CREATE INDEX IX_Commissions_PaymentId ON Commissions (PaymentId)"),
+                ("IX_Commissions_CoworkingId", "CREATE INDEX IX_Commissions_CoworkingId ON Commissions (CoworkingId)"),
+                ("IX_ReservationCommissions_ReservationId", "CREATE INDEX IX_ReservationCommissions_ReservationId ON ReservationCommissions (ReservationId)"),
+                ("IX_CoworkingRooms_CoworkingAddressId", "CREATE INDEX IX_CoworkingRooms_CoworkingAddressId ON CoworkingRooms (CoworkingAddressId)"),
+                ("IX_Documents_ContractId", "CREATE INDEX IX_Documents_ContractId ON Documents (ContractId)"),
+            };
+
+            foreach (var (name, sql) in indexes)
+            {
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    created.Add(name);
+                }
+                catch (Exception ex)
+                {
+                    var msg = (ex.InnerException?.Message ?? ex.Message) ?? "";
+                    if (msg.IndexOf("Duplicate", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        msg.IndexOf("already exists", StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    if (msg.IndexOf("doesn't exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        msg.IndexOf("Unknown table", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        msg.IndexOf("Unknown column", StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    TempData["Error"] = $"Erro ao criar índice {name}: {ex.Message}";
+                    return RedirectToAction("DatabaseManager");
+                }
+            }
+
+            if (created.Count > 0)
+                TempData["Success"] = $"{created.Count} índice(s) criado(s) para desempenho: {string.Join(", ", created)}";
+            else
+                TempData["Info"] = "Todos os índices já existem. Nenhuma alteração necessária.";
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Adiciona colunas de confirmação dupla (ClientConfirmedAt, CoworkingConfirmedAt em Reservations;
+        /// ReservationId em Transfers) quando a migração AddReservationDoubleConfirmAndPlatformCredits não foi aplicada.
+        /// Idempotente: ignora se a coluna já existir.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> FixReservationAndTransferColumns()
+        {
+            var added = new List<string>();
+            var alters = new[]
+            {
+                ("Reservations", "ClientConfirmedAt", "ALTER TABLE Reservations ADD COLUMN ClientConfirmedAt datetime(6) NULL"),
+                ("Reservations", "CoworkingConfirmedAt", "ALTER TABLE Reservations ADD COLUMN CoworkingConfirmedAt datetime(6) NULL"),
+                ("Transfers", "ReservationId", "ALTER TABLE Transfers ADD COLUMN ReservationId int NULL")
+            };
+            foreach (var (table, column, sql) in alters)
+            {
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    added.Add($"{table}.{column}");
+                }
+                catch (Exception ex) when (ex.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true) { }
+            }
+            // Índice e FK em Transfers.ReservationId (idempotente: ignora se já existirem)
+            try { await _context.Database.ExecuteSqlRawAsync("CREATE INDEX IX_Transfers_ReservationId ON Transfers (ReservationId)"); added.Add("IX_Transfers_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
+            try { await _context.Database.ExecuteSqlRawAsync("ALTER TABLE Transfers ADD CONSTRAINT FK_Transfers_Reservations_ReservationId FOREIGN KEY (ReservationId) REFERENCES Reservations(Id) ON DELETE SET NULL"); added.Add("FK_Transfers_Reservations_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
+            if (added.Count > 0)
+                TempData["Success"] = "Colunas/índice/FK adicionados: " + string.Join(", ", added);
+            else
+                TempData["Info"] = "As colunas já existem. Nenhuma alteração necessária.";
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Adiciona colunas de pagamento (PIX, Boleto, Cartão) em CreditPurchases quando a migração
+        /// AddCreditPurchasePaymentColumns não foi aplicada. Resolve erro "Unknown column 'c.BoletoBarcode'".
+        /// Idempotente: ignora se a coluna já existir.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> FixCreditPurchaseColumns()
+        {
+            var added = new List<string>();
+            var alters = new[]
+            {
+                ("CreditPurchases", "PaymentMethod", "ALTER TABLE CreditPurchases ADD COLUMN PaymentMethod varchar(50) NULL"),
+                ("CreditPurchases", "ExternalPaymentId", "ALTER TABLE CreditPurchases ADD COLUMN ExternalPaymentId varchar(255) NULL"),
+                ("CreditPurchases", "PixCode", "ALTER TABLE CreditPurchases ADD COLUMN PixCode varchar(500) NULL"),
+                ("CreditPurchases", "PixExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN PixExpiresAt datetime(6) NULL"),
+                ("CreditPurchases", "BoletoCode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoCode varchar(100) NULL"),
+                ("CreditPurchases", "BoletoBarcode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoBarcode varchar(100) NULL"),
+                ("CreditPurchases", "BoletoExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN BoletoExpiresAt datetime(6) NULL"),
+                ("CreditPurchases", "TransactionId", "ALTER TABLE CreditPurchases ADD COLUMN TransactionId varchar(255) NULL")
+            };
+            foreach (var (table, column, sql) in alters)
+            {
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    added.Add($"{table}.{column}");
+                }
+                catch (Exception ex) when (ex.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true) { }
+            }
+            if (added.Count > 0)
+                TempData["Success"] = "Colunas de CreditPurchases adicionadas: " + string.Join(", ", added);
+            else
+                TempData["Info"] = "As colunas de CreditPurchases já existem. Nenhuma alteração necessária.";
+            return RedirectToAction("DatabaseManager");
         }
 
         [HttpPost]
@@ -1118,10 +1382,10 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             }
             
             // Permitir apenas operações seguras
-            var allowedKeywords = new[] { "ALTER TABLE", "CREATE TABLE", "ADD COLUMN", "ADD", "SELECT", "SHOW", "DESCRIBE", "DESC" };
+            var allowedKeywords = new[] { "ALTER TABLE", "CREATE TABLE", "CREATE INDEX", "ADD COLUMN", "ADD", "SELECT", "SHOW", "DESCRIBE", "DESC" };
             if (!allowedKeywords.Any(keyword => upperQuery.Contains(keyword)))
             {
-                TempData["Error"] = "Apenas operações ALTER TABLE, CREATE TABLE, ADD COLUMN, SELECT, SHOW e DESCRIBE são permitidas.";
+                TempData["Error"] = "Apenas operações ALTER TABLE, CREATE TABLE, CREATE INDEX, ADD COLUMN, SELECT, SHOW e DESCRIBE são permitidas.";
                 return RedirectToAction("DatabaseManager");
             }
 
@@ -1314,6 +1578,14 @@ CREATE TABLE IF NOT EXISTS CreditPurchases (
     CreditsReceived INT NOT NULL,
     BonusCredits INT DEFAULT 0,
     Status VARCHAR(50) DEFAULT 'Pending',
+    PaymentMethod VARCHAR(50) NULL,
+    ExternalPaymentId VARCHAR(255) NULL,
+    PixCode VARCHAR(500) NULL,
+    PixExpiresAt DATETIME NULL,
+    BoletoCode VARCHAR(100) NULL,
+    BoletoBarcode VARCHAR(100) NULL,
+    BoletoExpiresAt DATETIME NULL,
+    TransactionId VARCHAR(255) NULL,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     PaidAt DATETIME NULL,
     FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE CASCADE,

@@ -39,6 +39,10 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<CreditPlan> CreditPlans { get; set; }
         public DbSet<CreditPurchase> CreditPurchases { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
+        public DbSet<ReservationCommission> ReservationCommissions { get; set; }
+        public DbSet<PlatformCreditBalance> PlatformCreditBalances { get; set; }
+        public DbSet<CoworkingRoom> CoworkingRooms { get; set; }
+        public DbSet<CoworkingRoomPhoto> CoworkingRoomPhotos { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -78,6 +82,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.CNPJ).IsRequired().HasMaxLength(18);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
+                entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
             });
 
             // CoworkingAddress configuration
@@ -367,6 +373,10 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.CoworkingAddressId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.CoworkingRoom)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingRoomId)
+                    .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.ReservationDate).IsRequired();
                 entity.Property(e => e.StartTime).HasColumnType("TIME");
                 entity.Property(e => e.EndTime).HasColumnType("TIME");
@@ -374,6 +384,50 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.TotalValue).HasColumnType("DECIMAL(10,2)").IsRequired();
                 entity.Property(e => e.CreditsUsed).IsRequired();
                 entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Confirmed");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // ReservationCommission configuration
+            modelBuilder.Entity<ReservationCommission>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Reservation).WithMany().HasForeignKey(e => e.ReservationId).OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.TotalCredits).HasColumnType("DECIMAL(10,2)").IsRequired();
+                entity.Property(e => e.CommissionPercentage).HasColumnType("DECIMAL(5,2)").IsRequired();
+                entity.Property(e => e.CommissionAmount).HasColumnType("DECIMAL(10,2)").IsRequired();
+                entity.Property(e => e.CoworkingAmount).HasColumnType("DECIMAL(10,2)").IsRequired();
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // PlatformCreditBalance configuration (singleton: uma linha com o saldo da plataforma)
+            modelBuilder.Entity<PlatformCreditBalance>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.TotalCredits).HasColumnType("DECIMAL(12,2)").IsRequired();
+            });
+
+            // CoworkingRoom configuration
+            modelBuilder.Entity<CoworkingRoom>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany(a => a.Rooms)
+                    .HasForeignKey(e => e.CoworkingAddressId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CoworkingRoomPhoto configuration
+            modelBuilder.Entity<CoworkingRoomPhoto>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingRoom)
+                    .WithMany(r => r.Photos)
+                    .HasForeignKey(e => e.CoworkingRoomId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
         }

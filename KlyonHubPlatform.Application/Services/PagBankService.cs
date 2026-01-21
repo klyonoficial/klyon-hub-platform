@@ -295,19 +295,15 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     _logger.LogError($"Erro ao criar pedido PagBank: {response.StatusCode} - {responseContent}");
                     
-                    // Mensagens de erro mais específicas
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
                         throw new InvalidOperationException("Token de acesso PagBank inválido ou expirado. Verifique as credenciais nas Configurações do Sistema.");
                     }
-                    else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                     {
-                        throw new InvalidOperationException($"Erro na requisição ao PagBank: {responseContent}");
+                        throw new InvalidOperationException(ParsePagBankErrorToFriendlyMessage(responseContent));
                     }
-                    else
-                    {
-                        throw new HttpRequestException($"Erro ao criar pedido PagBank: {response.StatusCode} - {responseContent}");
-                    }
+                    throw new HttpRequestException($"Erro ao criar pedido PagBank: {response.StatusCode} - {responseContent}");
                 }
 
                 var orderResponse = JsonSerializer.Deserialize<OrderResponse>(responseContent, new JsonSerializerOptions
@@ -428,6 +424,45 @@ namespace KlyonHubPlatform.Application.Services
                 _logger.LogError(ex, "Erro ao validar assinatura do webhook");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Converte a resposta de erro 400 do PagBank (error_messages) em mensagens amigáveis para o usuário.
+        /// </summary>
+        private static string ParsePagBankErrorToFriendlyMessage(string responseContent)
+        {
+            var messages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var doc = JsonDocument.Parse(responseContent);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("error_messages", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        var p = item.TryGetProperty("parameter_name", out var pn) ? pn.GetString() : null;
+                        var msg = MapPagBankParameterToFriendly(p);
+                        if (!string.IsNullOrEmpty(msg)) messages.Add(msg);
+                    }
+                }
+            }
+            catch { /* se não conseguir interpretar o JSON, usa a mensagem genérica */ }
+
+            if (messages.Count > 0)
+                return string.Join(" ", messages);
+            return "Os dados do cartão estão incorretos. Verifique número, validade, CVV e nome e tente novamente.";
+        }
+
+        private static string? MapPagBankParameterToFriendly(string? parameterName)
+        {
+            if (string.IsNullOrWhiteSpace(parameterName)) return null;
+            var s = parameterName.ToLowerInvariant();
+            if (s.Contains("security_code")) return "Código de segurança (CVV) inválido. Confira os 3 ou 4 dígitos no verso do cartão.";
+            if (s.Contains("number") && s.Contains("card")) return "Número do cartão inválido.";
+            if (s.Contains("exp_month") || s.Contains("exp_year") || s.Contains("expiration")) return "Data de validade inválida. Confira mês e ano.";
+            if (s.Contains("holder") || (s.Contains("name") && s.Contains("card"))) return "Nome no cartão inválido.";
+            if (s.Contains("card")) return "Dados do cartão inválidos. Verifique número, validade, CVV e nome.";
+            return null;
         }
 
         private PagBankPhone ParsePhone(string phone)

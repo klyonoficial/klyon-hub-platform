@@ -182,6 +182,36 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("Clients");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientCredit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("Credits")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.ToTable("ClientCredits");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Commission", b =>
                 {
                     b.Property<int>("Id")
@@ -328,6 +358,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("AddressZipCode")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
+
                     b.Property<string>("BankAccount")
                         .HasColumnType("longtext");
 
@@ -380,11 +421,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("RejectedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
                     b.Property<string>("SecondaryEmail")
                         .HasColumnType("longtext");
 
                     b.Property<string>("SecondaryPhone")
                         .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("TradeName")
                         .HasColumnType("longtext");
@@ -453,6 +507,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("Number")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<bool>("OffersPrivateRoom")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("OffersSharedRoom")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("PrivateRoomMaxSeats")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("PrivateRoomPricePerHour")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int?>("SharedRoomMaxSeats")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SharedRoomPricePerHour")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -536,11 +608,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("Email")
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("IsPrincipal")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Phone")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PhotoPath")
                         .HasColumnType("longtext");
 
                     b.Property<string>("Role")
@@ -589,6 +667,159 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId");
 
                     b.ToTable("CoworkingPhotos");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingProduct", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingId", "ProductType")
+                        .IsUnique();
+
+                    b.ToTable("CoworkingProducts");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRating", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<int>("CoworkingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("CoworkingId");
+
+                    b.ToTable("CoworkingRatings", t =>
+                        {
+                            t.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5");
+                        });
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoom", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("CreditsPerHour")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("RoomType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.ToTable("CoworkingRooms");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoomPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingRoomId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsMain")
+                        .HasColumnType("tinyint(1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingRoomId");
+
+                    b.ToTable("CoworkingRoomPhotos");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditCard", b =>
@@ -645,6 +876,124 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("CreditCards");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditPlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("BonusCredits")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("Credits")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ValidityMonths")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CreditPlans");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditPurchase", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.Property<string>("BoletoBarcode")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("BoletoCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("BoletoExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("BonusCredits")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("CreditPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CreditsReceived")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExternalPaymentId")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PixCode")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("PixExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<string>("TransactionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("CreditPlanId");
+
+                    b.ToTable("CreditPurchases");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Document", b =>
                 {
                     b.Property<int>("Id")
@@ -680,6 +1029,77 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("ContractId");
 
                     b.ToTable("Documents");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Interest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("AllocationDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ContactedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ContactedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<TimeSpan?>("EndTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<TimeSpan?>("StartTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactedByUserId");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.ToTable("Interests");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Language", b =>
@@ -864,6 +1284,128 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("Payments");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PlatformCreditBalance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalCredits")
+                        .HasColumnType("DECIMAL(12,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PlatformCreditBalances");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Reservation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ClientConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CoworkingConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("CoworkingRoomId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("CreditsUsed")
+                        .HasColumnType("int");
+
+                    b.Property<TimeSpan?>("EndTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<DateTime>("ReservationDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RoomType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Shared");
+
+                    b.Property<TimeSpan?>("StartTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasDefaultValue("Confirmed");
+
+                    b.Property<decimal>("TotalValue")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.HasIndex("CoworkingRoomId");
+
+                    b.ToTable("Reservations");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ReservationCommission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CommissionAmount")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.Property<decimal>("CommissionPercentage")
+                        .HasColumnType("DECIMAL(5,2)");
+
+                    b.Property<decimal>("CoworkingAmount")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("ReservationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalCredits")
+                        .HasColumnType("DECIMAL(10,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId");
+
+                    b.ToTable("ReservationCommissions");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -1017,6 +1559,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("ReservationId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("ScheduledDate")
                         .HasColumnType("datetime(6)");
 
@@ -1030,6 +1575,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CoworkingId");
+
+                    b.HasIndex("ReservationId");
 
                     b.ToTable("Transfers");
                 });
@@ -1170,6 +1717,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientCredit", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Commission", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
@@ -1271,6 +1829,57 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Coworking");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingProduct", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
+                        .WithMany("Products")
+                        .HasForeignKey("CoworkingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Coworking");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRating", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
+                        .WithMany()
+                        .HasForeignKey("CoworkingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Coworking");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoom", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany("Rooms")
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CoworkingAddress");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoomPhoto", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingRoom", "CoworkingRoom")
+                        .WithMany("Photos")
+                        .HasForeignKey("CoworkingRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CoworkingRoom");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditCard", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
@@ -1286,6 +1895,25 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditPurchase", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CreditPlan", "CreditPlan")
+                        .WithMany()
+                        .HasForeignKey("CreditPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+
+                    b.Navigation("CreditPlan");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Document", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Contract", "Contract")
@@ -1295,6 +1923,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Contract");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Interest", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "ContactedByUser")
+                        .WithMany()
+                        .HasForeignKey("ContactedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany()
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ContactedByUser");
+
+                    b.Navigation("CoworkingAddress");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.LocationCommission", b =>
@@ -1326,6 +1972,43 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Validator");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Reservation", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany()
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingRoom", "CoworkingRoom")
+                        .WithMany()
+                        .HasForeignKey("CoworkingRoomId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Client");
+
+                    b.Navigation("CoworkingAddress");
+
+                    b.Navigation("CoworkingRoom");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ReservationCommission", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Subscription", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Contract", "Contract")
@@ -1345,7 +2028,13 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId");
+
                     b.Navigation("Coworking");
+
+                    b.Navigation("Reservation");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Translation", b =>
@@ -1398,6 +2087,18 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Navigation("Partners");
 
+                    b.Navigation("Photos");
+
+                    b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingAddress", b =>
+                {
+                    b.Navigation("Rooms");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoom", b =>
+                {
                     b.Navigation("Photos");
                 });
 

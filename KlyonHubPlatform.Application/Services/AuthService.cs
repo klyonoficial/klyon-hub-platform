@@ -32,7 +32,7 @@ namespace KlyonHubPlatform.Application.Services
             _emailService = emailService;
         }
 
-        public async Task<string> GenerateTokenAsync(User user)
+        public Task<string> GenerateTokenAsync(User user, List<string> roles)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var secretKey = jwtSettings["SecretKey"];
@@ -43,7 +43,6 @@ namespace KlyonHubPlatform.Application.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var roles = await GetUserRolesAsync(user.Id);
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -64,12 +63,12 @@ namespace KlyonHubPlatform.Application.Services
                 signingCredentials: credentials
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return Task.FromResult(new JwtSecurityTokenHandler().WriteToken(token));
         }
 
         public async Task<User?> AuthenticateAsync(string email, string password)
         {
-            var user = await _userRepository.GetByEmailAsync(email);
+            var user = await _userRepository.GetByEmailForAuthenticationAsync(email);
             if (user == null || !user.IsActive)
                 return null;
 

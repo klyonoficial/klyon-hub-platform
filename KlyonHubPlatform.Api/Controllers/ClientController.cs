@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using System.IO;
 using Microsoft.AspNetCore.Http;
@@ -25,6 +26,19 @@ namespace KlyonHubPlatform.Api.Controllers
         public int? Installments { get; set; }
     }
 
+    public class CreditPlanIdRequest
+    {
+        public int CreditPlanId { get; set; }
+    }
+
+    public class ReservationSlotDto
+    {
+        public string Date { get; set; } = "";
+        public string StartTime { get; set; } = "";
+        public string EndTime { get; set; } = "";
+        public int Participants { get; set; } = 1;
+    }
+
     [Authorize(Roles = "Client,Administrator")]
     public class ClientController : Controller
     {
@@ -36,6 +50,9 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAddressDeclarationService _addressDeclarationService;
         private readonly IPagBankService _pagBankService;
         private readonly ApplicationDbContext _context;
+        private readonly IReservationTransferService _reservationTransferService;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<ClientController> _logger;
 
         public ClientController(
             IContractService contractService,
@@ -45,7 +62,10 @@ namespace KlyonHubPlatform.Api.Controllers
             IDocumentService documentService,
             IAddressDeclarationService addressDeclarationService,
             IPagBankService pagBankService,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IReservationTransferService reservationTransferService,
+            IEmailService emailService,
+            ILogger<ClientController> logger)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -55,6 +75,9 @@ namespace KlyonHubPlatform.Api.Controllers
             _addressDeclarationService = addressDeclarationService;
             _pagBankService = pagBankService;
             _context = context;
+            _reservationTransferService = reservationTransferService;
+            _emailService = emailService;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -1371,6 +1394,194 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
+        public async Task<IActionResult> GenerateCreditPurchasePix([FromBody] CreditPlanIdRequest req)
+        {
+            try
+            {
+                if (req == null || req.CreditPlanId <= 0)
+                    return Json(new { success = false, error = "Plano inválido." });
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
+                    return Json(new { success = false, error = "Cliente não encontrado." });
+
+                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == req.CreditPlanId && p.IsActive);
+                if (plan == null)
+                    return Json(new { success = false, error = "Plano não encontrado ou indisponível." });
+
+                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+                var clientEmail = client.ContactEmail ?? client.User.Email;
+                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+                var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+                var purchase = new CreditPurchase
+                {
+                    ClientId = client.Id,
+                    CreditPlanId = plan.Id,
+                    AmountPaid = plan.Price,
+                    CreditsReceived = plan.Credits,
+                    BonusCredits = plan.BonusCredits,
+                    Status = "Processing",
+                    PaymentMethod = PaymentMethod.PIX,
+                    ExternalPaymentId = Guid.NewGuid().ToString()
+                };
+                _context.CreditPurchases.Add(purchase);
+                await _context.SaveChangesAsync();
+
+                var orderResponse = await _pagBankService.CreateOrderAsync(
+                    referenceId: purchase.ExternalPaymentId,
+                    amount: plan.Price,
+                    method: PaymentMethod.PIX,
+                    clientName: clientName,
+                    clientEmail: clientEmail,
+                    clientTaxId: clientTaxId,
+                    clientPhone: clientPhone
+                );
+
+                purchase.ExternalPaymentId = orderResponse.Id;
+                if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
+                {
+                    var qr = orderResponse.QrCodes.First();
+                    purchase.PixCode = qr.Text;
+                    purchase.PixExpiresAt = qr.ExpirationDate;
+                }
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, purchaseId = purchase.Id, pixCode = purchase.PixCode, pixExpiresAt = purchase.PixExpiresAt });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+            {
+                return Json(new { success = false, error = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GenerateCreditPurchaseBoleto([FromBody] CreditPlanIdRequest req)
+        {
+            try
+            {
+                if (req == null || req.CreditPlanId <= 0)
+                    return Json(new { success = false, error = "Plano inválido." });
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
+                    return Json(new { success = false, error = "Cliente não encontrado." });
+
+                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == req.CreditPlanId && p.IsActive);
+                if (plan == null)
+                    return Json(new { success = false, error = "Plano não encontrado ou indisponível." });
+
+                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+                var clientEmail = client.ContactEmail ?? client.User.Email;
+                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+                var clientPhone = client.ContactPhone ?? client.User.Phone;
+                var clientAddress = new Application.DTOs.PagBank.PagBankAddress
+                {
+                    Street = client.Address ?? "Não informado",
+                    Number = "S/N",
+                    Locality = "Não informado",
+                    City = client.City ?? "Não informado",
+                    RegionCode = client.State ?? "SP",
+                    Country = "BRA",
+                    PostalCode = client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
+                };
+
+                var purchase = new CreditPurchase
+                {
+                    ClientId = client.Id,
+                    CreditPlanId = plan.Id,
+                    AmountPaid = plan.Price,
+                    CreditsReceived = plan.Credits,
+                    BonusCredits = plan.BonusCredits,
+                    Status = "Processing",
+                    PaymentMethod = PaymentMethod.BankTransfer,
+                    ExternalPaymentId = Guid.NewGuid().ToString()
+                };
+                _context.CreditPurchases.Add(purchase);
+                await _context.SaveChangesAsync();
+
+                var orderResponse = await _pagBankService.CreateOrderAsync(
+                    referenceId: purchase.ExternalPaymentId,
+                    amount: plan.Price,
+                    method: PaymentMethod.BankTransfer,
+                    clientName: clientName,
+                    clientEmail: clientEmail,
+                    clientTaxId: clientTaxId,
+                    clientPhone: clientPhone,
+                    clientAddress: clientAddress
+                );
+
+                purchase.ExternalPaymentId = orderResponse.Id;
+                if (orderResponse.Charges != null && orderResponse.Charges.Any())
+                {
+                    var ch = orderResponse.Charges.First();
+                    if (ch.PaymentMethod?.Boleto != null)
+                    {
+                        purchase.BoletoBarcode = ch.PaymentMethod.Boleto.Barcode;
+                        purchase.BoletoCode = ch.PaymentMethod.Boleto.FormattedBarcode;
+                        purchase.BoletoExpiresAt = ch.PaymentMethod.Boleto.DueDate;
+                    }
+                }
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, purchaseId = purchase.Id, boletoBarcode = purchase.BoletoBarcode, boletoCode = purchase.BoletoCode, boletoExpiresAt = purchase.BoletoExpiresAt });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+            {
+                return Json(new { success = false, error = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateCreditCardPurchase([FromBody] CreditPlanIdRequest req)
+        {
+            try
+            {
+                if (req == null || req.CreditPlanId <= 0)
+                    return Json(new { success = false, error = "Plano inválido." });
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
+                    return Json(new { success = false, error = "Cliente não encontrado." });
+
+                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == req.CreditPlanId && p.IsActive);
+                if (plan == null)
+                    return Json(new { success = false, error = "Plano não encontrado ou indisponível." });
+
+                var purchase = new CreditPurchase
+                {
+                    ClientId = client.Id,
+                    CreditPlanId = plan.Id,
+                    AmountPaid = plan.Price,
+                    CreditsReceived = plan.Credits,
+                    BonusCredits = plan.BonusCredits,
+                    Status = "Processing",
+                    PaymentMethod = PaymentMethod.CreditCard,
+                    ExternalPaymentId = Guid.NewGuid().ToString()
+                };
+                _context.CreditPurchases.Add(purchase);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, purchaseId = purchase.Id });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PurchaseCredits(int creditPlanId, string paymentMethod, string? returnUrl = null)
         {
@@ -1649,6 +1860,17 @@ namespace KlyonHubPlatform.Api.Controllers
                         };
 
                         _context.ClientCredits.Add(clientCredit);
+
+                        // Creditar também na conta do administrador (conforme regra de negócio)
+                        var total = purchase.CreditsReceived + purchase.BonusCredits;
+                        var plat = await _context.PlatformCreditBalances.FirstOrDefaultAsync();
+                        if (plat == null)
+                        {
+                            plat = new PlatformCreditBalance { TotalCredits = 0 };
+                            _context.PlatformCreditBalances.Add(plat);
+                        }
+                        plat.TotalCredits += total;
+                        plat.UpdatedAt = DateTime.UtcNow;
                     }
                     else if (status == "DECLINED" || status == "CANCELLED")
                     {
@@ -1675,14 +1897,246 @@ namespace KlyonHubPlatform.Api.Controllers
                     return Json(new { success = true, message = "Pagamento em processamento. Você será notificado quando for confirmado." });
                 }
             }
+            catch (InvalidOperationException ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
             catch (Exception ex)
             {
-                return Json(new { success = false, error = $"Erro ao processar pagamento: {ex.Message}" });
+                _logger.LogError(ex, "Erro ao processar pagamento com cartão (PurchaseId: {PurchaseId})", request?.PurchaseId);
+                return Json(new { success = false, error = "Não foi possível processar o pagamento. Tente novamente ou entre em contato com o suporte." });
             }
         }
 
         [HttpGet]
-        public async Task<IActionResult> MyReservations()
+        public async Task<IActionResult> BookRoom(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                TempData["Error"] = "Cliente não encontrado.";
+                return RedirectToAction("Marketplace", "Home");
+            }
+
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Coworking)
+                    .ThenInclude(c => c.Products)
+                .Include(a => a.Location)
+                .FirstOrDefaultAsync(a => a.Id == id);
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado.";
+                return RedirectToAction("Marketplace", "Home");
+            }
+
+            var offersRoomRental = address.Coworking?.Products?.Any(p => p.ProductType == "RoomRental" && p.IsActive) ?? false;
+            if (!offersRoomRental)
+            {
+                TempData["Error"] = "Este coworking não oferece aluguel de salas.";
+                return RedirectToAction("MarketplaceDetails", "Home", new { id });
+            }
+
+            var availableCredits = await _context.ClientCredits
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                .SumAsync(c => c.Credits);
+
+            ViewBag.Address = address;
+            ViewBag.Coworking = address.Coworking;
+            ViewBag.AvailableCredits = availableCredits;
+            ViewBag.OffersSharedRoom = address.OffersSharedRoom;
+            ViewBag.OffersPrivateRoom = address.OffersPrivateRoom;
+            ViewBag.SharedRoomPricePerHour = address.SharedRoomPricePerHour ?? 0;
+            ViewBag.PrivateRoomPricePerHour = address.PrivateRoomPricePerHour ?? 0;
+            ViewBag.GetAvailabilityForMonthUrl = Url.Action("GetAvailabilityForMonth", "Home");
+
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateReservations(int CoworkingAddressId, string RoomType, string slotsJson)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                TempData["Error"] = "Cliente não encontrado.";
+                return RedirectToAction("Marketplace", "Home");
+            }
+
+            List<ReservationSlotDto>? slots;
+            try
+            {
+                slots = System.Text.Json.JsonSerializer.Deserialize<List<ReservationSlotDto>>(slotsJson);
+            }
+            catch
+            {
+                TempData["Error"] = "Dados das reservas inválidos.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+            if (slots == null || !slots.Any())
+            {
+                TempData["Error"] = "Selecione ao menos uma data e horário.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Coworking)
+                    .ThenInclude(c => c.User)
+                .FirstOrDefaultAsync(a => a.Id == CoworkingAddressId);
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado.";
+                return RedirectToAction("Marketplace", "Home");
+            }
+
+            var offersRoomRental = await _context.CoworkingProducts
+                .AnyAsync(p => p.CoworkingId == address.CoworkingId && p.ProductType == "RoomRental" && p.IsActive);
+            if (!offersRoomRental)
+            {
+                TempData["Error"] = "Este coworking não oferece aluguel de salas.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+
+            if (RoomType != "Shared" && RoomType != "Private")
+            {
+                TempData["Error"] = "Tipo de sala inválido.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+            if (RoomType == "Shared" && !address.OffersSharedRoom) { TempData["Error"] = "Este endereço não oferece sala compartilhada."; return RedirectToAction("BookRoom", new { id = CoworkingAddressId }); }
+            if (RoomType == "Private" && !address.OffersPrivateRoom) { TempData["Error"] = "Este endereço não oferece sala privativa."; return RedirectToAction("BookRoom", new { id = CoworkingAddressId }); }
+
+            decimal pricePerHour = RoomType == "Shared" ? (address.SharedRoomPricePerHour ?? 0) : (address.PrivateRoomPricePerHour ?? 0);
+            int maxSeats = RoomType == "Shared" ? (address.SharedRoomMaxSeats ?? 0) : (address.PrivateRoomMaxSeats ?? 0);
+            if (pricePerHour <= 0)
+            {
+                TempData["Error"] = "Preço por hora não configurado para este tipo de sala.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+
+            var toCreate = new List<(DateTime Date, TimeSpan Start, TimeSpan End)>();
+            foreach (var s in slots)
+            {
+                if (!DateTime.TryParse(s.Date, out var date) || !TimeSpan.TryParse(s.StartTime, out var start) || !TimeSpan.TryParse(s.EndTime, out var end))
+                    continue;
+                if (date < DateTime.Today) continue;
+                if (end <= start) continue;
+                toCreate.Add((date.Date, start, end));
+            }
+            // Remover duplicatas exatas (mesmo dia e mesmo horário)
+            toCreate = toCreate
+                .GroupBy(x => (x.Date, x.Start, x.End))
+                .Select(g => g.First())
+                .ToList();
+            if (!toCreate.Any())
+            {
+                TempData["Error"] = "Nenhum horário válido. Verifique datas e horários.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+
+            int totalCredits = 0;
+            foreach (var (Date, Start, End) in toCreate)
+            {
+                var duration = End - Start;
+                var hours = (decimal)Math.Max(1, Math.Ceiling(duration.TotalHours));
+                totalCredits += (int)Math.Ceiling(pricePerHour * hours);
+            }
+
+            var availableCredits = await _context.ClientCredits
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                .SumAsync(c => c.Credits);
+            if (availableCredits < totalCredits)
+            {
+                TempData["Error"] = $"Créditos insuficientes. Necessário: {totalCredits}, disponível: {availableCredits}.";
+                return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+            }
+
+            var addedInRequest = new List<(DateTime Date, TimeSpan Start, TimeSpan End)>();
+            foreach (var (Date, Start, End) in toCreate)
+            {
+                var duration = End - Start;
+                var hours = (decimal)Math.Max(1, Math.Ceiling(duration.TotalHours));
+                var totalValue = pricePerHour * hours;
+                var creditsNeeded = (int)Math.Ceiling(totalValue);
+
+                var hasConflict = false;
+                // (1) Sobreposição com outro slot desta mesma solicitação
+                hasConflict = addedInRequest.Any(t => t.Date == Date && !(t.End <= Start || t.Start >= End));
+                // (2) Duplicidade: o próprio usuário já tem reserva neste horário
+                if (!hasConflict)
+                {
+                    hasConflict = await _context.Reservations
+                        .AnyAsync(r => r.ClientId == client.Id && r.CoworkingAddressId == CoworkingAddressId &&
+                            r.ReservationDate.Date == Date && r.RoomType == RoomType && r.Status != "Cancelled" &&
+                            r.StartTime.HasValue && r.EndTime.HasValue && !(r.EndTime <= Start || r.StartTime >= End));
+                }
+                if (hasConflict)
+                {
+                    TempData["Error"] = "Você já possui uma reserva neste horário ou há sobreposição entre os horários selecionados. Não é permitida duplicidade.";
+                    return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+                }
+                // (3) Conflito com outras reservas: sala privativa = qualquer sobreposição; compartilhada = lotação
+                if (RoomType == "Private")
+                {
+                    hasConflict = await _context.Reservations
+                        .AnyAsync(r => r.CoworkingAddressId == CoworkingAddressId && r.ReservationDate.Date == Date &&
+                            r.RoomType == "Private" && r.Status != "Cancelled" && r.StartTime.HasValue && r.EndTime.HasValue &&
+                            !(r.EndTime <= Start || r.StartTime >= End));
+                }
+                else
+                {
+                    var countDb = await _context.Reservations
+                        .CountAsync(r => r.CoworkingAddressId == CoworkingAddressId && r.ReservationDate.Date == Date &&
+                            r.RoomType == "Shared" && r.Status != "Cancelled" && r.StartTime.HasValue && r.EndTime.HasValue &&
+                            !(r.EndTime <= Start || r.StartTime >= End));
+                    var countAdded = addedInRequest.Count(t => t.Date == Date && !(t.End <= Start || t.Start >= End));
+                    hasConflict = maxSeats > 0 && (countDb + countAdded >= maxSeats);
+                }
+                if (hasConflict)
+                {
+                    TempData["Error"] = $"O horário {Date:dd/MM/yyyy} {Start:hh\\:mm}-{End:hh\\:mm} já está reservado. Escolha outro horário.";
+                    return RedirectToAction("BookRoom", new { id = CoworkingAddressId });
+                }
+
+                var reservation = new Reservation
+                {
+                    ClientId = client.Id,
+                    CoworkingAddressId = CoworkingAddressId,
+                    ReservationDate = Date,
+                    StartTime = Start,
+                    EndTime = End,
+                    RoomType = RoomType,
+                    TotalValue = totalValue,
+                    CreditsUsed = creditsNeeded,
+                    Status = "Confirmed",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Reservations.Add(reservation);
+            }
+
+            var creditsToDeduct = totalCredits;
+            var credits = await _context.ClientCredits
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow && c.Credits > 0)
+                .OrderBy(c => c.ExpiresAt)
+                .ToListAsync();
+            foreach (var credit in credits)
+            {
+                if (creditsToDeduct <= 0) break;
+                if (credit.Credits >= creditsToDeduct) { credit.Credits -= creditsToDeduct; creditsToDeduct = 0; }
+                else { creditsToDeduct -= credit.Credits; credit.Credits = 0; }
+            }
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = toCreate.Count == 1
+                ? $"Reserva confirmada para {toCreate[0].Date:dd/MM/yyyy}!"
+                : $"{toCreate.Count} reservas confirmadas com sucesso!";
+            return RedirectToAction("MyReservations");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> MyReservations(string? sortBy = "date_asc", string? status = null,
+            DateTime? dateFrom = null, DateTime? dateTo = null, string? search = null, string? roomType = null)
         {
             try
             {
@@ -1695,15 +2149,66 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Dashboard");
                 }
 
-                var reservations = await _context.Reservations
+                var query = _context.Reservations
                     .Include(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Coworking)
                     .Include(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Location)
-                    .Where(r => r.ClientId == client.Id)
-                    .OrderByDescending(r => r.ReservationDate)
-                    .ThenByDescending(r => r.CreatedAt)
-                    .ToListAsync();
+                    .Where(r => r.ClientId == client.Id);
+
+                // Filtro por status
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    var s = status.Trim();
+                    if (s == "Confirmed" || s == "Completed" || s == "Cancelled")
+                        query = query.Where(r => r.Status == s);
+                }
+
+                // Filtro por data (de/até)
+                if (dateFrom.HasValue)
+                    query = query.Where(r => r.ReservationDate.Date >= dateFrom.Value.Date);
+                if (dateTo.HasValue)
+                    query = query.Where(r => r.ReservationDate.Date <= dateTo.Value.Date);
+
+                // Filtro por pesquisa (coworking, endereço, cidade)
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var t = search.Trim().ToLower();
+                    query = query.Where(r =>
+                        (r.CoworkingAddress.Coworking.Name != null && r.CoworkingAddress.Coworking.Name.ToLower().Contains(t)) ||
+                        (r.CoworkingAddress.Address != null && r.CoworkingAddress.Address.ToLower().Contains(t)) ||
+                        (r.CoworkingAddress.City != null && r.CoworkingAddress.City.ToLower().Contains(t)) ||
+                        (r.CoworkingAddress.Location != null && r.CoworkingAddress.Location.City != null && r.CoworkingAddress.Location.City.ToLower().Contains(t)));
+                }
+
+                // Filtro por tipo de sala
+                if (!string.IsNullOrWhiteSpace(roomType))
+                {
+                    var rt = roomType.Trim();
+                    if (rt == "Shared" || rt == "Private")
+                        query = query.Where(r => r.RoomType == rt);
+                }
+
+                // Ordenação: datas mais próximas e horários por padrão
+                var sort = (sortBy ?? "date_asc").ToLower();
+                if (sort == "date_desc")
+                    query = query.OrderByDescending(r => r.ReservationDate).ThenByDescending(r => r.StartTime ?? TimeSpan.Zero);
+                else if (sort == "time_desc")
+                    query = query.OrderBy(r => r.ReservationDate).ThenByDescending(r => r.StartTime ?? TimeSpan.Zero);
+                else if (sort == "time_asc")
+                    query = query.OrderBy(r => r.ReservationDate).ThenBy(r => r.StartTime ?? TimeSpan.Zero);
+                else
+                    // date_asc (padrão): datas mais próximas, depois horário mais cedo
+                    query = query.OrderBy(r => r.ReservationDate).ThenBy(r => r.StartTime ?? TimeSpan.Zero);
+
+                var reservations = await query.ToListAsync();
+
+                ViewBag.SortBy = sortBy ?? "date_asc";
+                ViewBag.Status = status;
+                ViewBag.DateFrom = dateFrom;
+                ViewBag.DateTo = dateTo;
+                ViewBag.Search = search;
+                ViewBag.RoomType = roomType;
 
                 return View(reservations);
             }
@@ -1712,6 +2217,34 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData["Error"] = $"Erro ao carregar reservas: {ex.Message}";
                 return RedirectToAction("Dashboard");
             }
+        }
+
+        /// <summary>
+        /// Cliente confirma que realizou/utilizou a reserva. Após dupla confirmação (cliente + coworking),
+        /// o sistema repassa os créditos ao coworking e aplica a comissão da plataforma.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmReservationUsed(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null) { TempData["Error"] = "Cliente não encontrado."; return RedirectToAction("MyReservations"); }
+
+            var r = await _context.Reservations.FirstOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id);
+            if (r == null) { TempData["Error"] = "Reserva não encontrada."; return RedirectToAction("MyReservations"); }
+            if (string.Equals(r.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("MyReservations"); }
+            if (string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase)) { TempData["Success"] = "Reserva já concluída."; return RedirectToAction("MyReservations"); }
+
+            if (r.ClientConfirmedAt == null)
+            {
+                r.ClientConfirmedAt = DateTime.UtcNow;
+                r.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);
+            TempData["Success"] = "Confirmação registrada. Após o coworking confirmar seu comparecimento, os créditos serão repassados.";
+            return RedirectToAction("MyReservations");
         }
 
         [HttpGet]

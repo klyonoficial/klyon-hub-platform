@@ -19,6 +19,35 @@
 }
 else
 {
+    var c = ViewBag.Coworking as KlyonHubPlatform.Domain.Entities.Coworking;
+    var ast = c?.ApprovalStatus ?? KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview;
+    if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview)
+    {
+        <div class="alert alert-warning mb-4">
+            <i class="bi bi-hourglass-split"></i> <strong>Em análise.</strong> Seu cadastro está sendo analisado pela nossa equipe. Você será notificado quando houver uma definição.
+        </div>
+    }
+    else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment)
+    {
+        <div class="alert alert-secondary mb-4">
+            <strong><i class="bi bi-exclamation-diamond"></i> Aguardando ajuste.</strong>
+            @if (!string.IsNullOrEmpty(c?.RejectionReason))
+            {
+                <p class="mb-2 mt-2">Justificativa / itens a corrigir: <span class="text-dark">@c.RejectionReason</span></p>
+            }
+            <form method="post" action="@Url.Action("ResubmitForApproval", "Coworking")" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Reenviar para análise</button>
+            </form>
+        </div>
+    }
+    else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
+    {
+        <div class="alert alert-success mb-4">
+            <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> Seu espaço está disponível no marketplace para que clientes possam alugar.
+        </div>
+    }
+
     <div class="row mb-4">
         <div class="col-md-2">
             <div class="card text-white bg-primary">

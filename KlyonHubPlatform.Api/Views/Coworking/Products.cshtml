@@ -1,0 +1,142 @@
+@{
+    ViewData["Title"] = "Produtos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var currentProducts = ViewBag.CurrentProducts as List<string> ?? new List<string>();
+    var addresses = ViewBag.Addresses as List<KlyonHubPlatform.Domain.Entities.CoworkingAddress> ?? new List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>();
+    var hasRoomRental = currentProducts.Contains("RoomRental");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam"></i> Produtos</h2>
+    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Produtos que você oferece</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="@Url.Action("UpdateProducts", "Coworking")" id="productsForm">
+            @Html.AntiForgeryToken()
+            <p class="text-muted mb-3">Selecione os produtos que seu coworking oferece aos clientes:</p>
+            
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="product_fiscal" name="productTypes" value="FiscalAddress" 
+                           @(currentProducts.Contains("FiscalAddress") ? "checked" : "")>
+                    <label class="form-check-label" for="product_fiscal">
+                        <strong>Endereço Fiscal</strong>
+                        <small class="text-muted d-block">Permite que clientes comprem endereço fiscal</small>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="product_rental" name="productTypes" value="RoomRental" 
+                           @(currentProducts.Contains("RoomRental") ? "checked" : "") onchange="toggleAddressSection()">
+                    <label class="form-check-label" for="product_rental">
+                        <strong>Aluguéis de Sala</strong>
+                        <small class="text-muted d-block">Sala compartilhada, privativa e auditório — com fotos, capacidade, créditos e gestão individual. Cada sala pode ser reservada apenas se não houver outra reserva no mesmo horário.</small>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="product_certificate" name="productTypes" value="DigitalCertificate" 
+                           @(currentProducts.Contains("DigitalCertificate") ? "checked" : "") disabled>
+                    <label class="form-check-label" for="product_certificate" style="opacity: 0.6;">
+                        <strong>Certificado Digital</strong>
+                        <small class="text-muted d-block">Permite venda de certificados digitais (em breve)</small>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Aluguéis de Sala:</strong> Ao marcar, seu coworking aparecerá no marketplace. Configure os endereços e as salas (compartilhada, privativa, auditório) em <strong>Endereços e salas</strong> abaixo. Só é possível reservar/descontar crédito se não houver reserva no mesmo dia e horário para aquela sala.
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Salvar Produtos
+            </button>
+        </form>
+    </div>
+</div>
+
+<div id="addressSection" class="card" style="display: @(hasRoomRental ? "block" : "none");">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços e salas para Aluguéis</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            Para oferecer salas, cada sala fica vinculada a um <strong>endereço</strong>. Os dados do endereço (rua, número, bairro, cidade, UF) precisam estar corretos — eles são exibidos para o cliente ao reservar. Gerencie as salas de cada endereço individualmente: tipo (compartilhada, privativa, auditório), capacidade, créditos por hora e fotos.
+        </p>
+        @if (addresses.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Endereço</th>
+                            <th>Cidade / UF</th>
+                            <th>Salas</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in addresses)
+                        {
+                            var roomCount = a.Rooms?.Count(r => r.IsActive) ?? 0;
+                            <tr>
+                                <td>@a.Address, @a.Number@(string.IsNullOrEmpty(a.Complement) ? "" : ", " + a.Complement)<br><small class="text-muted">@a.Neighborhood</small></td>
+                                <td>@a.City / @a.State</td>
+                                <td>@roomCount sala(s)</td>
+                                <td class="text-end">
+                                    <a href="@Url.Action("AddressRooms", "Coworking", new { addressId = a.Id })" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-door-open"></i> Gerenciar salas
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Nenhum endereço cadastrado. <a href="@Url.Action("AddAddress", "Coworking")">Adicione um endereço</a> em Meus Endereços Fiscais e volte aqui para configurar as salas.
+            </div>
+        }
+        <p class="mb-0 mt-2">
+            <a href="@Url.Action("MyAddresses", "Coworking")"><i class="bi bi-geo-alt"></i> Meus Endereços Fiscais</a>
+        </p>
+    </div>
+</div>
+
+<script>
+function toggleAddressSection() {
+    var checked = document.getElementById('product_rental').checked;
+    document.getElementById('addressSection').style.display = checked ? 'block' : 'none';
+}
+</script>

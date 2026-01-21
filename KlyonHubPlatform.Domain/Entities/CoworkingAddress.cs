@@ -32,5 +32,6 @@ namespace KlyonHubPlatform.Domain.Entities
         // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
         public virtual Location Location { get; set; } = null!;
+        public virtual ICollection<CoworkingRoom> Rooms { get; set; } = new List<CoworkingRoom>();
     }
 }

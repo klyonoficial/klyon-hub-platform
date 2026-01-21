@@ -66,8 +66,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 return View();
             }
 
-            var token = await _authService.GenerateTokenAsync(user);
-            var roles = await _authService.GetUserRolesAsync(user.Id);
+            var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
+            var token = await _authService.GenerateTokenAsync(user, roles);
 
             var claims = new List<Claim>
             {

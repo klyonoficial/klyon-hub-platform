@@ -1,0 +1,96 @@
+@{
+    ViewData["Title"] = "Histórico do cadastro";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.AuditLog>
+
+@{
+    var cow = ViewBag.Coworking as KlyonHubPlatform.Domain.Entities.Coworking;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history"></i> Histórico - @(cow?.Name ?? "Coworking")</h2>
+    <a href="@Url.Action("ViewCoworking", "Admin", new { id = cow?.Id })" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Ação</th>
+                            <th>Antes</th>
+                            <th>Depois</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in Model)
+                        {
+                            <tr>
+                                <td>@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    @{
+                                        var actionLabel = log.Action switch
+                                        {
+                                            "Submitted" => "Cadastro enviado",
+                                            "ApprovalStatusChange" => "Mudança de status",
+                                            "ResubmitForApproval" => "Reenviado para análise",
+                                            "ReturnedToReview" => "Retornou para análise",
+                                            _ => log.Action
+                                        };
+                                    }
+                                    <span class="badge bg-secondary">@actionLabel</span>
+                                </td>
+                                <td class="small text-muted" style="max-width: 280px; word-break: break-word;">
+                                    @if (!string.IsNullOrEmpty(log.OldValues))
+                                    {
+                                        try
+                                        {
+                                            var j = System.Text.Json.JsonDocument.Parse(log.OldValues);
+                                            <ul class="list-unstyled mb-0">
+                                                @foreach (var p in j.RootElement.EnumerateObject())
+                                                {
+                                                    <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                }
+                                            </ul>
+                                        }
+                                        catch { <pre class="mb-0 small">@log.OldValues</pre> }
+                                    }
+                                    else { <span>-</span> }
+                                </td>
+                                <td class="small" style="max-width: 280px; word-break: break-word;">
+                                    @if (!string.IsNullOrEmpty(log.NewValues))
+                                    {
+                                        try
+                                        {
+                                            var j = System.Text.Json.JsonDocument.Parse(log.NewValues);
+                                            <ul class="list-unstyled mb-0">
+                                                @foreach (var p in j.RootElement.EnumerateObject())
+                                                {
+                                                    <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                }
+                                            </ul>
+                                        }
+                                        catch { <pre class="mb-0 small">@log.NewValues</pre> }
+                                    }
+                                    else { <span>-</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">Nenhum registro de histórico para este cadastro.</p>
+        }
+    </div>
+</div>

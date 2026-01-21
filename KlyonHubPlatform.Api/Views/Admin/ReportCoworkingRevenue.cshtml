@@ -1,0 +1,50 @@
+@using KlyonHubPlatform.Application.Interfaces
+@model List<CoworkingRevenueReportDto>
+@{
+    ViewData["Title"] = "Receita por Coworking";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Receita por Coworking</h2>
+    <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar aos Relatórios</a>
+</div>
+
+<p class="text-muted">Receita de reservas de salas por coworking. Clique em <strong>Ver detalhes</strong> para ver tipo de sala, datas e clientes.</p>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Coworking</th>
+                            <th class="text-end">Reservas</th>
+                            <th class="text-end">Receita total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var x in Model)
+                        {
+                            <tr>
+                                <td><strong>@x.CoworkingName</strong></td>
+                                <td class="text-end">@x.ReservationCount</td>
+                                <td class="text-end">R$ @x.TotalRevenue.ToString("F2")</td>
+                                <td>
+                                    <a href="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = x.CoworkingId })" class="btn btn-sm btn-primary">Ver detalhes</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma receita de reservas de salas no momento.</div>
+        }
+    </div>
+</div>

@@ -1,0 +1,68 @@
+@using KlyonHubPlatform.Application.Interfaces
+@model List<ClientCreditsReportDto>
+@{
+    ViewData["Title"] = "Créditos por Cliente";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-wallet2"></i> Créditos por Cliente</h2>
+    <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar aos Relatórios</a>
+</div>
+
+<p class="text-muted">Saldo de créditos por cliente. Clique em <strong>Ver extrato</strong> para o histórico completo de compras e gastos (estilo extrato bancário).</p>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th class="text-end">Saldo atual</th>
+                            <th class="text-end">Créditos comprados</th>
+                            <th class="text-end">Valor pago (R$)</th>
+                            <th>Gasto por coworking</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in Model)
+                        {
+                            <tr>
+                                <td><strong>@c.ClientName</strong></td>
+                                <td class="text-end"><strong class="text-success">@c.CurrentBalance créditos</strong></td>
+                                <td class="text-end">@c.TotalCreditsPurchased</td>
+                                <td class="text-end">R$ @c.TotalAmountPaid.ToString("F2")</td>
+                                <td>
+                                    @if (c.SpendingByCoworking != null && c.SpendingByCoworking.Any())
+                                    {
+                                        <ul class="list-unstyled mb-0">
+                                            @foreach (var s in c.SpendingByCoworking)
+                                            {
+                                                <li><span class="badge bg-light text-dark">@s.CoworkingName</span> @s.CreditsUsed créditos (R$ @s.TotalValue.ToString("F2"))</li>
+                                            }
+                                        </ul>
+                                    }
+                                    else
+                                    { <span class="text-muted">—</span> }
+                                </td>
+                                <td class="text-end">
+                                    <a href="@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = c.ClientId })" class="btn btn-sm btn-outline-primary" title="Ver extrato (compras e gastos)">
+                                        <i class="bi bi-journal-text"></i> Ver extrato
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum cliente com compra de créditos ou uso em reservas.</div>
+        }
+    </div>
+</div>

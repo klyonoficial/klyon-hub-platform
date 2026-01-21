@@ -203,7 +203,7 @@
     <value>Repasses</value>
   </data>
   <data name="Menu_MyPayments" xml:space="preserve">
-    <value>Minhas Cobranças</value>
+    <value>Cobranças de Endereço Fiscal</value>
   </data>
   <data name="Menu_NewContract" xml:space="preserve">
     <value>Novo Contrato</value>

@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "Receita de Aluguel de Salas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var total = ViewBag.TotalRevenue as decimal? ?? 0m;
+    var byRoomType = ViewBag.ByRoomType as IList<Dictionary<string, object>> ?? new List<Dictionary<string, object>>();
+    var byClient = ViewBag.ByClient as IList<Dictionary<string, object>> ?? new List<Dictionary<string, object>>();
+    var dateFrom = ViewBag.DateFrom as DateTime?;
+    var dateTo = ViewBag.DateTo as DateTime?;
+    var name = ViewBag.CoworkingName as string ?? "Coworking";
+}
+<style>.clickable-row { cursor: pointer; }</style>
+@functions {
+    T V<T>(Dictionary<string, object> d, string k, T def = default) => d != null && d.ContainsKey(k) && d[k] != null ? (T)Convert.ChangeType(d[k], typeof(T)) : def;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-currency-dollar"></i> Receita de Aluguel de Salas</h2>
+    <a href="@Url.Action("Reservations", "Coworking")" class="btn btn-outline-secondary"><i class="bi bi-calendar-check"></i> Ver Reservas</a>
+</div>
+
+<p class="text-muted">Receita gerada pelas reservas de salas nos seus endereços. Filtre por período para analisar.</p>
+
+<form method="get" action="@Url.Action("RoomRevenueReport", "Coworking")" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Data inicial</label>
+                <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data final</label>
+                <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+            </div>
+            <div class="col-md-2">
+                <a href="@Url.Action("RoomRevenueReport", "Coworking")" class="btn btn-outline-secondary">Limpar</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title text-success"><i class="bi bi-cash-stack"></i> Total receita (aluguel de salas)</h5>
+                <h2 class="mb-0">R$ @total.ToString("F2")</h2>
+                <small class="text-muted">Reservas confirmadas e concluídas@(dateFrom.HasValue || dateTo.HasValue ? " no período" : " (todas)")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Por tipo de sala (qual produto teve mais receita)</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-2"><i class="bi bi-chevron-right"></i> Clique na linha para ver o detalhe das reservas.</p>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width:2.5rem"></th>
+                        <th>Tipo de sala</th>
+                        <th class="text-end">Reservas</th>
+                        <th class="text-end">Receita (R$)</th>
+                    </tr>
+                </thead>
+                @* colspan 6 na detail-row para Data, Cliente, Valor, Créditos, Lucro, Repasse em *@
+                <tbody>
+                    @foreach (var x in byRoomType)
+                    {
+                        var cnt = V(x, "Count", 0);
+                        var detailsRoom = (x["Details"] as IList<Dictionary<string, object>>) ?? new List<Dictionary<string, object>>();
+                        <tr class="@(cnt > 0 ? "clickable-row" : "")" @(cnt > 0 ? "data-has-details=true" : "")>
+                            <td>@if (cnt > 0) { <i class="bi bi-chevron-right expand-icon text-muted"></i> } else { <span class="text-muted">—</span> }</td>
+                            <td>@V(x, "Label", "")</td>
+                            <td class="text-end">@cnt</td>
+                            <td class="text-end">R$ @(V(x, "Revenue", 0m).ToString("F2"))</td>
+                        </tr>
+                        <tr class="detail-row" style="display:none">
+                            <td colspan="4" class="p-0">
+                                <div class="p-3 bg-light">
+                                    @if (detailsRoom.Any())
+                                    {
+                                        <table class="table table-sm mb-0">
+                                            <thead><tr><th>Data</th><th>Cliente</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th><th class="text-end">Lucro (R$)</th><th>Repasse em</th></tr></thead>
+                                            <tbody>
+                                                @foreach (var d in detailsRoom)
+                                                {
+                                                    var lucro = V(d, "Lucro", 0m);
+                                                    var repasse = V(d, "RepasseEm", "");
+                                                    <tr>
+                                                        <td>@V(d, "DateFormatted", "")</td>
+                                                        <td>@V(d, "ClientName", "")</td>
+                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
+                                                        <td class="text-end">@V(d, "Credits", 0)</td>
+                                                        <td class="text-end">@(lucro > 0 ? "R$ " + lucro.ToString("F2") : "—")</td>
+                                                        <td>@(string.IsNullOrEmpty(repasse) ? "—" : repasse)</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Nenhuma reserva.</span>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (byRoomType == null || !byRoomType.Any())
+                    {
+                        <tr><td colspan="4" class="text-muted">Nenhuma reserva no período.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-people"></i> Quem foram os clientes</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-2"><i class="bi bi-chevron-right"></i> Clique na linha para ver o detalhe das reservas.</p>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width:2.5rem"></th>
+                        <th>Cliente</th>
+                        <th class="text-end">Reservas</th>
+                        <th class="text-end">Total (R$)</th>
+                        <th class="text-end">Créditos usados</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in byClient)
+                    {
+                        var cnt = V(c, "Count", 0);
+                        var detailsClient = (c["Details"] as IList<Dictionary<string, object>>) ?? new List<Dictionary<string, object>>();
+                        <tr class="clickable-row" data-has-details="true">
+                            <td><i class="bi bi-chevron-right expand-icon text-muted"></i></td>
+                            <td>@V(c, "ClientName", "")</td>
+                            <td class="text-end">@cnt</td>
+                            <td class="text-end">R$ @(V(c, "Revenue", 0m).ToString("F2"))</td>
+                            <td class="text-end">@V(c, "Credits", 0)</td>
+                        </tr>
+                        <tr class="detail-row" style="display:none">
+                            <td colspan="5" class="p-0">
+                                <div class="p-3 bg-light">
+                                    @if (detailsClient.Any())
+                                    {
+                                        <table class="table table-sm mb-0">
+                                            <thead><tr><th>Data</th><th>Tipo de sala</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th><th class="text-end">Lucro (R$)</th><th>Repasse em</th></tr></thead>
+                                            <tbody>
+                                                @foreach (var d in detailsClient)
+                                                {
+                                                    var lucro = V(d, "Lucro", 0m);
+                                                    var repasse = V(d, "RepasseEm", "");
+                                                    <tr>
+                                                        <td>@V(d, "DateFormatted", "")</td>
+                                                        <td>@V(d, "RoomTypeLabel", "")</td>
+                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
+                                                        <td class="text-end">@V(d, "Credits", 0)</td>
+                                                        <td class="text-end">@(lucro > 0 ? "R$ " + lucro.ToString("F2") : "—")</td>
+                                                        <td>@(string.IsNullOrEmpty(repasse) ? "—" : repasse)</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Nenhuma reserva.</span>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (byClient == null || !byClient.Any())
+                    {
+                        <tr><td colspan="5" class="text-muted">Nenhum cliente com reservas no período.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.clickable-row[data-has-details="true"]').forEach(function(row) {
+    row.addEventListener('click', function() {
+        var next = this.nextElementSibling;
+        var icon = this.querySelector('.expand-icon');
+        if (!next || !next.classList.contains('detail-row')) return;
+        var isHidden = next.style.display === 'none';
+        next.style.display = isHidden ? 'table-row' : 'none';
+        if (icon) {
+            icon.classList.toggle('bi-chevron-right', !isHidden);
+            icon.classList.toggle('bi-chevron-down', isHidden);
+        }
+    });
+});
+</script>

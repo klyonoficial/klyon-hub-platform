@@ -203,7 +203,7 @@
     <value>Transfers</value>
   </data>
   <data name="Menu_MyPayments" xml:space="preserve">
-    <value>My Payments</value>
+    <value>Fiscal Address Charges</value>
   </data>
   <data name="Menu_NewContract" xml:space="preserve">
     <value>New Contract</value>

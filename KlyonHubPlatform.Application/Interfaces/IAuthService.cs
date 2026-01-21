@@ -4,7 +4,7 @@ namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IAuthService
     {
-        Task<string> GenerateTokenAsync(User user);
+        Task<string> GenerateTokenAsync(User user, List<string> roles);
         Task<User?> AuthenticateAsync(string email, string password);
         Task<bool> RegisterAsync(string email, string password, string fullName, string roleName);
         Task<bool> VerifyEmailAsync(string token);

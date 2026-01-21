@@ -2,6 +2,7 @@
     ViewData["Title"] = "Gerenciar Coworkings";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
+@using KlyonHubPlatform.Domain.Core.Enums
 
 @model List<KlyonHubPlatform.Domain.Entities.Coworking>
 
@@ -36,7 +37,16 @@
                     <option value="false" selected="@(ViewBag.IsPartner == "false")">Próprios</option>
                 </select>
             </div>
-            <div class="col-md-4 d-flex align-items-end gap-2">
+            <div class="col-md-2">
+                <label for="approvalStatus" class="form-label">Aprovação</label>
+                <select class="form-select" id="approvalStatus" name="approvalStatus">
+                    <option value="">Todos</option>
+                    <option value="UnderReview" selected="@(ViewBag.ApprovalStatus == "UnderReview")">Aguardando aprovação</option>
+                    <option value="AwaitingAdjustment" selected="@(ViewBag.ApprovalStatus == "AwaitingAdjustment")">Aguardando ajuste</option>
+                    <option value="Approved" selected="@(ViewBag.ApprovalStatus == "Approved")">Aprovado</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
@@ -75,6 +85,7 @@
                             <th>Telefone</th>
                             <th>Endereços</th>
                             <th>Status</th>
+                            <th>Aprovação</th>
                             <th>Tipo</th>
                             <th>Data Cadastro</th>
                             <th>Ações</th>
@@ -87,8 +98,8 @@
                                 <td>@coworking.Id</td>
                                 <td>@coworking.Name</td>
                                 <td>@coworking.CNPJ</td>
-                                <td>@coworking.ContactEmail</td>
-                                <td>@coworking.ContactPhone</td>
+                                <td>@((coworking.ContactEmail ?? coworking.User?.Email) ?? "-")</td>
+                                <td>@(coworking.ContactPhone ?? "-")</td>
                                 <td>
                                     <span class="badge bg-info">@(coworking.Addresses?.Count ?? 0) endereços</span>
                                 </td>
@@ -96,6 +107,13 @@
                                     <span class="badge bg-@(coworking.IsActive ? "success" : "danger")">
                                         @(coworking.IsActive ? "Ativo" : "Inativo")
                                     </span>
+                                </td>
+                                <td>
+                                    @{
+                                        var aprovaçãoLabel = coworking.ApprovalStatus switch { CoworkingApprovalStatus.UnderReview => "Em análise", CoworkingApprovalStatus.AwaitingAdjustment => "Aguardando ajuste", _ => "Aprovado" };
+                                        var aprovaçãoBadge = coworking.ApprovalStatus switch { CoworkingApprovalStatus.UnderReview => "warning", CoworkingApprovalStatus.AwaitingAdjustment => "danger", _ => "success" };
+                                    }
+                                    <span class="badge bg-@aprovaçãoBadge">@aprovaçãoLabel</span>
                                 </td>
                                 <td>
                                     <span class="badge bg-@(coworking.IsPartner ? "primary" : "secondary")">
@@ -110,15 +128,31 @@
                                     <button class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </button>
+                                    @if (coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview)
+                                    {
+                                        <form method="post" action="@Url.Action("ApproveCoworking", "Admin")" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@coworking.Id" />
+                                            <input type="hidden" name="search" value="@ViewBag.Search" />
+                                            <input type="hidden" name="status" value="@ViewBag.Status" />
+                                            <input type="hidden" name="isPartner" value="@ViewBag.IsPartner" />
+                                            <input type="hidden" name="approvalStatus" value="@ViewBag.ApprovalStatus" />
+                                            <input type="hidden" name="page" value="@ViewBag.CurrentPage" />
+                                            <button type="submit" class="btn btn-sm btn-success" title="Aprovar"><i class="bi bi-check-circle-fill"></i></button>
+                                        </form>
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="abrirReprovar(@coworking.Id)" title="Reprovar">
+                                            <i class="bi bi-x-circle-fill"></i>
+                                        </button>
+                                    }
                                     @if (coworking.IsActive)
                                     {
-                                        <button class="btn btn-sm btn-danger" onclick="toggleStatus(@coworking.Id, '@coworking.Name')" title="Inativar">
+                                        <button class="btn btn-sm btn-danger" onclick="toggleStatus(@coworking.Id, @(System.Net.WebUtility.HtmlEncode(System.Text.Json.JsonSerializer.Serialize(coworking.Name ?? ""))))" title="Inativar">
                                             <i class="bi bi-x-circle-fill"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-sm btn-success" onclick="toggleStatus(@coworking.Id, '@coworking.Name')" title="Ativar">
+                                        <button class="btn btn-sm btn-success" onclick="toggleStatus(@coworking.Id, @(System.Net.WebUtility.HtmlEncode(System.Text.Json.JsonSerializer.Serialize(coworking.Name ?? ""))))" title="Ativar">
                                             <i class="bi bi-check-circle-fill"></i>
                                         </button>
                                     }
@@ -141,6 +175,7 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
+                                    approvalStatus = ViewBag.ApprovalStatus, 
                                     page = ViewBag.CurrentPage - 1 
                                 })">
                                     <i class="bi bi-chevron-left"></i> Anterior
@@ -155,6 +190,7 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
+                                    approvalStatus = ViewBag.ApprovalStatus, 
                                     page = i 
                                 })">
                                     @i
@@ -169,6 +205,7 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
+                                    approvalStatus = ViewBag.ApprovalStatus, 
                                     page = ViewBag.CurrentPage + 1 
                                 })">
                                     Próxima <i class="bi bi-chevron-right"></i>
@@ -188,7 +225,44 @@
     </div>
 </div>
 
+<!-- Modal Reprovar (lista) -->
+<div class="modal fade" id="modalReprovarLista" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("RejectCoworking", "Admin")" id="formReprovarLista">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="reprovarId" value="" />
+                <input type="hidden" name="search" value="@ViewBag.Search" />
+                <input type="hidden" name="status" value="@ViewBag.Status" />
+                <input type="hidden" name="isPartner" value="@ViewBag.IsPartner" />
+                <input type="hidden" name="approvalStatus" value="@ViewBag.ApprovalStatus" />
+                <input type="hidden" name="page" value="@ViewBag.CurrentPage" />
+                <div class="modal-header">
+                    <h5 class="modal-title">Reprovar cadastro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Informe a <strong>justificativa</strong> ou os <strong>itens a corrigir</strong>. O coworking verá esta mensagem no painel.</p>
+                    <textarea name="rejectionReason" class="form-control" rows="3" required placeholder="Ex.: Descrição incompleta. Inclua fotos. Comprovante ilegível."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Reprovar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+function abrirReprovar(coworkingId) {
+    document.getElementById('reprovarId').value = coworkingId;
+    var ta = document.querySelector('#modalReprovarLista textarea[name="rejectionReason"]');
+    if (ta) ta.value = '';
+    var modal = new bootstrap.Modal(document.getElementById('modalReprovarLista'));
+    modal.show();
+}
+
 function viewCoworking(coworkingId) {
     window.location.href = '@Url.Action("ViewCoworking", "Admin")?id=' + coworkingId;
 }
@@ -202,6 +276,7 @@ function toggleStatus(coworkingId, coworkingName) {
     var search = currentUrl.searchParams.get('search') || '';
     var status = currentUrl.searchParams.get('status') || '';
     var isPartner = currentUrl.searchParams.get('isPartner') || '';
+    var approvalStatus = currentUrl.searchParams.get('approvalStatus') || '';
     var page = currentUrl.searchParams.get('page') || '1';
     
     var action = confirm('Tem certeza que deseja alterar o status do coworking "' + coworkingName + '"?');
@@ -213,6 +288,7 @@ function toggleStatus(coworkingId, coworkingName) {
                      '&search=' + encodeURIComponent(search) + 
                      '&status=' + encodeURIComponent(status) + 
                      '&isPartner=' + encodeURIComponent(isPartner) + 
+                     '&approvalStatus=' + encodeURIComponent(approvalStatus) + 
                      '&page=' + encodeURIComponent(page);
         
         var token = document.querySelector('input[name="__RequestVerificationToken"]');

@@ -203,7 +203,7 @@
     <value>Transferencias</value>
   </data>
   <data name="Menu_MyPayments" xml:space="preserve">
-    <value>Mis Pagos</value>
+    <value>Cobros de Dirección Fiscal</value>
   </data>
   <data name="Menu_NewContract" xml:space="preserve">
     <value>Nuevo Contrato</value>

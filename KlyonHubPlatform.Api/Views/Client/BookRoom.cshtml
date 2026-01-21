@@ -1,0 +1,259 @@
+@{
+    ViewData["Title"] = "Reservar sala de reunião";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var address = ViewBag.Address as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
+    var availableCredits = ViewBag.AvailableCredits as int? ?? 0;
+    var offersShared = ViewBag.OffersSharedRoom as bool? ?? false;
+    var offersPrivate = ViewBag.OffersPrivateRoom as bool? ?? false;
+    var sharedPrice = (decimal)(ViewBag.SharedRoomPricePerHour ?? 0m);
+    var privatePrice = (decimal)(ViewBag.PrivateRoomPricePerHour ?? 0m);
+    var getAvailabilityForMonthUrl = ViewBag.GetAvailabilityForMonthUrl as string ?? "";
+    var addressId = address?.Id ?? 0;
+    var defaultRoom = offersShared ? "Shared" : "Private";
+}
+
+<div class="container py-4">
+    <a href="@Url.Action("MarketplaceDetails", "Home", new { id = address?.Id })" class="btn btn-outline-secondary mb-3">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="fw-bold mb-1">Reservar sua sala de reunião</h2>
+            <p class="text-muted mb-4">Selecione os dias de suas reuniões recorrentes.</p>
+
+            @if (address != null)
+            {
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-geo-alt"></i> @address.Coworking?.Name – @address.Neighborhood, @address.City/@address.State
+                </p>
+            }
+
+            <form method="post" action="@Url.Action("CreateReservations", "Client")" id="bookForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="CoworkingAddressId" value="@address?.Id" />
+                <input type="hidden" name="RoomType" id="roomTypeInput" value="@defaultRoom" />
+                <input type="hidden" name="slotsJson" id="slotsJsonInput" value="" />
+
+                @if (offersShared || offersPrivate)
+                {
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Tipo de sala</label>
+                        <div class="btn-group w-100" role="group">
+                            @if (offersShared)
+                            {
+                                <input type="radio" class="btn-check" name="RoomTypeRadio" id="roomShared" value="Shared" @(defaultRoom == "Shared" ? "checked" : "")>
+                                <label class="btn btn-outline-primary" for="roomShared"><i class="bi bi-people"></i> Compartilhada (R$ @sharedPrice.ToString("F2")/h)</label>
+                            }
+                            @if (offersPrivate)
+                            {
+                                <input type="radio" class="btn-check" name="RoomTypeRadio" id="roomPrivate" value="Private" @(defaultRoom == "Private" ? "checked" : "")>
+                                <label class="btn btn-outline-primary" for="roomPrivate"><i class="bi bi-door-closed"></i> Privativa (R$ @privatePrice.ToString("F2")/h)</label>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="row">
+                    <div class="col-lg-5 mb-4">
+                        <label class="form-label fw-bold">Calendário</label>
+                        <div class="border rounded p-3 bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="calPrev" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></button>
+                                <span class="fw-bold" id="calMonthYear">Janeiro 2026</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="calNext" aria-label="Próximo mês"><i class="bi bi-chevron-right"></i></button>
+                            </div>
+                            <div class="small text-muted text-center mb-2" id="calWeekdays">Dom Seg Ter Qua Qui Sex Sáb</div>
+                            <div id="calGrid" class="d-flex flex-wrap gap-1"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <label class="form-label fw-bold">Datas selecionadas</label>
+                        <div id="slotsContainer" class="border rounded p-3 bg-light mb-3">
+                            <p class="text-muted small mb-0" id="noSlotsMsg">Clique em um dia no calendário para adicionar.</p>
+                            <div id="slotRows"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <span class="fw-bold">Créditos: <span id="creditsTotal">0</span></span>
+                            <small class="text-muted">Disponíveis: @availableCredits</small>
+                        </div>
+                        <div class="alert alert-warning" id="creditsAlert" style="display:none;">
+                            <i class="bi bi-exclamation-triangle"></i> <span id="creditsAlertText"></span>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-lg w-100" id="submitBtn">
+                            <i class="bi bi-calendar-check"></i> Solicitar Reserva
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function() {
+    var mes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    var sharedPrice = @sharedPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    var privatePrice = @privatePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    var availableCredits = @availableCredits;
+    var selectedSlots = [];
+    var calDate = new Date();
+
+    function getRoomType() { return document.querySelector('input[name="RoomTypeRadio"]:checked')?.value || '@defaultRoom'; }
+    function getPrice() { return getRoomType() === 'Shared' ? sharedPrice : privatePrice; }
+
+    function renderCalendar() {
+        var y = calDate.getFullYear(), m = calDate.getMonth();
+        document.getElementById('calMonthYear').textContent = mes[m] + ' ' + y;
+        var first = new Date(y, m, 1);
+        var last = new Date(y, m + 1, 0);
+        var start = new Date(first); start.setDate(start.getDate() - first.getDay());
+        var today = new Date(); today.setHours(0,0,0,0);
+        var html = '';
+        for (var i = 0; i < 42; i++) {
+            var d = new Date(start); d.setDate(start.getDate() + i);
+            if (d.getMonth() !== m && i > 6) break;
+            var Y = d.getFullYear(), M = d.getMonth(), D = d.getDate();
+            var key = Y + '-' + String(M+1).padStart(2,'0') + '-' + String(D).padStart(2,'0');
+            var isPast = d < today;
+            var isSel = selectedSlots.some(function(s){ return s.date === key; });
+            var cls = 'cal-day border rounded text-center';
+            if (isPast) cls += ' text-muted';
+            else cls += ' cursor-pointer';
+            if (isSel) cls += ' bg-warning text-dark';
+            html += '<div class="' + cls + '" style="width:calc(14.28% - 4px);min-height:36px;line-height:36px;" data-date="' + key + '"' + (isPast ? '' : '') + '>' + D + '</div>';
+        }
+        document.getElementById('calGrid').innerHTML = html;
+        document.querySelectorAll('.cal-day:not(.text-muted)').forEach(function(el){
+            el.addEventListener('click', function(){ toggleDate(this.getAttribute('data-date')); });
+        });
+    }
+
+    function toggleDate(key) {
+        var idx = selectedSlots.findIndex(function(s){ return s.date === key; });
+        if (idx >= 0) {
+            selectedSlots.splice(idx, 1);
+        } else {
+            selectedSlots.push({ date: key, startTime: '12:00', endTime: '13:00', participants: 1 });
+        }
+        selectedSlots.sort(function(a,b){ return a.date.localeCompare(b.date); });
+        renderSlots();
+        renderCalendar();
+        updateCredits();
+    }
+
+    function renderSlots() {
+        var cont = document.getElementById('slotRows');
+        var noMsg = document.getElementById('noSlotsMsg');
+        cont.innerHTML = '';
+        if (selectedSlots.length === 0) {
+            noMsg.style.display = 'block';
+            return;
+        }
+        noMsg.style.display = 'none';
+        var opts = '';
+        for (var h = 8; h <= 23; h++) {
+            for (var m = 0; m < 60; m += 30) {
+                if (h === 23 && m === 30) break;
+                var v = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+                opts += '<option value="' + v + '">' + v + '</option>';
+            }
+        }
+        selectedSlots.forEach(function(s, i){
+            var parts = s.date.split('-');
+            var dd = parts[2] + '/' + parts[1];
+            var row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 mt-2 slot-row';
+            row.setAttribute('data-date', s.date);
+            row.innerHTML = 
+                '<span class="fw-bold" style="min-width:50px;">' + dd + '</span>' +
+                '<select class="form-select form-select-sm start-select" style="width:auto;">' + opts + '</select>' +
+                '<select class="form-select form-select-sm end-select" style="width:auto;">' + opts + '</select>' +
+                '<select class="form-select form-select-sm part-select" style="width:auto;">' +
+                [1,2,3,4,5,6,7].map(function(n){ return '<option value="' + n + '"' + (s.participants===n?' selected':'') + '>' + n + ' participante' + (n>1?'s':'') + '</option>'; }).join('') +
+                '</select>' +
+                '<button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1" title="Remover"><i class="bi bi-dash-lg"></i></button>';
+            row.querySelector('.start-select').value = s.startTime;
+            row.querySelector('.end-select').value = s.endTime;
+            row.querySelector('.start-select').onchange = function(){ s.startTime = this.value; updateCredits(); };
+            row.querySelector('.end-select').onchange = function(){ s.endTime = this.value; updateCredits(); };
+            row.querySelector('.part-select').onchange = function(){ s.participants = parseInt(this.value,10); updateCredits(); };
+            row.querySelector('button').onclick = function(){ var i = selectedSlots.findIndex(function(x){ return x.date === s.date; }); if(i>=0){ selectedSlots.splice(i,1); renderSlots(); renderCalendar(); updateCredits(); }};
+            cont.appendChild(row);
+        });
+    }
+
+    function updateCredits() {
+        var price = getPrice();
+        var total = 0;
+        selectedSlots.forEach(function(s){
+            var a = s.startTime.split(':'), b = s.endTime.split(':');
+            var start = parseInt(a[0],10)*60+parseInt(a[1],10);
+            var end = parseInt(b[0],10)*60+parseInt(b[1],10);
+            if (end <= start) return;
+            var hrs = Math.ceil((end - start) / 60);
+            if (hrs < 1) hrs = 1;
+            total += Math.ceil(price * hrs);
+        });
+        document.getElementById('creditsTotal').textContent = total;
+        var al = document.getElementById('creditsAlert');
+        var at = document.getElementById('creditsAlertText');
+        if (total > 0 && availableCredits < total) {
+            al.style.display = 'block';
+            at.textContent = 'Créditos insuficientes. Necessário: ' + total + ', disponível: ' + availableCredits + '.';
+        } else {
+            al.style.display = 'none';
+        }
+    }
+
+    function buildSlotsJson() {
+        var arr = selectedSlots.map(function(s){ return { Date: s.date, StartTime: s.startTime, EndTime: s.endTime, Participants: s.participants }; });
+        return JSON.stringify(arr);
+    }
+
+    document.getElementById('calPrev').onclick = function(){ calDate.setMonth(calDate.getMonth()-1); renderCalendar(); };
+    document.getElementById('calNext').onclick = function(){ calDate.setMonth(calDate.getMonth()+1); renderCalendar(); };
+
+    document.querySelectorAll('input[name="RoomTypeRadio"]').forEach(function(r){
+        r.onchange = function(){ document.getElementById('roomTypeInput').value = this.value; updateCredits(); };
+    });
+
+    document.getElementById('bookForm').onsubmit = function(){
+        if (selectedSlots.length === 0) {
+            alert('Selecione ao menos uma data no calendário.');
+            return false;
+        }
+        var invalid = selectedSlots.some(function(s){
+            var a = s.startTime.split(':'), b = s.endTime.split(':');
+            var start = parseInt(a[0],10)*60+parseInt(a[1],10);
+            var end = parseInt(b[0],10)*60+parseInt(b[1],10);
+            return end <= start;
+        });
+        if (invalid) {
+            alert('O horário final deve ser maior que o inicial em todos os itens.');
+            return false;
+        }
+        document.getElementById('slotsJsonInput').value = buildSlotsJson();
+        return true;
+    };
+
+    calDate.setFullYear(new Date().getFullYear()); calDate.setMonth(new Date().getMonth());
+    renderCalendar();
+    renderSlots();
+    updateCredits();
+})();
+</script>
+<style>
+.cal-day.cursor-pointer { cursor: pointer; }
+.cal-day:hover:not(.text-muted) { background: #fff3cd !important; }
+</style>
+}

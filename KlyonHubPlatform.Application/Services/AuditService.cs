@@ -32,6 +32,11 @@ namespace KlyonHubPlatform.Application.Services
             await _auditLogRepository.CreateAsync(log);
         }
 
+        public async Task<List<AuditLog>> GetLogsByEntityAsync(string entityType, int entityId)
+        {
+            return await _auditLogRepository.GetByEntityAsync(entityType, entityId);
+        }
+
         public async Task<List<AuditLog>> GetLogsByUserIdAsync(int userId)
         {
             return await _auditLogRepository.GetByUserIdAsync(userId);

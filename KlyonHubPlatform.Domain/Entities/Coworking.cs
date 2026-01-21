@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Coworking
@@ -32,6 +34,15 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsPartner { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
+
+        // Fluxo de aprovação do cadastro
+        public CoworkingApprovalStatus ApprovalStatus { get; set; } = CoworkingApprovalStatus.UnderReview;
+        public DateTime? SubmittedAt { get; set; }
+        public string? RejectionReason { get; set; }
+        public DateTime? RejectedAt { get; set; }
+        public int? RejectedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public int? ApprovedBy { get; set; }
 
         // Navigation properties
         public virtual User User { get; set; } = null!;

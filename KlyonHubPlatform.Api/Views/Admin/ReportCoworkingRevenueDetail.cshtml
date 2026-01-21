@@ -1,0 +1,81 @@
+@using KlyonHubPlatform.Application.Interfaces
+@model CoworkingRevenueDetailDto
+@{
+    ViewData["Title"] = "Detalhe de receita";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var dateFrom = ViewBag.DateFrom as DateTime?;
+    var dateTo = ViewBag.DateTo as DateTime?;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> @(Model?.CoworkingName ?? "Coworking") — Detalhamento</h2>
+    <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar à lista</a>
+</div>
+
+<form method="get" action="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })" class="card mb-3">
+    <input type="hidden" name="id" value="@Model?.CoworkingId" />
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Data inicial</label>
+                <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data final</label>
+                <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Resumo</h5>
+        <p class="mb-0">Receita total no período: <strong>R$ @(Model?.TotalRevenue.ToString("F2") ?? "0,00")</strong> (@(Model?.Reservations?.Count ?? 0) reserva(s))</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Reservas (sala privativa, compartilhada ou auditório — data e cliente)</h5>
+    </div>
+    <div class="card-body">
+        @if (Model?.Reservations != null && Model.Reservations.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo de sala</th>
+                            <th class="text-end">Valor (R$)</th>
+                            <th class="text-end">Créditos</th>
+                            <th>Cliente</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.Reservations)
+                        {
+                            <tr>
+                                <td>@r.Date.ToString("dd/MM/yyyy")@(r.Date.TimeOfDay.Ticks > 0 ? " " + r.Date.ToString("HH:mm") : "")</td>
+                                <td>@r.RoomTypeDisplay</td>
+                                <td class="text-end">R$ @r.TotalValue.ToString("F2")</td>
+                                <td class="text-end">@r.CreditsUsed</td>
+                                <td>@r.ClientName</td>
+                                <td><span class="badge bg-@(r.Status == "Concluída" ? "success" : "info")">@r.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma reserva no período.</div>
+        }
+    </div>
+</div>

@@ -1,6 +1,13 @@
 @{
     ViewData["Title"] = "Minhas Reservas";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var sortBy = ViewBag.SortBy as string ?? "date_asc";
+    var statusFilter = ViewBag.Status as string;
+    var dateFrom = ViewBag.DateFrom as DateTime?;
+    var dateTo = ViewBag.DateTo as DateTime?;
+    var searchFilter = ViewBag.Search as string ?? "";
+    var roomTypeFilter = ViewBag.RoomType as string;
+    var hasFilters = !string.IsNullOrEmpty(statusFilter) || dateFrom.HasValue || dateTo.HasValue || !string.IsNullOrWhiteSpace(searchFilter) || !string.IsNullOrEmpty(roomTypeFilter);
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Reservation>
@@ -25,7 +32,7 @@
     </div>
 }
 
-@if (Model == null || !Model.Any())
+@if ((Model == null || !Model.Any()) && !hasFilters)
 {
     <div class="alert alert-info">
         <i class="bi bi-info-circle"></i> Você ainda não possui reservas. <a href="@Url.Action("Marketplace", "Home")">Clique aqui para fazer sua primeira reserva!</a>
@@ -33,6 +40,71 @@
 }
 else
 {
+    <form method="get" action="@Url.Action("MyReservations", "Client")" class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Ordenar e filtrar</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6 col-lg-2">
+                    <label class="form-label">Ordenar por</label>
+                    <select name="sortBy" class="form-select">
+                        @if (sortBy == "date_asc") { <option value="date_asc" selected>Data mais próxima / Horário</option> } else { <option value="date_asc">Data mais próxima / Horário</option> }
+                        @if (sortBy == "date_desc") { <option value="date_desc" selected>Data mais distante</option> } else { <option value="date_desc">Data mais distante</option> }
+                        @if (sortBy == "time_asc") { <option value="time_asc" selected>Horário mais cedo</option> } else { <option value="time_asc">Horário mais cedo</option> }
+                        @if (sortBy == "time_desc") { <option value="time_desc" selected>Horário mais tarde</option> } else { <option value="time_desc">Horário mais tarde</option> }
+                    </select>
+                </div>
+                <div class="col-md-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">Todos</option>
+                        @if (statusFilter == "Confirmed") { <option value="Confirmed" selected>Confirmadas</option> } else { <option value="Confirmed">Confirmadas</option> }
+                        @if (statusFilter == "Completed") { <option value="Completed" selected>Concluídas</option> } else { <option value="Completed">Concluídas</option> }
+                        @if (statusFilter == "Cancelled") { <option value="Cancelled" selected>Canceladas</option> } else { <option value="Cancelled">Canceladas</option> }
+                    </select>
+                </div>
+                <div class="col-md-6 col-lg-2">
+                    <label class="form-label">Data de</label>
+                    <input type="date" name="dateFrom" class="form-control" value="@((dateFrom?.ToString("yyyy-MM-dd")) ?? "")">
+                </div>
+                <div class="col-md-6 col-lg-2">
+                    <label class="form-label">Data até</label>
+                    <input type="date" name="dateTo" class="form-control" value="@((dateTo?.ToString("yyyy-MM-dd")) ?? "")">
+                </div>
+                <div class="col-md-6 col-lg-2">
+                    <label class="form-label">Tipo de sala</label>
+                    <select name="roomType" class="form-select">
+                        <option value="">Todos</option>
+                        @if (roomTypeFilter == "Shared") { <option value="Shared" selected>Compartilhada</option> } else { <option value="Shared">Compartilhada</option> }
+                        @if (roomTypeFilter == "Private") { <option value="Private" selected>Privativa</option> } else { <option value="Private">Privativa</option> }
+                    </select>
+                </div>
+                <div class="col-md-12 col-lg-2">
+                    <label class="form-label">Pesquisar</label>
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Coworking, endereço, cidade" value="@searchFilter">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+                    <a href="@Url.Action("MyReservations", "Client")" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Limpar</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    @if (Model == null || !Model.Any())
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-search"></i> Nenhuma reserva encontrada com os filtros aplicados. Tente alterar os critérios ou <a href="@Url.Action("MyReservations", "Client")">Limpar</a>.
+        </div>
+    }
+    else
+    {
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
@@ -149,9 +221,29 @@ else
                                 </small>
                             </div>
                         }
+                        @if (reservation.Status == "Confirmed" && !reservation.ClientConfirmedAt.HasValue)
+                        {
+                            <div class="mt-3">
+                                <form method="post" action="@Url.Action("ConfirmReservationUsed", "Client")" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@reservation.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                        <i class="bi bi-check2-circle"></i> Confirmar que utilizei
+                                    </button>
+                                </form>
+                                <small class="d-block text-muted mt-1">Após você e o coworking confirmarem, os créditos serão repassados ao espaço.</small>
+                            </div>
+                        }
+                        @if (reservation.ClientConfirmedAt.HasValue && reservation.Status == "Confirmed")
+                        {
+                            <div class="mt-2">
+                                <small class="text-success"><i class="bi bi-check-circle"></i> Você confirmou uso em @reservation.ClientConfirmedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"). Aguardando confirmação do coworking.</small>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
         }
     </div>
+    }
 }

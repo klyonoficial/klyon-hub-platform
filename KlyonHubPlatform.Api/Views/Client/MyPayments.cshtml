@@ -1,12 +1,15 @@
 @model List<KlyonHubPlatform.Domain.Entities.Payment>
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Minhas Cobranças";
+    ViewData["Title"] = "Cobranças de Endereço Fiscal";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-credit-card"></i> Minhas Cobranças</h2>
+    <h2><i class="bi bi-credit-card"></i> Cobranças de Endereço Fiscal</h2>
 </div>
+<p class="text-muted mb-4">
+    <i class="bi bi-info-circle"></i> Cobranças dos seus contratos de endereço fiscal.
+</p>
 
 @if (TempData["Success"] != null)
 {
@@ -27,7 +30,7 @@
 @if (Model == null || !Model.Any())
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> Você não possui cobranças no momento.
+        <i class="bi bi-info-circle"></i> Você não possui cobranças de endereço fiscal no momento.
     </div>
 }
 else
@@ -65,7 +68,7 @@ else
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Contrato</th>
+                            <th>Contrato de Endereço Fiscal</th>
                             <th>Valor</th>
                             <th>Método</th>
                             <th>Status</th>

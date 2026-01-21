@@ -241,5 +241,112 @@ namespace KlyonHubPlatform.Application.Services
 
             return await SendEmailAsync(to, subject, body, true);
         }
+
+        public async Task<bool> SendReservationRequestToCoworkingAsync(string to, string coworkingName, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items)
+        {
+            var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+            var reservationsUrl = $"{baseUrl}/Coworking/Reservations?status=Pending";
+
+            string RoomTypeDisplay(string rt) => rt == "Shared" ? "Sala compartilhada" : rt == "Private" ? "Sala privativa" : rt == "Auditorium" ? "Auditório" : rt;
+            var listHtml = string.Join("", items.Select(x =>
+            {
+                var hi = x.Start.HasValue ? x.Start.Value.ToString(@"hh\:mm") : "-";
+                var he = x.End.HasValue ? x.End.Value.ToString(@"hh\:mm") : "-";
+                return $"<li><strong>{x.Date:dd/MM/yyyy}</strong> das {hi} às {he} — {RoomTypeDisplay(x.RoomType)}</li>";
+            }));
+
+            var subject = "Solicitação de reserva de sala — aprovar ou reprovar";
+            var body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }}
+        ul {{ margin: 10px 0; padding-left: 20px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Klyon — Reserva de Salas</h1>
+        </div>
+        <div class='content'>
+            <h2>Olá, {coworkingName}!</h2>
+            <p>O cliente <strong>{clientName}</strong> fez uma solicitação de reserva de sala(s):</p>
+            <ul>{listHtml}</ul>
+            <p>É necessário <strong>aprovar ou reprovar</strong> cada solicitação. Acesse a área de reservas e responda em até <strong>24 horas</strong>.</p>
+            <div class='warning'>
+                <strong>⚠️ Atenção:</strong> Caso não haja resposta em 24 horas, as solicitações serão canceladas automaticamente.
+            </div>
+            <p style='text-align: center;'>
+                <a href='{reservationsUrl}' class='button'>Ver reservas pendentes e responder</a>
+            </p>
+            <p>Atenciosamente,<br>Equipe Klyon</p>
+        </div>
+        <div class='footer'>
+            <p>Este é um email automático. Não responda.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+            return await SendEmailAsync(to, subject, body, true);
+        }
+
+        public async Task<bool> SendReservationRequestToClientAsync(string to, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items)
+        {
+            string RoomTypeDisplay(string rt) => rt == "Shared" ? "Sala compartilhada" : rt == "Private" ? "Sala privativa" : rt == "Auditorium" ? "Auditório" : rt;
+            var list = string.Join("; ", items.Select(x =>
+            {
+                var hi = x.Start.HasValue ? x.Start.Value.ToString(@"hh\:mm") : "-";
+                var he = x.End.HasValue ? x.End.Value.ToString(@"hh\:mm") : "-";
+                return $"{x.Date:dd/MM/yyyy} das {hi} às {he} ({RoomTypeDisplay(x.RoomType)})";
+            }));
+
+            var subject = "Solicitação de reserva enviada";
+            var body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        .info {{ background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 15px 0; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Klyon — Reserva de Salas</h1>
+        </div>
+        <div class='content'>
+            <h2>Olá, {clientName}!</h2>
+            <p>Sua solicitação de reserva foi enviada com sucesso.</p>
+            <p><strong>Reservas solicitadas:</strong> {list}</p>
+            <div class='info'>
+                <strong>Próximos passos:</strong> O coworking analisará sua solicitação. Você receberá o retorno em até <strong>24 horas</strong> (aprovação ou reprovação).
+            </div>
+            <p>Atenciosamente,<br>Equipe Klyon</p>
+        </div>
+        <div class='footer'>
+            <p>Este é um email automático. Não responda.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+            return await SendEmailAsync(to, subject, body, true);
+        }
     }
 }

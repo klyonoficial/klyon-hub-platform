@@ -1,0 +1,93 @@
+@using KlyonHubPlatform.Application.Interfaces
+@model ClientCreditStatementDto
+@{
+    ViewData["Title"] = "Extrato de créditos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var dateFrom = Model?.DateFrom;
+    var dateTo = Model?.DateTo;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bank"></i> Extrato de créditos — @(Model?.ClientName ?? "Cliente")</h2>
+    <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar ao relatório</a>
+</div>
+
+<form method="get" action="@Url.Action("ReportClientCreditStatement", "Admin")" class="card mb-3">
+    <input type="hidden" name="clientId" value="@Model?.ClientId" />
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Data inicial</label>
+                <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data final</label>
+                <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-auto">
+                <div class="d-flex gap-1">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+                    <a href="@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = Model?.ClientId })" class="btn btn-outline-secondary">Limpar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Resumo</h5>
+        <p class="mb-1"><strong>Cliente:</strong> @(Model?.ClientName ?? "—")</p>
+        <p class="mb-1"><strong>Saldo atual:</strong> <span class="text-success fs-5">@(Model?.CurrentBalance ?? 0) créditos</span></p>
+        <p class="mb-0 text-muted">@(Model?.Movements?.Count ?? 0) lançamento(s) no período</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-journal-text"></i> Histórico (compras e reservas) — estilo extrato</h5>
+    </div>
+    <div class="card-body">
+        @if (Model?.Movements != null && Model.Movements.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th class="text-center">Tipo</th>
+                            <th class="text-end">Créditos</th>
+                            <th class="text-end">Valor (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in Model.Movements)
+                        {
+                            <tr>
+                                <td>@m.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@m.Description</td>
+                                <td class="text-center">
+                                    @if (m.Type == "Entrada")
+                                    {
+                                        <span class="badge bg-success">Entrada</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Saída</span>
+                                    }
+                                </td>
+                                <td class="text-end @(m.CreditsDelta > 0 ? "text-success" : "text-danger")">@(m.CreditsDelta > 0 ? "+" : "")@m.CreditsDelta</td>
+                                <td class="text-end">R$ @m.Amount.ToString("F2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento no período. Compras de créditos e reservas de salas aparecem aqui.</div>
+        }
+    </div>
+</div>

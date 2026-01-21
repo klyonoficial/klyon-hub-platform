@@ -57,6 +57,25 @@
                         </p>
                     </div>
                     <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Aprovação do cadastro</label>
+                        <p>
+                            @{
+                                var ap = Model.ApprovalStatus;
+                                var (b, t) = ap == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview ? ("warning", "Aguardando aprovação")
+                                    : ap == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment ? ("secondary", "Aguardando ajuste")
+                                    : ("success", "Aprovado");
+                            }
+                            <span class="badge bg-@b">@t</span>
+                        </p>
+                    </div>
+                    @if (Model.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment && !string.IsNullOrEmpty(Model.RejectionReason))
+                    {
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold text-danger">Motivo da reprovação / Itens a corrigir</label>
+                            <p class="form-control-plaintext border rounded p-2 bg-light">@Model.RejectionReason</p>
+                        </div>
+                    }
+                    <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Tipo</label>
                         <p>
                             <span class="badge bg-@(Model.IsPartner ? "primary" : "secondary")">
@@ -199,13 +218,51 @@
             </div>
         </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="@Url.Action("CoworkingHistory", "Admin", new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
+                <i class="bi bi-clock-history"></i> Histórico
+            </a>
+            @if (Model.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview)
+            {
+                <form asp-action="ApproveCoworking" asp-controller="Admin" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar</button>
+                </form>
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalReprovar">
+                    <i class="bi bi-x-circle"></i> Reprovar
+                </button>
+            }
             <a href="@Url.Action("EditCoworking", "Admin", new { id = Model.Id })" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Editar
             </a>
             <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
+        </div>
+
+        <!-- Modal Reprovar -->
+        <div class="modal fade" id="modalReprovar" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="RejectCoworking" asp-controller="Admin" method="post">
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        @Html.AntiForgeryToken()
+                        <div class="modal-header">
+                            <h5 class="modal-title">Reprovar cadastro</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Informe a <strong>justificativa</strong> ou os <strong>itens que precisam de correção</strong>. O coworking verá esta mensagem no painel.</p>
+                            <textarea name="rejectionReason" class="form-control" rows="4" required placeholder="Ex.: A descrição do espaço está incompleta. Inclua fotos da sala de reunião. O comprovante de endereço está ilegível."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Reprovar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>

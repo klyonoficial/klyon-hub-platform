@@ -122,7 +122,7 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="BasePrice" class="form-label">Preço Base (R$) <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" required>
+                    <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" value="0" placeholder="0" required>
                     <small class="form-text text-muted">O valor deve ser maior ou igual a zero</small>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -131,60 +131,8 @@
                 </div>
             </div>
 
-            <hr class="my-4">
-            <h5><i class="bi bi-door-open"></i> Configurações de Salas para Aluguel</h5>
-            <p class="text-muted">Configure os tipos de salas disponíveis para aluguel por hora</p>
-
-            <!-- Sala Compartilhada -->
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="OffersSharedRoom" name="OffersSharedRoom" value="true" onchange="toggleSharedRoomFields()">
-                        <label class="form-check-label fw-bold" for="OffersSharedRoom">
-                            Oferecer Sala Compartilhada
-                        </label>
-                    </div>
-                    <div id="sharedRoomFields" style="display: none;">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="SharedRoomPricePerHour" class="form-label">Valor por Hora (R$) <span class="text-danger">*</span></label>
-                                <input type="number" step="0.01" min="0" class="form-control" id="SharedRoomPricePerHour" name="SharedRoomPricePerHour">
-                                <small class="form-text text-muted">Ex: 20.00 (R$ 20,00 por hora)</small>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="SharedRoomMaxSeats" class="form-label">Quantidade de Carteiras <span class="text-danger">*</span></label>
-                                <input type="number" min="1" class="form-control" id="SharedRoomMaxSeats" name="SharedRoomMaxSeats">
-                                <small class="form-text text-muted">Número máximo de pessoas simultâneas</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sala Privativa -->
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="OffersPrivateRoom" name="OffersPrivateRoom" value="true" onchange="togglePrivateRoomFields()">
-                        <label class="form-check-label fw-bold" for="OffersPrivateRoom">
-                            Oferecer Sala Privativa
-                        </label>
-                    </div>
-                    <div id="privateRoomFields" style="display: none;">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="PrivateRoomPricePerHour" class="form-label">Valor por Hora (R$) <span class="text-danger">*</span></label>
-                                <input type="number" step="0.01" min="0" class="form-control" id="PrivateRoomPricePerHour" name="PrivateRoomPricePerHour">
-                                <small class="form-text text-muted">Ex: 50.00 (R$ 50,00 por hora)</small>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="PrivateRoomMaxSeats" class="form-label">Quantidade de Carteiras <span class="text-danger">*</span></label>
-                                <input type="number" min="1" class="form-control" id="PrivateRoomMaxSeats" name="PrivateRoomMaxSeats">
-                                <small class="form-text text-muted">Capacidade máxima da sala</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="@Url.Action("Products", "Coworking")">Produtos &gt; Aluguéis de Sala</a>.
             </div>
 
             <button type="submit" class="btn btn-primary">
@@ -281,40 +229,6 @@ document.getElementById('BasePrice').addEventListener('input', function(e) {
     }
 });
 
-// Toggle campos de sala compartilhada
-function toggleSharedRoomFields() {
-    const checkbox = document.getElementById('OffersSharedRoom');
-    const fields = document.getElementById('sharedRoomFields');
-    if (checkbox.checked) {
-        fields.style.display = 'block';
-        document.getElementById('SharedRoomPricePerHour').required = true;
-        document.getElementById('SharedRoomMaxSeats').required = true;
-    } else {
-        fields.style.display = 'none';
-        document.getElementById('SharedRoomPricePerHour').required = false;
-        document.getElementById('SharedRoomMaxSeats').required = false;
-        document.getElementById('SharedRoomPricePerHour').value = '';
-        document.getElementById('SharedRoomMaxSeats').value = '';
-    }
-}
-
-// Toggle campos de sala privativa
-function togglePrivateRoomFields() {
-    const checkbox = document.getElementById('OffersPrivateRoom');
-    const fields = document.getElementById('privateRoomFields');
-    if (checkbox.checked) {
-        fields.style.display = 'block';
-        document.getElementById('PrivateRoomPricePerHour').required = true;
-        document.getElementById('PrivateRoomMaxSeats').required = true;
-    } else {
-        fields.style.display = 'none';
-        document.getElementById('PrivateRoomPricePerHour').required = false;
-        document.getElementById('PrivateRoomMaxSeats').required = false;
-        document.getElementById('PrivateRoomPricePerHour').value = '';
-        document.getElementById('PrivateRoomMaxSeats').value = '';
-    }
-}
-
 // Validar antes de enviar o formulário
 document.querySelector('form').addEventListener('submit', function(e) {
     const basePrice = parseFloat(document.getElementById('BasePrice').value);
@@ -323,49 +237,6 @@ document.querySelector('form').addEventListener('submit', function(e) {
         alert('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.');
         document.getElementById('BasePrice').focus();
         return false;
-    }
-
-    // Validar sala compartilhada
-    const offersShared = document.getElementById('OffersSharedRoom').checked;
-    if (offersShared) {
-        const sharedPrice = parseFloat(document.getElementById('SharedRoomPricePerHour').value);
-        const sharedSeats = parseInt(document.getElementById('SharedRoomMaxSeats').value);
-        if (!sharedPrice || sharedPrice <= 0) {
-            e.preventDefault();
-            alert('Por favor, informe o valor por hora da sala compartilhada.');
-            document.getElementById('SharedRoomPricePerHour').focus();
-            return false;
-        }
-        if (!sharedSeats || sharedSeats < 1) {
-            e.preventDefault();
-            alert('Por favor, informe a quantidade de carteiras da sala compartilhada.');
-            document.getElementById('SharedRoomMaxSeats').focus();
-            return false;
-        }
-    }
-
-    // Validar sala privativa
-    const offersPrivate = document.getElementById('OffersPrivateRoom').checked;
-    if (offersPrivate) {
-        const privatePrice = parseFloat(document.getElementById('PrivateRoomPricePerHour').value);
-        const privateSeats = parseInt(document.getElementById('PrivateRoomMaxSeats').value);
-        if (!privatePrice || privatePrice <= 0) {
-            e.preventDefault();
-            alert('Por favor, informe o valor por hora da sala privativa.');
-            document.getElementById('PrivateRoomPricePerHour').focus();
-            return false;
-        }
-        if (!privateSeats || privateSeats < 1) {
-            e.preventDefault();
-            alert('Por favor, informe a quantidade de carteiras da sala privativa.');
-            document.getElementById('PrivateRoomMaxSeats').focus();
-            return false;
-        }
-    }
-
-    // Validar que pelo menos um tipo de sala foi selecionado se oferece aluguel
-    if (!offersShared && !offersPrivate) {
-        // Não é obrigatório, mas pode avisar
     }
 });
 </script>

@@ -99,6 +99,7 @@ builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
+builder.Services.AddScoped<IReservationTransferService, ReservationTransferService>();
 
 // PagBank Service
 builder.Services.AddHttpClient<PagBankService>();

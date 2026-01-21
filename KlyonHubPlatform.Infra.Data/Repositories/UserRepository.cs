@@ -30,6 +30,15 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
+        public async Task<User?> GetByEmailForAuthenticationAsync(string email)
+        {
+            return await _context.Users
+                .AsNoTracking()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == email);
+        }
+
         public async Task<User> CreateAsync(User user)
         {
             _context.Users.Add(user);

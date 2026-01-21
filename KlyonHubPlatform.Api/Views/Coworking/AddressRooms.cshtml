@@ -1,0 +1,230 @@
+@{
+    ViewData["Title"] = "Salas do Endereço";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var address = ViewBag.Address as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
+    var roomTypes = ViewBag.RoomTypes as string[] ?? KlyonHubPlatform.Domain.Core.Constants.RoomTypes.All;
+}
+@using KlyonHubPlatform.Domain.Core.Constants
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-door-open"></i> Salas — @(address?.Address), @(address?.Number)</h2>
+    <a href="@Url.Action("Products", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="text-muted mb-2">Endereço completo</h6>
+        <p class="mb-0">@(address?.Address), @(address?.Number)@(string.IsNullOrEmpty(address?.Complement) ? "" : ", " + address.Complement) — @(address?.Neighborhood), @(address?.City)/@(address?.State)</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Salas (cada uma gerenciada individualmente; não pode haver duas reservas no mesmo horário/dia)</h5>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addRoomModal">
+            <i class="bi bi-plus-circle"></i> Adicionar sala
+        </button>
+    </div>
+    <div class="card-body">
+        @if (address?.Rooms != null && address.Rooms.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Foto</th>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Capacidade</th>
+                            <th>Créditos/hora</th>
+                            <th>Status</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in address.Rooms.OrderBy(x => x.RoomType).ThenBy(x => x.Name))
+                        {
+                            var mainPhoto = r.Photos?.FirstOrDefault(p => p.IsMain) ?? r.Photos?.FirstOrDefault();
+                            <tr>
+                                <td>
+                                    @if (mainPhoto != null)
+                                    {
+                                        <img src="@Url.Action("GetRoomPhoto", "Coworking", new { photoId = mainPhoto.Id })" alt="" class="rounded" style="width:48px;height:48px;object-fit:cover;">
+                                    }
+                                    else
+                                    {
+                                        <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width:48px;height:48px;"><i class="bi bi-image text-muted"></i></div>
+                                    }
+                                </td>
+                                <td><strong>@r.Name</strong></td>
+                                <td>@RoomTypes.GetDisplayName(r.RoomType)</td>
+                                <td>@r.Capacity pessoa(s)</td>
+                                <td>@r.CreditsPerHour</td>
+                                <td>
+                                    @if (r.IsActive)
+                                    { <span class="badge bg-success">Ativa</span> }
+                                    else
+                                    { <span class="badge bg-secondary">Inativa</span> }
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editRoomModal"
+                                            data-room-id="@r.Id" data-name="@r.Name" data-room-type="@r.RoomType" data-capacity="@r.Capacity" data-credits="@r.CreditsPerHour" data-active="@(r.IsActive ? "true" : "false")" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form method="post" action="@Url.Action("DeleteRoom", "Coworking")" style="display:inline;" onsubmit="return confirm('Excluir esta sala?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="roomId" value="@r.Id" />
+                                        <input type="hidden" name="addressId" value="@address.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">Nenhuma sala. Clique em <strong>Adicionar sala</strong> para criar (compartilhada, privativa ou auditório) com capacidade, créditos por hora e fotos.</p>
+        }
+    </div>
+</div>
+
+<div class="modal fade" id="addRoomModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Adicionar sala</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="@Url.Action("AddRoom", "Coworking")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="addressId" value="@address?.Id" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                        <select class="form-select" name="RoomType" required>
+                            @foreach (var t in roomTypes)
+                            {
+                                <option value="@t">@RoomTypes.GetDisplayName(t)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="Name" required placeholder="Ex: Sala 1, Auditório" />
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Capacidade (pessoas) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="Capacity" min="1" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Créditos por hora <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="CreditsPerHour" min="0" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fotos</label>
+                        <input type="file" class="form-control" name="RoomPhotos" multiple accept="image/jpeg,image/png,image/gif,image/webp" />
+                        <small class="text-muted">JPG, PNG, GIF, WebP. Máx. 5MB cada. A primeira será a principal.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check"></i> Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editRoomModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar sala</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="@Url.Action("UpdateRoom", "Coworking")" enctype="multipart/form-data" id="editRoomForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="roomId" id="editRoomId" value="" />
+                <input type="hidden" name="addressId" value="@address?.Id" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                        <select class="form-select" name="RoomType" id="editRoomType" required>
+                            @foreach (var t in roomTypes)
+                            {
+                                <option value="@t">@RoomTypes.GetDisplayName(t)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="Name" id="editName" required placeholder="Ex: Sala 1, Auditório" />
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Capacidade (pessoas) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="Capacity" id="editCapacity" min="1" required />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Créditos por hora <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="CreditsPerHour" id="editCreditsPerHour" min="0" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="IsActive" id="editIsActive" value="true" />
+                            <label class="form-check-label" for="editIsActive">Sala ativa (disponível para reservas)</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Adicionar fotos (opcional)</label>
+                        <input type="file" class="form-control" name="RoomPhotos" multiple accept="image/jpeg,image/png,image/gif,image/webp" />
+                        <small class="text-muted">Novas fotos serão incluídas às existentes. JPG, PNG, GIF, WebP. Máx. 5MB cada.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check"></i> Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('editRoomModal').addEventListener('shown.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn || !btn.dataset.roomId) return;
+            document.getElementById('editRoomId').value = btn.dataset.roomId || '';
+            document.getElementById('editName').value = btn.dataset.name || '';
+            document.getElementById('editRoomType').value = btn.dataset.roomType || 'Shared';
+            document.getElementById('editCapacity').value = btn.dataset.capacity || '1';
+            document.getElementById('editCreditsPerHour').value = btn.dataset.credits || '0';
+            document.getElementById('editIsActive').checked = (btn.dataset.active === 'true');
+            document.getElementById('editRoomForm').querySelector('input[name="RoomPhotos"]').value = '';
+        });
+    </script>
+}
