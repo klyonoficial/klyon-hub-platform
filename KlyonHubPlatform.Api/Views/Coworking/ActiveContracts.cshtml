@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "Contratos Ativos";
+    ViewData["Title"] = "Contratos de Endereço Fiscal Ativos";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
@@ -7,10 +7,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h2>
-    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar
-    </a>
+    <h2><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal</h2>
 </div>
 
 @if (TempData["Success"] != null)
@@ -102,7 +99,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h5><i class="bi bi-list-check"></i> Lista de Contratos Ativos</h5>
+        <h5><i class="bi bi-list-check"></i> Lista de Contratos de Endereço Fiscal Ativos</h5>
     </div>
     <div class="card-body">
         @if (Model.Any())

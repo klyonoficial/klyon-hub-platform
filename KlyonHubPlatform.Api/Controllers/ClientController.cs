@@ -11,9 +11,20 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
+using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
+using ClientCredit = KlyonHubPlatform.Domain.Entities.ClientCredit;
+using CreditPlan = KlyonHubPlatform.Domain.Entities.CreditPlan;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
+    public class ProcessCreditCardRequest
+    {
+        public int PurchaseId { get; set; }
+        public Application.DTOs.PagBank.PagBankCard? Card { get; set; }
+        public Application.DTOs.PagBank.PagBankAddress? BillingAddress { get; set; }
+        public int? Installments { get; set; }
+    }
+
     [Authorize(Roles = "Client,Administrator")]
     public class ClientController : Controller
     {
@@ -23,6 +34,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly IDocumentService _documentService;
         private readonly IAddressDeclarationService _addressDeclarationService;
+        private readonly IPagBankService _pagBankService;
         private readonly ApplicationDbContext _context;
 
         public ClientController(
@@ -32,6 +44,7 @@ namespace KlyonHubPlatform.Api.Controllers
             IPaymentService paymentService,
             IDocumentService documentService,
             IAddressDeclarationService addressDeclarationService,
+            IPagBankService pagBankService,
             ApplicationDbContext context)
         {
             _contractService = contractService;
@@ -40,6 +53,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _paymentService = paymentService;
             _documentService = documentService;
             _addressDeclarationService = addressDeclarationService;
+            _pagBankService = pagBankService;
             _context = context;
         }
 
@@ -53,7 +67,43 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenInclude(ct => ct.Subscription)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
+            // Buscar créditos disponíveis
+            int availableCredits = 0;
+            if (client != null)
+            {
+                try
+                {
+                    availableCredits = await _context.ClientCredits
+                        .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                        .SumAsync(c => c.Credits);
+                }
+                catch
+                {
+                    // Tabela ClientCredits pode não existir ainda
+                    availableCredits = 0;
+                }
+            }
+
+            // Buscar reservas do cliente
+            int reservationsCount = 0;
+            if (client != null)
+            {
+                try
+                {
+                    reservationsCount = await _context.Reservations
+                        .Where(r => r.ClientId == client.Id && r.Status == "Confirmed")
+                        .CountAsync();
+                }
+                catch
+                {
+                    // Tabela Reservations pode não existir ainda
+                    reservationsCount = 0;
+                }
+            }
+
             ViewBag.Client = client;
+            ViewBag.AvailableCredits = availableCredits;
+            ViewBag.ReservationsCount = reservationsCount;
             return View();
         }
 
@@ -1258,6 +1308,474 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 TempData["Error"] = $"Erro ao baixar declaração: {ex.Message}";
                 return RedirectToAction("Declarations");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> BuyCredits()
+        {
+            var plans = await _context.CreditPlans
+                .Where(p => p.IsActive)
+                .OrderBy(p => p.Price)
+                .ToListAsync();
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            
+            int availableCredits = 0;
+            if (client != null)
+            {
+                try
+                {
+                    availableCredits = await _context.ClientCredits
+                        .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                        .SumAsync(c => c.Credits);
+                }
+                catch
+                {
+                    // Tabela ClientCredits pode não existir ainda
+                    availableCredits = 0;
+                }
+            }
+
+            ViewBag.AvailableCredits = availableCredits;
+            return View(plans);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CheckoutCredits(int creditPlanId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (client == null)
+            {
+                TempData["Error"] = "Cliente não encontrado.";
+                return RedirectToAction("BuyCredits");
+            }
+
+            var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == creditPlanId && p.IsActive);
+            if (plan == null)
+            {
+                TempData["Error"] = "Plano não encontrado ou indisponível.";
+                return RedirectToAction("BuyCredits");
+            }
+
+            ViewBag.Plan = plan;
+            ViewBag.Client = client;
+            ViewBag.TotalCredits = plan.Credits + plan.BonusCredits;
+
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PurchaseCredits(int creditPlanId, string paymentMethod, string? returnUrl = null)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
+                
+                if (client == null)
+                {
+                    TempData["Error"] = "Cliente não encontrado.";
+                    return RedirectToAction("BuyCredits");
+                }
+
+                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == creditPlanId && p.IsActive);
+                if (plan == null)
+                {
+                    TempData["Error"] = "Plano não encontrado ou indisponível.";
+                    return RedirectToAction("BuyCredits");
+                }
+
+                // Validar método de pagamento
+                if (string.IsNullOrEmpty(paymentMethod))
+                {
+                    TempData["Error"] = "Por favor, selecione um método de pagamento.";
+                    return RedirectToAction("CheckoutCredits", new { creditPlanId });
+                }
+
+                // Converter string para enum
+                PaymentMethod method;
+                if (!Enum.TryParse<PaymentMethod>(paymentMethod, out method))
+                {
+                    TempData["Error"] = "Método de pagamento inválido.";
+                    return RedirectToAction("CheckoutCredits", new { creditPlanId });
+                }
+
+                // Criar compra de créditos
+                var purchase = new CreditPurchase
+                {
+                    ClientId = client.Id,
+                    CreditPlanId = plan.Id,
+                    AmountPaid = plan.Price,
+                    CreditsReceived = plan.Credits,
+                    BonusCredits = plan.BonusCredits,
+                    Status = "Pending",
+                    PaymentMethod = method,
+                    ExternalPaymentId = Guid.NewGuid().ToString()
+                };
+
+                _context.CreditPurchases.Add(purchase);
+                await _context.SaveChangesAsync();
+
+                // Preparar dados do cliente
+                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+                var clientEmail = client.ContactEmail ?? client.User.Email;
+                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+                var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+                // Preparar endereço para boleto/cartão
+                var clientAddress = new Application.DTOs.PagBank.PagBankAddress
+                {
+                    Street = client.Address ?? "Não informado",
+                    Number = "S/N",
+                    Locality = "Não informado",
+                    City = client.City ?? "Não informado",
+                    RegionCode = client.State ?? "SP",
+                    Country = "BRA",
+                    PostalCode = client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
+                };
+
+                // Processar pagamento baseado no método
+                if (method == PaymentMethod.PIX)
+                {
+                    // Criar pedido PIX no PagBank
+                    var orderResponse = await _pagBankService.CreateOrderAsync(
+                        referenceId: purchase.ExternalPaymentId,
+                        amount: plan.Price,
+                        method: PaymentMethod.PIX,
+                        clientName: clientName,
+                        clientEmail: clientEmail,
+                        clientTaxId: clientTaxId,
+                        clientPhone: clientPhone
+                    );
+
+                    purchase.ExternalPaymentId = orderResponse.Id;
+                    
+                    if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
+                    {
+                        var qrCode = orderResponse.QrCodes.First();
+                        purchase.PixCode = qrCode.Text;
+                        purchase.PixExpiresAt = qrCode.ExpirationDate;
+                    }
+
+                    purchase.Status = "Processing";
+                    await _context.SaveChangesAsync();
+
+                    // Redirecionar para página de pagamento PIX
+                    return RedirectToAction("CreditPurchasePayment", new { purchaseId = purchase.Id });
+                }
+                else if (method == PaymentMethod.BankTransfer)
+                {
+                    // Criar pedido Boleto no PagBank
+                    var orderResponse = await _pagBankService.CreateOrderAsync(
+                        referenceId: purchase.ExternalPaymentId,
+                        amount: plan.Price,
+                        method: PaymentMethod.BankTransfer,
+                        clientName: clientName,
+                        clientEmail: clientEmail,
+                        clientTaxId: clientTaxId,
+                        clientPhone: clientPhone,
+                        clientAddress: clientAddress
+                    );
+
+                    purchase.ExternalPaymentId = orderResponse.Id;
+                    
+                    if (orderResponse.Charges != null && orderResponse.Charges.Any())
+                    {
+                        var charge = orderResponse.Charges.First();
+                        if (charge.PaymentMethod?.Boleto != null)
+                        {
+                            purchase.BoletoBarcode = charge.PaymentMethod.Boleto.Barcode;
+                            purchase.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode;
+                            purchase.BoletoExpiresAt = charge.PaymentMethod.Boleto.DueDate;
+                        }
+                    }
+
+                    purchase.Status = "Processing";
+                    await _context.SaveChangesAsync();
+
+                    // Redirecionar para página de pagamento Boleto
+                    return RedirectToAction("CreditPurchasePayment", new { purchaseId = purchase.Id });
+                }
+                else if (method == PaymentMethod.CreditCard)
+                {
+                    // Para cartão, redirecionar para página com modal de cartão
+                    purchase.Status = "Processing";
+                    await _context.SaveChangesAsync();
+                    
+                    return RedirectToAction("CreditPurchasePayment", new { purchaseId = purchase.Id });
+                }
+                else
+                {
+                    TempData["Error"] = "Método de pagamento não suportado.";
+                    return RedirectToAction("CheckoutCredits", new { creditPlanId });
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+            {
+                TempData["Error"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar PagBank Sandbox).";
+                return RedirectToAction("CheckoutCredits", new { creditPlanId });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao processar pagamento: {ex.Message}";
+                return RedirectToAction("CheckoutCredits", new { creditPlanId });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CreditPurchasePayment(int purchaseId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+            
+            if (client == null)
+            {
+                TempData["Error"] = "Cliente não encontrado.";
+                return RedirectToAction("BuyCredits");
+            }
+
+            var purchase = await _context.CreditPurchases
+                .Include(p => p.CreditPlan)
+                .FirstOrDefaultAsync(p => p.Id == purchaseId && p.ClientId == client.Id);
+
+            if (purchase == null)
+            {
+                TempData["Error"] = "Compra não encontrada.";
+                return RedirectToAction("BuyCredits");
+            }
+
+            ViewBag.Purchase = purchase;
+            ViewBag.Client = client;
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ProcessCreditCardPayment([FromBody] ProcessCreditCardRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return Json(new { success = false, error = "Dados inválidos." });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
+                
+                if (client == null)
+                {
+                    return Json(new { success = false, error = "Cliente não encontrado." });
+                }
+
+                var purchase = await _context.CreditPurchases
+                    .Include(p => p.CreditPlan)
+                    .FirstOrDefaultAsync(p => p.Id == request.PurchaseId && p.ClientId == client.Id);
+
+                if (purchase == null)
+                {
+                    return Json(new { success = false, error = "Compra não encontrada." });
+                }
+
+                if (purchase.PaymentMethod != PaymentMethod.CreditCard)
+                {
+                    return Json(new { success = false, error = "Este pagamento não é via cartão de crédito." });
+                }
+
+                // Preparar dados do cliente
+                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+                var clientEmail = client.ContactEmail ?? client.User.Email;
+                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+                var clientPhone = client.ContactPhone ?? client.User.Phone;
+
+                // Preparar endereço do request ou usar do cliente
+                var clientAddress = new Application.DTOs.PagBank.PagBankAddress
+                {
+                    Street = request.BillingAddress?.Street ?? client.Address ?? "Não informado",
+                    Number = request.BillingAddress?.Number ?? "S/N",
+                    Locality = request.BillingAddress?.Locality ?? "Não informado",
+                    City = request.BillingAddress?.City ?? client.City ?? "Não informado",
+                    RegionCode = request.BillingAddress?.RegionCode ?? client.State ?? "SP",
+                    Country = request.BillingAddress?.Country ?? "BRA",
+                    PostalCode = request.BillingAddress?.PostalCode ?? client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
+                };
+
+                // Criar pedido no PagBank
+                var orderResponse = await _pagBankService.CreateOrderAsync(
+                    referenceId: purchase.ExternalPaymentId,
+                    amount: purchase.AmountPaid,
+                    method: PaymentMethod.CreditCard,
+                    clientName: clientName,
+                    clientEmail: clientEmail,
+                    clientTaxId: clientTaxId,
+                    clientPhone: clientPhone,
+                    card: request.Card,
+                    installments: request.Installments,
+                    clientAddress: clientAddress
+                );
+
+                purchase.ExternalPaymentId = orderResponse.Id;
+
+                if (orderResponse.Charges != null && orderResponse.Charges.Any())
+                {
+                    var charge = orderResponse.Charges.First();
+                    purchase.TransactionId = charge.Id;
+                    
+                    var status = charge.Status?.ToUpper();
+                    if (status == "PAID")
+                    {
+                        purchase.Status = "Paid";
+                        purchase.PaidAt = charge.PaidAt ?? DateTime.UtcNow;
+                        
+                        // Adicionar créditos ao cliente
+                        var expiresAt = DateTime.UtcNow.AddMonths(purchase.CreditPlan.ValidityMonths);
+                        var clientCredit = new ClientCredit
+                        {
+                            ClientId = client.Id,
+                            Credits = purchase.CreditsReceived + purchase.BonusCredits,
+                            ExpiresAt = expiresAt
+                        };
+
+                        _context.ClientCredits.Add(clientCredit);
+                    }
+                    else if (status == "DECLINED" || status == "CANCELLED")
+                    {
+                        purchase.Status = "Cancelled";
+                    }
+                    else
+                    {
+                        purchase.Status = "Processing";
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                if (purchase.Status == "Paid")
+                {
+                    return Json(new { success = true, message = "Pagamento aprovado! Créditos creditados em sua conta." });
+                }
+                else if (purchase.Status == "Cancelled")
+                {
+                    return Json(new { success = false, error = "Pagamento recusado. Verifique os dados do cartão e tente novamente." });
+                }
+                else
+                {
+                    return Json(new { success = true, message = "Pagamento em processamento. Você será notificado quando for confirmado." });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = $"Erro ao processar pagamento: {ex.Message}" });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> MyReservations()
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+
+                if (client == null)
+                {
+                    TempData["Error"] = "Cliente não encontrado.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                var reservations = await _context.Reservations
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Location)
+                    .Where(r => r.ClientId == client.Id)
+                    .OrderByDescending(r => r.ReservationDate)
+                    .ThenByDescending(r => r.CreatedAt)
+                    .ToListAsync();
+
+                return View(reservations);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao carregar reservas: {ex.Message}";
+                return RedirectToAction("Dashboard");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CreditSpendingReport()
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+
+                if (client == null)
+                {
+                    TempData["Error"] = "Cliente não encontrado.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                // Buscar todas as reservas do cliente (gastos de créditos)
+                var reservations = await _context.Reservations
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Location)
+                    .Where(r => r.ClientId == client.Id)
+                    .OrderByDescending(r => r.ReservationDate)
+                    .ThenByDescending(r => r.CreatedAt)
+                    .ToListAsync();
+
+                // Calcular totais
+                var totalCreditsSpent = reservations.Sum(r => r.CreditsUsed);
+                var totalValueSpent = reservations.Sum(r => r.TotalValue);
+                var totalReservations = reservations.Count;
+                var confirmedReservations = reservations.Count(r => r.Status == "Confirmed");
+                var cancelledReservations = reservations.Count(r => r.Status == "Cancelled");
+                var completedReservations = reservations.Count(r => r.Status == "Completed");
+
+                // Agrupar por mês
+                var monthlySpending = reservations
+                    .GroupBy(r => new { r.ReservationDate.Year, r.ReservationDate.Month })
+                    .Select(g => new
+                    {
+                        Year = g.Key.Year,
+                        Month = g.Key.Month,
+                        Credits = g.Sum(r => r.CreditsUsed),
+                        Value = g.Sum(r => r.TotalValue),
+                        Count = g.Count()
+                    })
+                    .OrderByDescending(x => x.Year)
+                    .ThenByDescending(x => x.Month)
+                    .ToList();
+
+                ViewBag.TotalCreditsSpent = totalCreditsSpent;
+                ViewBag.TotalValueSpent = totalValueSpent;
+                ViewBag.TotalReservations = totalReservations;
+                ViewBag.ConfirmedReservations = confirmedReservations;
+                ViewBag.CancelledReservations = cancelledReservations;
+                ViewBag.CompletedReservations = completedReservations;
+                ViewBag.MonthlySpending = monthlySpending;
+
+                return View(reservations);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao carregar relatório: {ex.Message}";
+                return RedirectToAction("Dashboard");
             }
         }
     }

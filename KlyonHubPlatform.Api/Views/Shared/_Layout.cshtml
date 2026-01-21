@@ -41,22 +41,40 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    @if (User.Identity?.IsAuthenticated == true)
+                    @{
+                        var isClient = User.IsInRole("Client");
+                        var isCoworking = User.IsInRole("CoworkingPartner");
+                        var isAdmin = User.IsInRole("Administrator");
+                        var isAuthenticated = User.Identity?.IsAuthenticated == true;
+                    }
+                    @if (!isAuthenticated || (isClient && !isCoworking && !isAdmin))
                     {
                         <li class="nav-item">
-                            @if (User.IsInRole("Administrator"))
+                            <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
+                                <i class="bi bi-search"></i> Encontrar Coworking
+                            </a>
+                        </li>
+                    }
+                    @if (isAuthenticated)
+                    {
+                        <li class="nav-item">
+                            @{
+                                // Prioridade: Administrator > CoworkingPartner > Client
+                                // isAdmin, isCoworking, isClient já foram definidos acima
+                            }
+                            @if (isAdmin)
                             {
                                 <a class="nav-link" href="@Url.Action("Dashboard", "Admin")">
                                     <i class="bi bi-speedometer2"></i> Dashboard
                                 </a>
                             }
-                            else if (User.IsInRole("CoworkingPartner"))
+                            else if (isCoworking && !isAdmin)
                             {
                                 <a class="nav-link" href="@Url.Action("Dashboard", "Coworking")">
                                     <i class="bi bi-speedometer2"></i> Dashboard
                                 </a>
                             }
-                            else if (User.IsInRole("Client"))
+                            else if (isClient && !isAdmin && !isCoworking)
                             {
                                 <a class="nav-link" href="@Url.Action("Dashboard", "Client")">
                                     <i class="bi bi-speedometer2"></i> Dashboard
@@ -107,19 +125,22 @@
                                 <i class="bi bi-people"></i> Usuários
                             </a>
                             <a class="nav-link" href="@Url.Action("Coworkings", "Admin")">
-                                <i class="bi bi-building"></i> Coworkings
+                                <i class="bi bi-building"></i> Coworkings Parceiros
                             </a>
                             <a class="nav-link" href="@Url.Action("Contracts", "Admin")">
-                                <i class="bi bi-file-earmark-text"></i> Contratos
+                                <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
                             </a>
                             <a class="nav-link" href="@Url.Action("Locations", "Admin")">
-                                <i class="bi bi-geo-alt"></i> Localidades
+                                <i class="bi bi-geo-alt"></i> Localidades Disponíveis
                             </a>
                             <a class="nav-link" href="@Url.Action("Reports", "Admin")">
-                                <i class="bi bi-graph-up"></i> Relatórios
+                                <i class="bi bi-graph-up"></i> Relatórios Financeiros
                             </a>
                             <a class="nav-link" href="@Url.Action("SystemConfigurations", "Admin")">
                                 <i class="bi bi-gear"></i> Configurações do Sistema
+                            </a>
+                            <a class="nav-link" href="@Url.Action("DatabaseManager", "Admin")">
+                                <i class="bi bi-database"></i> Gerenciador de BD
                             </a>
                         }
                         @if (User.IsInRole("CoworkingPartner"))
@@ -131,10 +152,13 @@
                                 <i class="bi bi-person-badge"></i> Meu Perfil
                             </a>
                             <a class="nav-link" href="@Url.Action("MyAddresses", "Coworking")">
-                                <i class="bi bi-geo-alt"></i> Meus Endereços
+                                <i class="bi bi-geo-alt"></i> Meus Endereços Fiscais
+                            </a>
+                            <a class="nav-link" href="@Url.Action("Reservations", "Coworking")">
+                                <i class="bi bi-calendar-check"></i> Reservas de Salas
                             </a>
                             <a class="nav-link" href="@Url.Action("ActiveContracts", "Coworking")">
-                                <i class="bi bi-file-earmark-text"></i> Contratos Ativos
+                                <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
                             </a>
                             <a class="nav-link" href="@Url.Action("Commissions", "Coworking")">
                                 <i class="bi bi-cash-coin"></i> Comissões
@@ -151,17 +175,29 @@
                             <a class="nav-link" href="@Url.Action("Profile", "Client")">
                                 <i class="bi bi-person-badge"></i> Meu Perfil
                             </a>
+                            <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
+                                <i class="bi bi-building"></i> Reservar Sala de Coworking
+                            </a>
+                            <a class="nav-link" href="@Url.Action("MyReservations", "Client")">
+                                <i class="bi bi-calendar-check"></i> Minhas Reservas
+                            </a>
+                            <a class="nav-link" href="@Url.Action("BuyCredits", "Client")">
+                                <i class="bi bi-wallet2"></i> Comprar Créditos
+                            </a>
+                            <a class="nav-link" href="@Url.Action("CreditSpendingReport", "Client")">
+                                <i class="bi bi-graph-up"></i> Relatório de Gastos
+                            </a>
                             <a class="nav-link" href="@Url.Action("MyContracts", "Client")">
-                                <i class="bi bi-file-earmark-text"></i> Meus Contratos
+                                <i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal
                             </a>
                             <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
                                 <i class="bi bi-credit-card"></i> Minhas Cobranças
                             </a>
                             <a class="nav-link" href="@Url.Action("Declarations", "Client")">
-                                <i class="bi bi-file-earmark-text"></i> Declarações
+                                <i class="bi bi-file-earmark-text"></i> Declarações de Endereço Fiscal
                             </a>
                             <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
-                                <i class="bi bi-plus-circle"></i> Novo Contrato
+                                <i class="bi bi-geo-alt-fill"></i> Alugar Endereço Fiscal
                             </a>
                         }
                     </nav>

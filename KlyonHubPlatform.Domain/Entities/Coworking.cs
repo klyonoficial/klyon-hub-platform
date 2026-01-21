@@ -39,5 +39,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CoworkingPhoto> Photos { get; set; } = new List<CoworkingPhoto>();
         public virtual ICollection<CoworkingDocument> Documents { get; set; } = new List<CoworkingDocument>();
         public virtual ICollection<CoworkingPartner> Partners { get; set; } = new List<CoworkingPartner>();
+        public virtual ICollection<CoworkingProduct> Products { get; set; } = new List<CoworkingProduct>();
     }
 }

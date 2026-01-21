@@ -95,7 +95,14 @@
                                 <td>
                                     @foreach (var userRole in user.UserRoles)
                                     {
-                                        <span class="badge bg-primary me-1">@userRole.Role.Name</span>
+                                        var roleName = userRole.Role.Name switch
+                                        {
+                                            "Administrator" => "Administrador",
+                                            "CoworkingPartner" => "Parceiro Coworking",
+                                            "Client" => "Cliente",
+                                            _ => userRole.Role.Name
+                                        };
+                                        <span class="badge bg-primary me-1">@roleName</span>
                                     }
                                 </td>
                                 <td>

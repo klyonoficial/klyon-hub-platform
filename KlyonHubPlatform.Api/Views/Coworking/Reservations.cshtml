@@ -1,0 +1,452 @@
+@model List<KlyonHubPlatform.Domain.Entities.Interest>
+@{
+    ViewData["Title"] = "Reservas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    
+    // Converter ViewBag.Reservations para lista de Dictionary
+    var reservationsRaw = ViewBag.Reservations;
+    var reservations = new List<Dictionary<string, object>>();
+    if (reservationsRaw != null)
+    {
+        if (reservationsRaw is IEnumerable<Dictionary<string, object>> dictList)
+        {
+            reservations = dictList.ToList();
+        }
+        else if (reservationsRaw is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                if (item is Dictionary<string, object> dict)
+                {
+                    reservations.Add(dict);
+                }
+            }
+        }
+    }
+}
+
+@* Helper functions para acessar valores do Dictionary *@
+@functions {
+    private T GetValue<T>(Dictionary<string, object> dict, string key, T defaultValue = default(T))
+    {
+        if (dict.ContainsKey(key) && dict[key] != null && dict[key] != DBNull.Value)
+        {
+            try
+            {
+                return (T)Convert.ChangeType(dict[key], typeof(T));
+            }
+            catch
+            {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+    
+    private object GetValue(Dictionary<string, object> dict, string key)
+    {
+        return dict.ContainsKey(key) ? dict[key] : null;
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar-check"></i> Reservas</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Buscar</label>
+                <input type="text" class="form-control" name="search" value="@ViewBag.Search" placeholder="Nome, email, telefone..." />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="status">
+                    <option value="">Todos</option>
+                    <optgroup label="Reservas Confirmadas">
+                        <option value="Confirmed" selected="@(ViewBag.Status == "Confirmed")">Confirmada</option>
+                        <option value="Completed" selected="@(ViewBag.Status == "Completed")">Concluída</option>
+                        <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelada</option>
+                    </optgroup>
+                    <optgroup label="Interesses">
+                        <option value="Pending" selected="@(ViewBag.Status == "Pending")">Pendente</option>
+                        <option value="Contacted" selected="@(ViewBag.Status == "Contacted")">Contatado</option>
+                        <option value="Converted" selected="@(ViewBag.Status == "Converted")">Convertido</option>
+                        <option value="Rejected" selected="@(ViewBag.Status == "Rejected")">Rejeitado</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Endereço</label>
+                <select class="form-select" name="addressId">
+                    <option value="">Todos</option>
+                    @foreach (var addr in (List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>)ViewBag.Addresses)
+                    {
+                        <option value="@addr.Id" selected="@(ViewBag.AddressId == addr.Id)">@addr.Neighborhood - @addr.City</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Data Alocação (De)</label>
+                <input type="date" class="form-control" name="allocationDateFrom" value="@ViewBag.AllocationDateFrom" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Data Alocação (Até)</label>
+                <input type="date" class="form-control" name="allocationDateTo" value="@ViewBag.AllocationDateTo" />
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Reservas -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Lista de Reservas (@ViewBag.TotalItems encontradas)</h5>
+    </div>
+    <div class="card-body">
+        @{
+            var hasReservations = reservations != null && reservations.Count > 0;
+            var hasInterests = Model != null && Model.Any();
+            var totalItems = ViewBag.TotalItems as int? ?? 0;
+        }
+        @if (totalItems > 0 && (hasReservations || hasInterests))
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Data</th>
+                            <th>Nome</th>
+                            <th>E-mail</th>
+                            <th>Telefone</th>
+                            <th>Data/Horário</th>
+                            <th>Tipo de Sala</th>
+                            <th>Valor/Créditos</th>
+                            <th>Endereço</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (hasReservations)
+                        {
+                            @foreach (var reservation in reservations)
+                            {
+                                var reservationObj = reservation;
+                                var isReservation = reservationObj.ContainsKey("Type") && reservationObj["Type"]?.ToString() == "Reservation";
+                                var isInterest = reservationObj.ContainsKey("Type") && reservationObj["Type"]?.ToString() == "Interest";
+                                
+                                <tr>
+                                    <td>
+                                        @if (isReservation)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Confirmada</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning"><i class="bi bi-clock"></i> Interesse</span>
+                                        }
+                                    </td>
+                                    <td>@(GetValue<DateTime>(reservationObj, "CreatedAt").ToString("dd/MM/yyyy HH:mm"))</td>
+                                    <td>@(GetValue<string>(reservationObj, "ClientName", ""))</td>
+                                    <td>@(GetValue<string>(reservationObj, "ClientEmail", ""))</td>
+                                    <td>@(GetValue<string>(reservationObj, "ClientPhone") ?? "Não informado")</td>
+                                    <td>
+                                        @if (isReservation)
+                                        {
+                                            var resDate = GetValue<DateTime>(reservationObj, "ReservationDate");
+                                            <div>@resDate.ToString("dd/MM/yyyy")</div>
+                                            var startTime = GetValue(reservationObj, "StartTime");
+                                            var endTime = GetValue(reservationObj, "EndTime");
+                                            @if (startTime != null && startTime != DBNull.Value && endTime != null && endTime != DBNull.Value)
+                                            {
+                                                <small class="text-muted">
+                                                    @(((TimeSpan)startTime).ToString(@"hh\:mm")) - @(((TimeSpan)endTime).ToString(@"hh\:mm"))
+                                                </small>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var resDate = GetValue<DateTime>(reservationObj, "ReservationDate");
+                                            @if (resDate != DateTime.MinValue)
+                                            {
+                                                <div>@resDate.ToString("dd/MM/yyyy")</div>
+                                            }
+                                            else
+                                            {
+                                                <text>Não informada</text>
+                                            }
+                                            var startTime = GetValue(reservationObj, "StartTime");
+                                            var endTime = GetValue(reservationObj, "EndTime");
+                                            @if ((startTime != null && startTime != DBNull.Value) || (endTime != null && endTime != DBNull.Value))
+                                            {
+                                                <small class="text-muted">
+                                                    @if (startTime != null && startTime != DBNull.Value && endTime != null && endTime != DBNull.Value)
+                                                    {
+                                                        <text>@(((TimeSpan)startTime).ToString(@"hh\:mm")) - @(((TimeSpan)endTime).ToString(@"hh\:mm"))</text>
+                                                    }
+                                                    else if (startTime != null && startTime != DBNull.Value)
+                                                    {
+                                                        <text>A partir de @(((TimeSpan)startTime).ToString(@"hh\:mm"))</text>
+                                                    }
+                                                    else if (endTime != null && endTime != DBNull.Value)
+                                                    {
+                                                        <text>Até @(((TimeSpan)endTime).ToString(@"hh\:mm"))</text>
+                                                    }
+                                                </small>
+                                            }
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (isReservation)
+                                        {
+                                            var roomType = GetValue<string>(reservationObj, "RoomType");
+                                            @if (!string.IsNullOrEmpty(roomType))
+                                            {
+                                                @if (roomType == "Shared")
+                                                {
+                                                    <span class="badge bg-info"><i class="bi bi-people"></i> Compartilhada</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-primary"><i class="bi bi-door-closed"></i> Privativa</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <text>-</text>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <text>-</text>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (isReservation)
+                                        {
+                                            var totalValue = GetValue(reservationObj, "TotalValue");
+                                            var creditsUsed = GetValue(reservationObj, "CreditsUsed");
+                                            @if (totalValue != null && totalValue != DBNull.Value)
+                                            {
+                                                <div><strong>R$ @(((decimal)totalValue).ToString("N2"))</strong></div>
+                                                @if (creditsUsed != null && creditsUsed != DBNull.Value)
+                                                {
+                                                    <small class="text-muted">@creditsUsed créditos</small>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <text>-</text>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <text>-</text>
+                                        }
+                                    </td>
+                                    <td>
+                                        @{
+                                            var address = GetValue(reservationObj, "Address") as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
+                                        }
+                                        @if (address != null)
+                                        {
+                                            <small>
+                                                @address.Neighborhood<br />
+                                                @address.City/@address.State
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <text>-</text>
+                                        }
+                                    </td>
+                                    <td>
+                                        @{
+                                            var status = GetValue<string>(reservationObj, "Status", "");
+                                        }
+                                        @switch (status)
+                                        {
+                                            case "Confirmed":
+                                                <span class="badge bg-success">Confirmada</span>
+                                                break;
+                                            case "Cancelled":
+                                                <span class="badge bg-danger">Cancelada</span>
+                                                break;
+                                            case "Completed":
+                                                <span class="badge bg-info">Concluída</span>
+                                                break;
+                                            case "Pending":
+                                                <span class="badge bg-warning">Pendente</span>
+                                                break;
+                                            case "Contacted":
+                                                <span class="badge bg-info">Contatado</span>
+                                                break;
+                                            case "Converted":
+                                                <span class="badge bg-success">Convertido</span>
+                                                break;
+                                            case "Rejected":
+                                                <span class="badge bg-danger">Rejeitado</span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-secondary">@status</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        @{
+                                            var reservationId = GetValue<int>(reservationObj, "Id");
+                                        }
+                                        @if (isInterest)
+                                        {
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#statusModal@(reservationId)">
+                                                    <i class="bi bi-pencil"></i> Atualizar
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">Reserva confirmada</span>
+                                        }
+                                    </td>
+                                </tr>
+                                
+                                @if (isInterest)
+                                {
+                                    <!-- Modal para atualizar status (apenas para interesses) -->
+                                    <div class="modal fade" id="statusModal@(reservationId)" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Atualizar Status do Interesse</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="post" action="@Url.Action("UpdateReservationStatus", "Coworking")">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@reservationId" />
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Status</label>
+                                                            <select class="form-select" name="status" required>
+                                                                <option value="Pending" selected="@(status == "Pending")">Pendente</option>
+                                                                <option value="Contacted" selected="@(status == "Contacted")">Contatado</option>
+                                                                <option value="Converted" selected="@(status == "Converted")">Convertido</option>
+                                                                <option value="Rejected" selected="@(status == "Rejected")">Rejeitado</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Observações</label>
+                                                            <textarea class="form-control" name="notes" rows="3"></textarea>
+                                                        </div>
+                                                        <div class="mb-2">
+                                                            <strong>Informações:</strong><br />
+                                                            <small>Nome: @(GetValue<string>(reservationObj, "ClientName", ""))</small><br />
+                                                            <small>E-mail: @(GetValue<string>(reservationObj, "ClientEmail", ""))</small><br />
+                                                            <small>Telefone: @(GetValue<string>(reservationObj, "ClientPhone") ?? "Não informado")</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                        <button type="submit" class="btn btn-primary">Salvar</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        }
+                        
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        @{
+                            int currentPage = ViewBag.CurrentPage;
+                            int totalPages = ViewBag.TotalPages;
+                            string PageUrl(int p) => Url.Action("Reservations", "Coworking", new
+                            {
+                                search = ViewBag.Search,
+                                status = ViewBag.Status,
+                                addressId = ViewBag.AddressId,
+                                allocationDateFrom = ViewBag.AllocationDateFrom,
+                                allocationDateTo = ViewBag.AllocationDateTo,
+                                page = p,
+                                pageSize = ViewBag.PageSize
+                            })!;
+                        }
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage - 1)">Anterior</a>
+                        </li>
+                        @for (int p = 1; p <= totalPages; p++)
+                        {
+                            if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                            {
+                                <li class="page-item @(p == currentPage ? "active" : "")">
+                                    <a class="page-link" href="@PageUrl(p)">@p</a>
+                                </li>
+                            }
+                            else if (p == 2 && currentPage > 4)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                            else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                        }
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage + 1)">Próxima</a>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <h5><i class="bi bi-info-circle"></i> Nenhuma reserva encontrada</h5>
+                <p class="mb-2">
+                    @if (ViewBag.TotalItems == null || ViewBag.TotalItems == 0)
+                    {
+                        <text>Não há reservas cadastradas ainda. As reservas aparecerão aqui quando clientes confirmarem reservas ou preencherem o formulário "Tenho Interesse" no marketplace.</text>
+                    }
+                    else
+                    {
+                        <text>Nenhuma reserva encontrada na página atual com os filtros aplicados. Total de reservas encontradas: @ViewBag.TotalItems. @if (ViewBag.CurrentPage > 1) { <text>Você está na página @ViewBag.CurrentPage. Tente voltar para a primeira página ou ajustar os filtros de busca.</text> } else { <text>Tente ajustar os filtros de busca.</text> }</text>
+                    }
+                </p>
+            </div>
+        }
+    </div>
+</div>

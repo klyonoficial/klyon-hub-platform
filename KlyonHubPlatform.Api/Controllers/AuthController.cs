@@ -4,7 +4,7 @@ using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 
-namespace KlyonHubPlatform.Controllers
+namespace KlyonHubPlatform.Api.Controllers
 {
     public class AuthController : Controller
     {

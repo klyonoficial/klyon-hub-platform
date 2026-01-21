@@ -1,0 +1,259 @@
+@{
+    ViewData["Title"] = "Gerenciador de Banco de Dados";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-database"></i> Gerenciador de Banco de Dados</h2>
+    <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Info"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle"></i> @TempData["Info"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Aviso de Segurança</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Esta ferramenta permite executar queries SQL diretamente no banco de dados.</strong></p>
+                <ul class="mb-0">
+                    <li>Use apenas para <strong>ALTER TABLE</strong>, <strong>CREATE TABLE</strong> ou <strong>ADD COLUMN</strong></li>
+                    <li>Operações perigosas como <strong>DROP</strong>, <strong>DELETE</strong> e <strong>TRUNCATE</strong> são bloqueadas</li>
+                    <li>Sempre faça backup antes de executar queries que alteram a estrutura do banco</li>
+                    <li>Teste as queries em ambiente de desenvolvimento primeiro</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-code-square"></i> Executar Query SQL</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="@Url.Action("ExecuteSql", "Admin")">
+                    @Html.AntiForgeryToken()
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Query SQL:</label>
+                        <textarea class="form-control font-monospace" name="sqlQuery" rows="10" required 
+                                  placeholder="Exemplo: ALTER TABLE CoworkingAddresses ADD COLUMN MaxPeople INT DEFAULT 1;">@TempData["ExecutedQuery"]</textarea>
+                        <small class="form-text text-muted">
+                            Digite sua query SQL aqui. Exemplos permitidos:
+                            <ul class="mb-0 mt-2">
+                                <li><code>ALTER TABLE NomeTabela ADD COLUMN NomeColuna TIPO;</code></li>
+                                <li><code>CREATE TABLE NomeTabela (Coluna1 TIPO, Coluna2 TIPO);</code></li>
+                                <li><code>SELECT * FROM NomeTabela LIMIT 10;</code></li>
+                            </ul>
+                        </small>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary" onclick="return confirm('Tem certeza que deseja executar esta query?');">
+                            <i class="bi bi-play-circle"></i> Executar Query
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="document.querySelector('textarea[name=\'sqlQuery\']').value = '';">
+                            <i class="bi bi-x-circle"></i> Limpar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (TempData["QueryResult"] != null)
+{
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-check-circle"></i> Resultado da Query</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">@TempData["QueryResult"]</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Exemplos de Queries Úteis</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="examplesAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example1">
+                                Adicionar Nova Coluna
+                            </button>
+                        </h2>
+                        <div id="example1" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>ALTER TABLE CoworkingAddresses ADD COLUMN MaxPeople INT DEFAULT 1;</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('ALTER TABLE CoworkingAddresses ADD COLUMN MaxPeople INT DEFAULT 1;')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2">
+                                Criar Tabela de Interesses (Reservas)
+                            </button>
+                        </h2>
+                        <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>CREATE TABLE Interests (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingAddressId INT NOT NULL,
+    AllocationDate DATETIME NULL,
+    StartTime TIME NULL,
+    EndTime TIME NULL,
+    Name VARCHAR(255) NOT NULL,
+    LastName VARCHAR(255) NOT NULL,
+    Email VARCHAR(255) NOT NULL,
+    Phone VARCHAR(50) NULL,
+    Status VARCHAR(50) DEFAULT 'Pending',
+    Notes TEXT NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    ContactedByUserId INT NULL,
+    ContactedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE,
+    FOREIGN KEY (ContactedByUserId) REFERENCES Users(Id) ON DELETE SET NULL
+);</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('CREATE TABLE Interests (Id INT AUTO_INCREMENT PRIMARY KEY, CoworkingAddressId INT NOT NULL, AllocationDate DATETIME NULL, StartTime TIME NULL, EndTime TIME NULL, Name VARCHAR(255) NOT NULL, LastName VARCHAR(255) NOT NULL, Email VARCHAR(255) NOT NULL, Phone VARCHAR(50) NULL, Status VARCHAR(50) DEFAULT \'Pending\', Notes TEXT NULL, CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, UpdatedAt DATETIME NULL, ContactedByUserId INT NULL, ContactedAt DATETIME NULL, FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE, FOREIGN KEY (ContactedByUserId) REFERENCES Users(Id) ON DELETE SET NULL);')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
+                                Criar Tabela de Produtos do Coworking
+                            </button>
+                        </h2>
+                        <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>CREATE TABLE CoworkingProducts (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingId INT NOT NULL,
+    ProductType VARCHAR(50) NOT NULL,
+    IsActive BOOLEAN DEFAULT TRUE,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
+    UNIQUE KEY UK_CoworkingProduct (CoworkingId, ProductType)
+);</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('CREATE TABLE CoworkingProducts (Id INT AUTO_INCREMENT PRIMARY KEY, CoworkingId INT NOT NULL, ProductType VARCHAR(50) NOT NULL, IsActive BOOLEAN DEFAULT TRUE, CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, UpdatedAt DATETIME NULL, FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE, UNIQUE KEY UK_CoworkingProduct (CoworkingId, ProductType));')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example5">
+                                Criar Tabela de Avaliações
+                            </button>
+                        </h2>
+                        <div id="example5" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>CREATE TABLE IF NOT EXISTS CoworkingRatings (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingId INT NOT NULL,
+    ClientId INT NULL,
+    Rating INT NOT NULL CHECK (Rating >= 1 AND Rating <= 5),
+    Comment VARCHAR(1000) NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
+    FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL
+);</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('CREATE TABLE IF NOT EXISTS CoworkingRatings (Id INT AUTO_INCREMENT PRIMARY KEY, CoworkingId INT NOT NULL, ClientId INT NULL, Rating INT NOT NULL CHECK (Rating >= 1 AND Rating <= 5), Comment VARCHAR(1000) NULL, CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP, UpdatedAt DATETIME NULL, FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE, FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL);')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example4">
+                                Consultar Estrutura de Tabela
+                            </button>
+                        </h2>
+                        <div id="example4" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>DESCRIBE CoworkingAddresses;</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('DESCRIBE CoworkingAddresses;')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example4">
+                                Listar Todas as Tabelas
+                            </button>
+                        </h2>
+                        <div id="example4" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>SHOW TABLES;</code></pre>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyToEditor('SHOW TABLES;')">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function copyToEditor(text) {
+            const textarea = document.querySelector('textarea[name="sqlQuery"]');
+            textarea.value = text;
+            textarea.focus();
+        }
+    </script>
+}

@@ -1,0 +1,157 @@
+@{
+    ViewData["Title"] = "Minhas Reservas";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Reservation>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar-check"></i> Minhas Reservas</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (Model == null || !Model.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Você ainda não possui reservas. <a href="@Url.Action("Marketplace", "Home")">Clique aqui para fazer sua primeira reserva!</a>
+    </div>
+}
+else
+{
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h5 class="text-primary">@Model.Count</h5>
+                            <small class="text-muted">Total de Reservas</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h5 class="text-success">@Model.Count(r => r.Status == "Confirmed")</h5>
+                            <small class="text-muted">Confirmadas</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h5 class="text-info">@Model.Count(r => r.Status == "Completed")</h5>
+                            <small class="text-muted">Concluídas</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h5 class="text-danger">@Model.Count(r => r.Status == "Cancelled")</h5>
+                            <small class="text-muted">Canceladas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @foreach (var reservation in Model)
+        {
+            var statusClass = reservation.Status switch
+            {
+                "Confirmed" => "success",
+                "Completed" => "info",
+                "Cancelled" => "danger",
+                _ => "secondary"
+            };
+
+            var statusText = reservation.Status switch
+            {
+                "Confirmed" => "Confirmada",
+                "Completed" => "Concluída",
+                "Cancelled" => "Cancelada",
+                _ => reservation.Status
+            };
+
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="badge bg-@statusClass">@statusText</span>
+                        <small class="text-muted">#@reservation.Id</small>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-building"></i> @reservation.CoworkingAddress.Coworking.Name
+                        </h5>
+                        <p class="card-text mb-2">
+                            <i class="bi bi-geo-alt"></i> <strong>Endereço:</strong><br>
+                            @reservation.CoworkingAddress.Address<br>
+                            <small class="text-muted">
+                                @reservation.CoworkingAddress.Location.City - @reservation.CoworkingAddress.Location.State
+                            </small>
+                        </p>
+                        <hr>
+                        <div class="row">
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <i class="bi bi-calendar-event"></i> <strong>Data:</strong><br>
+                                    <span>@reservation.ReservationDate.ToString("dd/MM/yyyy")</span>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <i class="bi bi-clock"></i> <strong>Horário:</strong><br>
+                                    @if (reservation.StartTime.HasValue && reservation.EndTime.HasValue)
+                                    {
+                                        <span>@reservation.StartTime.Value.ToString(@"hh\:mm") - @reservation.EndTime.Value.ToString(@"hh\:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Não informado</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <i class="bi bi-door-open"></i> <strong>Tipo de Sala:</strong><br>
+                                    <span>@(reservation.RoomType == "Shared" ? "Compartilhada" : "Privativa")</span>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <i class="bi bi-credit-card"></i> <strong>Créditos:</strong><br>
+                                    <span>@reservation.CreditsUsed crédito(s)</span>
+                                </p>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Valor Total:</strong> R$ @reservation.TotalValue.ToString("F2")
+                            </div>
+                            <small class="text-muted">
+                                Criada em: @reservation.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </small>
+                        </div>
+                        @if (reservation.CancelledAt.HasValue)
+                        {
+                            <div class="mt-2">
+                                <small class="text-danger">
+                                    <i class="bi bi-x-circle"></i> Cancelada em: @reservation.CancelledAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                </small>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

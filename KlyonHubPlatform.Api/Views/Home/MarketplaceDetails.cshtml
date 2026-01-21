@@ -1,0 +1,1114 @@
+@model KlyonHubPlatform.Api.ViewModels.MarketplaceDetailsVm
+@{
+    ViewData["Title"] = "Detalhes do Espaço";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var isClientLogged = ViewBag.IsClientLogged ?? false;
+    var isAvailable = Model.Address.IsAvailable && Model.Address.CurrentContracts < Model.Address.MaxContracts;
+    var returnUrl = Model.ReturnUrl ?? Url.Action("Marketplace", "Home")!;
+    var availableCredits = ViewBag.AvailableCredits ?? 0;
+    
+    // Verificar se o coworking oferece aluguel de sala
+    var offersRoomRental = Model.Coworking.Products?.Any(p => p.ProductType == "RoomRental" && p.IsActive) ?? false;
+}
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center my-4">
+        <a class="btn btn-outline-secondary" href="@returnUrl">
+            <i class="bi bi-arrow-left"></i> Voltar para listagem
+        </a>
+        <div class="text-muted small">
+            @Model.Address.City/@Model.Address.State
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="position-relative rounded" style="height: 380px; overflow:hidden; background:#f2f2f2; cursor: pointer;" 
+                         onclick="openPhotoGallery(0)" data-bs-toggle="modal" data-bs-target="#photoGalleryModal">
+                        @if (Model.MainPhotoId.HasValue)
+                        {
+                            <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = Model.MainPhotoId.Value })"
+                                 alt="Foto do coworking"
+                                 class="w-100 h-100"
+                                 style="object-fit: cover;"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'800\\' height=\\'500\\'%3E%3Crect fill=\\'%23eee\\' width=\\'800\\' height=\\'500\\'/%3E%3Ctext fill=\\'%23999\\' font-family=\\'sans-serif\\' font-size=\\'22\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';" />
+                        }
+                        else
+                        {
+                            <div class="h-100 d-flex align-items-center justify-content-center text-muted">
+                                <div class="text-center">
+                                    <i class="bi bi-image" style="font-size: 3rem;"></i>
+                                    <div class="mt-2">Foto não disponível</div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (isAvailable)
+                        {
+                            <span class="badge bg-success position-absolute top-0 end-0 m-3">Disponível</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary position-absolute top-0 end-0 m-3">Indisponível</span>
+                        }
+                        
+                        @if (Model.PhotoIds.Count > 1)
+                        {
+                            <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3">
+                                <div class="d-flex gap-1">
+                                    @for (int i = 0; i < Math.Min(Model.PhotoIds.Count, 5); i++)
+                                    {
+                                        <div class="rounded-circle @(i == 0 ? "bg-white" : "bg-white bg-opacity-50")" 
+                                             style="width: 8px; height: 8px;"></div>
+                                    }
+                                    @if (Model.PhotoIds.Count > 5)
+                                    {
+                                        <span class="text-white small ms-1">+@(Model.PhotoIds.Count - 5)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (Model.PhotoIds.Count > 1)
+                    {
+                        <div class="d-flex gap-2 mt-3 flex-wrap">
+                            @foreach (var photoId in Model.PhotoIds.Take(6))
+                            {
+                                <a href="@Url.Action("GetPhoto", "Coworking", new { photoId })" target="_blank" class="border rounded" style="width:72px; height: 56px; overflow:hidden; background:#f2f2f2;">
+                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId })" style="width:100%; height:100%; object-fit:cover;" />
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="fw-bold mb-1">Endereço em @Model.Address.City</h3>
+                    
+                    <!-- Avaliações -->
+                    @{
+                        var avgRating = ViewBag.AverageRating ?? 0.0;
+                        var totalRatings = ViewBag.TotalRatings ?? 0;
+                        var fullStars = (int)Math.Floor((double)avgRating);
+                        var hasHalfStar = (double)avgRating - fullStars >= 0.5;
+                    }
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-center">
+                                @for (int i = 1; i <= 5; i++)
+                                {
+                                    if (i <= fullStars)
+                                    {
+                                        <i class="bi bi-star-fill text-warning" style="font-size: 1.2rem;"></i>
+                                    }
+                                    else if (i == fullStars + 1 && hasHalfStar)
+                                    {
+                                        <i class="bi bi-star-half text-warning" style="font-size: 1.2rem;"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-star text-warning" style="font-size: 1.2rem;"></i>
+                                    }
+                                }
+                            </div>
+                            <span class="fw-bold">@avgRating.ToString("F1")</span>
+                            <span class="text-muted">(@totalRatings @(totalRatings == 1 ? "avaliação" : "avaliações"))</span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-muted mb-3">
+                        <i class="bi bi-geo-alt"></i> @Model.Address.Neighborhood • @Model.Address.City/@Model.Address.State
+                    </div>
+
+                    <div class="border rounded p-3 mb-3">
+                        <div class="fw-bold mb-1">Coworking parceiro</div>
+                        <div>@Model.Coworking.Name</div>
+                        @if (!string.IsNullOrWhiteSpace(Model.Coworking.TradeName))
+                        {
+                            <div class="text-muted small">@Model.Coworking.TradeName</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.Coworking.Description))
+                        {
+                            <div class="text-muted small mt-2">@Model.Coworking.Description</div>
+                        }
+                    </div>
+
+                    @if (offersRoomRental)
+                    {
+                        @if (isClientLogged)
+                        {
+                            @if (availableCredits > 0)
+                            {
+                                <button type="button" class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#reservationModal">
+                                    <i class="bi bi-calendar-check"></i> Reservar
+                                </button>
+                                <div class="text-center mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-wallet2"></i> Créditos disponíveis: <strong>@availableCredits</strong>
+                                    </small>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#buyCreditsModal">
+                                    <i class="bi bi-wallet2"></i> Comprar Créditos para Reservar
+                                </button>
+                                <div class="alert alert-warning mt-2 mb-0">
+                                    <small><i class="bi bi-exclamation-triangle"></i> Você precisa de créditos para fazer reservas.</small>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#interestModal">
+                                <i class="bi bi-person"></i> Tenho Interesse
+                            </button>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> Este coworking não oferece aluguel de salas no momento.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Reserva (para clientes logados) -->
+@if (isClientLogged)
+{
+    <div class="modal fade" id="reservationModal" tabindex="-1" aria-labelledby="reservationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-3 position-relative">
+                    <h5 class="modal-title fw-bold w-100 text-center" id="reservationModalLabel">Reservar Sala</h5>
+                    <button type="button" class="btn-close position-absolute end-0 top-0 bg-warning rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; opacity: 1; border: none;" data-bs-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true" style="color: #000; font-size: 1.5rem; font-weight: bold; line-height: 1;">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success mb-3">
+                        <i class="bi bi-wallet2"></i> <strong>Créditos disponíveis:</strong> @availableCredits créditos
+                        <small class="d-block mt-1">1 crédito = R$ 1,00 | O valor será calculado automaticamente</small>
+                    </div>
+                    <form method="post" action="@Url.Action("CreateReservation", "Home")" id="reservationForm" novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="CoworkingAddressId" value="@Model.Address.Id" />
+                        
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-calendar-event"></i> Data da Reserva <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" class="form-control form-control-lg" name="ReservationDate" id="reservationDate" required min="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                                <div class="invalid-feedback">Por favor, selecione a data da reserva.</div>
+                                <small class="text-muted" id="dateAvailabilityInfo"></small>
+                            </div>
+
+                            @{
+                                var offersShared = ViewBag.OffersSharedRoom as bool? ?? false;
+                                var offersPrivate = ViewBag.OffersPrivateRoom as bool? ?? false;
+                            }
+
+                            @if (offersShared || offersPrivate)
+                            {
+                                <div class="col-md-12">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-door-open"></i> Tipo de Sala <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="btn-group w-100" role="group" id="roomTypeGroup">
+                                        @if (offersShared)
+                                        {
+                                            <input type="radio" class="btn-check" name="RoomType" id="roomTypeShared" value="Shared" checked onchange="calculateReservationCost()">
+                                            <label class="btn btn-outline-primary" for="roomTypeShared">
+                                                <i class="bi bi-people"></i> Compartilhada
+                                                @if (ViewBag.SharedRoomPricePerHour != null)
+                                                {
+                                                    <small class="d-block">R$ @(((decimal)ViewBag.SharedRoomPricePerHour).ToString("F2"))/hora</small>
+                                                }
+                                            </label>
+                                        }
+                                        @if (offersPrivate)
+                                        {
+                                            <input type="radio" class="btn-check" name="RoomType" id="roomTypePrivate" value="Private" @(!offersShared ? "checked" : "") onchange="calculateReservationCost()">
+                                            <label class="btn btn-outline-primary" for="roomTypePrivate">
+                                                <i class="bi bi-door-closed"></i> Privativa
+                                                @if (ViewBag.PrivateRoomPricePerHour != null)
+                                                {
+                                                    <small class="d-block">R$ @(((decimal)ViewBag.PrivateRoomPricePerHour).ToString("F2"))/hora</small>
+                                                }
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-clock"></i> Horário Inicial <span class="text-danger">*</span>
+                                </label>
+                                <input type="time" class="form-control" name="StartTime" id="reservationStartTime" required onchange="calculateReservationCost()" />
+                                <small class="text-muted"><i class="bi bi-info-circle"></i> Obrigatório para calcular valor</small>
+                                <div class="invalid-feedback">Por favor, informe o horário inicial.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-clock-history"></i> Horário Final <span class="text-danger">*</span>
+                                </label>
+                                <input type="time" class="form-control" name="EndTime" id="reservationEndTime" required onchange="calculateReservationCost()" />
+                                <small class="text-muted"><i class="bi bi-info-circle"></i> Obrigatório para calcular valor</small>
+                                <div class="invalid-feedback" id="endTimeInvalidFeedback">Por favor, informe o horário final.</div>
+                            </div>
+
+                            <div class="col-md-12">
+                                <div class="alert alert-info" id="reservationCostInfo" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Valor Total:</strong> <span id="totalValue">R$ 0,00</span><br>
+                                            <small>Créditos necessários: <span id="creditsNeeded">0</span> créditos</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <small class="text-muted">Duração: <span id="duration">0 horas</span></small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <div class="alert alert-warning" id="creditsWarning" style="display: none;">
+                                    <i class="bi bi-exclamation-triangle"></i> <span id="creditsWarningText"></span>
+                                </div>
+                                @if (availableCredits < 1)
+                                {
+                                    <div class="alert alert-danger">
+                                        <i class="bi bi-exclamation-triangle"></i> Você não possui créditos suficientes. 
+                                        <a href="@Url.Action("BuyCredits", "Client")" class="alert-link">Compre créditos agora</a>.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-warning" id="reservationSubmitBtn">
+                                <i class="bi bi-calendar-check"></i> Confirmar Reserva
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <script>
+                        // Declarar variáveis globais para disponibilidade no escopo window
+                        window.unavailableDates = window.unavailableDates || [];
+                        window.unavailableTimeSlots = window.unavailableTimeSlots || [];
+                        
+                        // Validação do formulário de reserva
+                        (function() {
+                            var reservationForm = document.getElementById('reservationForm');
+                            if (!reservationForm) return;
+                            
+                            reservationForm.addEventListener('submit', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                // Remover classes de validação anteriores
+                                var allInputs = this.querySelectorAll('input');
+                                allInputs.forEach(function(input) {
+                                    input.classList.remove('is-invalid', 'is-valid');
+                                });
+                                this.classList.remove('was-validated');
+                                
+                                // Validar campos obrigatórios
+                                var dateInput = document.getElementById('reservationDate');
+                                var startTimeInput = document.getElementById('reservationStartTime');
+                                var endTimeInput = document.getElementById('reservationEndTime');
+                                var endTimeInvalidFeedback = document.getElementById('endTimeInvalidFeedback');
+                                
+                                var isValid = true;
+                                var errorMessages = [];
+                                
+                                // Validar data
+                                if (!dateInput || !dateInput.value) {
+                                    if (dateInput) {
+                                        dateInput.classList.add('is-invalid');
+                                    }
+                                    errorMessages.push('Por favor, selecione a data da reserva.');
+                                    isValid = false;
+                                } else {
+                                    // Verificar se a data está disponível
+                                    if (window.unavailableDates && window.unavailableDates.includes(dateInput.value)) {
+                                        if (dateInput) {
+                                            dateInput.classList.add('is-invalid');
+                                        }
+                                        errorMessages.push('A data selecionada não está disponível para reserva.');
+                                        isValid = false;
+                                    } else {
+                                        if (dateInput) {
+                                            dateInput.classList.remove('is-invalid');
+                                            dateInput.classList.add('is-valid');
+                                        }
+                                    }
+                                }
+                                
+                                // Validar horário inicial
+                                if (!startTimeInput || !startTimeInput.value) {
+                                    if (startTimeInput) {
+                                        startTimeInput.classList.add('is-invalid');
+                                    }
+                                    errorMessages.push('Por favor, informe o horário inicial.');
+                                    isValid = false;
+                                } else {
+                                    if (startTimeInput) {
+                                        startTimeInput.classList.remove('is-invalid');
+                                        startTimeInput.classList.add('is-valid');
+                                    }
+                                }
+                                
+                                // Validar horário final
+                                if (!endTimeInput || !endTimeInput.value) {
+                                    if (endTimeInput) {
+                                        endTimeInput.classList.add('is-invalid');
+                                    }
+                                    if (endTimeInvalidFeedback) {
+                                        endTimeInvalidFeedback.textContent = 'Por favor, informe o horário final.';
+                                    }
+                                    errorMessages.push('Por favor, informe o horário final.');
+                                    isValid = false;
+                                } else {
+                                    // Validar se horário final é maior que inicial
+                                    if (startTimeInput && startTimeInput.value && endTimeInput.value) {
+                                        if (endTimeInput.value <= startTimeInput.value) {
+                                            endTimeInput.classList.add('is-invalid');
+                                            if (endTimeInvalidFeedback) {
+                                                endTimeInvalidFeedback.textContent = 'O horário final deve ser maior que o inicial.';
+                                            }
+                                            errorMessages.push('O horário final deve ser maior que o inicial.');
+                                            isValid = false;
+                                        } else {
+                                            // Verificar se o horário está disponível
+                                            var hasTimeConflict = false;
+                                            if (window.unavailableTimeSlots && window.unavailableTimeSlots.length > 0) {
+                                                for (var slot of window.unavailableTimeSlots) {
+                                                    if ((startTimeInput.value >= slot.start && startTimeInput.value < slot.end) ||
+                                                        (endTimeInput.value > slot.start && endTimeInput.value <= slot.end) ||
+                                                        (startTimeInput.value <= slot.start && endTimeInput.value >= slot.end)) {
+                                                        hasTimeConflict = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if (hasTimeConflict) {
+                                                endTimeInput.classList.add('is-invalid');
+                                                if (endTimeInvalidFeedback) {
+                                                    endTimeInvalidFeedback.textContent = 'Este horário não está disponível. Escolha outro horário.';
+                                                }
+                                                errorMessages.push('O horário selecionado não está disponível. Por favor, escolha outro horário.');
+                                                isValid = false;
+                                            } else {
+                                                endTimeInput.classList.remove('is-invalid');
+                                                endTimeInput.classList.add('is-valid');
+                                            }
+                                        }
+                                    } else {
+                                        if (endTimeInput) {
+                                            endTimeInput.classList.remove('is-invalid');
+                                        }
+                                    }
+                                }
+                                
+                                // Validar tipo de sala se houver opções
+                                var roomTypeShared = document.getElementById('roomTypeShared');
+                                var roomTypePrivate = document.getElementById('roomTypePrivate');
+                                if (roomTypeShared || roomTypePrivate) {
+                                    var roomTypeInput = document.querySelector('input[name="RoomType"]:checked');
+                                    if (!roomTypeInput) {
+                                        errorMessages.push('Por favor, selecione o tipo de sala (Compartilhada ou Privativa).');
+                                        isValid = false;
+                                        
+                                        // Destacar os botões de tipo de sala
+                                        var roomTypeGroup = document.getElementById('roomTypeGroup');
+                                        if (roomTypeGroup) {
+                                            roomTypeGroup.style.border = '2px solid #dc3545';
+                                            roomTypeGroup.style.borderRadius = '0.375rem';
+                                        }
+                                    } else {
+                                        var roomTypeGroup = document.getElementById('roomTypeGroup');
+                                        if (roomTypeGroup) {
+                                            roomTypeGroup.style.border = '';
+                                        }
+                                    }
+                                }
+                                
+                                if (!isValid) {
+                                    this.classList.add('was-validated');
+                                    
+                                    // Mostrar mensagem de erro geral
+                                    var existingAlert = this.querySelector('.alert-danger.validation-alert');
+                                    if (existingAlert) {
+                                        existingAlert.remove();
+                                    }
+                                    
+                                    var errorAlert = document.createElement('div');
+                                    errorAlert.className = 'alert alert-danger validation-alert';
+                                    errorAlert.innerHTML = '<i class="bi bi-exclamation-triangle"></i> <strong>Por favor, corrija os seguintes erros:</strong><ul class="mb-0 mt-2">' +
+                                        errorMessages.map(function(msg) { return '<li>' + msg + '</li>'; }).join('') +
+                                        '</ul>';
+                                    
+                                    var firstField = this.querySelector('.row.g-3');
+                                    if (firstField) {
+                                        firstField.insertBefore(errorAlert, firstField.firstChild);
+                                    }
+                                    
+                                    // Focar no primeiro campo inválido
+                                    var firstInvalid = this.querySelector('.is-invalid');
+                                    if (firstInvalid) {
+                                        setTimeout(function() {
+                                            firstInvalid.focus();
+                                            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }, 100);
+                                    }
+                                    
+                                    return false;
+                                }
+                                
+                                // Remover alerta de erro se existir
+                                var existingAlert = this.querySelector('.alert-danger.validation-alert');
+                                if (existingAlert) {
+                                    existingAlert.remove();
+                                }
+                                
+                                // Se tudo estiver válido, enviar formulário
+                                this.submit();
+                            });
+                        })();
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal de Interesse (para não logados) -->
+<div class="modal fade" id="interestModal" tabindex="-1" aria-labelledby="interestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-3 position-relative">
+                <h5 class="modal-title fw-bold w-100 text-center" id="interestModalLabel">Tenho Interesse</h5>
+                <button type="button" class="btn-close position-absolute end-0 top-0 bg-warning rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; opacity: 1; border: none;" data-bs-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true" style="color: #000; font-size: 1.5rem; font-weight: bold; line-height: 1;">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="post" action="@Url.Action("SubmitInterest", "Home")" id="interestForm" novalidate>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="CoworkingAddressId" value="@Model.Address.Id" />
+                    
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-calendar-event"></i> Data de Alocação <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" class="form-control form-control-lg" name="AllocationDate" id="allocationDate" required min="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                            <div class="invalid-feedback">Por favor, selecione uma data válida.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-clock"></i> Horário Inicial
+                            </label>
+                            <input type="time" class="form-control" name="StartTime" id="startTime" />
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Opcional</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-clock-history"></i> Horário Final
+                            </label>
+                            <input type="time" class="form-control" name="EndTime" id="endTime" />
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Opcional</small>
+                            <div class="invalid-feedback">O horário final deve ser maior que o inicial.</div>
+                        </div>
+                        <div class="col-12">
+                            <hr class="my-2" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person"></i> Nome <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" name="Name" required placeholder="Seu nome" />
+                            <div class="invalid-feedback">Por favor, informe seu nome.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge"></i> Sobrenome <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" name="LastName" required placeholder="Seu sobrenome" />
+                            <div class="invalid-feedback">Por favor, informe seu sobrenome.</div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-envelope"></i> E-mail <span class="text-danger">*</span>
+                            </label>
+                            <input type="email" class="form-control" name="Email" required placeholder="seu@email.com" />
+                            <div class="invalid-feedback">Por favor, informe um e-mail válido.</div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-telephone"></i> Número de telefone <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <select class="form-select" style="max-width: 150px;" name="PhoneCountry">
+                                    <option value="+55" selected>Brazil (Brasil)</option>
+                                </select>
+                                <input type="tel" class="form-control" name="Phone" required placeholder="+55" value="+55" />
+                                <div class="invalid-feedback">Por favor, informe um telefone válido.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="bi bi-send"></i> Enviar Interesse
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .form-control:focus {
+            border-color: #ffc107;
+            box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+        }
+        .form-control.is-valid {
+            border-color: #28a745;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2328a745' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right calc(0.375em + 0.1875rem) center;
+            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+        }
+        .form-control.is-invalid {
+            border-color: #dc3545;
+        }
+        #submitBtn {
+            transition: all 0.3s ease;
+        }
+        #submitBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .form-label i {
+            margin-right: 5px;
+        }
+    </style>
+
+<!-- Modal de Galeria de Fotos -->
+<div class="modal fade" id="photoGalleryModal" tabindex="-1" aria-labelledby="photoGalleryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-white" id="photoGalleryModalLabel">Fotos do Coworking</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 position-relative" style="height: calc(100vh - 120px);">
+                <div id="galleryCarousel" class="carousel slide h-100" data-bs-ride="carousel" data-bs-interval="false">
+                    <div class="carousel-inner h-100">
+                        @for (int i = 0; i < Model.PhotoIds.Count; i++)
+                        {
+                            <div class="carousel-item h-100 @(i == 0 ? "active" : "")">
+                                <div class="d-flex align-items-center justify-content-center h-100">
+                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = Model.PhotoIds[i] })"
+                                         class="d-block"
+                                         style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                                         alt="Foto @(i + 1)">
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    @if (Model.PhotoIds.Count > 1)
+                    {
+                        <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Anterior</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#galleryCarousel" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Próximo</span>
+                        </button>
+                    }
+                </div>
+                @if (Model.PhotoIds.Count > 1)
+                {
+                    <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3">
+                        <div class="bg-dark bg-opacity-75 rounded px-3 py-2">
+                            <span class="text-white" id="photoCounter">1 / @Model.PhotoIds.Count</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+    <script>
+        function openPhotoGallery(index) {
+            // A função é chamada quando clica na imagem
+            // O modal já abre automaticamente via data-bs-toggle
+        }
+
+        // Atualizar contador de fotos
+        var galleryCarousel = document.getElementById('galleryCarousel');
+        if (galleryCarousel) {
+            galleryCarousel.addEventListener('slid.bs.carousel', function (e) {
+                var activeIndex = Array.from(e.target.querySelectorAll('.carousel-item')).indexOf(e.relatedTarget);
+                var total = @Model.PhotoIds.Count;
+                document.getElementById('photoCounter').textContent = (activeIndex + 1) + ' / ' + total;
+            });
+        }
+
+        // Validação de horários no modal de reserva
+        var reservationStartTime = document.getElementById('reservationStartTime');
+        var reservationEndTime = document.getElementById('reservationEndTime');
+        var creditsWarning = document.getElementById('creditsWarning');
+        var creditsWarningText = document.getElementById('creditsWarningText');
+        var availableCredits = @availableCredits;
+        var sharedPricePerHour = @(ViewBag.SharedRoomPricePerHour?.ToString("F2") ?? "0");
+        var privatePricePerHour = @(ViewBag.PrivateRoomPricePerHour?.ToString("F2") ?? "0");
+
+        // Garantir que as variáveis globais estejam inicializadas
+        window.unavailableDates = window.unavailableDates || [];
+        window.unavailableTimeSlots = window.unavailableTimeSlots || [];
+        var currentRoomType = 'Shared';
+        var addressId = @Model.Address.Id;
+
+        // Carregar disponibilidade quando o tipo de sala mudar ou data for selecionada
+        async function loadAvailability(roomType, selectedDate) {
+            currentRoomType = roomType;
+            
+            try {
+                var url = '@Url.Action("GetAvailability", "Home")?addressId=' + addressId + '&roomType=' + roomType;
+                if (selectedDate) {
+                    url += '&date=' + selectedDate;
+                }
+
+                var response = await fetch(url);
+                var data = await response.json();
+
+                if (data.error) {
+                    console.error('Erro ao carregar disponibilidade:', data.error);
+                    return;
+                }
+
+                if (selectedDate) {
+                    // Carregar horários ocupados para a data específica
+                    window.unavailableTimeSlots = data.occupiedSlots || [];
+                    updateTimeInputsAvailability();
+                } else {
+                    // Carregar dias indisponíveis
+                    window.unavailableDates = data.unavailableDates || [];
+                    updateDateInputAvailability();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar disponibilidade:', error);
+            }
+        }
+
+        function updateDateInputAvailability() {
+            var dateInput = document.getElementById('reservationDate');
+            if (!dateInput) return;
+
+            // Limpar validação customizada anterior
+            dateInput.setCustomValidity('');
+
+            dateInput.addEventListener('change', function() {
+                var selectedDate = this.value;
+                if (selectedDate && window.unavailableDates && window.unavailableDates.includes(selectedDate)) {
+                    this.setCustomValidity('Esta data não está disponível para reserva.');
+                    this.classList.add('is-invalid');
+                    var infoEl = document.getElementById('dateAvailabilityInfo');
+                    if (infoEl) {
+                        infoEl.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Data indisponível</span>';
+                    }
+                } else {
+                    this.setCustomValidity('');
+                    this.classList.remove('is-invalid');
+                    var infoEl = document.getElementById('dateAvailabilityInfo');
+                    if (infoEl) {
+                        infoEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Data disponível</span>';
+                    }
+                    // Carregar horários disponíveis para esta data
+                    if (selectedDate) {
+                        loadAvailability(currentRoomType, selectedDate);
+                    }
+                }
+            });
+        }
+
+        function updateTimeInputsAvailability() {
+            // Esta função pode ser expandida para desabilitar horários específicos
+            // Por enquanto, apenas valida se o horário está disponível ao tentar reservar
+        }
+
+        function calculateReservationCost() {
+            var startTime = reservationStartTime?.value;
+            var endTime = reservationEndTime?.value;
+            var roomType = document.querySelector('input[name="RoomType"]:checked')?.value || 'Shared';
+            var costInfo = document.getElementById('reservationCostInfo');
+            var totalValueSpan = document.getElementById('totalValue');
+            var creditsNeededSpan = document.getElementById('creditsNeeded');
+            var durationSpan = document.getElementById('duration');
+            var endTimeInvalidFeedback = document.getElementById('endTimeInvalidFeedback');
+
+            if (!startTime || !endTime || !costInfo) {
+                if (costInfo) costInfo.style.display = 'none';
+                return;
+            }
+
+            // Validar horários
+            if (endTime <= startTime) {
+                if (reservationEndTime) {
+                    reservationEndTime.setCustomValidity('O horário final deve ser maior que o inicial.');
+                    reservationEndTime.classList.add('is-invalid');
+                    if (endTimeInvalidFeedback) {
+                        endTimeInvalidFeedback.textContent = 'O horário final deve ser maior que o inicial.';
+                    }
+                }
+                if (costInfo) costInfo.style.display = 'none';
+                return;
+            } else {
+                if (reservationEndTime) {
+                    reservationEndTime.setCustomValidity('');
+                    reservationEndTime.classList.remove('is-invalid');
+                }
+            }
+
+            // Verificar se o horário está disponível
+            var selectedDate = document.getElementById('reservationDate')?.value;
+            if (selectedDate && window.unavailableTimeSlots && window.unavailableTimeSlots.length > 0) {
+                var hasConflict = false;
+                for (var slot of window.unavailableTimeSlots) {
+                    // Verificar sobreposição de horários
+                    if ((startTime >= slot.start && startTime < slot.end) ||
+                        (endTime > slot.start && endTime <= slot.end) ||
+                        (startTime <= slot.start && endTime >= slot.end)) {
+                        hasConflict = true;
+                        break;
+                    }
+                }
+                
+                if (hasConflict) {
+                    if (reservationStartTime) {
+                        reservationStartTime.setCustomValidity('Este horário não está disponível.');
+                        reservationStartTime.classList.add('is-invalid');
+                    }
+                    if (reservationEndTime) {
+                        reservationEndTime.setCustomValidity('Este horário não está disponível.');
+                        reservationEndTime.classList.add('is-invalid');
+                    }
+                    if (costInfo) costInfo.style.display = 'none';
+                    return;
+                }
+            }
+
+            // Calcular duração em horas
+            var start = new Date('2000-01-01T' + startTime + ':00');
+            var end = new Date('2000-01-01T' + endTime + ':00');
+            if (end <= start) {
+                end.setDate(end.getDate() + 1); // Se passar da meia-noite
+            }
+            var diffMs = end - start;
+            var diffHours = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60))); // Mínimo 1 hora, arredondar para cima
+
+            // Obter preço por hora baseado no tipo
+            var pricePerHour = roomType === 'Shared' ? sharedPricePerHour : privatePricePerHour;
+
+            if (pricePerHour <= 0) {
+                costInfo.style.display = 'none';
+                return;
+            }
+
+            // Calcular valor total (1 crédito = R$ 1,00)
+            var totalValue = pricePerHour * diffHours;
+            var creditsNeeded = Math.ceil(totalValue);
+
+            // Atualizar exibição
+            totalValueSpan.textContent = 'R$ ' + totalValue.toFixed(2).replace('.', ',');
+            creditsNeededSpan.textContent = creditsNeeded;
+            durationSpan.textContent = diffHours + (diffHours === 1 ? ' hora' : ' horas');
+            costInfo.style.display = 'block';
+
+            // Verificar créditos disponíveis
+            if (creditsWarning) {
+                if (availableCredits < creditsNeeded) {
+                    creditsWarning.style.display = 'block';
+                    creditsWarningText.textContent = 'Você não possui créditos suficientes. Necessário: ' + creditsNeeded + ' créditos, Disponível: ' + availableCredits + ' créditos.';
+                } else {
+                    creditsWarning.style.display = 'none';
+                }
+            }
+        }
+
+        if (reservationStartTime && reservationEndTime) {
+            reservationStartTime.addEventListener('change', calculateReservationCost);
+            reservationEndTime.addEventListener('change', calculateReservationCost);
+            
+            // Calcular ao carregar se já houver valores
+            setTimeout(calculateReservationCost, 100);
+        }
+
+        // Carregar disponibilidade inicial
+        var initialRoomType = document.querySelector('input[name="RoomType"]:checked')?.value || 'Shared';
+        loadAvailability(initialRoomType);
+
+        // Atualizar disponibilidade quando o tipo de sala mudar
+        var roomTypeInputs = document.querySelectorAll('input[name="RoomType"]');
+        roomTypeInputs.forEach(function(input) {
+            input.addEventListener('change', function() {
+                var selectedDate = document.getElementById('reservationDate')?.value;
+                loadAvailability(this.value, selectedDate);
+                calculateReservationCost();
+            });
+        });
+
+        // Atualizar disponibilidade quando a data mudar
+        var dateInput = document.getElementById('reservationDate');
+        if (dateInput) {
+            dateInput.addEventListener('change', function() {
+                var roomType = document.querySelector('input[name="RoomType"]:checked')?.value || 'Shared';
+                if (this.value) {
+                    loadAvailability(roomType, this.value);
+                }
+            });
+        }
+
+        // Abrir modal de compra de créditos se necessário
+        @if (TempData["ShowBuyCredits"] != null && (bool)TempData["ShowBuyCredits"])
+        {
+            <text>
+            document.addEventListener('DOMContentLoaded', function() {
+                var buyCreditsModalElement = document.getElementById('buyCreditsModal');
+                if (buyCreditsModalElement) {
+                    var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
+                    buyCreditsModal.show();
+                }
+            });
+            </text>
+        }
+
+        // Se cliente tentar reservar sem créditos, abrir modal de compra
+        @if (isClientLogged && availableCredits == 0)
+        {
+            <text>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Se houver algum botão tentando abrir o modal de reserva, interceptar
+                var reservationBtn = document.querySelector('[data-bs-target="#reservationModal"]');
+                if (reservationBtn) {
+                    reservationBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        var buyCreditsModalElement = document.getElementById('buyCreditsModal');
+                        if (buyCreditsModalElement) {
+                            var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
+                            buyCreditsModal.show();
+                        }
+                    });
+                }
+            });
+            </text>
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            // Máscara para telefone com formatação dinâmica
+            const phoneInput = document.querySelector('input[name="Phone"]');
+            if (phoneInput) {
+                phoneInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.startsWith('55')) {
+                        value = '+' + value;
+                    } else if (!value.startsWith('+55')) {
+                        value = '+55' + value;
+                    }
+                    e.target.value = value;
+                    
+                    // Feedback visual
+                    if (value.length >= 13) {
+                        this.classList.add('is-valid');
+                        this.classList.remove('is-invalid');
+                    }
+                });
+            }
+
+            // Validação dinâmica de horários
+            const startTimeInput = document.getElementById('startTime');
+            const endTimeInput = document.getElementById('endTime');
+            const allocationDateInput = document.getElementById('allocationDate');
+
+            function validateTimes() {
+                if (startTimeInput && endTimeInput && startTimeInput.value && endTimeInput.value) {
+                    const startTime = startTimeInput.value;
+                    const endTime = endTimeInput.value;
+                    
+                    if (startTime >= endTime) {
+                        endTimeInput.setCustomValidity('O horário final deve ser maior que o horário inicial');
+                        endTimeInput.classList.add('is-invalid');
+                        endTimeInput.classList.remove('is-valid');
+                        return false;
+                    } else {
+                        endTimeInput.setCustomValidity('');
+                        endTimeInput.classList.remove('is-invalid');
+                        endTimeInput.classList.add('is-valid');
+                        return true;
+                    }
+                } else {
+                    if (endTimeInput) {
+                        endTimeInput.setCustomValidity('');
+                        endTimeInput.classList.remove('is-invalid');
+                    }
+                    return true;
+                }
+            }
+
+            // Auto-completar horário final quando inicial for preenchido
+            if (startTimeInput && endTimeInput) {
+                startTimeInput.addEventListener('change', function() {
+                    validateTimes();
+                    // Sugerir horário final (1 hora depois)
+                    if (this.value && !endTimeInput.value) {
+                        const [hours, minutes] = this.value.split(':');
+                        const suggestedEnd = new Date();
+                        suggestedEnd.setHours(parseInt(hours) + 1, parseInt(minutes), 0);
+                        const suggestedTime = suggestedEnd.toTimeString().slice(0, 5);
+                        endTimeInput.placeholder = `Sugestão: ${suggestedTime}`;
+                    }
+                });
+                
+                endTimeInput.addEventListener('change', validateTimes);
+                endTimeInput.addEventListener('input', function() {
+                    if (this.value) {
+                        validateTimes();
+                    }
+                });
+            }
+
+            // Definir data mínima como hoje
+            if (allocationDateInput) {
+                const today = new Date().toISOString().split('T')[0];
+                allocationDateInput.min = today;
+                allocationDateInput.addEventListener('change', function() {
+                    if (this.value) {
+                        this.classList.add('is-valid');
+                        this.classList.remove('is-invalid');
+                    }
+                });
+            }
+
+            // Feedback visual em tempo real para todos os campos
+            const formInputs = document.querySelectorAll('#interestForm input');
+            formInputs.forEach(input => {
+                // Validação ao sair do campo
+                input.addEventListener('blur', function() {
+                    if (this.hasAttribute('required')) {
+                        if (this.value.trim() !== '' && this.checkValidity()) {
+                            this.classList.add('is-valid');
+                            this.classList.remove('is-invalid');
+                        } else if (this.value.trim() === '') {
+                            this.classList.remove('is-valid');
+                            this.classList.add('is-invalid');
+                        }
+                    } else if (this.value.trim() !== '') {
+                        // Campos opcionais também recebem feedback quando preenchidos
+                        this.classList.add('is-valid');
+                        this.classList.remove('is-invalid');
+                    }
+                });
+
+                // Remover erro ao começar a digitar
+                input.addEventListener('input', function() {
+                    if (this.value.trim() !== '') {
+                        this.classList.remove('is-invalid');
+                        if (this.checkValidity()) {
+                            this.classList.add('is-valid');
+                        }
+                    } else {
+                        this.classList.remove('is-valid');
+                    }
+                });
+            });
+
+            // Validação completa do formulário antes de enviar
+            const interestForm = document.getElementById('interestForm');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            if (interestForm) {
+                interestForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Validar horários
+                    if (!validateTimes()) {
+                        endTimeInput.focus();
+                        this.classList.add('was-validated');
+                        return false;
+                    }
+
+                    // Validar todos os campos obrigatórios
+                    if (!this.checkValidity()) {
+                        this.classList.add('was-validated');
+                        // Focar no primeiro campo inválido
+                        const firstInvalid = this.querySelector(':invalid');
+                        if (firstInvalid) {
+                            firstInvalid.focus();
+                            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        return false;
+                    }
+
+                    // Desabilitar botão e mostrar loading
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+                    }
+
+                    // Enviar formulário
+                    this.submit();
+                });
+            }
+
+            // Animações suaves ao abrir o modal
+            const interestModal = document.getElementById('interestModal');
+            if (interestModal) {
+                interestModal.addEventListener('shown.bs.modal', function() {
+                    // Focar no primeiro campo
+                    const firstInput = interestForm?.querySelector('input[required]');
+                    if (firstInput) {
+                        setTimeout(() => firstInput.focus(), 300);
+                    }
+                });
+            }
+
+            // Abrir modal de compra de créditos se necessário
+            @if (TempData["ShowBuyCredits"] != null && (bool)TempData["ShowBuyCredits"])
+            {
+                <text>
+                setTimeout(function() {
+                    var buyCreditsModalElement = document.getElementById('buyCreditsModal');
+                    if (buyCreditsModalElement) {
+                        var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
+                        buyCreditsModal.show();
+                    }
+                }, 500);
+                </text>
+            }
+        });
+    </script>
+}
+

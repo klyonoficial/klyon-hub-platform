@@ -20,37 +20,51 @@
 else
 {
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card text-white bg-primary">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
+                    <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal</h5>
                     <h2 class="display-4">@ViewBag.ActiveContracts</h2>
+                    <a href="@Url.Action("ActiveContracts", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                        <i class="bi bi-arrow-right"></i> Ver Todos
+                    </a>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
+            <div class="card text-white" style="background-color: #6f42c1;">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-calendar-check"></i> Reservas</h5>
+                    <h2 class="display-4">@(ViewBag.PendingReservationsCount ?? 0)</h2>
+                    <a href="@Url.Action("Reservations", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                        <i class="bi bi-arrow-right"></i> Ver Todas
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
             <div class="card text-white bg-warning">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagamentos Pendentes</h5>
+                    <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagamentos</h5>
                     <h2 class="display-4">@(ViewBag.PendingPaymentsCount ?? 0)</h2>
                     @if ((ViewBag.PendingPaymentsCount ?? 0) > 0)
                     {
-                        <a href="@Url.Action("PendingPayments", "Coworking")" class="btn btn-light btn-sm mt-2">
-                            <i class="bi bi-arrow-right"></i> Validar Agora
+                        <a href="@Url.Action("PendingPayments", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                            <i class="bi bi-arrow-right"></i> Validar
                         </a>
                     }
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card text-white bg-success">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-cash-coin"></i> Comissões Pendentes</h5>
+                    <h5 class="card-title"><i class="bi bi-cash-coin"></i> Comissões</h5>
                     <h2 class="display-4">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>

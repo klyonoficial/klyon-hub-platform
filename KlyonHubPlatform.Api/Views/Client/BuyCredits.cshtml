@@ -1,0 +1,107 @@
+@model List<KlyonHubPlatform.Domain.Entities.CreditPlan>
+@{
+    ViewData["Title"] = "Comprar Créditos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-wallet2"></i> Comprar Créditos</h2>
+    <div class="text-end">
+        <div class="text-muted small">Créditos disponíveis</div>
+        <h4 class="mb-0 text-primary"><i class="bi bi-wallet2"></i> @(ViewBag.AvailableCredits ?? 0)</h4>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="alert alert-info">
+    <h5><i class="bi bi-info-circle"></i> Como funcionam os créditos?</h5>
+    <ul class="mb-0">
+        <li>Os créditos são utilizados para fazer reservas de salas de coworking</li>
+        <li>Cada reserva consome 1 crédito</li>
+        <li>Créditos não são sacáveis nem transferíveis</li>
+        <li>Créditos têm validade conforme o plano escolhido</li>
+    </ul>
+</div>
+
+<div class="row g-4 mt-2">
+    @foreach (var plan in Model)
+    {
+        var totalCredits = plan.Credits + plan.BonusCredits;
+        var costPerCredit = plan.Price / totalCredits;
+        var profit = plan.Price * 0.20m; // 20% de lucro
+        
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-@(plan.Name == "Business" ? "warning" : plan.Name == "Profissional" ? "info" : "primary")">
+                <div class="card-header bg-@(plan.Name == "Business" ? "warning" : plan.Name == "Profissional" ? "info" : "primary") text-white text-center">
+                    <h4 class="mb-0">@plan.Name</h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <h2 class="text-primary mb-0">R$ @plan.Price.ToString("N2")</h2>
+                        <small class="text-muted">@plan.Period</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Créditos:</span>
+                            <strong>@plan.Credits</strong>
+                        </div>
+                        @if (plan.BonusCredits > 0)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-2 text-success">
+                                <span>Bônus:</span>
+                                <strong>+@plan.BonusCredits</strong>
+                            </div>
+                        }
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Total:</strong></span>
+                            <strong class="text-success">@totalCredits créditos</strong>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar"></i> Validade: @plan.ValidityMonths @(plan.ValidityMonths == 1 ? "mês" : "meses")
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            Custo por crédito: R$ @costPerCredit.ToString("F2")
+                        </small>
+                    </div>
+
+                    <form method="get" action="@Url.Action("CheckoutCredits", "Client")" style="display: inline;">
+                        <input type="hidden" name="creditPlanId" value="@plan.Id" />
+                        <button type="submit" class="btn btn-@(plan.Name == "Business" ? "warning" : plan.Name == "Profissional" ? "info" : "primary") w-100">
+                            <i class="bi bi-cart-plus"></i> Comprar Agora
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Nenhum plano de créditos disponível no momento.
+    </div>
+}

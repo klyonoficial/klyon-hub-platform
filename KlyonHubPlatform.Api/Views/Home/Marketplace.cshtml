@@ -1,0 +1,223 @@
+@model KlyonHubPlatform.Api.ViewModels.MarketplaceListVm
+@{
+    ViewData["Title"] = "Encontrar Coworking";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container">
+    <div class="text-center my-4">
+        <h1 class="fw-bold mb-2">Encontre o seu escritório aqui</h1>
+        <p class="text-muted mb-0">Descubra salas privativas incríveis para trabalhar com privacidade e foco.</p>
+    </div>
+
+    <form method="get" class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" name="State" id="stateSelect" onchange="this.form.submit()">
+                        <option value="">Todos os estados</option>
+                        @foreach (var uf in Model.AvailableStates)
+                        {
+                            <option value="@uf" selected="@(Model.Search.State == uf)">@uf</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Cidade</label>
+                    <select class="form-select" name="City" id="citySelect">
+                        <option value="">@(string.IsNullOrEmpty(Model.Search.State) ? "Selecione um estado..." : "Todas as cidades")</option>
+                        @foreach (var city in Model.AvailableCities)
+                        {
+                            <option value="@city" selected="@(Model.Search.City == city)">@city</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Bairro</label>
+                    <select class="form-select" name="Neighborhood" id="neighborhoodSelect">
+                        <option value="">@(string.IsNullOrEmpty(Model.Search.City) ? "Selecione uma cidad..." : "Todos os bairros")</option>
+                        @if (!string.IsNullOrEmpty(Model.Search.Neighborhood))
+                        {
+                            <option value="@Model.Search.Neighborhood" selected>@Model.Search.Neighborhood</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Mínimo de pessoas</label>
+                    <input type="number" class="form-control" name="MinPeople" value="@Model.Search.MinPeople" placeholder="Ex: 2" min="1" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Máximo de pessoas</label>
+                    <input type="number" class="form-control" name="MaxPeople" value="@Model.Search.MaxPeople" placeholder="Ex: 10" min="1" />
+                </div>
+
+                <div class="col-md-2 d-grid">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <small class="text-muted">
+                    Mostrando @Model.Items.Count de @Model.TotalItems espaços
+                </small>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted small">Página @Model.Search.Page de @Model.TotalPages</span>
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Marketplace", "Home")">
+                        <i class="bi bi-x-circle"></i> Limpar filtros
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    @if (Model.Items.Any())
+    {
+        <div class="row g-4">
+            @foreach (var item in Model.Items)
+            {
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="position-relative" style="height: 220px; overflow: hidden; background-color: #f2f2f2;">
+                            @if (item.MainPhotoId.HasValue)
+                            {
+                                <a href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = item.MainPhotoId.Value })"
+                                         alt="Foto do coworking"
+                                         class="w-100 h-100"
+                                         style="object-fit: cover; cursor: pointer;"
+                                         onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'600\\' height=\\'400\\'%3E%3Crect fill=\\'%23eee\\' width=\\'600\\' height=\\'400\\'/%3E%3Ctext fill=\\'%23999\\' font-family=\\'sans-serif\\' font-size=\\'20\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';" />
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="h-100 d-flex align-items-center justify-content-center text-muted">
+                                    <div class="text-center">
+                                        <i class="bi bi-image" style="font-size: 2.5rem;"></i>
+                                        <div class="mt-2">Foto não disponível</div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (item.IsAvailable)
+                            {
+                                <span class="badge bg-success position-absolute top-0 end-0 m-2">Disponível</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary position-absolute top-0 end-0 m-2">Indisponível</span>
+                            }
+                        </div>
+
+                        <div class="card-body">
+                            <h5 class="card-title mb-1">@item.Title</h5>
+                            <div class="text-muted small mb-2">
+                                <i class="bi bi-geo-alt"></i> @item.Subtitle
+                            </div>
+                            <div class="text-muted small mb-2">
+                                <i class="bi bi-people"></i> Até @item.MaxPeople pessoa@(item.MaxPeople > 1 ? "s" : "")
+                            </div>
+
+                            <div class="d-flex justify-content-end align-items-center mt-3">
+                                @if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
+                                {
+                                    <a class="btn btn-warning w-100"
+                                       href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                        <i class="bi bi-calendar-check"></i> Reservar
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-warning w-100"
+                                       href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                        <i class="bi bi-person"></i> Tenho Interesse
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="mt-4 d-flex justify-content-center">
+                <ul class="pagination">
+                    @{
+                        var prevDisabled = Model.Search.Page <= 1;
+                        var nextDisabled = Model.Search.Page >= Model.TotalPages;
+                        string PageUrl(int p) => Url.Action("Marketplace", "Home", new
+                        {
+                            State = Model.Search.State,
+                            City = Model.Search.City,
+                            Neighborhood = Model.Search.Neighborhood,
+                            MinPeople = Model.Search.MinPeople,
+                            MaxPeople = Model.Search.MaxPeople,
+                            Page = p,
+                            PageSize = Model.Search.PageSize
+                        })!;
+                    }
+                    <li class="page-item @(prevDisabled ? "disabled" : "")">
+                        <a class="page-link" href="@PageUrl(Math.Max(1, Model.Search.Page - 1))">Anterior</a>
+                    </li>
+
+                    @for (int p = 1; p <= Model.TotalPages; p++)
+                    {
+                        if (p == 1 || p == Model.TotalPages || Math.Abs(p - Model.Search.Page) <= 2)
+                        {
+                            <li class="page-item @(p == Model.Search.Page ? "active" : "")">
+                                <a class="page-link" href="@PageUrl(p)">@p</a>
+                            </li>
+                        }
+                        else if (p == 2 && Model.Search.Page > 4)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        else if (p == Model.TotalPages - 1 && Model.Search.Page < Model.TotalPages - 3)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+
+                    <li class="page-item @(nextDisabled ? "disabled" : "")">
+                        <a class="page-link" href="@PageUrl(Math.Min(Model.TotalPages, Model.Search.Page + 1))">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Nenhum espaço encontrado com esses filtros.
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // Atualizar cidades quando estado mudar
+        document.addEventListener('DOMContentLoaded', function() {
+            const stateSelect = document.getElementById('stateSelect');
+            const citySelect = document.getElementById('citySelect');
+            
+            if (stateSelect && citySelect) {
+                stateSelect.addEventListener('change', function() {
+                    // O formulário já faz submit automático, então não precisa de ação adicional
+                    // Mas podemos limpar a cidade selecionada se necessário
+                    if (this.value === '') {
+                        citySelect.innerHTML = '<option value="">Todas as cidades</option>';
+                    }
+                });
+            }
+        });
+    </script>
+}
+

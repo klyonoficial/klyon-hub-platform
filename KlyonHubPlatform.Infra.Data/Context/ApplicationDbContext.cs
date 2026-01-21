@@ -32,6 +32,13 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<SystemConfiguration> SystemConfigurations { get; set; }
         public DbSet<CreditCard> CreditCards { get; set; }
         public DbSet<AddressDeclaration> AddressDeclarations { get; set; }
+        public DbSet<Interest> Interests { get; set; }
+        public DbSet<CoworkingProduct> CoworkingProducts { get; set; }
+        public DbSet<CoworkingRating> CoworkingRatings { get; set; }
+        public DbSet<ClientCredit> ClientCredits { get; set; }
+        public DbSet<CreditPlan> CreditPlans { get; set; }
+        public DbSet<CreditPurchase> CreditPurchases { get; set; }
+        public DbSet<Reservation> Reservations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -248,6 +255,126 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.DeclarationNumber).IsUnique();
                 entity.HasIndex(e => new { e.ContractId, e.Version });
                 entity.Property(e => e.DeclarationNumber).IsRequired().HasMaxLength(50);
+            });
+
+            // Interest configuration
+            modelBuilder.Entity<Interest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingAddressId);
+                entity.HasOne(e => e.ContactedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ContactedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.LastName).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Phone).HasMaxLength(50);
+                entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("Pending");
+                entity.Property(e => e.StartTime).HasColumnType("TIME");
+                entity.Property(e => e.EndTime).HasColumnType("TIME");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CoworkingProduct configuration
+            modelBuilder.Entity<CoworkingProduct>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany(c => c.Products)
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.ProductType).IsRequired().HasMaxLength(50);
+                entity.HasIndex(e => new { e.CoworkingId, e.ProductType }).IsUnique();
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CoworkingRating configuration
+            modelBuilder.Entity<CoworkingRating>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Client)
+                    .WithMany()
+                    .HasForeignKey(e => e.ClientId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Rating).IsRequired();
+                entity.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5");
+                entity.Property(e => e.Comment).HasMaxLength(1000);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // ClientCredit configuration
+            modelBuilder.Entity<ClientCredit>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client)
+                    .WithMany()
+                    .HasForeignKey(e => e.ClientId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.Credits).IsRequired();
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CreditPlan configuration
+            modelBuilder.Entity<CreditPlan>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Price).IsRequired().HasColumnType("DECIMAL(10,2)");
+                entity.Property(e => e.Credits).IsRequired();
+                entity.Property(e => e.Period).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CreditPurchase configuration
+            modelBuilder.Entity<CreditPurchase>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client)
+                    .WithMany()
+                    .HasForeignKey(e => e.ClientId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.CreditPlan)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreditPlanId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.AmountPaid).IsRequired().HasColumnType("DECIMAL(10,2)");
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Pending");
+                entity.Property(e => e.PaymentMethod).HasConversion<string>();
+                entity.Property(e => e.ExternalPaymentId).HasMaxLength(255);
+                entity.Property(e => e.PixCode).HasMaxLength(500);
+                entity.Property(e => e.BoletoCode).HasMaxLength(100);
+                entity.Property(e => e.BoletoBarcode).HasMaxLength(100);
+                entity.Property(e => e.TransactionId).HasMaxLength(255);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // Reservation configuration
+            modelBuilder.Entity<Reservation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client)
+                    .WithMany()
+                    .HasForeignKey(e => e.ClientId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingAddressId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.ReservationDate).IsRequired();
+                entity.Property(e => e.StartTime).HasColumnType("TIME");
+                entity.Property(e => e.EndTime).HasColumnType("TIME");
+                entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20).HasDefaultValue("Shared");
+                entity.Property(e => e.TotalValue).HasColumnType("DECIMAL(10,2)").IsRequired();
+                entity.Property(e => e.CreditsUsed).IsRequired();
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Confirmed");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
         }
     }

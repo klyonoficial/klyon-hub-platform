@@ -1,0 +1,212 @@
+@{
+    ViewData["Title"] = "Checkout - Comprar Créditos";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    
+    var plan = ViewBag.Plan as KlyonHubPlatform.Domain.Entities.CreditPlan;
+    var client = ViewBag.Client as KlyonHubPlatform.Domain.Entities.Client;
+    var totalCredits = ViewBag.TotalCredits as int? ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cart-check"></i> Checkout - Comprar Créditos</h2>
+    <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Resumo do Pedido</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Plano:</strong> @plan.Name
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <strong>Valor:</strong> <span class="text-primary fs-5">R$ @plan.Price.ToString("N2")</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="row mb-2">
+                    <div class="col-md-6">
+                        <span>Créditos:</span>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <strong>@plan.Credits</strong>
+                    </div>
+                </div>
+                @if (plan.BonusCredits > 0)
+                {
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <span class="text-success">Bônus:</span>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <strong class="text-success">+@plan.BonusCredits</strong>
+                        </div>
+                    </div>
+                }
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Total de Créditos:</strong>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <strong class="text-success fs-5">@totalCredits créditos</strong>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <small class="text-muted">Validade:</small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">@plan.ValidityMonths @(plan.ValidityMonths == 1 ? "mês" : "meses")</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Dados para Cobrança</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Nome/Razão Social:</dt>
+                    <dd class="col-sm-8">@(client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName)</dd>
+
+                    <dt class="col-sm-4">CPF/CNPJ:</dt>
+                    <dd class="col-sm-8">@(client.CNPJ ?? client.CPF ?? "Não informado")</dd>
+
+                    <dt class="col-sm-4">Email:</dt>
+                    <dd class="col-sm-8">@(client.ContactEmail ?? client.User.Email)</dd>
+
+                    <dt class="col-sm-4">Telefone:</dt>
+                    <dd class="col-sm-8">@(client.ContactPhone ?? client.User.Phone ?? "Não informado")</dd>
+
+                    @if (!string.IsNullOrEmpty(client.Address))
+                    {
+                        <dt class="col-sm-4">Endereço:</dt>
+                        <dd class="col-sm-8">
+                            @client.Address
+                            <br>
+                            @if (!string.IsNullOrEmpty(client.City))
+                            {
+                                <text>@client.City</text>
+                            }
+                            @if (!string.IsNullOrEmpty(client.State))
+                            {
+                                <text> - @client.State</text>
+                            }
+                            @if (!string.IsNullOrEmpty(client.ZipCode))
+                            {
+                                <br><text>CEP: @client.ZipCode</text>
+                            }
+                        </dd>
+                    }
+                </dl>
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="bi bi-info-circle"></i> 
+                    <small>Os dados acima serão utilizados para emissão da nota fiscal. Para alterar, atualize seu perfil.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-credit-card"></i> Método de Pagamento</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="@Url.Action("PurchaseCredits", "Client")" id="paymentForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="creditPlanId" value="@plan.Id" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Selecione o método de pagamento:</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="paymentMethod" id="paymentPix" value="PIX" checked>
+                            <label class="form-check-label" for="paymentPix">
+                                <i class="bi bi-qr-code"></i> <strong>PIX</strong>
+                                <small class="d-block text-muted">Aprovação imediata</small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="paymentMethod" id="paymentBoleto" value="Boleto">
+                            <label class="form-check-label" for="paymentBoleto">
+                                <i class="bi bi-bank"></i> <strong>Boleto Bancário</strong>
+                                <small class="d-block text-muted">Vencimento em 3 dias úteis</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentMethod" id="paymentCreditCard" value="CreditCard">
+                            <label class="form-check-label" for="paymentCreditCard">
+                                <i class="bi bi-credit-card"></i> <strong>Cartão de Crédito</strong>
+                                <small class="d-block text-muted">Aprovação em até 2 dias úteis</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Atenção:</strong> Após a confirmação do pagamento, os créditos serão creditados automaticamente em sua conta.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg" onclick="return confirm('Confirma o pagamento de R$ @plan.Price.ToString("N2") pelo plano @plan.Name?');">
+                            <i class="bi bi-check-circle"></i> Confirmar Pagamento
+                        </button>
+                        <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card sticky-top" style="top: 20px;">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-receipt"></i> Resumo</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Plano:</span>
+                    <strong>@plan.Name</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Créditos:</span>
+                    <strong>@plan.Credits</strong>
+                </div>
+                @if (plan.BonusCredits > 0)
+                {
+                    <div class="d-flex justify-content-between mb-2 text-success">
+                        <span>Bônus:</span>
+                        <strong>+@plan.BonusCredits</strong>
+                    </div>
+                }
+                <hr>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total de Créditos:</span>
+                    <strong class="text-success">@totalCredits</strong>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <span class="fs-5"><strong>Total a Pagar:</strong></span>
+                    <span class="fs-4 text-primary fw-bold">R$ @plan.Price.ToString("N2")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

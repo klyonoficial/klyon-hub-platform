@@ -61,7 +61,16 @@
                                            value="@role.Id"
                                            @(isChecked ? "checked" : "")>
                                     <label class="form-check-label" for="role_@role.Id">
-                                        @role.Name
+                                        @{
+                                            var roleName = role.Name switch
+                                            {
+                                                "Administrator" => "Administrador",
+                                                "CoworkingPartner" => "Parceiro Coworking",
+                                                "Client" => "Cliente",
+                                                _ => role.Name
+                                            };
+                                        }
+                                        @roleName
                                         <small class="text-muted">(@role.Description)</small>
                                     </label>
                                 </div>

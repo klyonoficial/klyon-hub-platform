@@ -82,7 +82,14 @@
                     <div class="d-flex flex-wrap gap-2">
                         @foreach (var userRole in Model.UserRoles)
                         {
-                            <span class="badge bg-primary">@userRole.Role.Name</span>
+                            var roleName = userRole.Role.Name switch
+                            {
+                                "Administrator" => "Administrador",
+                                "CoworkingPartner" => "Parceiro Coworking",
+                                "Client" => "Cliente",
+                                _ => userRole.Role.Name
+                            };
+                            <span class="badge bg-primary">@roleName</span>
                         }
                     </div>
                 }

@@ -5,6 +5,8 @@
 
 @model List<KlyonHubPlatform.Domain.Entities.Coworking>
 
+@Html.AntiForgeryToken()
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Gerenciar Coworkings</h2>
 </div>
@@ -103,11 +105,23 @@
                                 <td>@coworking.CreatedAt.ToString("dd/MM/yyyy")</td>
                                 <td>
                                     <button class="btn btn-sm btn-info" onclick="viewCoworking(@coworking.Id)" title="Visualizar">
-                                        <i class="bi bi-eye"></i>
+                                        <i class="bi bi-eye-fill"></i>
                                     </button>
                                     <button class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
-                                        <i class="bi bi-pencil"></i>
+                                        <i class="bi bi-pencil-fill"></i>
                                     </button>
+                                    @if (coworking.IsActive)
+                                    {
+                                        <button class="btn btn-sm btn-danger" onclick="toggleStatus(@coworking.Id, '@coworking.Name')" title="Inativar">
+                                            <i class="bi bi-x-circle-fill"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-success" onclick="toggleStatus(@coworking.Id, '@coworking.Name')" title="Ativar">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                        </button>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -181,5 +195,37 @@ function viewCoworking(coworkingId) {
 
 function editCoworking(coworkingId) {
     window.location.href = '@Url.Action("EditCoworking", "Admin")?id=' + coworkingId;
+}
+
+function toggleStatus(coworkingId, coworkingName) {
+    var currentUrl = new URL(window.location.href);
+    var search = currentUrl.searchParams.get('search') || '';
+    var status = currentUrl.searchParams.get('status') || '';
+    var isPartner = currentUrl.searchParams.get('isPartner') || '';
+    var page = currentUrl.searchParams.get('page') || '1';
+    
+    var action = confirm('Tem certeza que deseja alterar o status do coworking "' + coworkingName + '"?');
+    
+    if (action) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '@Url.Action("ToggleCoworkingStatus", "Admin")?id=' + coworkingId + 
+                     '&search=' + encodeURIComponent(search) + 
+                     '&status=' + encodeURIComponent(status) + 
+                     '&isPartner=' + encodeURIComponent(isPartner) + 
+                     '&page=' + encodeURIComponent(page);
+        
+        var token = document.querySelector('input[name="__RequestVerificationToken"]');
+        if (token) {
+            var tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '__RequestVerificationToken';
+            tokenInput.value = token.value;
+            form.appendChild(tokenInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 </script>

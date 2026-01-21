@@ -25,7 +25,7 @@ else
     var activeContracts = client?.Contracts?.Where(c => c.Status == ContractStatus.Active).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Contract>();
 
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
@@ -33,7 +33,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-check-circle"></i> Status</h5>
@@ -41,7 +41,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-geo-alt"></i> Endereços</h5>
@@ -49,11 +49,53 @@ else
                 </div>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-building"></i> Reservas de Coworking</h5>
+                    <h2 class="display-4">@(ViewBag.ReservationsCount ?? 0)</h2>
+                    <a href="@Url.Action("Marketplace", "Home")" class="btn btn-light btn-sm mt-2">
+                        <i class="bi bi-search"></i> Ver Marketplace
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-wallet2"></i> Créditos Disponíveis</h5>
+                    <h2 class="display-4">@(ViewBag.AvailableCredits ?? 0)</h2>
+                    <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-light btn-sm mt-2">
+                        <i class="bi bi-plus-circle"></i> Comprar Créditos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seção de Aluguel de Coworking -->
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5><i class="bi bi-building"></i> Aluguel de Coworking</h5>
+        </div>
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h6 class="mb-2">Encontre e reserve salas de coworking</h6>
+                    <p class="text-muted mb-0">Explore nosso marketplace e reserve salas para reuniões, eventos ou trabalho em equipe.</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="@Url.Action("Marketplace", "Home")" class="btn btn-warning btn-lg">
+                        <i class="bi bi-search"></i> Acessar Marketplace
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="card">
         <div class="card-header">
-            <h5><i class="bi bi-file-earmark-text"></i> Meus Contratos</h5>
+            <h5><i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal</h5>
         </div>
         <div class="card-body">
             @if (activeContracts.Any())
@@ -93,7 +135,7 @@ else
             else
             {
                 <div class="alert alert-info">
-                    <p>Você ainda não possui contratos ativos.</p>
+                    <p>Você ainda não possui contratos ativos de endereço fiscal.</p>
                     <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Contratar Endereço Fiscal
                     </a>

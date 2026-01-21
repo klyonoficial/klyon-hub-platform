@@ -10,7 +10,7 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace KlyonHubPlatform.Controllers
+namespace KlyonHubPlatform.Api.Controllers
 {
     [Authorize(Roles = "CoworkingPartner,Administrator")]
     public class CoworkingController : Controller
@@ -72,12 +72,44 @@ namespace KlyonHubPlatform.Controllers
                     && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                 .CountAsync();
 
+            // Contar reservas pendentes
+            var pendingReservationsCount = 0;
+            try
+            {
+                // Contar interesses pendentes
+                var pendingInterests = 0;
+                try
+                {
+                    pendingInterests = await _context.Interests
+                        .Include(i => i.CoworkingAddress)
+                        .Where(i => i.CoworkingAddress.CoworkingId == coworkingEntity.Id && i.Status == "Pending")
+                        .CountAsync();
+                }
+                catch
+                {
+                    // Tabela Interests pode não existir ainda
+                }
+
+                // Contar reservas confirmadas
+                var confirmedReservations = await _context.Reservations
+                    .Include(r => r.CoworkingAddress)
+                    .Where(r => r.CoworkingAddress.CoworkingId == coworkingEntity.Id && r.Status == "Confirmed")
+                    .CountAsync();
+
+                pendingReservationsCount = pendingInterests + confirmedReservations;
+            }
+            catch
+            {
+                pendingReservationsCount = 0;
+            }
+
             ViewBag.Coworking = coworkingWithAddresses ?? coworkingEntity;
             ViewBag.ActiveContracts = contracts.Count(c => c.Status == ContractStatus.Active);
             ViewBag.PendingCommissions = totalPending;
             ViewBag.Commissions = commissions;
             ViewBag.TotalAddresses = coworkingWithAddresses?.Addresses?.Count ?? 0;
             ViewBag.PendingPaymentsCount = pendingPaymentsCount;
+            ViewBag.PendingReservationsCount = pendingReservationsCount;
 
             return View();
         }
@@ -276,7 +308,9 @@ namespace KlyonHubPlatform.Controllers
 
         [HttpPost]
         public async Task<IActionResult> AddAddress(int locationId, string address, string number, string? complement, 
-            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts)
+            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts,
+            bool offersSharedRoom = false, decimal? sharedRoomPricePerHour = null, int? sharedRoomMaxSeats = null,
+            bool offersPrivateRoom = false, decimal? privateRoomPricePerHour = null, int? privateRoomMaxSeats = null)
         {
             try
             {
@@ -309,6 +343,39 @@ namespace KlyonHubPlatform.Controllers
                     return View(locations);
                 }
 
+                // Validar configurações de salas
+                if (offersSharedRoom && (!sharedRoomPricePerHour.HasValue || sharedRoomPricePerHour.Value <= 0))
+                {
+                    TempData["Error"] = "Por favor, informe o valor por hora da sala compartilhada.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    return View(locations);
+                }
+
+                if (offersSharedRoom && (!sharedRoomMaxSeats.HasValue || sharedRoomMaxSeats.Value < 1))
+                {
+                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala compartilhada.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    return View(locations);
+                }
+
+                if (offersPrivateRoom && (!privateRoomPricePerHour.HasValue || privateRoomPricePerHour.Value <= 0))
+                {
+                    TempData["Error"] = "Por favor, informe o valor por hora da sala privativa.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    return View(locations);
+                }
+
+                if (offersPrivateRoom && (!privateRoomMaxSeats.HasValue || privateRoomMaxSeats.Value < 1))
+                {
+                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala privativa.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    return View(locations);
+                }
+
                 // Criar objeto CoworkingAddress
                 var coworkingAddress = new CoworkingAddress
                 {
@@ -324,7 +391,13 @@ namespace KlyonHubPlatform.Controllers
                     BasePrice = basePrice,
                     MaxContracts = maxContracts,
                     IsAvailable = true,
-                    CurrentContracts = 0
+                    CurrentContracts = 0,
+                    OffersSharedRoom = offersSharedRoom,
+                    SharedRoomPricePerHour = offersSharedRoom ? sharedRoomPricePerHour : null,
+                    SharedRoomMaxSeats = offersSharedRoom ? sharedRoomMaxSeats : null,
+                    OffersPrivateRoom = offersPrivateRoom,
+                    PrivateRoomPricePerHour = offersPrivateRoom ? privateRoomPricePerHour : null,
+                    PrivateRoomMaxSeats = offersPrivateRoom ? privateRoomMaxSeats : null
                 };
 
                 await _coworkingService.CreateAddressAsync(coworkingAddress);
@@ -373,7 +446,9 @@ namespace KlyonHubPlatform.Controllers
 
         [HttpPost]
         public async Task<IActionResult> EditAddress(int id, int locationId, string address, string number, string? complement,
-            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts, bool isAvailable)
+            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts, bool isAvailable,
+            bool offersSharedRoom = false, decimal? sharedRoomPricePerHour = null, int? sharedRoomMaxSeats = null,
+            bool offersPrivateRoom = false, decimal? privateRoomPricePerHour = null, int? privateRoomMaxSeats = null)
         {
             try
             {
@@ -418,6 +493,43 @@ namespace KlyonHubPlatform.Controllers
                     return View(existingAddress);
                 }
 
+                // Validar configurações de salas
+                if (offersSharedRoom && (!sharedRoomPricePerHour.HasValue || sharedRoomPricePerHour.Value <= 0))
+                {
+                    TempData["Error"] = "Por favor, informe o valor por hora da sala compartilhada.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                if (offersSharedRoom && (!sharedRoomMaxSeats.HasValue || sharedRoomMaxSeats.Value < 1))
+                {
+                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala compartilhada.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                if (offersPrivateRoom && (!privateRoomPricePerHour.HasValue || privateRoomPricePerHour.Value <= 0))
+                {
+                    TempData["Error"] = "Por favor, informe o valor por hora da sala privativa.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                if (offersPrivateRoom && (!privateRoomMaxSeats.HasValue || privateRoomMaxSeats.Value < 1))
+                {
+                    TempData["Error"] = "Por favor, informe a quantidade de carteiras da sala privativa.";
+                    var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    ViewBag.Locations = locations;
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
                 // Validar maxContracts (não pode ser menor que currentContracts)
                 if (maxContracts < existingAddress.CurrentContracts)
                 {
@@ -440,6 +552,12 @@ namespace KlyonHubPlatform.Controllers
                 existingAddress.BasePrice = basePrice;
                 existingAddress.MaxContracts = maxContracts;
                 existingAddress.IsAvailable = isAvailable;
+                existingAddress.OffersSharedRoom = offersSharedRoom;
+                existingAddress.SharedRoomPricePerHour = offersSharedRoom ? sharedRoomPricePerHour : null;
+                existingAddress.SharedRoomMaxSeats = offersSharedRoom ? sharedRoomMaxSeats : null;
+                existingAddress.OffersPrivateRoom = offersPrivateRoom;
+                existingAddress.PrivateRoomPricePerHour = offersPrivateRoom ? privateRoomPricePerHour : null;
+                existingAddress.PrivateRoomMaxSeats = offersPrivateRoom ? privateRoomMaxSeats : null;
                 existingAddress.UpdatedAt = DateTime.UtcNow;
 
                 await _coworkingService.UpdateAddressAsync(existingAddress);
@@ -576,6 +694,253 @@ namespace KlyonHubPlatform.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> Reservations(
+            string? search = null,
+            string? status = null,
+            int? addressId = null,
+            DateTime? allocationDateFrom = null,
+            DateTime? allocationDateTo = null,
+            int page = 1,
+            int pageSize = 15)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            // Lista de endereços para o filtro (carregar antes para usar em caso de erro)
+            var addresses = await _context.CoworkingAddresses
+                .Where(a => a.CoworkingId == coworkingEntity.Id)
+                .OrderBy(a => a.City)
+                .ThenBy(a => a.Neighborhood)
+                .ToListAsync();
+            ViewBag.Addresses = addresses;
+
+            // Buscar reservas confirmadas (tabela Reservations)
+            var reservationsQuery = _context.Reservations
+                .Include(r => r.Client)
+                    .ThenInclude(c => c.User)
+                .Include(r => r.CoworkingAddress)
+                .Where(r => r.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                .AsQueryable();
+
+            // Aplicar filtros nas reservas confirmadas
+            if (!string.IsNullOrEmpty(search))
+            {
+                reservationsQuery = reservationsQuery.Where(r =>
+                    r.Client.User.FullName.Contains(search) ||
+                    (r.Client.ContactEmail != null && r.Client.ContactEmail.Contains(search)) ||
+                    (r.Client.ContactPhone != null && r.Client.ContactPhone.Contains(search)) ||
+                    (r.Client.CNPJ != null && r.Client.CNPJ.Contains(search)) ||
+                    (r.Client.CPF != null && r.Client.CPF.Contains(search)));
+            }
+
+            if (addressId.HasValue)
+            {
+                reservationsQuery = reservationsQuery.Where(r => r.CoworkingAddressId == addressId.Value);
+            }
+
+            if (allocationDateFrom.HasValue)
+            {
+                reservationsQuery = reservationsQuery.Where(r => r.ReservationDate >= allocationDateFrom.Value);
+            }
+
+            if (allocationDateTo.HasValue)
+            {
+                reservationsQuery = reservationsQuery.Where(r => r.ReservationDate <= allocationDateTo.Value);
+            }
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                // Aplicar filtro de status apenas se for um status válido para Reservations
+                // Status válidos: Confirmed, Completed, Cancelled
+                if (status == "Confirmed" || status == "Completed" || status == "Cancelled")
+                {
+                    reservationsQuery = reservationsQuery.Where(r => r.Status == status);
+                }
+                // Se o status for de Interests (Pending, Contacted, etc), não mostrar Reservations
+                else
+                {
+                    reservationsQuery = reservationsQuery.Where(r => false);
+                }
+            }
+
+            var confirmedReservations = await reservationsQuery
+                .OrderByDescending(r => r.ReservationDate)
+                .ThenByDescending(r => r.CreatedAt)
+                .ToListAsync();
+
+            // Buscar interesses (tabela Interests) - para compatibilidade
+            List<Interest> interests = new List<Interest>();
+            try
+            {
+                var interestsQuery = _context.Interests
+                    .Include(i => i.CoworkingAddress)
+                    .Include(i => i.ContactedByUser)
+                    .Where(i => i.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                    .AsQueryable();
+
+                if (!string.IsNullOrEmpty(search))
+                {
+                    interestsQuery = interestsQuery.Where(i =>
+                        i.Name.Contains(search) ||
+                        i.LastName.Contains(search) ||
+                        i.Email.Contains(search) ||
+                        i.Phone.Contains(search));
+                }
+
+                if (addressId.HasValue)
+                {
+                    interestsQuery = interestsQuery.Where(i => i.CoworkingAddressId == addressId.Value);
+                }
+
+                if (allocationDateFrom.HasValue)
+                {
+                    interestsQuery = interestsQuery.Where(i => i.AllocationDate.HasValue && i.AllocationDate >= allocationDateFrom.Value);
+                }
+
+                if (allocationDateTo.HasValue)
+                {
+                    interestsQuery = interestsQuery.Where(i => i.AllocationDate.HasValue && i.AllocationDate <= allocationDateTo.Value);
+                }
+
+                if (!string.IsNullOrEmpty(status))
+                {
+                    // Aplicar filtro de status apenas se for um status válido para Interests
+                    // Status válidos: Pending, Contacted, Converted, Rejected
+                    if (status == "Pending" || status == "Contacted" || status == "Converted" || status == "Rejected")
+                    {
+                        interestsQuery = interestsQuery.Where(i => i.Status == status);
+                    }
+                    // Se o status for de Reservations (Confirmed, Completed, etc), não mostrar Interests
+                    else
+                    {
+                        interestsQuery = interestsQuery.Where(i => false);
+                    }
+                }
+
+                interests = await interestsQuery
+                    .OrderByDescending(i => i.CreatedAt)
+                    .ToListAsync();
+            }
+            catch
+            {
+                // Tabela Interests pode não existir ainda, continuar apenas com Reservations
+            }
+
+            // Combinar e ordenar todas as reservas usando Dictionary para garantir compatibilidade
+            var allReservations = confirmedReservations.Select(r => new Dictionary<string, object>
+            {
+                ["Id"] = r.Id,
+                ["Type"] = "Reservation",
+                ["ReservationDate"] = r.ReservationDate,
+                ["StartTime"] = r.StartTime ?? (object)DBNull.Value,
+                ["EndTime"] = r.EndTime ?? (object)DBNull.Value,
+                ["ClientName"] = r.Client.User.FullName ?? "",
+                ["ClientEmail"] = r.Client.ContactEmail ?? r.Client.User.Email ?? "",
+                ["ClientPhone"] = r.Client.ContactPhone ?? r.Client.User.Phone ?? "",
+                ["Address"] = r.CoworkingAddress,
+                ["Status"] = r.Status ?? "",
+                ["CreatedAt"] = r.CreatedAt,
+                ["RoomType"] = r.RoomType ?? "",
+                ["TotalValue"] = (object?)r.TotalValue ?? DBNull.Value,
+                ["CreditsUsed"] = (object?)r.CreditsUsed ?? DBNull.Value
+            }).Concat(interests.Select(i => new Dictionary<string, object>
+            {
+                ["Id"] = i.Id,
+                ["Type"] = "Interest",
+                ["ReservationDate"] = i.AllocationDate ?? DateTime.MinValue,
+                ["StartTime"] = i.StartTime ?? (object)DBNull.Value,
+                ["EndTime"] = i.EndTime ?? (object)DBNull.Value,
+                ["ClientName"] = $"{i.Name} {i.LastName}",
+                ["ClientEmail"] = i.Email ?? "",
+                ["ClientPhone"] = i.Phone ?? "",
+                ["Address"] = i.CoworkingAddress,
+                ["Status"] = i.Status ?? "",
+                ["CreatedAt"] = i.CreatedAt,
+                ["RoomType"] = (object?)null ?? DBNull.Value,
+                ["TotalValue"] = DBNull.Value,
+                ["CreditsUsed"] = DBNull.Value
+            })).OrderByDescending(x => ((DateTime)x["ReservationDate"]))
+                .ThenByDescending(x => ((DateTime)x["CreatedAt"]))
+                .ToList();
+
+            // Paginação manual
+            var totalItems = allReservations.Count;
+            var totalPages = totalItems > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
+            
+            // Garantir que a página não seja maior que o total de páginas
+            if (page > totalPages && totalPages > 0)
+            {
+                page = totalPages;
+            }
+            
+            var pagedReservations = allReservations
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            // ViewBag para manter os filtros
+            ViewBag.Search = search;
+            ViewBag.Status = status;
+            ViewBag.AddressId = addressId;
+            ViewBag.AllocationDateFrom = allocationDateFrom?.ToString("yyyy-MM-dd");
+            ViewBag.AllocationDateTo = allocationDateTo?.ToString("yyyy-MM-dd");
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Reservations = pagedReservations;
+
+            // Para compatibilidade, passar também como Model (interesses antigos)
+            return View(interests);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateReservationStatus(int id, string status, string? notes = null)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                TempData["Error"] = "Coworking não encontrado.";
+                return RedirectToAction("Reservations");
+            }
+
+            var interest = await _context.Interests
+                .Include(i => i.CoworkingAddress)
+                .FirstOrDefaultAsync(i => i.Id == id && i.CoworkingAddress.CoworkingId == coworkingEntity.Id);
+
+            if (interest == null)
+            {
+                TempData["Error"] = "Reserva não encontrada.";
+                return RedirectToAction("Reservations");
+            }
+
+            interest.Status = status;
+            interest.Notes = notes;
+            interest.UpdatedAt = DateTime.UtcNow;
+
+            if (status == "Contacted")
+            {
+                interest.ContactedByUserId = userId;
+                interest.ContactedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = "Status da reserva atualizado com sucesso!";
+            return RedirectToAction("Reservations");
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Commissions()
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -662,6 +1027,22 @@ namespace KlyonHubPlatform.Controllers
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == coworkingEntity.Id);
 
+            // Carregar Products separadamente para evitar erro se a tabela não existir
+            if (coworkingWithDetails != null)
+            {
+                try
+                {
+                    coworkingWithDetails.Products = await _context.CoworkingProducts
+                        .Where(p => p.CoworkingId == coworkingWithDetails.Id)
+                        .ToListAsync();
+                }
+                catch
+                {
+                    // Se a tabela não existir, inicializa como lista vazia
+                    coworkingWithDetails.Products = new List<Domain.Entities.CoworkingProduct>();
+                }
+            }
+
             return View(coworkingWithDetails ?? coworkingEntity);
         }
 
@@ -727,6 +1108,56 @@ namespace KlyonHubPlatform.Controllers
                 {
                     TempData["ActiveTab"] = activeTab;
                 }
+                return RedirectToAction("Profile");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateProducts(List<string>? productTypes)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Remover produtos existentes
+                var existingProducts = await _context.CoworkingProducts
+                    .Where(p => p.CoworkingId == coworkingEntity.Id)
+                    .ToListAsync();
+                _context.CoworkingProducts.RemoveRange(existingProducts);
+
+                // Adicionar novos produtos selecionados
+                if (productTypes != null && productTypes.Any())
+                {
+                    var newProducts = productTypes.Select(pt => new KlyonHubPlatform.Domain.Entities.CoworkingProduct
+                    {
+                        CoworkingId = coworkingEntity.Id,
+                        ProductType = pt,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }).ToList();
+
+                    _context.CoworkingProducts.AddRange(newProducts);
+                }
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Produtos atualizados com sucesso!";
+                TempData["ActiveTab"] = "products";
+                return RedirectToAction("Profile");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao atualizar produtos: {ex.Message}";
+                TempData["ActiveTab"] = "products";
                 return RedirectToAction("Profile");
             }
         }
@@ -1139,29 +1570,45 @@ namespace KlyonHubPlatform.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> GetPhoto(int photoId)
         {
-            var photo = await _context.CoworkingPhotos.FindAsync(photoId);
+            var photo = await _context.CoworkingPhotos
+                .Include(p => p.Coworking)
+                .FirstOrDefaultAsync(p => p.Id == photoId);
+            
             if (photo == null)
             {
                 return NotFound();
             }
 
-            // Verificar se a foto pertence ao coworking do usuário logado OU se o usuário é cliente (pode ver fotos de qualquer coworking)
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
-            var coworkingEntity = coworking.FirstOrDefault();
-
-            // Permitir acesso se:
-            // 1. É o dono do coworking
-            // 2. É administrador
-            // 3. É cliente (pode ver fotos de qualquer coworking para escolher endereços)
-            var canAccess = User.IsInRole("Administrator") || 
-                          (coworkingEntity != null && photo.CoworkingId == coworkingEntity.Id) ||
-                          User.IsInRole("Client");
-
-            if (!canAccess)
+            // Verificar se o coworking está ativo e é parceiro (fotos públicas no marketplace)
+            // Se não for público, verificar permissões
+            var isPublic = photo.Coworking.IsActive && photo.Coworking.IsPartner;
+            
+            if (!isPublic && User.Identity?.IsAuthenticated == true)
             {
+                // Verificar se a foto pertence ao coworking do usuário logado OU se o usuário é cliente/administrador
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                // Permitir acesso se:
+                // 1. É o dono do coworking
+                // 2. É administrador
+                // 3. É cliente (pode ver fotos de qualquer coworking para escolher endereços)
+                var canAccess = User.IsInRole("Administrator") || 
+                              (coworkingEntity != null && photo.CoworkingId == coworkingEntity.Id) ||
+                              User.IsInRole("Client");
+
+                if (!canAccess)
+                {
+                    return Forbid();
+                }
+            }
+            else if (!isPublic)
+            {
+                // Se não for público e usuário não autenticado, negar acesso
                 return Forbid();
             }
 
@@ -1173,7 +1620,16 @@ namespace KlyonHubPlatform.Controllers
                 return NotFound();
             }
 
-            var contentType = photo.FilePath.EndsWith(".png") ? "image/png" : "image/jpeg";
+            // Detectar tipo de conteúdo baseado na extensão
+            var contentType = "image/jpeg"; // padrão
+            var lowerPath = photo.FilePath.ToLower();
+            if (lowerPath.EndsWith(".png"))
+                contentType = "image/png";
+            else if (lowerPath.EndsWith(".gif"))
+                contentType = "image/gif";
+            else if (lowerPath.EndsWith(".webp"))
+                contentType = "image/webp";
+            
             return File(fileBytes, contentType);
         }
 

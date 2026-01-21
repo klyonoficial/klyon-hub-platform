@@ -69,6 +69,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">
+            <i class="bi bi-box-seam"></i> Produtos Oferecidos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
             <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
@@ -562,6 +567,72 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-circle"></i> <span id="modalSubmitText">Adicionar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Produtos Oferecidos -->
+    <div class="tab-pane fade" id="products" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-box-seam"></i> Produtos que você oferece</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="@Url.Action("UpdateProducts", "Coworking")">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="activeTab" value="products" />
+                    
+                    <p class="text-muted mb-3">Selecione os produtos que seu coworking oferece aos clientes:</p>
+                    
+                    @{
+                        var currentProducts = Model.Products?.Where(p => p.IsActive).Select(p => p.ProductType).ToList() ?? new List<string>();
+                    }
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="product_fiscal" name="productTypes" value="FiscalAddress" 
+                                   @(currentProducts.Contains("FiscalAddress") ? "checked" : "")>
+                            <label class="form-check-label" for="product_fiscal">
+                                <strong>Endereço Fiscal</strong>
+                                <small class="text-muted d-block">Permite que clientes comprem endereço fiscal</small>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="product_rental" name="productTypes" value="RoomRental" 
+                                   @(currentProducts.Contains("RoomRental") ? "checked" : "")>
+                            <label class="form-check-label" for="product_rental">
+                                <strong>Aluguéis de Sala</strong>
+                                <small class="text-muted d-block">Permite que clientes façam reservas de salas através do marketplace</small>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="product_certificate" name="productTypes" value="DigitalCertificate" 
+                                   @(currentProducts.Contains("DigitalCertificate") ? "checked" : "") disabled>
+                            <label class="form-check-label" for="product_certificate" style="opacity: 0.6;">
+                                <strong>Certificado Digital</strong>
+                                <small class="text-muted d-block">Permite venda de certificados digitais (em breve)</small>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Importante:</strong> Ao marcar "Aluguéis de Sala", seu coworking aparecerá no marketplace e clientes poderão fazer reservas. 
+                        Você receberá notificações de todas as reservas na seção "Reservas" do seu dashboard.
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Salvar Produtos
                         </button>
                     </div>
                 </form>

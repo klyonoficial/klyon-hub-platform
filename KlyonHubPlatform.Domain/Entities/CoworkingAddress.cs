@@ -16,6 +16,16 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsAvailable { get; set; } = true;
         public int MaxContracts { get; set; } = 1;
         public int CurrentContracts { get; set; } = 0;
+        
+        // Configurações de salas para aluguel
+        public bool OffersSharedRoom { get; set; } = false;
+        public decimal? SharedRoomPricePerHour { get; set; }
+        public int? SharedRoomMaxSeats { get; set; }
+        
+        public bool OffersPrivateRoom { get; set; } = false;
+        public decimal? PrivateRoomPricePerHour { get; set; }
+        public int? PrivateRoomMaxSeats { get; set; }
+        
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 

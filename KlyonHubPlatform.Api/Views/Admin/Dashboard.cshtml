@@ -11,6 +11,96 @@
     <small class="text-muted">Última atualização: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
 </div>
 
+<!-- Seção de Onboarding - Produtos da Plataforma -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Produtos da Plataforma</h5>
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">A plataforma Klyon oferece três tipos de produtos que podem ser comercializados através dos coworkings parceiros:</p>
+                
+                <div class="row g-4">
+                    <!-- Endereço Fiscal -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0"><i class="bi bi-geo-alt-fill"></i> Endereço Fiscal</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    <strong>O que é:</strong> Serviço que permite que empresas e profissionais autônomos utilizem um endereço físico de um coworking como endereço fiscal para registro na Receita Federal.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Como funciona:</strong> O cliente contrata um endereço fiscal em uma localidade específica, recebe documentos de declaração e pode usar esse endereço para abertura e manutenção de CNPJ/CPF como MEI.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Benefícios:</strong> Permite que empresas operem remotamente sem precisar de um endereço comercial próprio, ideal para MEIs, startups e empresas digitais.
+                                </p>
+                                <div class="mt-3">
+                                    <span class="badge bg-success">Produto Principal</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Aluguel de Salas -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="bi bi-door-open"></i> Aluguel de Salas</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    <strong>O que é:</strong> Sistema de reserva e aluguel de salas de reunião, espaços de trabalho compartilhados ou privativos nos coworkings parceiros.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Como funciona:</strong> Clientes podem reservar salas por hora ou período, escolhendo entre salas compartilhadas (mais econômicas) ou privativas (mais exclusivas). O pagamento é feito através de créditos adquiridos na plataforma.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Benefícios:</strong> Flexibilidade para empresas que precisam de espaços físicos ocasionalmente, sem a necessidade de contrato de longo prazo.
+                                </p>
+                                <div class="mt-3">
+                                    <span class="badge bg-info">Sistema de Créditos</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Certificados Digitais -->
+                    <div class="col-md-4">
+                        <div class="card h-100 border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0"><i class="bi bi-shield-check"></i> Certificados Digitais</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    <strong>O que é:</strong> Serviço de emissão e gestão de certificados digitais (e-CPF, e-CNPJ) para empresas e profissionais que precisam assinar documentos digitalmente com validade jurídica.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Como funciona:</strong> Os coworkings parceiros podem oferecer serviços de certificação digital, facilitando o processo de obtenção e renovação de certificados para seus clientes.
+                                </p>
+                                <p class="card-text">
+                                    <strong>Benefícios:</strong> Facilita a assinatura digital de contratos, declarações e documentos oficiais, eliminando a necessidade de deslocamento físico para assinaturas presenciais.
+                                </p>
+                                <div class="mt-3">
+                                    <span class="badge bg-warning text-dark">Em Desenvolvimento</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-4 mb-0">
+                    <i class="bi bi-lightbulb"></i> 
+                    <strong>Dica:</strong> Os coworkings parceiros podem ativar quais produtos desejam oferecer através da configuração de produtos em seu perfil. Cada produto tem suas próprias configurações de preço e disponibilidade.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- KPIs Principais -->
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
@@ -52,7 +142,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-title mb-1"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h6>
+                        <h6 class="card-title mb-1"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal Ativos</h6>
                         <h2 class="mb-0">@ViewBag.ActiveContracts</h2>
                         <small class="text-white-50">Em andamento</small>
                     </div>
@@ -115,6 +205,14 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3 mb-3">
+        <div class="card border-info">
+            <div class="card-body">
+                <h6 class="card-title text-info"><i class="bi bi-calendar-check"></i> Total de Reservas</h6>
+                <h3 class="mb-0">@(ViewBag.TotalReservations ?? 0)</h3>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Gráficos -->
@@ -145,7 +243,7 @@
     <div class="col-md-6 mb-3">
         <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-bar-chart"></i> Contratos por Status</h5>
+                <h5><i class="bi bi-bar-chart"></i> Contratos de Endereço Fiscal por Status</h5>
             </div>
             <div class="card-body">
                 <canvas id="contractsByStatusChart"></canvas>
@@ -159,6 +257,30 @@
             </div>
             <div class="card-body">
                 <canvas id="topLocationsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos de Produtos e Reservas -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-box-seam"></i> Produtos Oferecidos pelos Coworkings</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="productsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="reservationsByStatusChart"></canvas>
             </div>
         </div>
     </div>
@@ -258,7 +380,7 @@
                     </div>
                     <div class="col-md-2 mb-2">
                         <a href="@Url.Action("Contracts", "Admin")" class="btn btn-outline-primary w-100">
-                            <i class="bi bi-file-earmark-text"></i><br>Contratos
+                            <i class="bi bi-file-earmark-text"></i><br>Contratos de<br>Endereço Fiscal
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
@@ -274,6 +396,11 @@
                     <div class="col-md-2 mb-2">
                         <a href="@Url.Action("CreateLocation", "Admin")" class="btn btn-outline-success w-100">
                             <i class="bi bi-plus-circle"></i><br>Nova Localidade
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <a href="@Url.Action("DatabaseManager", "Admin")" class="btn btn-outline-warning w-100">
+                            <i class="bi bi-database"></i><br>Banco de Dados
                         </a>
                     </div>
                 </div>
@@ -450,4 +577,99 @@ new Chart(topLocationsCtx, {
         }
     }
 });
+
+// Gráfico de Produtos Oferecidos
+const productsCtx = document.getElementById('productsChart');
+const productsByType = @Html.Raw(Json.Serialize(ViewBag.ProductsByType ?? new List<dynamic>()));
+
+if (productsByType && productsByType.length > 0) {
+    const productLabels = productsByType.map(p => {
+        const productType = p.productType;
+        switch(productType) {
+            case "FiscalAddress": return "Endereço Fiscal";
+            case "RoomRental": return "Aluguéis de Sala";
+            case "DigitalCertificate": return "Certificado Digital";
+            default: return productType;
+        }
+    });
+    const productData = productsByType.map(p => p.count || 0);
+
+    new Chart(productsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: productLabels,
+            datasets: [{
+                data: productData,
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+} else {
+    document.getElementById('productsChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum produto cadastrado ainda.</p>';
+}
+
+// Gráfico de Reservas por Status
+const reservationsStatusCtx = document.getElementById('reservationsByStatusChart');
+const reservationsByStatus = @Html.Raw(Json.Serialize(ViewBag.ReservationsByStatus ?? new List<dynamic>()));
+
+if (reservationsByStatus && reservationsByStatus.length > 0) {
+    const statusLabels = reservationsByStatus.map(r => {
+        const status = r.status;
+        switch(status) {
+            case "Pending": return "Pendentes";
+            case "Contacted": return "Contatadas";
+            case "Converted": return "Convertidas";
+            case "Rejected": return "Rejeitadas";
+            default: return status;
+        }
+    });
+    const statusData = reservationsByStatus.map(r => r.count || 0);
+
+    new Chart(reservationsStatusCtx, {
+        type: 'bar',
+        data: {
+            labels: statusLabels,
+            datasets: [{
+                label: 'Quantidade',
+                data: statusData,
+                backgroundColor: [
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(255, 99, 132, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+} else {
+    document.getElementById('reservationsByStatusChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhuma reserva cadastrada ainda.</p>';
+}
 </script>

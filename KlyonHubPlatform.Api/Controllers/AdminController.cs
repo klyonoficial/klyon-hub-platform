@@ -60,6 +60,32 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TopLocations = dashboardData.TopLocations;
             ViewBag.RecentPayments = dashboardData.RecentPayments;
 
+            // Estatísticas de produtos
+            try
+            {
+                var productsStats = await _context.CoworkingProducts
+                    .Where(p => p.IsActive)
+                    .GroupBy(p => p.ProductType)
+                    .Select(g => new { productType = g.Key, count = g.Count() })
+                    .ToListAsync();
+                ViewBag.ProductsByType = productsStats;
+                
+                var totalReservations = await _context.Interests.CountAsync();
+                ViewBag.TotalReservations = totalReservations;
+                
+                var reservationsByStatus = await _context.Interests
+                    .GroupBy(i => i.Status)
+                    .Select(g => new { status = g.Key, count = g.Count() })
+                    .ToListAsync();
+                ViewBag.ReservationsByStatus = reservationsByStatus;
+            }
+            catch
+            {
+                ViewBag.ProductsByType = new List<dynamic>();
+                ViewBag.TotalReservations = 0;
+                ViewBag.ReservationsByStatus = new List<dynamic>();
+            }
+
             return View();
         }
 
@@ -290,6 +316,41 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return View(coworking);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleCoworkingStatus(int id)
+        {
+            try
+            {
+                var coworking = await _context.Coworkings.FindAsync(id);
+
+                if (coworking == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Coworkings");
+                }
+
+                coworking.IsActive = !coworking.IsActive;
+                coworking.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var statusText = coworking.IsActive ? "ativado" : "inativado";
+                TempData["Success"] = $"Coworking '{coworking.Name}' foi {statusText} com sucesso.";
+
+                return RedirectToAction("Coworkings", new { 
+                    search = Request.Query["search"],
+                    status = Request.Query["status"],
+                    isPartner = Request.Query["isPartner"],
+                    page = Request.Query["page"]
+                });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao alterar status do coworking: {ex.Message}";
+                return RedirectToAction("Coworkings");
+            }
         }
 
         [HttpGet]
@@ -886,6 +947,592 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return RedirectToAction("Payments");
+        }
+
+        [HttpGet]
+        public IActionResult DatabaseManager()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateInterestsTable()
+        {
+            try
+            {
+                // Verificar se a tabela já existe
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+                
+                bool tableExists = false;
+                try
+                {
+                    using var checkCommand = connection.CreateCommand();
+                    checkCommand.CommandText = @"
+                        SELECT COUNT(*) 
+                        FROM information_schema.tables 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'Interests'";
+                    
+                    var result = await checkCommand.ExecuteScalarAsync();
+                    tableExists = Convert.ToInt32(result) > 0;
+                }
+                catch
+                {
+                    // Se der erro ao verificar, assume que não existe e tenta criar
+                    tableExists = false;
+                }
+
+                if (tableExists)
+                {
+                    TempData["Info"] = "A tabela Interests já existe no banco de dados.";
+                    await connection.CloseAsync();
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                var createTableSql = @"
+CREATE TABLE IF NOT EXISTS Interests (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingAddressId INT NOT NULL,
+    AllocationDate DATETIME NULL,
+    StartTime TIME NULL,
+    EndTime TIME NULL,
+    Name VARCHAR(255) NOT NULL,
+    LastName VARCHAR(255) NOT NULL,
+    Email VARCHAR(255) NOT NULL,
+    Phone VARCHAR(50) NULL,
+    Status VARCHAR(50) DEFAULT 'Pending',
+    Notes TEXT NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    ContactedByUserId INT NULL,
+    ContactedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE,
+    FOREIGN KEY (ContactedByUserId) REFERENCES Users(Id) ON DELETE SET NULL
+);";
+
+                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await connection.CloseAsync();
+
+                TempData["Success"] = "Tabela Interests criada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Erro ao criar tabela Interests: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" Detalhes: {ex.InnerException.Message}";
+                }
+                TempData["Error"] = errorMessage;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCoworkingProductsTable()
+        {
+            try
+            {
+                // Verificar se a tabela já existe
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+                
+                bool tableExists = false;
+                try
+                {
+                    using var checkCommand = connection.CreateCommand();
+                    checkCommand.CommandText = @"
+                        SELECT COUNT(*) 
+                        FROM information_schema.tables 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'CoworkingProducts'";
+                    
+                    var result = await checkCommand.ExecuteScalarAsync();
+                    tableExists = Convert.ToInt32(result) > 0;
+                }
+                catch
+                {
+                    // Se der erro ao verificar, assume que não existe e tenta criar
+                    tableExists = false;
+                }
+
+                if (tableExists)
+                {
+                    TempData["Info"] = "A tabela CoworkingProducts já existe no banco de dados.";
+                    await connection.CloseAsync();
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                var createTableSql = @"
+CREATE TABLE IF NOT EXISTS CoworkingProducts (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingId INT NOT NULL,
+    ProductType VARCHAR(50) NOT NULL,
+    IsActive BOOLEAN DEFAULT TRUE,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
+    UNIQUE KEY UK_CoworkingProduct (CoworkingId, ProductType)
+);";
+
+                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await connection.CloseAsync();
+
+                TempData["Success"] = "Tabela CoworkingProducts criada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Erro ao criar tabela CoworkingProducts: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" Detalhes: {ex.InnerException.Message}";
+                }
+                TempData["Error"] = errorMessage;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ExecuteSql(string sqlQuery)
+        {
+            if (string.IsNullOrWhiteSpace(sqlQuery))
+            {
+                TempData["Error"] = "A query SQL não pode estar vazia.";
+                return RedirectToAction("DatabaseManager");
+            }
+
+            // Validações de segurança básicas
+            var upperQuery = sqlQuery.ToUpper().Trim();
+            
+            // Bloquear operações perigosas
+            var blockedKeywords = new[] { "DROP DATABASE", "DROP TABLE", "TRUNCATE", "DELETE FROM", "UPDATE", "ALTER DATABASE" };
+            if (blockedKeywords.Any(keyword => upperQuery.Contains(keyword)))
+            {
+                TempData["Error"] = "Operações perigosas não são permitidas. Use apenas ALTER TABLE, CREATE TABLE, ADD COLUMN ou SELECT.";
+                return RedirectToAction("DatabaseManager");
+            }
+            
+            // Permitir apenas operações seguras
+            var allowedKeywords = new[] { "ALTER TABLE", "CREATE TABLE", "ADD COLUMN", "ADD", "SELECT", "SHOW", "DESCRIBE", "DESC" };
+            if (!allowedKeywords.Any(keyword => upperQuery.Contains(keyword)))
+            {
+                TempData["Error"] = "Apenas operações ALTER TABLE, CREATE TABLE, ADD COLUMN, SELECT, SHOW e DESCRIBE são permitidas.";
+                return RedirectToAction("DatabaseManager");
+            }
+
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                using var command = connection.CreateCommand();
+                command.CommandText = sqlQuery;
+                command.CommandTimeout = 300; // 5 minutos
+
+                var result = new System.Text.StringBuilder();
+                var rowsAffected = 0;
+
+                // Verificar se é uma query SELECT, SHOW ou DESCRIBE
+                if (upperQuery.TrimStart().StartsWith("SELECT") || 
+                    upperQuery.TrimStart().StartsWith("SHOW") || 
+                    upperQuery.TrimStart().StartsWith("DESCRIBE") ||
+                    upperQuery.TrimStart().StartsWith("DESC"))
+                {
+                    using var reader = await command.ExecuteReaderAsync();
+                    
+                    if (reader.HasRows)
+                    {
+                        // Cabeçalho das colunas
+                        var columnNames = new List<string>();
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+                            columnNames.Add(reader.GetName(i));
+                        }
+                        result.AppendLine(string.Join(" | ", columnNames));
+                        result.AppendLine(new string('-', Math.Min(200, columnNames.Sum(c => c.Length) + (columnNames.Count * 3))));
+
+                        // Dados (limitar a 1000 linhas para não sobrecarregar)
+                        int rowCount = 0;
+                        while (await reader.ReadAsync() && rowCount < 1000)
+                        {
+                            var row = new List<string>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                var value = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "NULL";
+                                // Limitar tamanho de cada campo para não quebrar a visualização
+                                if (value.Length > 50)
+                                {
+                                    value = value.Substring(0, 47) + "...";
+                                }
+                                row.Add(value);
+                            }
+                            result.AppendLine(string.Join(" | ", row));
+                            rowCount++;
+                        }
+                        
+                        if (rowCount >= 1000)
+                        {
+                            result.AppendLine($"\n... (limitado a 1000 linhas)");
+                        }
+                    }
+                    else
+                    {
+                        result.AppendLine("Nenhum resultado encontrado.");
+                    }
+                }
+                else
+                {
+                    // Para comandos não-SELECT (ALTER, CREATE, etc.)
+                    rowsAffected = await command.ExecuteNonQueryAsync();
+                    result.AppendLine($"Comando executado com sucesso!");
+                    result.AppendLine($"Linhas afetadas: {rowsAffected}");
+                }
+
+                await connection.CloseAsync();
+
+                TempData["Success"] = "Query executada com sucesso!";
+                TempData["QueryResult"] = result.ToString();
+                TempData["ExecutedQuery"] = sqlQuery;
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao executar query: {ex.Message}";
+                TempData["ExecutedQuery"] = sqlQuery;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCoworkingRatingsTable()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+                
+                bool tableExists = false;
+                try
+                {
+                    using var checkCommand = connection.CreateCommand();
+                    checkCommand.CommandText = @"
+                        SELECT COUNT(*) 
+                        FROM information_schema.tables 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'CoworkingRatings'";
+                    
+                    var result = await checkCommand.ExecuteScalarAsync();
+                    tableExists = Convert.ToInt32(result) > 0;
+                }
+                catch
+                {
+                    tableExists = false;
+                }
+
+                if (tableExists)
+                {
+                    TempData["Info"] = "A tabela CoworkingRatings já existe no banco de dados.";
+                    await connection.CloseAsync();
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                var createTableSql = @"
+CREATE TABLE IF NOT EXISTS CoworkingRatings (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    CoworkingId INT NOT NULL,
+    ClientId INT NULL,
+    Rating INT NOT NULL CHECK (Rating >= 1 AND Rating <= 5),
+    Comment VARCHAR(1000) NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
+    FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL
+);";
+
+                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await connection.CloseAsync();
+
+                TempData["Success"] = "Tabela CoworkingRatings criada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Erro ao criar tabela CoworkingRatings: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" Detalhes: {ex.InnerException.Message}";
+                }
+                TempData["Error"] = errorMessage;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCreditsTables()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                var createTablesSql = @"
+CREATE TABLE IF NOT EXISTS ClientCredits (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ClientId INT NOT NULL,
+    Credits INT NOT NULL,
+    ExpiresAt DATETIME NOT NULL,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS CreditPlans (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Price DECIMAL(10,2) NOT NULL,
+    Credits INT NOT NULL,
+    BonusCredits INT DEFAULT 0,
+    Period VARCHAR(50) NOT NULL,
+    ValidityMonths INT NOT NULL DEFAULT 6,
+    IsActive BOOLEAN DEFAULT TRUE,
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL
+);
+
+CREATE TABLE IF NOT EXISTS CreditPurchases (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ClientId INT NOT NULL,
+    CreditPlanId INT NOT NULL,
+    AmountPaid DECIMAL(10,2) NOT NULL,
+    CreditsReceived INT NOT NULL,
+    BonusCredits INT DEFAULT 0,
+    Status VARCHAR(50) DEFAULT 'Pending',
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PaidAt DATETIME NULL,
+    FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE CASCADE,
+    FOREIGN KEY (CreditPlanId) REFERENCES CreditPlans(Id)
+);
+
+CREATE TABLE IF NOT EXISTS Reservations (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ClientId INT NOT NULL,
+    CoworkingAddressId INT NOT NULL,
+    ReservationDate DATETIME NOT NULL,
+    StartTime TIME NULL,
+    EndTime TIME NULL,
+    CreditsUsed INT NOT NULL,
+    Status VARCHAR(50) DEFAULT 'Confirmed',
+    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt DATETIME NULL,
+    CancelledAt DATETIME NULL,
+    FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE CASCADE,
+    FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE
+);";
+
+                await _context.Database.ExecuteSqlRawAsync(createTablesSql);
+                await connection.CloseAsync();
+
+                TempData["Success"] = "Tabelas de créditos criadas com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Erro ao criar tabelas de créditos: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" Detalhes: {ex.InnerException.Message}";
+                }
+                TempData["Error"] = errorMessage;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> InitializeCreditPlans()
+        {
+            try
+            {
+                // Verificar se já existem planos
+                var existingPlans = await _context.CreditPlans.AnyAsync();
+                if (existingPlans)
+                {
+                    TempData["Info"] = "Os planos de créditos já foram inicializados.";
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                // Criar planos mensais
+                var plans = new List<Domain.Entities.CreditPlan>
+                {
+                    new Domain.Entities.CreditPlan
+                    {
+                        Name = "Básico",
+                        Price = 300m,
+                        Credits = 300,
+                        BonusCredits = 0,
+                        Period = "Mensal",
+                        ValidityMonths = 6,
+                        IsActive = true
+                    },
+                    new Domain.Entities.CreditPlan
+                    {
+                        Name = "Profissional",
+                        Price = 500m,
+                        Credits = 520,
+                        BonusCredits = 20,
+                        Period = "Mensal",
+                        ValidityMonths = 6,
+                        IsActive = true
+                    },
+                    new Domain.Entities.CreditPlan
+                    {
+                        Name = "Business",
+                        Price = 1000m,
+                        Credits = 1080,
+                        BonusCredits = 80,
+                        Period = "Mensal",
+                        ValidityMonths = 6,
+                        IsActive = true
+                    }
+                };
+
+                _context.CreditPlans.AddRange(plans);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Planos de créditos inicializados com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao inicializar planos: {ex.Message}";
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> AddRoomConfigurationColumns()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                // Verificar e adicionar cada coluna individualmente
+                var columns = new[]
+                {
+                    ("OffersSharedRoom", "BOOLEAN DEFAULT FALSE"),
+                    ("SharedRoomPricePerHour", "DECIMAL(10,2) NULL"),
+                    ("SharedRoomMaxSeats", "INT NULL"),
+                    ("OffersPrivateRoom", "BOOLEAN DEFAULT FALSE"),
+                    ("PrivateRoomPricePerHour", "DECIMAL(10,2) NULL"),
+                    ("PrivateRoomMaxSeats", "INT NULL")
+                };
+
+                foreach (var (columnName, columnType) in columns)
+                {
+                    try
+                    {
+                        // Verificar se a coluna já existe
+                        using var checkCommand = connection.CreateCommand();
+                        checkCommand.CommandText = $@"
+                            SELECT COUNT(*) 
+                            FROM information_schema.COLUMNS 
+                            WHERE TABLE_SCHEMA = DATABASE() 
+                            AND TABLE_NAME = 'CoworkingAddresses' 
+                            AND COLUMN_NAME = '{columnName}'";
+                        
+                        var exists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
+                        
+                        if (!exists)
+                        {
+                            using var addCommand = connection.CreateCommand();
+                            addCommand.CommandText = $"ALTER TABLE CoworkingAddresses ADD COLUMN {columnName} {columnType}";
+                            await addCommand.ExecuteNonQueryAsync();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Ignorar se a coluna já existe ou outro erro específico
+                        if (!ex.Message.Contains("Duplicate column name"))
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                await connection.CloseAsync();
+                TempData["Success"] = "Colunas de configuração de salas adicionadas com sucesso na tabela CoworkingAddresses!";
+                return RedirectToAction("DatabaseManager");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao adicionar colunas: {ex.Message}";
+                return RedirectToAction("DatabaseManager");
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> AddReservationColumns()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                var columns = new[]
+                {
+                    ("RoomType", "VARCHAR(20) DEFAULT 'Shared'"),
+                    ("TotalValue", "DECIMAL(10,2) NOT NULL DEFAULT 0")
+                };
+
+                foreach (var (columnName, columnType) in columns)
+                {
+                    try
+                    {
+                        // Verificar se a coluna já existe
+                        using var checkCommand = connection.CreateCommand();
+                        checkCommand.CommandText = $@"
+                            SELECT COUNT(*) 
+                            FROM information_schema.COLUMNS 
+                            WHERE TABLE_SCHEMA = DATABASE() 
+                            AND TABLE_NAME = 'Reservations' 
+                            AND COLUMN_NAME = '{columnName}'";
+                        
+                        var exists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
+                        
+                        if (!exists)
+                        {
+                            using var addCommand = connection.CreateCommand();
+                            addCommand.CommandText = $"ALTER TABLE Reservations ADD COLUMN {columnName} {columnType}";
+                            await addCommand.ExecuteNonQueryAsync();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Ignorar se a coluna já existe
+                        if (!ex.Message.Contains("Duplicate column name"))
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                await connection.CloseAsync();
+                TempData["Success"] = "Colunas RoomType e TotalValue adicionadas com sucesso na tabela Reservations!";
+                return RedirectToAction("DatabaseManager");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao adicionar colunas: {ex.Message}";
+                return RedirectToAction("DatabaseManager");
+            }
         }
     }
 }
