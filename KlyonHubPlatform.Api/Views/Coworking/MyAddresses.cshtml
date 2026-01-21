@@ -15,13 +15,14 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("MyAddresses", "Coworking")" class="row g-3">
-            <div class="col-md-4">
+        <form method="get" action="@Url.Action("MyAddresses", "Coworking")" class="row g-3" id="filterForm">
+            <input type="hidden" name="page" value="1" id="pageInput" />
+            <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
                        value="@ViewBag.Search" placeholder="Endereço, cidade, bairro ou estado">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
@@ -29,7 +30,7 @@
                     <option value="unavailable" selected="@(ViewBag.Status == "unavailable")">Indisponíveis</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="locationId" class="form-label">Localidade</label>
                 <select class="form-select" id="locationId" name="locationId">
                     <option value="">Todas</option>
@@ -39,7 +40,17 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end gap-2">
+            <div class="col-md-2">
+                <label for="pageSize" class="form-label">Itens por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
+                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
+                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
@@ -54,11 +65,14 @@
 <!-- Informações de paginação -->
 @if (ViewBag.TotalItems != null)
 {
+    var currentPage = ViewBag.CurrentPage ?? 1;
+    var pageSize = ViewBag.PageSize ?? 15;
+    var totalItems = ViewBag.TotalItems ?? 0;
     <div class="mb-3">
         <p class="text-muted mb-0">
-            Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
-            <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
-            <strong>@ViewBag.TotalItems</strong> endereço(s)
+            Mostrando <strong>@((currentPage - 1) * pageSize + 1)</strong> a 
+            <strong>@(Math.Min(currentPage * pageSize, totalItems))</strong> de 
+            <strong>@totalItems</strong> endereço(s)
         </p>
     </div>
 }
@@ -125,53 +139,58 @@
             </div>
 
             <!-- Paginação -->
-            @if (ViewBag.TotalPages > 1)
+            @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
             {
                 <nav aria-label="Paginação">
                     <ul class="pagination justify-content-center mt-3">
-                        @if (ViewBag.CurrentPage > 1)
-                        {
-                            <li class="page-item">
-                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
-                                    search = ViewBag.Search, 
-                                    status = ViewBag.Status, 
-                                    locationId = ViewBag.LocationId, 
-                                    page = ViewBag.CurrentPage - 1 
-                                })">
-                                    <i class="bi bi-chevron-left"></i> Anterior
-                                </a>
-                            </li>
+                        @{
+                            int currentPage = ViewBag.CurrentPage ?? 1;
+                            int totalPages = ViewBag.TotalPages ?? 1;
+                            int pageSize = ViewBag.PageSize ?? 15;
+                            string PageUrl(int p) => Url.Action("MyAddresses", "Coworking", new
+                            {
+                                search = ViewBag.Search,
+                                status = ViewBag.Status,
+                                locationId = ViewBag.LocationId,
+                                page = p,
+                                pageSize = pageSize
+                            })!;
                         }
-
-                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage - 1)">
+                                <i class="bi bi-chevron-left"></i> Anterior
+                            </a>
+                        </li>
+                        @for (int p = 1; p <= totalPages; p++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
-                                    search = ViewBag.Search, 
-                                    status = ViewBag.Status, 
-                                    locationId = ViewBag.LocationId, 
-                                    page = i 
-                                })">
-                                    @i
-                                </a>
-                            </li>
+                            if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                            {
+                                <li class="page-item @(p == currentPage ? "active" : "")">
+                                    <a class="page-link" href="@PageUrl(p)">@p</a>
+                                </li>
+                            }
+                            else if (p == 2 && currentPage > 4)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                            else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
                         }
-
-                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
-                        {
-                            <li class="page-item">
-                                <a class="page-link" href="@Url.Action("MyAddresses", "Coworking", new { 
-                                    search = ViewBag.Search, 
-                                    status = ViewBag.Status, 
-                                    locationId = ViewBag.LocationId, 
-                                    page = ViewBag.CurrentPage + 1 
-                                })">
-                                    Próxima <i class="bi bi-chevron-right"></i>
-                                </a>
-                            </li>
-                        }
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link" href="@PageUrl(currentPage + 1)">
+                                Próxima <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
                     </ul>
                 </nav>
+            }
+            else if (ViewBag.TotalPages != null && ViewBag.TotalPages == 1 && ViewBag.TotalItems > 0)
+            {
+                <div class="text-center mt-3">
+                    <small class="text-muted">Todos os @ViewBag.TotalItems endereço(s) estão sendo exibidos nesta página.</small>
+                </div>
             }
         }
         else
@@ -194,3 +213,24 @@
         }
     </div>
 </div>
+
+<script>
+    // Resetar página para 1 quando o tamanho da página mudar
+    document.addEventListener('DOMContentLoaded', function() {
+        var pageSizeSelect = document.getElementById('pageSize');
+        if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', function() {
+                document.getElementById('pageInput').value = '1';
+                document.getElementById('filterForm').submit();
+            });
+        }
+
+        // Resetar página para 1 quando os filtros forem aplicados
+        var filterForm = document.getElementById('filterForm');
+        if (filterForm) {
+            filterForm.addEventListener('submit', function() {
+                document.getElementById('pageInput').value = '1';
+            });
+        }
+    });
+</script>

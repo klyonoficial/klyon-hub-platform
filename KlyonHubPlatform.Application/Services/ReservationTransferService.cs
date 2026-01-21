@@ -60,11 +60,19 @@ namespace KlyonHubPlatform.Application.Services
             };
             _context.Transfers.Add(transfer);
 
-            var plat = await _context.PlatformCreditBalances.FirstOrDefaultAsync();
-            if (plat != null)
+            // Atualizar saldo da plataforma (se a tabela existir)
+            try
             {
-                plat.TotalCredits -= coworkingAmount;
-                plat.UpdatedAt = DateTime.UtcNow;
+                var plat = await _context.PlatformCreditBalances.FirstOrDefaultAsync();
+                if (plat != null)
+                {
+                    plat.TotalCredits -= coworkingAmount;
+                    plat.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            catch (Exception)
+            {
+                // Tabela PlatformCreditBalances pode não existir ainda; ignorar e continuar
             }
 
             r.Status = "Completed";

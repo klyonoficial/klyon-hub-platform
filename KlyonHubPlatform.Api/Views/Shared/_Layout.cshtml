@@ -145,6 +145,11 @@
                         }
                         @if (User.IsInRole("CoworkingPartner"))
                         {
+                            // Invocar ViewComponent para buscar produtos (ele popula ViewContext.ViewData)
+                            var componentResult = await Component.InvokeAsync("CoworkingProducts");
+                            var hasFiscalAddress = ViewData["HasFiscalAddress"] as bool? ?? false;
+                            var hasRoomRental = ViewData["HasRoomRental"] as bool? ?? false;
+                            
                             <a class="nav-link" href="@Url.Action("Dashboard", "Coworking")">
                                 <i class="bi bi-speedometer2"></i> Dashboard
                             </a>
@@ -154,18 +159,26 @@
                             <a class="nav-link" href="@Url.Action("Products", "Coworking")">
                                 <i class="bi bi-box-seam"></i> Produtos
                             </a>
+                            
+                            @* Menu de Endereço Fiscal - sempre aparece para facilitar acesso *@
                             <a class="nav-link" href="@Url.Action("MyAddresses", "Coworking")">
                                 <i class="bi bi-geo-alt"></i> Meus Endereços Fiscais
-                            </a>
-                            <a class="nav-link" href="@Url.Action("Reservations", "Coworking")">
-                                <i class="bi bi-calendar-check"></i> Reservas de Salas
-                            </a>
-                            <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Coworking")">
-                                <i class="bi bi-currency-dollar"></i> Receita de Salas
                             </a>
                             <a class="nav-link" href="@Url.Action("ActiveContracts", "Coworking")">
                                 <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
                             </a>
+                            
+                            @* Menu de Aluguel de Salas - só aparece se o produto estiver marcado *@
+                            @if (hasRoomRental)
+                            {
+                                <a class="nav-link" href="@Url.Action("Reservations", "Coworking")">
+                                    <i class="bi bi-calendar-check"></i> Reservas de Salas
+                                </a>
+                                <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Coworking")">
+                                    <i class="bi bi-currency-dollar"></i> Receita de Salas
+                                </a>
+                            }
+                            
                             <a class="nav-link" href="@Url.Action("Commissions", "Coworking")">
                                 <i class="bi bi-cash-coin"></i> Comissões
                             </a>

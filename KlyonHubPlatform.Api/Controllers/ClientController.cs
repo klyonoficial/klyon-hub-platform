@@ -149,9 +149,55 @@ namespace KlyonHubPlatform.Api.Controllers
             return View(client);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetLogo(int clientId)
+        {
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.Id == clientId);
+            
+            if (client == null || string.IsNullOrEmpty(client.LogoPath))
+            {
+                return NotFound();
+            }
+
+            // Verificar se o usuário logado tem permissão para ver a logo
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            
+            // Permitir acesso se:
+            // 1. É o próprio cliente
+            // 2. É administrador
+            var canAccess = User.IsInRole("Administrator") || (userClient != null && userClient.Id == clientId);
+            
+            if (!canAccess)
+            {
+                return Forbid();
+            }
+
+            var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
+            var storageService = await storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(client.LogoPath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            // Detectar tipo de conteúdo baseado na extensão
+            var contentType = "image/jpeg"; // padrão
+            var lowerPath = client.LogoPath.ToLower();
+            if (lowerPath.EndsWith(".png"))
+                contentType = "image/png";
+            else if (lowerPath.EndsWith(".gif"))
+                contentType = "image/gif";
+            else if (lowerPath.EndsWith(".webp"))
+                contentType = "image/webp";
+
+            return File(fileBytes, contentType);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateProfile(Client client)
+        public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo)
         {
             try
             {
@@ -251,6 +297,51 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingClient.Address = client.Address;
                 existingClient.City = client.City;
                 existingClient.State = client.State;
+                
+                // Upload da logo se fornecida
+                if (Logo != null && Logo.Length > 0)
+                {
+                    var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+                    var fileExtension = Path.GetExtension(Logo.FileName).ToLowerInvariant();
+                    
+                    if (!allowedExtensions.Contains(fileExtension))
+                    {
+                        TempData["Error"] = "Formato de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(existingClient);
+                    }
+                    
+                    // Validar tamanho (máximo 5MB)
+                    if (Logo.Length > 5 * 1024 * 1024)
+                    {
+                        TempData["Error"] = "O arquivo é muito grande. O tamanho máximo é 5MB.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(existingClient);
+                    }
+                    
+                    try
+                    {
+                        var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
+                        var storageService = await storageFactory.GetStorageServiceAsync();
+                        
+                        using var stream = new MemoryStream();
+                        await Logo.CopyToAsync(stream);
+                        var fileBytes = stream.ToArray();
+                        
+                        var fileName = $"logo_{existingClient.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{fileExtension}";
+                        var folder = $"clients/{existingClient.Id}";
+                        var filePath = await storageService.SaveFileAsync(fileBytes, fileName, folder);
+                        
+                        existingClient.LogoPath = filePath;
+                    }
+                    catch (Exception ex)
+                    {
+                        TempData["Error"] = $"Erro ao fazer upload da logo: {ex.Message}";
+                        ViewBag.UserEmail = userEmail;
+                        return View(existingClient);
+                    }
+                }
+                
                 existingClient.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
@@ -1862,15 +1953,23 @@ namespace KlyonHubPlatform.Api.Controllers
                         _context.ClientCredits.Add(clientCredit);
 
                         // Creditar também na conta do administrador (conforme regra de negócio)
-                        var total = purchase.CreditsReceived + purchase.BonusCredits;
-                        var plat = await _context.PlatformCreditBalances.FirstOrDefaultAsync();
-                        if (plat == null)
+                        // Se a tabela PlatformCreditBalances existir
+                        try
                         {
-                            plat = new PlatformCreditBalance { TotalCredits = 0 };
-                            _context.PlatformCreditBalances.Add(plat);
+                            var total = purchase.CreditsReceived + purchase.BonusCredits;
+                            var plat = await _context.PlatformCreditBalances.FirstOrDefaultAsync();
+                            if (plat == null)
+                            {
+                                plat = new PlatformCreditBalance { TotalCredits = 0 };
+                                _context.PlatformCreditBalances.Add(plat);
+                            }
+                            plat.TotalCredits += total;
+                            plat.UpdatedAt = DateTime.UtcNow;
                         }
-                        plat.TotalCredits += total;
-                        plat.UpdatedAt = DateTime.UtcNow;
+                        catch (Exception)
+                        {
+                            // Tabela PlatformCreditBalances pode não existir ainda; ignorar e continuar
+                        }
                     }
                     else if (status == "DECLINED" || status == "CANCELLED")
                     {
@@ -2136,7 +2235,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpGet]
         public async Task<IActionResult> MyReservations(string? sortBy = "date_asc", string? status = null,
-            DateTime? dateFrom = null, DateTime? dateTo = null, string? search = null, string? roomType = null)
+            DateTime? dateFrom = null, DateTime? dateTo = null, string? search = null, string? roomType = null, int page = 1, int pageSize = 12)
         {
             try
             {
@@ -2201,7 +2300,25 @@ namespace KlyonHubPlatform.Api.Controllers
                     // date_asc (padrão): datas mais próximas, depois horário mais cedo
                     query = query.OrderBy(r => r.ReservationDate).ThenBy(r => r.StartTime ?? TimeSpan.Zero);
 
-                var reservations = await query.ToListAsync();
+                // Contagem total para paginação
+                var totalItems = await query.CountAsync();
+                var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+                if (totalPages == 0) totalPages = 1;
+                if (page > totalPages) page = totalPages;
+                if (page < 1) page = 1;
+
+                // Paginação
+                var reservations = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                // Calcular estatísticas do total (antes da paginação)
+                var allReservations = await query.ToListAsync();
+                ViewBag.TotalReservations = allReservations.Count;
+                ViewBag.TotalConfirmed = allReservations.Count(r => r.Status == "Confirmed");
+                ViewBag.TotalCompleted = allReservations.Count(r => r.Status == "Completed");
+                ViewBag.TotalCancelled = allReservations.Count(r => r.Status == "Cancelled");
 
                 ViewBag.SortBy = sortBy ?? "date_asc";
                 ViewBag.Status = status;
@@ -2209,6 +2326,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.DateTo = dateTo;
                 ViewBag.Search = search;
                 ViewBag.RoomType = roomType;
+                ViewBag.CurrentPage = page;
+                ViewBag.TotalPages = totalPages;
+                ViewBag.TotalItems = totalItems;
+                ViewBag.PageSize = pageSize;
 
                 return View(reservations);
             }
@@ -2248,7 +2369,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CreditSpendingReport()
+        public async Task<IActionResult> CreditSpendingReport(int? month = null, int? year = null)
         {
             try
             {
@@ -2262,7 +2383,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Buscar todas as reservas do cliente (gastos de créditos)
-                var reservations = await _context.Reservations
+                var allReservations = await _context.Reservations
                     .Include(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Coworking)
                     .Include(r => r.CoworkingAddress)
@@ -2272,16 +2393,30 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenByDescending(r => r.CreatedAt)
                     .ToListAsync();
 
-                // Calcular totais
-                var totalCreditsSpent = reservations.Sum(r => r.CreditsUsed);
-                var totalValueSpent = reservations.Sum(r => r.TotalValue);
-                var totalReservations = reservations.Count;
-                var confirmedReservations = reservations.Count(r => r.Status == "Confirmed");
-                var cancelledReservations = reservations.Count(r => r.Status == "Cancelled");
-                var completedReservations = reservations.Count(r => r.Status == "Completed");
+                // Aplicar filtro por mês/ano se fornecido
+                var reservations = allReservations;
+                if (month.HasValue && year.HasValue)
+                {
+                    reservations = allReservations
+                        .Where(r => r.ReservationDate.Year == year.Value && r.ReservationDate.Month == month.Value)
+                        .ToList();
+                }
 
-                // Agrupar por mês
-                var monthlySpending = reservations
+                // Calcular totais (sempre baseado em todas as reservas para os cards de resumo)
+                var totalCreditsSpent = allReservations.Sum(r => r.CreditsUsed);
+                var totalValueSpent = allReservations.Sum(r => r.TotalValue);
+                var totalReservations = allReservations.Count;
+                var confirmedReservations = allReservations.Count(r => r.Status == "Confirmed");
+                var cancelledReservations = allReservations.Count(r => r.Status == "Cancelled");
+                var completedReservations = allReservations.Count(r => r.Status == "Completed");
+
+                // Calcular totais filtrados (para exibição na tabela quando filtrado)
+                var filteredCreditsSpent = reservations.Sum(r => r.CreditsUsed);
+                var filteredValueSpent = reservations.Sum(r => r.TotalValue);
+                var filteredReservations = reservations.Count;
+
+                // Agrupar por mês (sempre de todas as reservas para a tabela de meses)
+                var monthlySpending = allReservations
                     .GroupBy(r => new { r.ReservationDate.Year, r.ReservationDate.Month })
                     .Select(g => new
                     {
@@ -2302,6 +2437,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.CancelledReservations = cancelledReservations;
                 ViewBag.CompletedReservations = completedReservations;
                 ViewBag.MonthlySpending = monthlySpending;
+                ViewBag.FilteredCreditsSpent = filteredCreditsSpent;
+                ViewBag.FilteredValueSpent = filteredValueSpent;
+                ViewBag.FilteredReservations = filteredReservations;
+                ViewBag.SelectedMonth = month;
+                ViewBag.SelectedYear = year;
 
                 return View(reservations);
             }

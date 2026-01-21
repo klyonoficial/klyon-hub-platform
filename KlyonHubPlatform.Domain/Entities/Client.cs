@@ -15,6 +15,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? City { get; set; }
         public string? State { get; set; }
         public string? ZipCode { get; set; }
+        public string? LogoPath { get; set; } // Caminho da logomarca
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }

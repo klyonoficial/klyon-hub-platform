@@ -119,7 +119,19 @@ else
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
                                     <td>R$ @contract.MonthlyValue.ToString("F2")</td>
                                     <td>
-                                        <span class="badge bg-success">@contract.Status</span>
+                                        @{
+                                            var statusText = contract.Status switch
+                                            {
+                                                ContractStatus.Active => "Ativo",
+                                                ContractStatus.Suspended => "Suspenso",
+                                                ContractStatus.PendingPayment => "Aguardando Pagamento",
+                                                ContractStatus.PendingCancellation => "Cancelamento Pendente",
+                                                ContractStatus.Cancelled => "Cancelado",
+                                                ContractStatus.Expired => "Expirado",
+                                                _ => contract.Status.ToString()
+                                            };
+                                        }
+                                        <span class="badge bg-success">@statusText</span>
                                     </td>
                                     <td>
                                         <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" class="btn btn-sm btn-primary">

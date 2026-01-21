@@ -1,142 +1,714 @@
 @using KlyonHubPlatform.Application.Interfaces
 @{
-    ViewData["Title"] = "Relatórios";
+    ViewData["Title"] = "Relatório Financeiro da Plataforma";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var report = ViewBag.Report as ReportFinancialResult;
     var startDate = ViewBag.StartDate as DateTime? ?? DateTime.UtcNow.AddMonths(-1);
     var endDate = ViewBag.EndDate as DateTime? ?? DateTime.UtcNow;
     var product = ViewBag.Product as string ?? ReportProductFilter.Todos;
+    
+    var totalReceived = report?.TotalReceived ?? 0m;
+    var totalCommissions = report?.TotalCommissions ?? 0m;
+    var totalTransferred = totalReceived - totalCommissions;
+    var blockedCredits = report?.Pending ?? 0m;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-graph-up"></i> Relatórios Financeiros</h2>
-</div>
+<style>
+    .financial-kpi {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        position: relative;
+    }
+    .financial-kpi:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .financial-kpi.clicked {
+        box-shadow: 0 0 0 3px rgba(255,255,255,0.5);
+    }
+    .financial-kpi::after {
+        content: '\F138';
+        font-family: 'bootstrap-icons';
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        opacity: 0.5;
+        font-size: 1.2rem;
+        transition: opacity 0.2s;
+    }
+    .financial-kpi:hover::after {
+        opacity: 1;
+    }
+    .financial-kpi h6 {
+        opacity: 0.9;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .financial-kpi h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .report-table-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .table-row-highlight {
+        background-color: #fff3cd !important;
+        border-left: 4px solid #ffc107;
+        animation: highlightRow 0.5s ease-in-out;
+    }
+    @@keyframes highlightRow {
+        0% { background-color: transparent; }
+        50% { background-color: #fff3cd; }
+        100% { background-color: #fff3cd; }
+    }
+    .filter-active {
+        border: 3px solid rgba(255,255,255,0.8) !important;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.5) !important;
+    }
+    .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .clickable-row:hover {
+        background-color: #f8f9fa;
+    }
+</style>
 
-<div class="d-flex flex-wrap gap-2 mb-4">
-    <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-primary"><i class="bi bi-wallet2"></i> Créditos por Cliente</a>
-    <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-primary"><i class="bi bi-building"></i> Receita por Coworking</a>
-</div>
-
-<form method="get" action="@Url.Action("Reports", "Admin")" class="card mb-4">
-    <div class="card-header bg-light">
-        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
-    </div>
-    <div class="card-body">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Data inicial</label>
-                <input type="date" name="startDate" class="form-control" value="@startDate.ToString("yyyy-MM-dd")">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Data final</label>
-                <input type="date" name="endDate" class="form-control" value="@endDate.ToString("yyyy-MM-dd")">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Produto</label>
-                <select name="product" class="form-select">
-                    @if (product == ReportProductFilter.Todos) { <option value="" selected>Todos</option> } else { <option value="">Todos</option> }
-                    @if (product == ReportProductFilter.EnderecoFiscal) { <option value="@ReportProductFilter.EnderecoFiscal" selected>Endereço fiscal</option> } else { <option value="@ReportProductFilter.EnderecoFiscal">Endereço fiscal</option> }
-                    @if (product == ReportProductFilter.AluguelSalas) { <option value="@ReportProductFilter.AluguelSalas" selected>Aluguel de salas</option> } else { <option value="@ReportProductFilter.AluguelSalas">Aluguel de salas</option> }
-                    @if (product == ReportProductFilter.CertificadoDigitais) { <option value="@ReportProductFilter.CertificadoDigitais" selected>Certificado digitais</option> } else { <option value="@ReportProductFilter.CertificadoDigitais">Certificado digitais</option> }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
-            </div>
-        </div>
-    </div>
-</form>
-
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <h5 class="card-title">Período</h5>
-                <p class="card-text">
-                    @startDate.ToString("dd/MM/yyyy") até @endDate.ToString("dd/MM/yyyy")
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-bank text-primary me-2"></i>
+                    Relatório Financeiro da Plataforma
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> Seu "extrato bancário" da plataforma
                 </p>
             </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Total de Pagamentos</h5>
-                <h3>@(report?.TotalPayments ?? 0)</h3>
+            <div class="d-flex gap-2">
+                <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-primary">
+                    <i class="bi bi-wallet2"></i> Créditos por Cliente
+                </a>
+                <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-primary">
+                    <i class="bi bi-building"></i> Receita por Coworking
+                </a>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <h5 class="card-title">Total Recebido</h5>
-                <h3>R$ @(report?.TotalReceived.ToString("F2") ?? "0,00")</h3>
+
+    <!-- Filtros -->
+    <div class="container mb-4">
+        <div class="report-table-card card">
+            <div class="section-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel text-primary me-2"></i>
+                    Filtros
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="get" action="@Url.Action("Reports", "Admin")" id="filterForm">
+                    <input type="hidden" name="page" value="1" id="pageInput" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Período - Data inicial</label>
+                            <input type="date" name="startDate" class="form-control" value="@startDate.ToString("yyyy-MM-dd")">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Data final</label>
+                            <input type="date" name="endDate" class="form-control" value="@endDate.ToString("yyyy-MM-dd")">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Produto</label>
+                            <select name="product" class="form-select">
+                                @if (product == ReportProductFilter.Todos) { <option value="" selected>Todos</option> } else { <option value="">Todos</option> }
+                                @if (product == ReportProductFilter.EnderecoFiscal) { <option value="@ReportProductFilter.EnderecoFiscal" selected>Endereço fiscal</option> } else { <option value="@ReportProductFilter.EnderecoFiscal">Endereço fiscal</option> }
+                                @if (product == ReportProductFilter.AluguelSalas) { <option value="@ReportProductFilter.AluguelSalas" selected>Aluguel de salas</option> } else { <option value="@ReportProductFilter.AluguelSalas">Aluguel de salas</option> }
+                                @if (product == ReportProductFilter.CertificadoDigitais) { <option value="@ReportProductFilter.CertificadoDigitais" selected>Certificado digitais</option> } else { <option value="@ReportProductFilter.CertificadoDigitais">Certificado digitais</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Itens por página</label>
+                            <select name="pageSize" class="form-select" id="pageSize">
+                                <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
+                                <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                                <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
+                                <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                                <option value="100" selected="@(ViewBag.PageSize == 100)">100</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-search"></i> Filtrar
+                            </button>
+                            <a href="@Url.Action("Reports", "Admin")" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </a>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-warning">
-            <div class="card-body">
-                <h5 class="card-title">Pendentes</h5>
-                <h3>R$ @(report?.Pending.ToString("F2") ?? "0,00")</h3>
+
+    <!-- Visões (KPIs) -->
+    <div class="container mb-4">
+        <h3 class="mb-3">
+            <i class="bi bi-eye text-primary me-2"></i>
+            Visões
+        </h3>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"
+                     data-filter="all"
+                     onclick="filterTable('all', this)"
+                     title="Clique para ver todos os pagamentos">
+                    <h6>Total Faturado no Período</h6>
+                    <h2>R$ @totalReceived.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"
+                     data-filter="commission"
+                     onclick="filterTable('commission', this)"
+                     title="Clique para ver detalhes das comissões">
+                    <h6>Total de Comissões</h6>
+                    <h2>R$ @totalCommissions.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"
+                     data-filter="transferred"
+                     onclick="filterTable('transferred', this)"
+                     title="Clique para ver valores repassados">
+                    <h6>Total Repassado aos Coworkings</h6>
+                    <h2>R$ @totalTransferred.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"
+                     data-filter="balance"
+                     onclick="filterTable('balance', this)"
+                     title="Clique para ver saldo do administrador">
+                    <h6>Saldo Atual do Administrador</h6>
+                    <h2>R$ @totalCommissions.ToString("N2")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);"
+                     data-filter="pending"
+                     onclick="filterTable('pending', this)"
+                     title="Clique para ver créditos bloqueados">
+                    <h6>Créditos Bloqueados (reservas não confirmadas)</h6>
+                    <h2>R$ @blockedCredits.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="financial-kpi" 
+                     style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"
+                     data-filter="period"
+                     onclick="scrollToTable()"
+                     title="Clique para ver detalhamento">
+                    <h6>Período</h6>
+                    <h2 style="font-size: 1.5rem;">@startDate.ToString("dd/MM/yyyy") até @endDate.ToString("dd/MM/yyyy")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalhamento de Pagamentos -->
+    <div class="container">
+        <!-- Informações de paginação -->
+        @if (ViewBag.TotalItems != null)
+        {
+            <div class="mb-3">
+                <p class="text-muted mb-0">
+                    Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
+                    <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
+                    <strong>@ViewBag.TotalItems</strong> pagamento(s)
+                </p>
+            </div>
+        }
+        
+        <div class="report-table-card card">
+            <div class="section-header">
+                <h3 class="mb-0">
+                    <i class="bi bi-list-ul text-primary me-2"></i>
+                    Detalhamento de Pagamentos
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                @if (report != null && report.Rows.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><strong>Data</strong></th>
+                                    <th><strong>Produto</strong></th>
+                                    <th class="text-end"><strong>Valor (R$)</strong></th>
+                                    <th><strong>Método</strong></th>
+                                    <th><strong>Cliente</strong></th>
+                                    <th><strong>Localidade</strong></th>
+                                    <th><strong>Status</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentTableBody">
+                                @foreach (var row in report.Rows)
+                                {
+                                    var isPaid = row.Status == "Pago";
+                                    var isPending = row.Status == "Pendente" || row.Status == "Processando" || row.Status == "Aguardando Validação";
+                                    <tr class="clickable-row" 
+                                        data-status="@row.Status.ToLower()" 
+                                        data-is-paid="@isPaid.ToString().ToLower()" 
+                                        data-is-pending="@isPending.ToString().ToLower()"
+                                        data-amount="@row.Amount"
+                                        data-product="@row.ProductType"
+                                        data-client="@row.Client"
+                                        onclick="showPaymentDetails(this)"
+                                        title="Clique para ver detalhes">
+                                        <td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                @row.ProductType
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>R$ @row.Amount.ToString("N2")</strong>
+                                        </td>
+                                        <td>
+                                            @if (row.Method == "PIX") 
+                                            { 
+                                                <span class="badge bg-primary">
+                                                    <i class="bi bi-qr-code"></i> PIX
+                                                </span> 
+                                            }
+                                            else if (row.Method == "Cartão") 
+                                            { 
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-credit-card"></i> Cartão
+                                                </span> 
+                                            }
+                                            else if (row.Method == "Boleto") 
+                                            { 
+                                                <span class="badge bg-secondary">
+                                                    <i class="bi bi-bank"></i> Boleto
+                                                </span> 
+                                            }
+                                            else 
+                                            { 
+                                                <span class="badge bg-secondary">@(row.Method ?? "-")</span> 
+                                            }
+                                        </td>
+                                        <td>@row.Client</td>
+                                        <td>@row.Location</td>
+                                        <td>
+                                            @if (row.Status == "Pago") 
+                                            { 
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-circle"></i> Pago
+                                                </span> 
+                                            }
+                                            else if (row.Status == "Pendente") 
+                                            { 
+                                                <span class="badge bg-warning">
+                                                    <i class="bi bi-clock"></i> Pendente
+                                                </span> 
+                                            }
+                                            else if (row.Status == "Processando" || row.Status == "Aguardando Validação") 
+                                            { 
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-hourglass-split"></i> @row.Status
+                                                </span> 
+                                            }
+                                            else if (row.Status == "Falhou" || row.Status == "Cancelado") 
+                                            { 
+                                                <span class="badge bg-danger">
+                                                    <i class="bi bi-x-circle"></i> @row.Status
+                                                </span> 
+                                            }
+                                            else 
+                                            { 
+                                                <span class="badge bg-secondary">@row.Status</span> 
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginação -->
+                    @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
+                    {
+                        <div class="card-footer">
+                            <nav aria-label="Paginação">
+                                <ul class="pagination justify-content-center mb-0">
+                                    @if (ViewBag.CurrentPage > 1)
+                                    {
+                                        <li class="page-item">
+                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                                startDate = startDate.ToString("yyyy-MM-dd"), 
+                                                endDate = endDate.ToString("yyyy-MM-dd"), 
+                                                product = product, 
+                                                page = ViewBag.CurrentPage - 1,
+                                                pageSize = ViewBag.PageSize
+                                            })">
+                                                <i class="bi bi-chevron-left"></i> Anterior
+                                            </a>
+                                        </li>
+                                    }
+
+                                    @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                                    {
+                                        <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                                startDate = startDate.ToString("yyyy-MM-dd"), 
+                                                endDate = endDate.ToString("yyyy-MM-dd"), 
+                                                product = product, 
+                                                page = i,
+                                                pageSize = ViewBag.PageSize
+                                            })">
+                                                @i
+                                            </a>
+                                        </li>
+                                    }
+
+                                    @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                                    {
+                                        <li class="page-item">
+                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                                startDate = startDate.ToString("yyyy-MM-dd"), 
+                                                endDate = endDate.ToString("yyyy-MM-dd"), 
+                                                product = product, 
+                                                page = ViewBag.CurrentPage + 1,
+                                                pageSize = ViewBag.PageSize
+                                            })">
+                                                Próxima <i class="bi bi-chevron-right"></i>
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            </nav>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="p-5 text-center">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <p class="text-muted mt-3 mb-0">Nenhum pagamento encontrado no período e produto selecionados.</p>
+                    </div>
+                }
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <h5><i class="bi bi-list-ul"></i> Detalhamento de Pagamentos</h5>
-    </div>
-    <div class="card-body">
-        @if (report != null && report.Rows.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Produto</th>
-                            <th>Valor</th>
-                            <th>Método</th>
-                            <th>Cliente</th>
-                            <th>Localidade</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in report.Rows)
-                        {
-                            <tr>
-                                <td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td>
-                                <td>@row.ProductType</td>
-                                <td>R$ @row.Amount.ToString("F2")</td>
-                                <td>
-                                    @if (row.Method == "PIX") { <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span> }
-                                    else if (row.Method == "Cartão") { <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span> }
-                                    else if (row.Method == "Boleto") { <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span> }
-                                    else { <span class="badge bg-secondary">@(row.Method ?? "-")</span> }
-                                </td>
-                                <td>@row.Client</td>
-                                <td>@row.Location</td>
-                                <td>
-                                    @if (row.Status == "Pago") { <span class="badge bg-success">Pago</span> }
-                                    else if (row.Status == "Pendente") { <span class="badge bg-warning">Pendente</span> }
-                                    else if (row.Status == "Processando" || row.Status == "Aguardando Validação") { <span class="badge bg-info">@row.Status</span> }
-                                    else if (row.Status == "Falhou" || row.Status == "Cancelado") { <span class="badge bg-danger">@row.Status</span> }
-                                    else { <span class="badge bg-secondary">@row.Status</span> }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+<script>
+let currentFilter = null;
+let currentFilterCard = null;
+
+function filterTable(filterType, cardElement) {
+    const tableBody = document.getElementById('paymentTableBody');
+    if (!tableBody) return;
+
+    // Remove highlight de todos os cards
+    document.querySelectorAll('.financial-kpi').forEach(card => {
+        card.classList.remove('filter-active');
+    });
+
+    // Remove highlight de todas as linhas
+    tableBody.querySelectorAll('tr').forEach(row => {
+        row.classList.remove('table-row-highlight');
+        row.style.display = '';
+    });
+
+    // Se clicou no mesmo filtro, desativa
+    if (currentFilter === filterType && currentFilterCard === cardElement) {
+        currentFilter = null;
+        currentFilterCard = null;
+        scrollToTable();
+        return;
+    }
+
+    // Aplica novo filtro
+    currentFilter = filterType;
+    currentFilterCard = cardElement;
+    cardElement.classList.add('filter-active');
+
+    let rowsToHighlight = [];
+    let visibleCount = 0;
+
+    tableBody.querySelectorAll('tr').forEach(row => {
+        let shouldShow = false;
+        let shouldHighlight = false;
+
+        switch(filterType) {
+            case 'all':
+                shouldShow = true;
+                shouldHighlight = true;
+                break;
+            case 'commission':
+                // Mostra todos os pagamentos pagos (que geram comissão)
+                if (row.dataset.isPaid === 'true') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
+            case 'transferred':
+                // Mostra pagamentos pagos (que foram repassados)
+                if (row.dataset.isPaid === 'true') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
+            case 'balance':
+                // Mostra pagamentos que geram saldo (pagos)
+                if (row.dataset.isPaid === 'true') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
+            case 'pending':
+                // Mostra apenas pendentes/processando
+                if (row.dataset.isPending === 'true') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
         }
-        else
-        {
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Nenhum pagamento encontrado no período e produto selecionados.
-            </div>
+
+        if (shouldShow) {
+            row.style.display = '';
+            visibleCount++;
+            if (shouldHighlight) {
+                rowsToHighlight.push(row);
+            }
+        } else {
+            row.style.display = 'none';
         }
-    </div>
-</div>
+    });
+
+    // Destaca as linhas relevantes
+    rowsToHighlight.forEach((row, index) => {
+        setTimeout(() => {
+            row.classList.add('table-row-highlight');
+            setTimeout(() => {
+                row.classList.remove('table-row-highlight');
+            }, 2000);
+        }, index * 50);
+    });
+
+    // Scroll para a tabela
+    scrollToTable();
+
+    // Mostra mensagem se não houver resultados
+    if (visibleCount === 0) {
+        showFilterMessage('Nenhum registro encontrado para este filtro.');
+    } else {
+        showFilterMessage(`${visibleCount} registro(s) encontrado(s).`);
+    }
+}
+
+function scrollToTable() {
+    const tableSection = document.querySelector('.report-table-card');
+    if (tableSection) {
+        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function showFilterMessage(message) {
+    // Remove mensagem anterior se existir
+    const existingMsg = document.getElementById('filterMessage');
+    if (existingMsg) {
+        existingMsg.remove();
+    }
+
+    // Cria nova mensagem
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'filterMessage';
+    msgDiv.className = 'alert alert-info alert-dismissible fade show position-fixed';
+    msgDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    msgDiv.innerHTML = `
+        <i class="bi bi-info-circle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(msgDiv);
+
+    // Remove automaticamente após 3 segundos
+    setTimeout(() => {
+        if (msgDiv.parentNode) {
+            msgDiv.remove();
+        }
+    }, 3000);
+}
+
+// Adiciona tooltip nos cards
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.financial-kpi[data-filter]');
+    cards.forEach(card => {
+        card.style.cursor = 'pointer';
+    });
+
+    // Resetar página para 1 quando o tamanho da página mudar
+    var pageSizeSelect = document.getElementById('pageSize');
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            document.getElementById('pageInput').value = '1';
+            document.getElementById('filterForm').submit();
+        });
+    }
+});
+
+function showPaymentDetails(row) {
+    const product = row.dataset.product;
+    const client = row.dataset.client;
+    const amount = parseFloat(row.dataset.amount);
+    const status = row.querySelector('td:last-child').textContent.trim();
+    const date = row.querySelector('td:first-child').textContent.trim();
+    const method = row.querySelector('td:nth-child(4)').textContent.trim();
+    const location = row.querySelector('td:nth-child(6)').textContent.trim();
+
+    // Calcula comissão (20% padrão)
+    const commission = amount * 0.20;
+    const netValue = amount - commission;
+
+    // Cria modal com detalhes
+    const modalHtml = `
+        <div class="modal fade" id="paymentDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-receipt-cutoff"></i> Detalhes do Pagamento
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Data</h6>
+                                        <p class="mb-0"><strong>${date}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Produto</h6>
+                                        <p class="mb-0"><strong>${product}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Cliente</h6>
+                                        <p class="mb-0"><strong>${client || 'N/A'}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Localidade</h6>
+                                        <p class="mb-0"><strong>${location || '-'}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Método de Pagamento</h6>
+                                        <p class="mb-0"><strong>${method}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted mb-2">Status</h6>
+                                        <p class="mb-0"><strong>${status}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6 class="mb-3"><i class="bi bi-cash-coin"></i> Informações Financeiras</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="card text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                    <div class="card-body">
+                                        <h6 class="opacity-75 mb-1">Valor Bruto</h6>
+                                        <h4 class="mb-0">R$ ${amount.toFixed(2).replace('.', ',')}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card text-white" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                    <div class="card-body">
+                                        <h6 class="opacity-75 mb-1">Comissão (20%)</h6>
+                                        <h4 class="mb-0">R$ ${commission.toFixed(2).replace('.', ',')}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card text-white" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                                    <div class="card-body">
+                                        <h6 class="opacity-75 mb-1">Valor Líquido</h6>
+                                        <h4 class="mb-0">R$ ${netValue.toFixed(2).replace('.', ',')}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove modal anterior se existir
+    const existingModal = document.getElementById('paymentDetailModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Adiciona novo modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('paymentDetailModal'));
+    modal.show();
+
+    // Remove modal quando fechado
+    document.getElementById('paymentDetailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+</script>

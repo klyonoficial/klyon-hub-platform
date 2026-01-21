@@ -1,93 +1,393 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model ClientCreditStatementDto
 @{
-    ViewData["Title"] = "Extrato de créditos";
+    ViewData["Title"] = "Extrato de Créditos (Ledger)";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var dateFrom = Model?.DateFrom;
     var dateTo = Model?.DateTo;
+    
+    var totalEntries = Model?.Movements?.Where(m => m.Type == "Entrada").Sum(m => m.CreditsDelta) ?? 0;
+    var totalExits = Math.Abs(Model?.Movements?.Where(m => m.Type == "Saída").Sum(m => m.CreditsDelta) ?? 0);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-bank"></i> Extrato de créditos — @(Model?.ClientName ?? "Cliente")</h2>
-    <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar ao relatório</a>
-</div>
+<style>
+    .statement-kpi {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .statement-kpi h6 {
+        opacity: 0.9;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .statement-kpi h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .statement-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .entry-row {
+        border-left: 4px solid #28a745;
+    }
+    .exit-row {
+        border-left: 4px solid #dc3545;
+    }
+    .statement-kpi {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .statement-kpi:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .statement-kpi.filter-active {
+        border: 3px solid rgba(255,255,255,0.8) !important;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.5) !important;
+    }
+    .table-row-highlight {
+        background-color: #fff3cd !important;
+        border-left: 4px solid #ffc107;
+        animation: highlightRow 0.5s ease-in-out;
+    }
+    @@keyframes highlightRow {
+        0% { background-color: transparent; }
+        50% { background-color: #fff3cd; }
+        100% { background-color: #fff3cd; }
+    }
+</style>
 
-<form method="get" action="@Url.Action("ReportClientCreditStatement", "Admin")" class="card mb-3">
-    <input type="hidden" name="clientId" value="@Model?.ClientId" />
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-journal-text text-primary me-2"></i>
+                    Extrato de Créditos (Ledger / Conta Corrente)
+                </h1>
+                <p class="text-muted mb-0">
+                    <strong>Cliente:</strong> @(Model?.ClientName ?? "Cliente")
+                </p>
+            </div>
+            <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar ao relatório
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="container mb-4">
+        <div class="statement-card card">
+            <div class="card-body p-4">
+                <form method="get" action="@Url.Action("ReportClientCreditStatement", "Admin")">
+                    <input type="hidden" name="clientId" value="@Model?.ClientId" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data inicial</label>
+                            <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data final</label>
+                            <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> Filtrar
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <a href="@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = Model?.ClientId })" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs Resumo -->
+    <div class="container mb-4">
+        <div class="row g-3">
             <div class="col-md-3">
-                <label class="form-label">Data inicial</label>
-                <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+                <div class="statement-kpi" 
+                     style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"
+                     data-filter="all"
+                     onclick="filterStatementTable('all', this)"
+                     title="Clique para ver todos os lançamentos">
+                    <h6>Saldo Atual</h6>
+                    <h2>@(Model?.CurrentBalance ?? 0)</h2>
+                    <small class="opacity-75">créditos disponíveis</small>
+                </div>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Data final</label>
-                <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+                <div class="statement-kpi" 
+                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+                     data-filter="entrada"
+                     onclick="filterStatementTable('entrada', this)"
+                     title="Clique para ver apenas entradas (compras)">
+                    <h6>Créditos Recebidos</h6>
+                    <h2>@totalEntries</h2>
+                    <small class="opacity-75">total comprado</small>
+                </div>
             </div>
-            <div class="col-md-auto">
-                <div class="d-flex gap-1">
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
-                    <a href="@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = Model?.ClientId })" class="btn btn-outline-secondary">Limpar</a>
+            <div class="col-md-3">
+                <div class="statement-kpi" 
+                     style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"
+                     data-filter="saida"
+                     onclick="filterStatementTable('saida', this)"
+                     title="Clique para ver apenas saídas (reservas)">
+                    <h6>Créditos Pendentes</h6>
+                    <h2>@totalExits</h2>
+                    <small class="opacity-75">em reservas não confirmadas</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="statement-kpi" 
+                     style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"
+                     data-filter="all"
+                     onclick="filterStatementTable('all', this)"
+                     title="Clique para ver todos os lançamentos">
+                    <h6>Créditos Disponíveis para Saque</h6>
+                    <h2>@(Model?.CurrentBalance ?? 0)</h2>
+                    <small class="opacity-75">saldo atual</small>
                 </div>
             </div>
         </div>
     </div>
-</form>
 
-<div class="card mb-3">
-    <div class="card-body">
-        <h5 class="card-title">Resumo</h5>
-        <p class="mb-1"><strong>Cliente:</strong> @(Model?.ClientName ?? "—")</p>
-        <p class="mb-1"><strong>Saldo atual:</strong> <span class="text-success fs-5">@(Model?.CurrentBalance ?? 0) créditos</span></p>
-        <p class="mb-0 text-muted">@(Model?.Movements?.Count ?? 0) lançamento(s) no período</p>
+    <!-- Histórico de Repasses -->
+    <div class="container mb-4">
+        <h3 class="mb-3">
+            <i class="bi bi-arrow-left-right text-primary me-2"></i>
+            Histórico de Repasses
+        </h3>
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Histórico de transferências e repasses será exibido aqui quando implementado.
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-journal-text"></i> Histórico (compras e reservas) — estilo extrato</h5>
-    </div>
-    <div class="card-body">
-        @if (Model?.Movements != null && Model.Movements.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Descrição</th>
-                            <th class="text-center">Tipo</th>
-                            <th class="text-end">Créditos</th>
-                            <th class="text-end">Valor (R$)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var m in Model.Movements)
-                        {
-                            <tr>
-                                <td>@m.Date.ToString("dd/MM/yyyy HH:mm")</td>
-                                <td>@m.Description</td>
-                                <td class="text-center">
-                                    @if (m.Type == "Entrada")
-                                    {
-                                        <span class="badge bg-success">Entrada</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">Saída</span>
-                                    }
-                                </td>
-                                <td class="text-end @(m.CreditsDelta > 0 ? "text-success" : "text-danger")">@(m.CreditsDelta > 0 ? "+" : "")@m.CreditsDelta</td>
-                                <td class="text-end">R$ @m.Amount.ToString("F2")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <!-- Extrato (Movimentações) -->
+    <div class="container">
+        <div class="statement-card card">
+            <div class="section-header">
+                <h3 class="mb-0">
+                    <i class="bi bi-journal-text text-primary me-2"></i>
+                    Histórico (compras e reservas) — estilo extrato bancário
+                </h3>
+                <p class="text-muted mb-0 mt-2">
+                    @(Model?.Movements?.Count ?? 0) lançamento(s) no período
+                </p>
             </div>
-        }
-        else
-        {
-            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum lançamento no período. Compras de créditos e reservas de salas aparecem aqui.</div>
-        }
+            <div class="card-body p-0">
+                @if (Model?.Movements != null && Model.Movements.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><strong>Data</strong></th>
+                                    <th><strong>Descrição</strong></th>
+                                    <th class="text-center"><strong>Tipo</strong></th>
+                                    <th class="text-end"><strong>Créditos</strong></th>
+                                    <th class="text-end"><strong>Valor (R$)</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody id="statementTableBody">
+                                @foreach (var m in Model.Movements)
+                                {
+                                    <tr class="@(m.Type == "Entrada" ? "entry-row" : "exit-row") clickable-row"
+                                        data-type="@m.Type.ToLower()"
+                                        data-credits="@m.CreditsDelta"
+                                        data-description="@m.Description.ToLower()">
+                                        <td>@m.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@m.Description</td>
+                                        <td class="text-center">
+                                            @if (m.Type == "Entrada")
+                                            {
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-arrow-down-circle"></i> Entrada
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">
+                                                    <i class="bi bi-arrow-up-circle"></i> Saída
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <strong class="@(m.CreditsDelta > 0 ? "text-success" : "text-danger")">
+                                                @(m.CreditsDelta > 0 ? "+" : "")@m.CreditsDelta
+                                            </strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>R$ @m.Amount.ToString("N2")</strong>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <p class="text-muted mt-3 mb-0">Nenhum lançamento no período. Compras de créditos e reservas de salas aparecem aqui.</p>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+let currentStatementFilter = null;
+let currentStatementFilterCard = null;
+
+function filterStatementTable(filterType, cardElement) {
+    const tableBody = document.getElementById('statementTableBody');
+    if (!tableBody) return;
+
+    // Remove highlight de todos os cards
+    document.querySelectorAll('.statement-kpi').forEach(card => {
+        card.classList.remove('filter-active');
+    });
+
+    // Remove highlight de todas as linhas
+    tableBody.querySelectorAll('tr').forEach(row => {
+        row.classList.remove('table-row-highlight');
+        row.style.display = '';
+    });
+
+    // Se clicou no mesmo filtro, desativa
+    if (currentStatementFilter === filterType && currentStatementFilterCard === cardElement) {
+        currentStatementFilter = null;
+        currentStatementFilterCard = null;
+        scrollToStatementTable();
+        return;
+    }
+
+    // Aplica novo filtro
+    currentStatementFilter = filterType;
+    currentStatementFilterCard = cardElement;
+    cardElement.classList.add('filter-active');
+
+    let rowsToHighlight = [];
+    let visibleCount = 0;
+
+    tableBody.querySelectorAll('tr').forEach(row => {
+        let shouldShow = false;
+        let shouldHighlight = false;
+
+        var rowType = row.dataset.type;
+        
+        switch(filterType) {
+            case 'all':
+                shouldShow = true;
+                shouldHighlight = true;
+                break;
+            case 'entrada':
+                // Mostra apenas entradas (compras)
+                if (rowType === 'entrada') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
+            case 'saida':
+                // Mostra apenas saídas (reservas)
+                if (rowType === 'saída' || rowType === 'saida') {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                }
+                break;
+        }
+
+        if (shouldShow) {
+            row.style.display = '';
+            visibleCount++;
+            if (shouldHighlight) {
+                rowsToHighlight.push(row);
+            }
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    // Destaca as linhas relevantes
+    rowsToHighlight.forEach((row, index) => {
+        setTimeout(() => {
+            row.classList.add('table-row-highlight');
+            setTimeout(() => {
+                row.classList.remove('table-row-highlight');
+            }, 2000);
+        }, index * 50);
+    });
+
+    // Scroll para a tabela
+    scrollToStatementTable();
+
+    // Mostra mensagem se não houver resultados
+    if (visibleCount === 0) {
+        showStatementFilterMessage('Nenhum lançamento encontrado para este filtro.');
+    } else {
+        showStatementFilterMessage(`${visibleCount} lançamento(s) encontrado(s).`);
+    }
+}
+
+function scrollToStatementTable() {
+    const tableSection = document.querySelector('.statement-card');
+    if (tableSection) {
+        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function showStatementFilterMessage(message) {
+    // Remove mensagem anterior se existir
+    const existingMsg = document.getElementById('statementFilterMessage');
+    if (existingMsg) {
+        existingMsg.remove();
+    }
+
+    // Cria nova mensagem
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'statementFilterMessage';
+    msgDiv.className = 'alert alert-info alert-dismissible fade show position-fixed';
+    msgDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    msgDiv.innerHTML = `
+        <i class="bi bi-info-circle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(msgDiv);
+
+    // Remove automaticamente após 3 segundos
+    setTimeout(() => {
+        if (msgDiv.parentNode) {
+            msgDiv.remove();
+        }
+    }, 3000);
+}
+
+// Adiciona cursor pointer nos cards
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.statement-kpi[data-filter]');
+    cards.forEach(card => {
+        card.style.cursor = 'pointer';
+    });
+});
+</script>
+

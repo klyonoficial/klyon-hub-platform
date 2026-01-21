@@ -32,6 +32,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         public async Task<List<AuditLog>> GetByEntityAsync(string entityType, int entityId)
         {
             return await _context.AuditLogs
+                .Include(l => l.User)
                 .Where(l => l.EntityType == entityType && l.EntityId == entityId)
                 .OrderByDescending(l => l.ActionDate)
                 .ToListAsync();

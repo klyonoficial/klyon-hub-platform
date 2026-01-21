@@ -1,0 +1,78 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using KlyonHubPlatform.Infra.Data.Context;
+using System.Security.Claims;
+
+namespace KlyonHubPlatform.Api.ViewComponents
+{
+    public class CoworkingProductsViewComponent : ViewComponent
+    {
+        private readonly ApplicationDbContext _context;
+
+        public CoworkingProductsViewComponent(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<IViewComponentResult> InvokeAsync()
+        {
+            var model = new CoworkingProductsModel
+            {
+                HasFiscalAddress = false,
+                HasRoomRental = false
+            };
+
+            var user = HttpContext.User as ClaimsPrincipal;
+            if (user?.Identity?.IsAuthenticated != true || !user.IsInRole("CoworkingPartner"))
+            {
+                return View(model);
+            }
+
+            try
+            {
+                var userIdClaim = user.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                {
+                    return View(model);
+                }
+
+                // Buscar o coworking do usuário
+                var coworking = await _context.Coworkings
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
+
+                if (coworking == null)
+                {
+                    return View(model);
+                }
+
+                // Buscar produtos ativos do coworking
+                var products = await _context.CoworkingProducts
+                    .Where(p => p.CoworkingId == coworking.Id && p.IsActive)
+                    .Select(p => p.ProductType)
+                    .ToListAsync();
+
+                model.HasFiscalAddress = products.Contains("FiscalAddress");
+                model.HasRoomRental = products.Contains("RoomRental");
+
+                // Compartilhar via ViewContext.ViewData para uso no _Layout (compartilhado)
+                ViewContext.ViewData["HasFiscalAddress"] = model.HasFiscalAddress;
+                ViewContext.ViewData["HasRoomRental"] = model.HasRoomRental;
+
+                return View(model);
+            }
+            catch
+            {
+                // Se a tabela não existir ou houver erro, retorna valores padrão
+                ViewContext.ViewData["HasFiscalAddress"] = false;
+                ViewContext.ViewData["HasRoomRental"] = false;
+                return View(model);
+            }
+        }
+    }
+
+    public class CoworkingProductsModel
+    {
+        public bool HasFiscalAddress { get; set; }
+        public bool HasRoomRental { get; set; }
+    }    
+}

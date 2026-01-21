@@ -76,7 +76,7 @@
                 <strong>Aluguéis de Sala:</strong> Ao marcar, seu coworking aparecerá no marketplace. Configure os endereços e as salas (compartilhada, privativa, auditório) em <strong>Endereços e salas</strong> abaixo. Só é possível reservar/descontar crédito se não houver reserva no mesmo dia e horário para aquela sala.
             </div>
             
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" id="btnSaveProducts">
                 <i class="bi bi-save"></i> Salvar Produtos
             </button>
         </form>
@@ -135,8 +135,215 @@
 </div>
 
 <script>
+// URLs dos menus (definidas pelo Razor)
+const menuUrls = {
+    fiscalAddress: '@Url.Action("MyAddresses", "Coworking")',
+    fiscalContracts: '@Url.Action("ActiveContracts", "Coworking")',
+    reservations: '@Url.Action("Reservations", "Coworking")',
+    roomRevenue: '@Url.Action("RoomRevenueReport", "Coworking")'
+};
+
 function toggleAddressSection() {
     var checked = document.getElementById('product_rental').checked;
     document.getElementById('addressSection').style.display = checked ? 'block' : 'none';
+}
+
+// Atualizar menu dinamicamente após salvar produtos
+document.getElementById('productsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    const btnSave = document.getElementById('btnSaveProducts');
+    const originalText = btnSave.innerHTML;
+    
+    // Desabilitar botão e mostrar loading
+    btnSave.disabled = true;
+    btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+    
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'RequestVerificationToken': formData.get('__RequestVerificationToken')
+            },
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Mostrar mensagem de sucesso
+            showMessage('success', result.message);
+            
+            // Atualizar menu lateral dinamicamente
+            updateSidebarMenu(result.hasFiscalAddress, result.hasRoomRental);
+            
+            // Atualizar seção de endereços se necessário
+            toggleAddressSection();
+        } else {
+            showMessage('error', result.message);
+        }
+    } catch (error) {
+        showMessage('error', 'Erro ao salvar produtos. Tente novamente.');
+        console.error('Erro:', error);
+    } finally {
+        // Reabilitar botão
+        btnSave.disabled = false;
+        btnSave.innerHTML = originalText;
+    }
+});
+
+function showMessage(type, message) {
+    // Remove mensagens anteriores
+    const existingAlerts = document.querySelectorAll('.alert-dynamic');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${alertClass} alert-dismissible fade show alert-dynamic`;
+    alertDiv.setAttribute('role', 'alert');
+    alertDiv.innerHTML = `
+        <i class="bi ${icon}"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Inserir no topo do card
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertBefore(alertDiv, cardBody.firstChild);
+    
+    // Auto-remover após 5 segundos
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function updateSidebarMenu(hasFiscalAddress, hasRoomRental) {
+    const sidebar = document.querySelector('.sidebar nav');
+    if (!sidebar) return;
+    
+    // Encontrar os itens de menu existentes
+    const allLinks = Array.from(sidebar.querySelectorAll('.nav-link'));
+    let fiscalAddressMenu = allLinks.find(link => link.href.includes('/MyAddresses') || link.textContent.includes('Meus Endereços Fiscais'));
+    let fiscalContractsMenu = allLinks.find(link => link.href.includes('/ActiveContracts') || link.textContent.includes('Contratos de Endereço Fiscal'));
+    let reservationsMenu = allLinks.find(link => link.href.includes('/Reservations') || link.textContent.includes('Reservas de Salas'));
+    let roomRevenueMenu = allLinks.find(link => link.href.includes('/RoomRevenueReport') || link.textContent.includes('Receita de Salas'));
+    
+    // Encontrar o item "Produtos" para inserir após ele
+    const productsLink = allLinks.find(link => 
+        link.textContent.trim().includes('Produtos')
+    );
+    
+    if (!productsLink) return;
+    
+    // Remover menus existentes se não devem aparecer
+    if (!hasFiscalAddress) {
+        if (fiscalAddressMenu) {
+            fiscalAddressMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            fiscalAddressMenu.style.opacity = '0';
+            fiscalAddressMenu.style.maxHeight = '0';
+            fiscalAddressMenu.style.overflow = 'hidden';
+            setTimeout(() => fiscalAddressMenu.remove(), 300);
+        }
+        if (fiscalContractsMenu) {
+            fiscalContractsMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            fiscalContractsMenu.style.opacity = '0';
+            fiscalContractsMenu.style.maxHeight = '0';
+            fiscalContractsMenu.style.overflow = 'hidden';
+            setTimeout(() => fiscalContractsMenu.remove(), 300);
+        }
+    }
+    
+    if (!hasRoomRental) {
+        if (reservationsMenu) {
+            reservationsMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            reservationsMenu.style.opacity = '0';
+            reservationsMenu.style.maxHeight = '0';
+            reservationsMenu.style.overflow = 'hidden';
+            setTimeout(() => reservationsMenu.remove(), 300);
+        }
+        if (roomRevenueMenu) {
+            roomRevenueMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            roomRevenueMenu.style.opacity = '0';
+            roomRevenueMenu.style.maxHeight = '0';
+            roomRevenueMenu.style.overflow = 'hidden';
+            setTimeout(() => roomRevenueMenu.remove(), 300);
+        }
+    }
+    
+    // Adicionar menus se devem aparecer e não existem
+    if (hasFiscalAddress && !fiscalAddressMenu) {
+        fiscalAddressMenu = document.createElement('a');
+        fiscalAddressMenu.className = 'nav-link';
+        fiscalAddressMenu.href = menuUrls.fiscalAddress;
+        fiscalAddressMenu.innerHTML = '<i class="bi bi-geo-alt"></i> Meus Endereços Fiscais';
+        fiscalAddressMenu.style.opacity = '0';
+        fiscalAddressMenu.style.maxHeight = '0';
+        fiscalAddressMenu.style.overflow = 'hidden';
+        productsLink.insertAdjacentElement('afterend', fiscalAddressMenu);
+        setTimeout(() => {
+            fiscalAddressMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            fiscalAddressMenu.style.opacity = '1';
+            fiscalAddressMenu.style.maxHeight = '50px';
+        }, 10);
+    }
+    
+    if (hasFiscalAddress && !fiscalContractsMenu) {
+        const insertAfter = fiscalAddressMenu || productsLink;
+        fiscalContractsMenu = document.createElement('a');
+        fiscalContractsMenu.className = 'nav-link';
+        fiscalContractsMenu.href = menuUrls.fiscalContracts;
+        fiscalContractsMenu.innerHTML = '<i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal';
+        fiscalContractsMenu.style.opacity = '0';
+        fiscalContractsMenu.style.maxHeight = '0';
+        fiscalContractsMenu.style.overflow = 'hidden';
+        insertAfter.insertAdjacentElement('afterend', fiscalContractsMenu);
+        setTimeout(() => {
+            fiscalContractsMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+            fiscalContractsMenu.style.opacity = '1';
+            fiscalContractsMenu.style.maxHeight = '50px';
+        }, 10);
+    }
+    
+    if (hasRoomRental) {
+        // Encontrar onde inserir (após menus de fiscal address ou após produtos)
+        const insertAfter = fiscalContractsMenu || fiscalAddressMenu || productsLink;
+        
+        if (!reservationsMenu) {
+            reservationsMenu = document.createElement('a');
+            reservationsMenu.className = 'nav-link';
+            reservationsMenu.href = menuUrls.reservations;
+            reservationsMenu.innerHTML = '<i class="bi bi-calendar-check"></i> Reservas de Salas';
+            reservationsMenu.style.opacity = '0';
+            reservationsMenu.style.maxHeight = '0';
+            reservationsMenu.style.overflow = 'hidden';
+            insertAfter.insertAdjacentElement('afterend', reservationsMenu);
+            setTimeout(() => {
+                reservationsMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+                reservationsMenu.style.opacity = '1';
+                reservationsMenu.style.maxHeight = '50px';
+            }, 10);
+        }
+        
+        if (!roomRevenueMenu) {
+            roomRevenueMenu = document.createElement('a');
+            roomRevenueMenu.className = 'nav-link';
+            roomRevenueMenu.href = menuUrls.roomRevenue;
+            roomRevenueMenu.innerHTML = '<i class="bi bi-currency-dollar"></i> Receita de Salas';
+            roomRevenueMenu.style.opacity = '0';
+            roomRevenueMenu.style.maxHeight = '0';
+            roomRevenueMenu.style.overflow = 'hidden';
+            const insertAfterRoom = reservationsMenu || insertAfter;
+            insertAfterRoom.insertAdjacentElement('afterend', roomRevenueMenu);
+            setTimeout(() => {
+                roomRevenueMenu.style.transition = 'opacity 0.3s, max-height 0.3s';
+                roomRevenueMenu.style.opacity = '1';
+                roomRevenueMenu.style.maxHeight = '50px';
+            }, 10);
+        }
+    }
 }
 </script>

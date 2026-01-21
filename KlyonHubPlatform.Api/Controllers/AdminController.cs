@@ -415,7 +415,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Contracts(string? search = null, string? status = null, int? clientId = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Contracts(string? search = null, string? status = null, int? clientId = null, int page = 1, int pageSize = 10)
         {
             var contracts = await _adminService.GetContractsFilteredAsync(search, status, clientId, page, pageSize);
             var totalItems = await _adminService.GetContractsFilteredCountAsync(search, status, clientId);
@@ -608,7 +608,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product)
+        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, int page = 1, int pageSize = 15)
         {
             var start = startDate?.Date ?? DateTime.UtcNow.AddMonths(-1).Date;
             var end = endDate?.Date ?? DateTime.UtcNow.Date;
@@ -616,10 +616,37 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var report = await _reportService.GetFinancialReportAsync(start, end, product);
 
-            ViewBag.Report = report;
+            // Paginação
+            var totalItems = report.Rows.Count;
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+            if (page < 1) page = 1;
+
+            // Aplicar paginação nas linhas
+            var paginatedRows = report.Rows
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            // Criar novo resultado com linhas paginadas
+            var paginatedReport = new Application.Interfaces.ReportFinancialResult
+            {
+                Rows = paginatedRows,
+                TotalPayments = report.TotalPayments,
+                TotalReceived = report.TotalReceived,
+                TotalCommissions = report.TotalCommissions,
+                Pending = report.Pending
+            };
+
+            ViewBag.Report = paginatedReport;
             ViewBag.StartDate = start;
             ViewBag.EndDate = end;
             ViewBag.Product = product ?? ReportProductFilter.Todos;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
 
             return View();
         }
@@ -652,6 +679,71 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.DateFrom = dateFrom;
             ViewBag.DateTo = dateTo;
             return View(dto);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReservationFinancialDetail(int id)
+        {
+            var reservation = await _context.Reservations
+                .Include(r => r.Client)
+                    .ThenInclude(c => c.User)
+                .Include(r => r.CoworkingAddress)
+                    .ThenInclude(a => a.Coworking)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (reservation == null)
+            {
+                TempData["Error"] = "Reserva não encontrada.";
+                return RedirectToAction("ReportCoworkingRevenue");
+            }
+
+            // Buscar comissão da reserva
+            ReservationCommission? commission = null;
+            try
+            {
+                commission = await _context.ReservationCommissions
+                    .FirstOrDefaultAsync(rc => rc.ReservationId == id);
+            }
+            catch (Exception)
+            {
+                // Se a tabela não existir ainda (migrations não aplicadas), continua sem comissão
+                commission = null;
+            }
+
+            // Buscar transfer relacionado
+            Transfer? transfer = null;
+            try
+            {
+                transfer = await _context.Transfers
+                    .FirstOrDefaultAsync(t => t.ReservationId == id);
+            }
+            catch (Exception)
+            {
+                // Se a tabela não existir ainda (migrations não aplicadas), continua sem transfer
+                transfer = null;
+            }
+
+            // Buscar logs de auditoria relacionados
+            List<AuditLog> auditLogs = new List<AuditLog>();
+            try
+            {
+                auditLogs = await _context.AuditLogs
+                    .Where(a => a.EntityType == "Reservation" && a.EntityId == id)
+                    .OrderByDescending(a => a.ActionDate)
+                    .ToListAsync();
+            }
+            catch (Exception)
+            {
+                // Se a tabela não existir ainda (migrations não aplicadas), continua sem logs
+                auditLogs = new List<AuditLog>();
+            }
+
+            ViewBag.Reservation = reservation;
+            ViewBag.Commission = commission;
+            ViewBag.Transfer = transfer;
+            ViewBag.AuditLogs = auditLogs;
+
+            return View();
         }
 
         [HttpGet]

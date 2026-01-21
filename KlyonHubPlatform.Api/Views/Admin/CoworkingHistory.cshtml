@@ -54,12 +54,40 @@
                                         try
                                         {
                                             var j = System.Text.Json.JsonDocument.Parse(log.OldValues);
-                                            <ul class="list-unstyled mb-0">
-                                                @foreach (var p in j.RootElement.EnumerateObject())
+                                            var hasApprovalStatus = false;
+                                            
+                                            // Verificar se há ApprovalStatus
+                                            foreach (var p in j.RootElement.EnumerateObject())
+                                            {
+                                                if (p.Name == "ApprovalStatus")
                                                 {
-                                                    <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                    hasApprovalStatus = true;
+                                                    break;
                                                 }
-                                            </ul>
+                                            }
+                                            
+                                            @if (hasApprovalStatus && log.User != null)
+                                            {
+                                                <ul class="list-unstyled mb-0">
+                                                    <li><strong>Usuário:</strong> @log.User.FullName</li>
+                                                    @foreach (var p in j.RootElement.EnumerateObject())
+                                                    {
+                                                        if (p.Name != "ApprovalStatus")
+                                                        {
+                                                            <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                        }
+                                                    }
+                                                </ul>
+                                            }
+                                            else
+                                            {
+                                                <ul class="list-unstyled mb-0">
+                                                    @foreach (var p in j.RootElement.EnumerateObject())
+                                                    {
+                                                        <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                    }
+                                                </ul>
+                                            }
                                         }
                                         catch { <pre class="mb-0 small">@log.OldValues</pre> }
                                     }
@@ -71,12 +99,40 @@
                                         try
                                         {
                                             var j = System.Text.Json.JsonDocument.Parse(log.NewValues);
-                                            <ul class="list-unstyled mb-0">
-                                                @foreach (var p in j.RootElement.EnumerateObject())
+                                            var hasApprovalStatus = false;
+                                            
+                                            // Verificar se há ApprovalStatus
+                                            foreach (var p in j.RootElement.EnumerateObject())
+                                            {
+                                                if (p.Name == "ApprovalStatus")
                                                 {
-                                                    <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                    hasApprovalStatus = true;
+                                                    break;
                                                 }
-                                            </ul>
+                                            }
+                                            
+                                            @if (hasApprovalStatus && log.User != null)
+                                            {
+                                                <ul class="list-unstyled mb-0">
+                                                    <li><strong>Usuário:</strong> @log.User.FullName</li>
+                                                    @foreach (var p in j.RootElement.EnumerateObject())
+                                                    {
+                                                        if (p.Name != "ApprovalStatus")
+                                                        {
+                                                            <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                        }
+                                                    }
+                                                </ul>
+                                            }
+                                            else
+                                            {
+                                                <ul class="list-unstyled mb-0">
+                                                    @foreach (var p in j.RootElement.EnumerateObject())
+                                                    {
+                                                        <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                    }
+                                                </ul>
+                                            }
                                         }
                                         catch { <pre class="mb-0 small">@log.NewValues</pre> }
                                     }

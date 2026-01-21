@@ -141,13 +141,13 @@
                                             <button type="submit" class="btn btn-sm btn-success" title="Aprovar"><i class="bi bi-check-circle-fill"></i></button>
                                         </form>
                                         <button type="button" class="btn btn-sm btn-danger" onclick="abrirReprovar(@coworking.Id)" title="Reprovar">
-                                            <i class="bi bi-x-circle-fill"></i>
+                                            <i class="bi bi-x-octagon-fill"></i>
                                         </button>
                                     }
                                     @if (coworking.IsActive)
                                     {
                                         <button class="btn btn-sm btn-danger" onclick="toggleStatus(@coworking.Id, @(System.Net.WebUtility.HtmlEncode(System.Text.Json.JsonSerializer.Serialize(coworking.Name ?? ""))))" title="Inativar">
-                                            <i class="bi bi-x-circle-fill"></i>
+                                            <i class="bi bi-power"></i>
                                         </button>
                                     }
                                     else
@@ -247,7 +247,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Reprovar</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
                 </div>
             </form>
         </div>

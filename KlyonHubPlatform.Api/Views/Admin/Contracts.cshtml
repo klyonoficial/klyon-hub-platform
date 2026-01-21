@@ -12,23 +12,26 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("Contracts", "Admin")" class="row g-3">
-            <div class="col-md-4">
+        <form method="get" action="@Url.Action("Contracts", "Admin")" class="row g-3" id="filterForm">
+            <input type="hidden" name="page" value="1" id="pageInput" />
+            <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
                        value="@ViewBag.Search" placeholder="Número, cliente ou endereço">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
                     <option value="Active" selected="@(ViewBag.Status == "Active")">Ativos</option>
                     <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspensos</option>
+                    <option value="PendingPayment" selected="@(ViewBag.Status == "PendingPayment")">Aguardando Pagamento</option>
+                    <option value="PendingCancellation" selected="@(ViewBag.Status == "PendingCancellation")">Cancelamento Pendente</option>
                     <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelados</option>
                     <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirados</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="clientId" class="form-label">Cliente</label>
                 <select class="form-select" id="clientId" name="clientId">
                     <option value="">Todos</option>
@@ -40,7 +43,17 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end gap-2">
+            <div class="col-md-2">
+                <label for="pageSize" class="form-label">Itens por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
+                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
+                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
@@ -128,6 +141,8 @@
                                         {
                                             ContractStatus.Active => "success",
                                             ContractStatus.Suspended => "warning",
+                                            ContractStatus.PendingPayment => "info",
+                                            ContractStatus.PendingCancellation => "warning",
                                             ContractStatus.Cancelled => "danger",
                                             ContractStatus.Expired => "secondary",
                                             _ => "secondary"
@@ -136,6 +151,8 @@
                                         {
                                             ContractStatus.Active => "Ativo",
                                             ContractStatus.Suspended => "Suspenso",
+                                            ContractStatus.PendingPayment => "Aguardando Pagamento",
+                                            ContractStatus.PendingCancellation => "Cancelamento Pendente",
                                             ContractStatus.Cancelled => "Cancelado",
                                             ContractStatus.Expired => "Expirado",
                                             _ => contract.Status.ToString()
@@ -163,10 +180,10 @@
             </div>
 
             <!-- Paginação -->
-            @if (ViewBag.TotalPages > 1)
+            @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
             {
                 <nav aria-label="Paginação">
-                    <ul class="pagination justify-content-center mt-3">
+                    <ul class="pagination justify-content-center mt-4">
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
@@ -174,7 +191,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
-                                    page = ViewBag.CurrentPage - 1 
+                                    page = ViewBag.CurrentPage - 1,
+                                    pageSize = ViewBag.PageSize
                                 })">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
@@ -188,7 +206,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
-                                    page = i 
+                                    page = i,
+                                    pageSize = ViewBag.PageSize
                                 })">
                                     @i
                                 </a>
@@ -202,7 +221,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
-                                    page = ViewBag.CurrentPage + 1 
+                                    page = ViewBag.CurrentPage + 1,
+                                    pageSize = ViewBag.PageSize
                                 })">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
@@ -210,6 +230,12 @@
                         }
                     </ul>
                 </nav>
+            }
+            else if (ViewBag.TotalPages != null && ViewBag.TotalPages == 1 && ViewBag.TotalItems > 0)
+            {
+                <div class="text-center mt-3">
+                    <small class="text-muted">Todos os @ViewBag.TotalItems contrato(s) estão sendo exibidos nesta página.</small>
+                </div>
             }
         }
         else
@@ -233,4 +259,15 @@ function suspendContract(contractId) {
         alert('Funcionalidade de suspensão será implementada em breve. Contrato ID: ' + contractId);
     }
 }
+
+// Resetar página para 1 quando o tamanho da página mudar
+document.addEventListener('DOMContentLoaded', function() {
+    var pageSizeSelect = document.getElementById('pageSize');
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            document.getElementById('pageInput').value = '1';
+            document.getElementById('filterForm').submit();
+        });
+    }
+});
 </script>

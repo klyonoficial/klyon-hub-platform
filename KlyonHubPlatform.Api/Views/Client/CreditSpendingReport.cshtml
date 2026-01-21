@@ -13,10 +13,36 @@
     var cancelledReservations = ViewBag.CancelledReservations as int? ?? 0;
     var completedReservations = ViewBag.CompletedReservations as int? ?? 0;
     var monthlySpending = ViewBag.MonthlySpending as dynamic;
+    var filteredCreditsSpent = ViewBag.FilteredCreditsSpent as int? ?? totalCreditsSpent;
+    var filteredValueSpent = ViewBag.FilteredValueSpent as decimal? ?? totalValueSpent;
+    var filteredReservations = ViewBag.FilteredReservations as int? ?? totalReservations;
+    var selectedMonth = ViewBag.SelectedMonth as int?;
+    var selectedYear = ViewBag.SelectedYear as int?;
+    var isFiltered = selectedMonth.HasValue && selectedYear.HasValue;
 }
+
+<style>
+    .month-filter-row:hover {
+        background-color: #f8f9fa !important;
+        transition: background-color 0.2s;
+    }
+    .month-filter-row.table-active {
+        background-color: #e7f3ff !important;
+        font-weight: 600;
+    }
+    .month-filter-row.table-active:hover {
+        background-color: #d0e7ff !important;
+    }
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-graph-up"></i> Relatório de Gastos de Créditos</h2>
+    @if (isFiltered)
+    {
+        <a href="@Url.Action("CreditSpendingReport", "Client")" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x-circle"></i> Remover Filtro
+        </a>
+    }
 </div>
 
 @if (TempData["Error"] != null)
@@ -118,12 +144,37 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                <!-- Opção "Todos" -->
+                                <tr class="month-filter-row @(!isFiltered ? "table-active" : "")" 
+                                    style="cursor: pointer;" 
+                                    onclick="window.location.href='@Url.Action("CreditSpendingReport", "Client")'">
+                                    <td>
+                                        <strong>
+                                            <i class="bi bi-check-circle @(!isFiltered ? "text-primary" : "")"></i> Todos
+                                        </strong>
+                                    </td>
+                                    <td class="text-end">@totalReservations</td>
+                                    <td class="text-end">@totalCreditsSpent crédito(s)</td>
+                                    <td class="text-end">R$ @totalValueSpent.ToString("F2")</td>
+                                    <td class="text-end">R$ @(totalReservations > 0 ? (totalValueSpent / totalReservations).ToString("F2") : "0,00")</td>
+                                </tr>
                                 @foreach (var month in (IEnumerable<dynamic>)monthlySpending)
                                 {
                                     var monthName = new DateTime(month.Year, month.Month, 1).ToString("MMMM/yyyy", new System.Globalization.CultureInfo("pt-BR"));
                                     var average = month.Count > 0 ? month.Value / month.Count : 0;
-                                    <tr>
-                                        <td><strong>@char.ToUpper(monthName[0])@monthName.Substring(1)</strong></td>
+                                    var isSelected = isFiltered && selectedMonth == month.Month && selectedYear == month.Year;
+                                    <tr class="month-filter-row @(isSelected ? "table-active" : "")" 
+                                        style="cursor: pointer;" 
+                                        onclick="window.location.href='@Url.Action("CreditSpendingReport", "Client", new { month = month.Month, year = month.Year })'">
+                                        <td>
+                                            <strong>
+                                                @if (isSelected)
+                                                {
+                                                    <i class="bi bi-check-circle text-primary"></i>
+                                                }
+                                                @char.ToUpper(monthName[0])@monthName.Substring(1)
+                                            </strong>
+                                        </td>
                                         <td class="text-end">@month.Count</td>
                                         <td class="text-end">@month.Credits crédito(s)</td>
                                         <td class="text-end">R$ @month.Value.ToString("F2")</td>
@@ -131,15 +182,18 @@
                                     </tr>
                                 }
                             </tbody>
-                            <tfoot>
-                                <tr class="table-primary">
-                                    <td><strong>TOTAL</strong></td>
-                                    <td class="text-end"><strong>@totalReservations</strong></td>
-                                    <td class="text-end"><strong>@totalCreditsSpent crédito(s)</strong></td>
-                                    <td class="text-end"><strong>R$ @totalValueSpent.ToString("F2")</strong></td>
-                                    <td class="text-end"><strong>R$ @(totalReservations > 0 ? (totalValueSpent / totalReservations).ToString("F2") : "0,00")</strong></td>
-                                </tr>
-                            </tfoot>
+                            @if (isFiltered)
+                            {
+                                <tfoot>
+                                    <tr class="table-info">
+                                        <td><strong>FILTRADO (@(new DateTime(selectedYear.Value, selectedMonth.Value, 1).ToString("MMMM/yyyy", new System.Globalization.CultureInfo("pt-BR"))))</strong></td>
+                                        <td class="text-end"><strong>@filteredReservations</strong></td>
+                                        <td class="text-end"><strong>@filteredCreditsSpent crédito(s)</strong></td>
+                                        <td class="text-end"><strong>R$ @filteredValueSpent.ToString("F2")</strong></td>
+                                        <td class="text-end"><strong>R$ @(filteredReservations > 0 ? (filteredValueSpent / filteredReservations).ToString("F2") : "0,00")</strong></td>
+                                    </tr>
+                                </tfoot>
+                            }
                         </table>
                     </div>
                 </div>

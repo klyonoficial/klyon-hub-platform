@@ -199,7 +199,7 @@
                         {
                             <div class="col-md-3 mb-3">
                                 <div class="card">
-                                    <img src="@photo.FilePath" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;">
+                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
                                     @if (!string.IsNullOrEmpty(photo.Description))
                                     {
                                         <div class="card-body">
@@ -230,7 +230,7 @@
                     <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar</button>
                 </form>
                 <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalReprovar">
-                    <i class="bi bi-x-circle"></i> Reprovar
+                    <i class="bi bi-x-octagon"></i> Reprovar
                 </button>
             }
             <a href="@Url.Action("EditCoworking", "Admin", new { id = Model.Id })" class="btn btn-warning">
@@ -258,7 +258,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Reprovar</button>
+                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
                         </div>
                     </form>
                 </div>

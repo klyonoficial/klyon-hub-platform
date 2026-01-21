@@ -1,9 +1,7 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
-using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Infra.Data.Repositories;
-using KlyonHubPlatform.Domain.Interfaces;
 
 namespace KlyonHubPlatform.Application.Services
 {

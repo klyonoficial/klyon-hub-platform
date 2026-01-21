@@ -5,6 +5,17 @@
 
 @model KlyonHubPlatform.Domain.Entities.CoworkingAddress
 
+@if (Model == null)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> Endereço não encontrado.
+        <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-secondary ms-2">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+    return;
+}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-pencil"></i> Editar Endereço</h2>
     <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-secondary">
@@ -31,6 +42,7 @@
 <div class="card">
     <div class="card-body">
         <form method="post" action="@Url.Action("EditAddress", "Coworking", new { id = Model.Id })">
+            @Html.AntiForgeryToken()
             <!-- CEP como primeiro campo -->
             <div class="row">
                 <div class="col-md-4 mb-3">
@@ -45,12 +57,15 @@
                     <label for="LocationId" class="form-label">Localidade <span class="text-danger">*</span></label>
                     <select class="form-select" id="LocationId" name="LocationId" required onchange="preencherEstado()">
                         <option value="">Selecione a localidade...</option>
-                        @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location>)
+                        @if (ViewBag.Locations != null)
                         {
-                            var isSelected = Model.LocationId == location.Id;
-                            <option value="@location.Id" data-state="@location.State" selected="@isSelected">
-                                @location.City/@location.State
-                            </option>
+                            @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location> ?? new List<KlyonHubPlatform.Domain.Entities.Location>())
+                            {
+                                var isSelected = Model.LocationId == location.Id;
+                                <option value="@location.Id" data-state="@location.State" selected="@isSelected">
+                                    @location.City/@location.State
+                                </option>
+                            }
                         }
                     </select>
                 </div>

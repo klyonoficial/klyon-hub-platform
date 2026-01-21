@@ -30,8 +30,44 @@
         <h5><i class="bi bi-person"></i> Dados Cadastrais</h5>
     </div>
     <div class="card-body">
-        <form method="post" action="@Url.Action("UpdateProfile", "Client")">
+        <form method="post" action="@Url.Action("UpdateProfile", "Client")" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
+            
+            <!-- Seção de Logo -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <label class="form-label"><i class="bi bi-image"></i> Logomarca</label>
+                    <div class="d-flex align-items-center gap-3">
+                        @if (!string.IsNullOrEmpty(Model.LogoPath))
+                        {
+                            <div class="border rounded p-2" style="max-width: 200px; max-height: 200px; background-color: #f8f9fa;">
+                                <img src="@Url.Action("GetLogo", "Client", new { clientId = Model.Id })" 
+                                     alt="Logo" 
+                                     class="img-fluid" 
+                                     style="max-width: 100%; max-height: 200px; object-fit: contain;">
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="border rounded p-3 text-center" style="width: 200px; height: 150px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                                <div class="text-muted">
+                                    <i class="bi bi-image" style="font-size: 3rem;"></i>
+                                    <div class="small mt-2">Nenhuma logo</div>
+                                </div>
+                            </div>
+                        }
+                        <div class="flex-grow-1">
+                            <input type="file" class="form-control" id="Logo" name="Logo" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp">
+                            <small class="form-text text-muted">
+                                Formatos aceitos: JPG, PNG, GIF, WEBP. Tamanho máximo: 5MB.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="RazaoSocial" class="form-label">Razão Social</label>

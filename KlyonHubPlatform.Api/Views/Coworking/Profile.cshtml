@@ -362,15 +362,39 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     </button>
                 </div>
 
+                @if (ViewBag.PhotosTotalItems != null && ViewBag.PhotosTotalItems > 0)
+                {
+                    var currentPage = ViewBag.PhotosCurrentPage ?? 1;
+                    var pageSize = ViewBag.PhotosPageSize ?? 6;
+                    var totalItems = ViewBag.PhotosTotalItems ?? 0;
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <p class="text-muted mb-0">
+                            Mostrando <strong>@((currentPage - 1) * pageSize + 1)</strong> a 
+                            <strong>@(Math.Min(currentPage * pageSize, totalItems))</strong> de 
+                            <strong>@totalItems</strong> foto(s)
+                        </p>
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="photosPageSize" class="form-label mb-0 small">Itens por página:</label>
+                            <select class="form-select form-select-sm" id="photosPageSize" name="photosPageSize" style="width: auto;" onchange="updatePhotosPageSize(this.value)">
+                                <option value="4" selected="@(ViewBag.PhotosPageSize == 4)">4</option>
+                                <option value="6" selected="@(ViewBag.PhotosPageSize == 6 || ViewBag.PhotosPageSize == null)">6</option>
+                                <option value="8" selected="@(ViewBag.PhotosPageSize == 8)">8</option>
+                                <option value="12" selected="@(ViewBag.PhotosPageSize == 12)">12</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+
                 @if (Model.Photos != null && Model.Photos.Any())
                 {
                     <div class="alert alert-info mb-3">
                         <i class="bi bi-info-circle"></i> 
                         <strong>Foto de Capa:</strong> A foto marcada como "Principal" será exibida para os clientes na página de endereços disponíveis. 
                         Clique no ícone de estrela (<i class="bi bi-star-fill"></i>) para definir uma foto como principal.
+                        <br><strong>Limite:</strong> Você pode ter no máximo <strong>2 fotos</strong> cadastradas.
                     </div>
                     <div class="row">
-                        @foreach (var photo in Model.Photos.OrderByDescending(p => p.IsMain).ThenBy(p => p.DisplayOrder).ThenBy(p => p.CreatedAt))
+                        @foreach (var photo in Model.Photos)
                         {
                             <div class="col-md-3 mb-3">
                                 <div class="card position-relative @(photo.IsMain ? "border-success border-3" : "")">
@@ -416,6 +440,58 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                             </div>
                         }
                     </div>
+
+                    <!-- Paginação -->
+                    @if (ViewBag.PhotosTotalPages != null && ViewBag.PhotosTotalPages > 1)
+                    {
+                        <nav aria-label="Paginação de fotos" class="mt-3">
+                            <ul class="pagination justify-content-center mb-0">
+                                @{
+                                    int currentPage = ViewBag.PhotosCurrentPage ?? 1;
+                                    int totalPages = ViewBag.PhotosTotalPages ?? 1;
+                                    int pageSize = ViewBag.PhotosPageSize ?? 6;
+                                    string PhotosPageUrl(int p) => Url.Action("Profile", "Coworking", new
+                                    {
+                                        photosPage = p,
+                                        photosPageSize = pageSize
+                                    })!;
+                                }
+                                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                    <a class="page-link" href="@PhotosPageUrl(currentPage - 1)">
+                                        <i class="bi bi-chevron-left"></i> Anterior
+                                    </a>
+                                </li>
+                                @for (int p = 1; p <= totalPages; p++)
+                                {
+                                    if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                                    {
+                                        <li class="page-item @(p == currentPage ? "active" : "")">
+                                            <a class="page-link" href="@PhotosPageUrl(p)">@p</a>
+                                        </li>
+                                    }
+                                    else if (p == 2 && currentPage > 4)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                    else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                }
+                                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                    <a class="page-link" href="@PhotosPageUrl(currentPage + 1)">
+                                        Próxima <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
+                    else if (ViewBag.PhotosTotalPages != null && ViewBag.PhotosTotalPages == 1 && ViewBag.PhotosTotalItems > 0)
+                    {
+                        <div class="text-center mt-3">
+                            <small class="text-muted">Todas as @ViewBag.PhotosTotalItems foto(s) estão sendo exibidas nesta página.</small>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -446,9 +522,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                             Você pode alterar a foto de capa depois clicando no ícone de estrela (<i class="bi bi-star-fill"></i>) na galeria.
                         </div>
                         <div class="mb-3">
-                            <label for="Photos" class="form-label">Selecione as fotos (máximo 10)</label>
+                            <label for="Photos" class="form-label">Selecione as fotos (máximo 2 fotos no total)</label>
                             <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" required>
-                            <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB por foto.</small>
+                            <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB por foto. <strong>Limite total: 2 fotos.</strong></small>
                         </div>
                         <div id="photoPreview" class="row"></div>
                     </div>
@@ -489,6 +565,30 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     </button>
                 </div>
 
+                @if (ViewBag.PartnersTotalItems != null && ViewBag.PartnersTotalItems > 0)
+                {
+                    var currentPage = ViewBag.PartnersCurrentPage ?? 1;
+                    var pageSize = ViewBag.PartnersPageSize ?? 10;
+                    var totalItems = ViewBag.PartnersTotalItems ?? 0;
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <p class="text-muted mb-0">
+                            Mostrando <strong>@((currentPage - 1) * pageSize + 1)</strong> a 
+                            <strong>@(Math.Min(currentPage * pageSize, totalItems))</strong> de 
+                            <strong>@totalItems</strong> sócio(s)
+                        </p>
+                        <div class="d-flex align-items-center gap-2">
+                            <label for="partnersPageSize" class="form-label mb-0 small">Itens por página:</label>
+                            <select class="form-select form-select-sm" id="partnersPageSize" name="partnersPageSize" style="width: auto;" onchange="updatePartnersPageSize(this.value)">
+                                <option value="5" selected="@(ViewBag.PartnersPageSize == 5)">5</option>
+                                <option value="10" selected="@(ViewBag.PartnersPageSize == 10 || ViewBag.PartnersPageSize == null)">10</option>
+                                <option value="15" selected="@(ViewBag.PartnersPageSize == 15)">15</option>
+                                <option value="20" selected="@(ViewBag.PartnersPageSize == 20)">20</option>
+                                <option value="50" selected="@(ViewBag.PartnersPageSize == 50)">50</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+
                 @if (Model.Partners != null && Model.Partners.Any())
                 {
                     <div class="table-responsive">
@@ -504,7 +604,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var partner in Model.Partners.OrderByDescending(p => p.IsPrincipal).ThenBy(p => p.Name))
+                                @foreach (var partner in Model.Partners)
                                 {
                                     <tr>
                                         <td>
@@ -536,6 +636,58 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Paginação -->
+                    @if (ViewBag.PartnersTotalPages != null && ViewBag.PartnersTotalPages > 1)
+                    {
+                        <nav aria-label="Paginação de sócios" class="mt-3">
+                            <ul class="pagination justify-content-center mb-0">
+                                @{
+                                    int currentPage = ViewBag.PartnersCurrentPage ?? 1;
+                                    int totalPages = ViewBag.PartnersTotalPages ?? 1;
+                                    int pageSize = ViewBag.PartnersPageSize ?? 10;
+                                    string PartnersPageUrl(int p) => Url.Action("Profile", "Coworking", new
+                                    {
+                                        partnersPage = p,
+                                        partnersPageSize = pageSize
+                                    })!;
+                                }
+                                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                    <a class="page-link" href="@PartnersPageUrl(currentPage - 1)">
+                                        <i class="bi bi-chevron-left"></i> Anterior
+                                    </a>
+                                </li>
+                                @for (int p = 1; p <= totalPages; p++)
+                                {
+                                    if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                                    {
+                                        <li class="page-item @(p == currentPage ? "active" : "")">
+                                            <a class="page-link" href="@PartnersPageUrl(p)">@p</a>
+                                        </li>
+                                    }
+                                    else if (p == 2 && currentPage > 4)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                    else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                }
+                                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                    <a class="page-link" href="@PartnersPageUrl(currentPage + 1)">
+                                        Próxima <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
+                    else if (ViewBag.PartnersTotalPages != null && ViewBag.PartnersTotalPages == 1 && ViewBag.PartnersTotalItems > 0)
+                    {
+                        <div class="text-center mt-3">
+                            <small class="text-muted">Todos os @ViewBag.PartnersTotalItems sócio(s) estão sendo exibidos nesta página.</small>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -1017,11 +1169,19 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             const fileInput = document.getElementById('Photos');
             if (fileInput.files.length > 0) {
                 const maxSize = 5 * 1024 * 1024; // 5MB
-                const maxFiles = 10;
+                const maxTotalPhotos = 2;
+                const existingPhotosCount = @(ViewBag.PhotosTotalItems ?? 0);
+                const maxFilesToAdd = maxTotalPhotos - existingPhotosCount;
                 
-                if (fileInput.files.length > maxFiles) {
+                if (maxFilesToAdd <= 0) {
                     e.preventDefault();
-                    alert(`Você pode enviar no máximo ${maxFiles} fotos por vez.`);
+                    alert(`Você já atingiu o limite máximo de ${maxTotalPhotos} fotos. Remova uma foto antes de adicionar outra.`);
+                    return false;
+                }
+                
+                if (fileInput.files.length > maxFilesToAdd) {
+                    e.preventDefault();
+                    alert(`Você pode adicionar no máximo ${maxFilesToAdd} foto(s). Você já possui ${existingPhotosCount} foto(s) de um total de ${maxTotalPhotos} permitidas.`);
                     return false;
                 }
 
@@ -1061,6 +1221,16 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 }
             });
             </text>
+        }
+    </script>
+    
+    <script>
+        function updatePartnersPageSize(newSize) {
+            window.location.href = '@Url.Action("Profile", "Coworking")?partnersPage=1&partnersPageSize=' + newSize;
+        }
+        
+        function updatePhotosPageSize(newSize) {
+            window.location.href = '@Url.Action("Profile", "Coworking")?photosPage=1&photosPageSize=' + newSize;
         }
     </script>
 }

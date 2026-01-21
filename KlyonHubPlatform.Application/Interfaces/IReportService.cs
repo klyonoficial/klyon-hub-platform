@@ -47,6 +47,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         public List<ReportFinancialRowDto> Rows { get; set; } = new();
         public int TotalPayments { get; set; }
         public decimal TotalReceived { get; set; }
+        public decimal TotalCommissions { get; set; }
         public decimal Pending { get; set; }
     }
 

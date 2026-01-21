@@ -170,6 +170,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.ActionDate);
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.SetNull);
             });
 
             // Location configuration

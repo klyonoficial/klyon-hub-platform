@@ -150,6 +150,12 @@
                                         case ContractStatus.Suspended:
                                             <span class="badge bg-warning">Suspenso</span>
                                             break;
+                                        case ContractStatus.PendingPayment:
+                                            <span class="badge bg-info">Aguardando Pagamento</span>
+                                            break;
+                                        case ContractStatus.PendingCancellation:
+                                            <span class="badge bg-warning">Cancelamento Pendente</span>
+                                            break;
                                         case ContractStatus.Cancelled:
                                             <span class="badge bg-danger">Cancelado</span>
                                             break;

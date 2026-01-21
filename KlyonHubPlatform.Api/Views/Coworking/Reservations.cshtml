@@ -73,7 +73,8 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" class="row g-3">
+        <form method="get" class="row g-3" id="filterForm">
+            <input type="hidden" name="page" value="1" id="pageInput" />
             <div class="col-md-3">
                 <label class="form-label">Buscar</label>
                 <input type="text" class="form-control" name="search" value="@ViewBag.Search" placeholder="Nome, email, telefone..." />
@@ -117,6 +118,16 @@
                 <button type="submit" class="btn btn-primary w-100">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Itens por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
+                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
+                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                </select>
             </div>
         </form>
     </div>
@@ -405,13 +416,14 @@
             </div>
 
             <!-- Paginação -->
-            @if (ViewBag.TotalPages > 1)
+            @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
             {
                 <nav class="mt-3">
                     <ul class="pagination justify-content-center">
                         @{
-                            int currentPage = ViewBag.CurrentPage;
-                            int totalPages = ViewBag.TotalPages;
+                            int currentPage = ViewBag.CurrentPage ?? 1;
+                            int totalPages = ViewBag.TotalPages ?? 1;
+                            int pageSize = ViewBag.PageSize ?? 15;
                             string PageUrl(int p) => Url.Action("Reservations", "Coworking", new
                             {
                                 search = ViewBag.Search,
@@ -420,7 +432,7 @@
                                 allocationDateFrom = ViewBag.AllocationDateFrom,
                                 allocationDateTo = ViewBag.AllocationDateTo,
                                 page = p,
-                                pageSize = ViewBag.PageSize
+                                pageSize = pageSize
                             })!;
                         }
                         <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
@@ -448,6 +460,17 @@
                         </li>
                     </ul>
                 </nav>
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Exibindo @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems reserva(s)
+                    </small>
+                </div>
+            }
+            else if (ViewBag.TotalPages != null && ViewBag.TotalPages == 1 && ViewBag.TotalItems > 0)
+            {
+                <div class="text-center mt-3">
+                    <small class="text-muted">Todos os @ViewBag.TotalItems reserva(s) estão sendo exibidos nesta página.</small>
+                </div>
             }
         }
         else
@@ -468,3 +491,24 @@
         }
     </div>
 </div>
+
+<script>
+    // Resetar página para 1 quando o tamanho da página mudar
+    document.addEventListener('DOMContentLoaded', function() {
+        var pageSizeSelect = document.getElementById('pageSize');
+        if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', function() {
+                document.getElementById('pageInput').value = '1';
+                document.getElementById('filterForm').submit();
+            });
+        }
+
+        // Resetar página para 1 quando os filtros forem aplicados
+        var filterForm = document.getElementById('filterForm');
+        if (filterForm) {
+            filterForm.addEventListener('submit', function() {
+                document.getElementById('pageInput').value = '1';
+            });
+        }
+    });
+</script>

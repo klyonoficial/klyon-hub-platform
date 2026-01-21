@@ -165,7 +165,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     CurrentContracts = a.CurrentContracts,
                     MaxContracts = a.MaxContracts,
                     MaxPeople = maxCapacity,
-                    MainPhotoId = mainPhoto?.Id
+                    MainPhotoId = mainPhoto?.Id,
+                    OffersSharedRoom = a.OffersSharedRoom,
+                    SharedRoomCreditsPerHour = a.SharedRoomPricePerHour.HasValue ? (int)Math.Ceiling(a.SharedRoomPricePerHour.Value) : null,
+                    OffersPrivateRoom = a.OffersPrivateRoom,
+                    PrivateRoomCreditsPerHour = a.PrivateRoomPricePerHour.HasValue ? (int)Math.Ceiling(a.PrivateRoomPricePerHour.Value) : null
                 };
             }).ToList();
 

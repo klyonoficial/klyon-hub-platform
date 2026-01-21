@@ -1,68 +1,197 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model List<ClientCreditsReportDto>
 @{
-    ViewData["Title"] = "Créditos por Cliente";
+    ViewData["Title"] = "Relatório de Créditos (Ledger / Conta Corrente)";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    
+    var totalPurchased = Model?.Sum(c => c.TotalCreditsPurchased) ?? 0;
+    var totalPaid = Model?.Sum(c => c.TotalAmountPaid) ?? 0m;
+    var totalCurrentBalance = Model?.Sum(c => c.CurrentBalance) ?? 0;
+    var totalConsumed = totalPurchased - totalCurrentBalance;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-wallet2"></i> Créditos por Cliente</h2>
-    <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar aos Relatórios</a>
-</div>
+<style>
+    .credits-kpi {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .credits-kpi h6 {
+        opacity: 0.9;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .credits-kpi h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .report-table-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .clickable-row:hover {
+        background-color: #f8f9fa;
+    }
+</style>
 
-<p class="text-muted">Saldo de créditos por cliente. Clique em <strong>Ver extrato</strong> para o histórico completo de compras e gastos (estilo extrato bancário).</p>
-
-<div class="card">
-    <div class="card-body">
-        @if (Model != null && Model.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th class="text-end">Saldo atual</th>
-                            <th class="text-end">Créditos comprados</th>
-                            <th class="text-end">Valor pago (R$)</th>
-                            <th>Gasto por coworking</th>
-                            <th class="text-end">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var c in Model)
-                        {
-                            <tr>
-                                <td><strong>@c.ClientName</strong></td>
-                                <td class="text-end"><strong class="text-success">@c.CurrentBalance créditos</strong></td>
-                                <td class="text-end">@c.TotalCreditsPurchased</td>
-                                <td class="text-end">R$ @c.TotalAmountPaid.ToString("F2")</td>
-                                <td>
-                                    @if (c.SpendingByCoworking != null && c.SpendingByCoworking.Any())
-                                    {
-                                        <ul class="list-unstyled mb-0">
-                                            @foreach (var s in c.SpendingByCoworking)
-                                            {
-                                                <li><span class="badge bg-light text-dark">@s.CoworkingName</span> @s.CreditsUsed créditos (R$ @s.TotalValue.ToString("F2"))</li>
-                                            }
-                                        </ul>
-                                    }
-                                    else
-                                    { <span class="text-muted">—</span> }
-                                </td>
-                                <td class="text-end">
-                                    <a href="@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = c.ClientId })" class="btn btn-sm btn-outline-primary" title="Ver extrato (compras e gastos)">
-                                        <i class="bi bi-journal-text"></i> Ver extrato
-                                    </a>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-wallet2 text-primary me-2"></i>
+                    Relatório de Créditos (Ledger / Conta Corrente)
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Muito importante para evitar dor de cabeça
+                </p>
             </div>
-        }
-        else
-        {
-            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum cliente com compra de créditos ou uso em reservas.</div>
-        }
+            <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar aos Relatórios
+            </a>
+        </div>
+    </div>
+
+    <!-- KPIs Para o Administrador -->
+    <div class="container mb-4">
+        <h3 class="mb-3">
+            <i class="bi bi-person-badge text-primary me-2"></i>
+            Para o Administrador
+        </h3>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="credits-kpi" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6>Créditos Comprados por Clientes</h6>
+                    <h2>@totalPurchased</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="credits-kpi" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h6>Créditos Consumidos</h6>
+                    <h2>@totalConsumed</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="credits-kpi" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <h6>Créditos Repassados</h6>
+                    <h2>@totalConsumed</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="credits-kpi" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <h6>Saldo Atual (Disponível)</h6>
+                    <h2>@totalCurrentBalance</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Clientes -->
+    <div class="container">
+        <div class="report-table-card card">
+            <div class="section-header">
+                <h3 class="mb-0">
+                    <i class="bi bi-people text-primary me-2"></i>
+                    Créditos por Cliente
+                </h3>
+                <p class="text-muted mb-0 mt-2">
+                    <i class="bi bi-chevron-right"></i> Clique na linha para ver o extrato completo (compras e gastos)
+                </p>
+            </div>
+            <div class="card-body p-0">
+                @if (Model != null && Model.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 2.5rem;"></th>
+                                    <th><strong>Cliente</strong></th>
+                                    <th class="text-end"><strong>Saldo Atual</strong></th>
+                                    <th class="text-end"><strong>Créditos Comprados</strong></th>
+                                    <th class="text-end"><strong>Valor Pago (R$)</strong></th>
+                                    <th><strong>Gasto por Coworking</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in Model)
+                                {
+                                    <tr class="clickable-row" onclick="window.location.href='@Url.Action("ReportClientCreditStatement", "Admin", new { clientId = c.ClientId })'">
+                                        <td>
+                                            <i class="bi bi-chevron-right text-muted"></i>
+                                        </td>
+                                        <td>
+                                            <strong class="text-primary">@c.ClientName</strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge bg-success fs-6 px-3 py-2">
+                                                <i class="bi bi-wallet2"></i> @c.CurrentBalance créditos
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>@c.TotalCreditsPurchased</strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong class="text-success">R$ @c.TotalAmountPaid.ToString("N2")</strong>
+                                        </td>
+                                        <td>
+                                            @if (c.SpendingByCoworking != null && c.SpendingByCoworking.Any())
+                                            {
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    @foreach (var s in c.SpendingByCoworking)
+                                                    {
+                                                        <span class="badge bg-light text-dark">
+                                                            <i class="bi bi-building"></i> @s.CoworkingName
+                                                            <br>
+                                                            <small>@s.CreditsUsed créditos (R$ @s.TotalValue.ToString("F2"))</small>
+                                                        </span>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="2"><strong>TOTAL</strong></td>
+                                    <td class="text-end"><strong>@totalCurrentBalance créditos</strong></td>
+                                    <td class="text-end"><strong>@totalPurchased</strong></td>
+                                    <td class="text-end"><strong>R$ @totalPaid.ToString("N2")</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <p class="text-muted mt-3 mb-0">Nenhum cliente com compra de créditos ou uso em reservas.</p>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+

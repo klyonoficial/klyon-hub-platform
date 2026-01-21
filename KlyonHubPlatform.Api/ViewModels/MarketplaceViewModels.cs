@@ -25,6 +25,12 @@ namespace KlyonHubPlatform.Api.ViewModels
         public int MaxContracts { get; set; }
         public int MaxPeople { get; set; } // Capacidade máxima de pessoas
         public int? MainPhotoId { get; set; }
+        
+        // Serviços disponíveis
+        public bool OffersSharedRoom { get; set; }
+        public int? SharedRoomCreditsPerHour { get; set; } // Créditos por hora para sala compartilhada
+        public bool OffersPrivateRoom { get; set; }
+        public int? PrivateRoomCreditsPerHour { get; set; } // Créditos por hora para sala privativa
     }
 
     public class MarketplaceListVm

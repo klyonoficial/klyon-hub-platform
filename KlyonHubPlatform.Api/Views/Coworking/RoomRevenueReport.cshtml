@@ -20,8 +20,9 @@
 
 <p class="text-muted">Receita gerada pelas reservas de salas nos seus endereços. Filtre por período para analisar.</p>
 
-<form method="get" action="@Url.Action("RoomRevenueReport", "Coworking")" class="card mb-4">
+<form method="get" action="@Url.Action("RoomRevenueReport", "Coworking")" class="card mb-4" id="filterForm">
     <div class="card-body">
+        <input type="hidden" name="page" value="1" id="pageInput" />
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Data inicial</label>
@@ -30,6 +31,16 @@
             <div class="col-md-3">
                 <label class="form-label">Data final</label>
                 <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Itens por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
+                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
+                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                </select>
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
@@ -69,7 +80,7 @@
                         <th class="text-end">Receita (R$)</th>
                     </tr>
                 </thead>
-                @* colspan 6 na detail-row para Data, Cliente, Valor, Créditos, Lucro, Repasse em *@
+                @* colspan 4 na detail-row para Data, Cliente, Valor, Créditos *@
                 <tbody>
                     @foreach (var x in byRoomType)
                     {
@@ -86,24 +97,70 @@
                                 <div class="p-3 bg-light">
                                     @if (detailsRoom.Any())
                                     {
+                                        var totalDetails = V(x, "TotalDetails", 0);
+                                        var currentPage = V(x, "CurrentPage", 1);
+                                        var totalPages = V(x, "TotalPages", 1);
+                                        var pageSize = ViewBag.PageSize as int? ?? 15;
+                                        
                                         <table class="table table-sm mb-0">
-                                            <thead><tr><th>Data</th><th>Cliente</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th><th class="text-end">Lucro (R$)</th><th>Repasse em</th></tr></thead>
+                                            <thead><tr><th>Data</th><th>Cliente</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th></tr></thead>
                                             <tbody>
                                                 @foreach (var d in detailsRoom)
                                                 {
-                                                    var lucro = V(d, "Lucro", 0m);
-                                                    var repasse = V(d, "RepasseEm", "");
                                                     <tr>
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "ClientName", "")</td>
                                                         <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
                                                         <td class="text-end">@V(d, "Credits", 0)</td>
-                                                        <td class="text-end">@(lucro > 0 ? "R$ " + lucro.ToString("F2") : "—")</td>
-                                                        <td>@(string.IsNullOrEmpty(repasse) ? "—" : repasse)</td>
                                                     </tr>
                                                 }
                                             </tbody>
                                         </table>
+                                        
+                                        @if (totalPages > 1)
+                                        {
+                                            <nav class="mt-3">
+                                                <ul class="pagination pagination-sm justify-content-center mb-0">
+                                                    @{
+                                                        string PageUrl(int p) => Url.Action("RoomRevenueReport", "Coworking", new
+                                                        {
+                                                            dateFrom = ViewBag.DateFrom,
+                                                            dateTo = ViewBag.DateTo,
+                                                            page = p,
+                                                            pageSize = pageSize
+                                                        })!;
+                                                    }
+                                                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                                        <a class="page-link" href="@PageUrl(currentPage - 1)">Anterior</a>
+                                                    </li>
+                                                    @for (int p = 1; p <= totalPages; p++)
+                                                    {
+                                                        if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                                                        {
+                                                            <li class="page-item @(p == currentPage ? "active" : "")">
+                                                                <a class="page-link" href="@PageUrl(p)">@p</a>
+                                                            </li>
+                                                        }
+                                                        else if (p == 2 && currentPage > 4)
+                                                        {
+                                                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                                                        }
+                                                        else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                                                        {
+                                                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                                                        }
+                                                    }
+                                                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                                        <a class="page-link" href="@PageUrl(currentPage + 1)">Próxima</a>
+                                                    </li>
+                                                </ul>
+                                            </nav>
+                                            <div class="text-center mt-2">
+                                                <small class="text-muted">
+                                                    Exibindo @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalDetails)) de @totalDetails reserva(s)
+                                                </small>
+                                            </div>
+                                        }
                                     }
                                     else
                                     {
@@ -157,24 +214,70 @@
                                 <div class="p-3 bg-light">
                                     @if (detailsClient.Any())
                                     {
+                                        var totalDetails = V(c, "TotalDetails", 0);
+                                        var currentPage = V(c, "CurrentPage", 1);
+                                        var totalPages = V(c, "TotalPages", 1);
+                                        var pageSize = ViewBag.PageSize as int? ?? 15;
+                                        
                                         <table class="table table-sm mb-0">
-                                            <thead><tr><th>Data</th><th>Tipo de sala</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th><th class="text-end">Lucro (R$)</th><th>Repasse em</th></tr></thead>
+                                            <thead><tr><th>Data</th><th>Tipo de sala</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th></tr></thead>
                                             <tbody>
                                                 @foreach (var d in detailsClient)
                                                 {
-                                                    var lucro = V(d, "Lucro", 0m);
-                                                    var repasse = V(d, "RepasseEm", "");
                                                     <tr>
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "RoomTypeLabel", "")</td>
                                                         <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
                                                         <td class="text-end">@V(d, "Credits", 0)</td>
-                                                        <td class="text-end">@(lucro > 0 ? "R$ " + lucro.ToString("F2") : "—")</td>
-                                                        <td>@(string.IsNullOrEmpty(repasse) ? "—" : repasse)</td>
                                                     </tr>
                                                 }
                                             </tbody>
                                         </table>
+                                        
+                                        @if (totalPages > 1)
+                                        {
+                                            <nav class="mt-3">
+                                                <ul class="pagination pagination-sm justify-content-center mb-0">
+                                                    @{
+                                                        string PageUrl(int p) => Url.Action("RoomRevenueReport", "Coworking", new
+                                                        {
+                                                            dateFrom = ViewBag.DateFrom,
+                                                            dateTo = ViewBag.DateTo,
+                                                            page = p,
+                                                            pageSize = pageSize
+                                                        })!;
+                                                    }
+                                                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                                        <a class="page-link" href="@PageUrl(currentPage - 1)">Anterior</a>
+                                                    </li>
+                                                    @for (int p = 1; p <= totalPages; p++)
+                                                    {
+                                                        if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
+                                                        {
+                                                            <li class="page-item @(p == currentPage ? "active" : "")">
+                                                                <a class="page-link" href="@PageUrl(p)">@p</a>
+                                                            </li>
+                                                        }
+                                                        else if (p == 2 && currentPage > 4)
+                                                        {
+                                                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                                                        }
+                                                        else if (p == totalPages - 1 && currentPage < totalPages - 3)
+                                                        {
+                                                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                                                        }
+                                                    }
+                                                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                                        <a class="page-link" href="@PageUrl(currentPage + 1)">Próxima</a>
+                                                    </li>
+                                                </ul>
+                                            </nav>
+                                            <div class="text-center mt-2">
+                                                <small class="text-muted">
+                                                    Exibindo @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalDetails)) de @totalDetails reserva(s)
+                                                </small>
+                                            </div>
+                                        }
                                     }
                                     else
                                     {
@@ -207,5 +310,24 @@ document.querySelectorAll('.clickable-row[data-has-details="true"]').forEach(fun
             icon.classList.toggle('bi-chevron-down', isHidden);
         }
     });
+});
+
+// Resetar página para 1 quando o tamanho da página mudar
+document.addEventListener('DOMContentLoaded', function() {
+    var pageSizeSelect = document.getElementById('pageSize');
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            document.getElementById('pageInput').value = '1';
+            document.getElementById('filterForm').submit();
+        });
+    }
+
+    // Resetar página para 1 quando os filtros forem aplicados
+    var filterForm = document.getElementById('filterForm');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function() {
+            document.getElementById('pageInput').value = '1';
+        });
+    }
 });
 </script>

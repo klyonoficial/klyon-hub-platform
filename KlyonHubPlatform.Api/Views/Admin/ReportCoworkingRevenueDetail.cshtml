@@ -1,81 +1,229 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model CoworkingRevenueDetailDto
 @{
-    ViewData["Title"] = "Detalhe de receita";
+    ViewData["Title"] = "Drill-Down – Relatório de Reservas por Coworking";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var dateFrom = ViewBag.DateFrom as DateTime?;
     var dateTo = ViewBag.DateTo as DateTime?;
+    
+    var totalRevenue = Model?.TotalRevenue ?? 0m;
+    var totalCommission = totalRevenue * 0.20m;
+    var totalNetValue = totalRevenue - totalCommission;
+    var reservationCount = Model?.Reservations?.Count ?? 0;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-building"></i> @(Model?.CoworkingName ?? "Coworking") — Detalhamento</h2>
-    <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Voltar à lista</a>
-</div>
+<style>
+    .drill-down-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .clickable-reservation-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .clickable-reservation-row:hover {
+        background-color: #f8f9fa;
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+</style>
 
-<form method="get" action="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })" class="card mb-3">
-    <input type="hidden" name="id" value="@Model?.CoworkingId" />
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Data inicial</label>
-                <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-building text-primary me-2"></i>
+                    Drill-Down – Relatório de Reservas por Coworking
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> Aqui você "abre" o coworking: <strong>@(Model?.CoworkingName ?? "Coworking")</strong>
+                </p>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Data final</label>
-                <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+            <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar à lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="container mb-4">
+        <div class="drill-down-card card">
+            <div class="card-body p-4">
+                <form method="get" action="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })">
+                    <input type="hidden" name="id" value="@Model?.CoworkingId" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data inicial</label>
+                            <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data final</label>
+                            <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> Filtrar
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <a href="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </a>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-</form>
 
-<div class="card mb-3">
-    <div class="card-body">
-        <h5 class="card-title">Resumo</h5>
-        <p class="mb-0">Receita total no período: <strong>R$ @(Model?.TotalRevenue.ToString("F2") ?? "0,00")</strong> (@(Model?.Reservations?.Count ?? 0) reserva(s))</p>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Reservas (sala privativa, compartilhada ou auditório — data e cliente)</h5>
-    </div>
-    <div class="card-body">
-        @if (Model?.Reservations != null && Model.Reservations.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Tipo de sala</th>
-                            <th class="text-end">Valor (R$)</th>
-                            <th class="text-end">Créditos</th>
-                            <th>Cliente</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var r in Model.Reservations)
-                        {
-                            <tr>
-                                <td>@r.Date.ToString("dd/MM/yyyy")@(r.Date.TimeOfDay.Ticks > 0 ? " " + r.Date.ToString("HH:mm") : "")</td>
-                                <td>@r.RoomTypeDisplay</td>
-                                <td class="text-end">R$ @r.TotalValue.ToString("F2")</td>
-                                <td class="text-end">@r.CreditsUsed</td>
-                                <td>@r.ClientName</td>
-                                <td><span class="badge bg-@(r.Status == "Concluída" ? "success" : "info")">@r.Status</span></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <!-- Resumo Financeiro -->
+    <div class="container mb-4">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6 class="mb-1 opacity-75">Total de Reservas</h6>
+                    <h2 class="mb-0">@reservationCount</h2>
+                </div>
             </div>
-        }
-        else
-        {
-            <div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma reserva no período.</div>
-        }
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h6 class="mb-1 opacity-75">Faturamento Bruto</h6>
+                    <h2 class="mb-0">R$ @totalRevenue.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <h6 class="mb-1 opacity-75">Comissão (20%)</h6>
+                    <h2 class="mb-0">R$ @totalCommission.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <h6 class="mb-1 opacity-75">Valor Líquido Repassado</h6>
+                    <h2 class="mb-0">R$ @totalNetValue.ToString("N2")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Reservas -->
+    <div class="container">
+        <div class="drill-down-card card">
+            <div class="section-header">
+                <h3 class="mb-0">
+                    <i class="bi bi-list-ul text-primary me-2"></i>
+                    Reservas (sala privativa, compartilhada ou auditório — data e cliente)
+                </h3>
+                <p class="text-muted mb-0 mt-2">
+                    <i class="bi bi-chevron-right"></i> Clique na reserva para ver o detalhe financeiro completo
+                </p>
+            </div>
+            <div class="card-body p-0">
+                @if (Model?.Reservations != null && Model.Reservations.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 2.5rem;"></th>
+                                    <th><strong>ID da Reserva</strong></th>
+                                    <th><strong>Cliente</strong></th>
+                                    <th><strong>Produto (sala)</strong></th>
+                                    <th><strong>Data</strong></th>
+                                    <th class="text-end"><strong>Valor da Reserva (R$)</strong></th>
+                                    <th class="text-end"><strong>Comissão (%)</strong></th>
+                                    <th class="text-end"><strong>Valor Líquido (R$)</strong></th>
+                                    <th><strong>Status da Reserva</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in Model.Reservations)
+                                {
+                                    var commission = r.TotalValue * 0.20m;
+                                    var netValue = r.TotalValue - commission;
+                                    var statusClass = r.Status == "Concluída" ? "success" : r.Status == "Confirmada" ? "info" : "warning";
+                                    <tr class="clickable-reservation-row" onclick="window.location.href='@Url.Action("ReservationFinancialDetail", "Admin", new { id = r.ReservationId })'">
+                                        <td>
+                                            <i class="bi bi-chevron-right text-muted"></i>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">#@r.ReservationId</span>
+                                        </td>
+                                        <td>
+                                            <strong>@r.ClientName</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                <i class="bi bi-door-open"></i> @r.RoomTypeDisplay
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @r.Date.ToString("dd/MM/yyyy")
+                                            @if (r.Date.TimeOfDay.Ticks > 0)
+                                            {
+                                                <br><small class="text-muted">@r.Date.ToString("HH:mm")</small>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <strong class="text-success">R$ @r.TotalValue.ToString("N2")</strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="text-warning">20%</span><br>
+                                            <small class="text-muted">R$ @commission.ToString("N2")</small>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong class="text-primary">R$ @netValue.ToString("N2")</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@statusClass">
+                                                @if (r.Status == "Concluída")
+                                                {
+                                                    <i class="bi bi-check-circle"></i>
+                                                }
+                                                else if (r.Status == "Confirmada")
+                                                {
+                                                    <i class="bi bi-clock-history"></i>
+                                                }
+                                                @r.Status
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="5"><strong>TOTAL</strong></td>
+                                    <td class="text-end"><strong>R$ @totalRevenue.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>20%</strong><br><small>R$ @totalCommission.ToString("N2")</small></td>
+                                    <td class="text-end"><strong>R$ @totalNetValue.ToString("N2")</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <p class="text-muted mt-3 mb-0">Nenhuma reserva no período.</p>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>

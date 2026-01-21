@@ -41,6 +41,7 @@
 else
 {
     <form method="get" action="@Url.Action("MyReservations", "Client")" class="card mb-4">
+        <input type="hidden" name="page" value="1" />
         <div class="card-header bg-light">
             <h5 class="mb-0"><i class="bi bi-funnel"></i> Ordenar e filtrar</h5>
         </div>
@@ -111,19 +112,19 @@ else
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-3">
-                            <h5 class="text-primary">@Model.Count</h5>
+                            <h5 class="text-primary">@(ViewBag.TotalReservations ?? Model.Count)</h5>
                             <small class="text-muted">Total de Reservas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-success">@Model.Count(r => r.Status == "Confirmed")</h5>
+                            <h5 class="text-success">@(ViewBag.TotalConfirmed ?? Model.Count(r => r.Status == "Confirmed"))</h5>
                             <small class="text-muted">Confirmadas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-info">@Model.Count(r => r.Status == "Completed")</h5>
+                            <h5 class="text-info">@(ViewBag.TotalCompleted ?? Model.Count(r => r.Status == "Completed"))</h5>
                             <small class="text-muted">Concluídas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-danger">@Model.Count(r => r.Status == "Cancelled")</h5>
+                            <h5 class="text-danger">@(ViewBag.TotalCancelled ?? Model.Count(r => r.Status == "Cancelled"))</h5>
                             <small class="text-muted">Canceladas</small>
                         </div>
                     </div>
@@ -131,6 +132,18 @@ else
             </div>
         </div>
     </div>
+
+    <!-- Informações de paginação -->
+    @if (ViewBag.TotalItems != null)
+    {
+        <div class="mb-3">
+            <p class="text-muted mb-0">
+                Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
+                <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
+                <strong>@ViewBag.TotalItems</strong> reserva(s)
+            </p>
+        </div>
+    }
 
     <div class="row">
         @foreach (var reservation in Model)
@@ -228,7 +241,7 @@ else
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@reservation.Id" />
                                     <button type="submit" class="btn btn-sm btn-outline-success">
-                                        <i class="bi bi-check2-circle"></i> Confirmar que utilizei
+                                        <i class="bi bi-box-arrow-in-right"></i> Confirmar checkin
                                     </button>
                                 </form>
                                 <small class="d-block text-muted mt-1">Após você e o coworking confirmarem, os créditos serão repassados ao espaço.</small>
@@ -245,5 +258,64 @@ else
             </div>
         }
     </div>
+
+    <!-- Paginação -->
+    @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
+    {
+        <nav aria-label="Paginação">
+            <ul class="pagination justify-content-center mt-4">
+                @if (ViewBag.CurrentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("MyReservations", "Client", new { 
+                            sortBy = ViewBag.SortBy, 
+                            status = ViewBag.Status, 
+                            dateFrom = ViewBag.DateFrom, 
+                            dateTo = ViewBag.DateTo, 
+                            search = ViewBag.Search, 
+                            roomType = ViewBag.RoomType, 
+                            page = ViewBag.CurrentPage - 1 
+                        })">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                }
+
+                @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                {
+                    <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("MyReservations", "Client", new { 
+                            sortBy = ViewBag.SortBy, 
+                            status = ViewBag.Status, 
+                            dateFrom = ViewBag.DateFrom, 
+                            dateTo = ViewBag.DateTo, 
+                            search = ViewBag.Search, 
+                            roomType = ViewBag.RoomType, 
+                            page = i 
+                        })">
+                            @i
+                        </a>
+                    </li>
+                }
+
+                @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("MyReservations", "Client", new { 
+                            sortBy = ViewBag.SortBy, 
+                            status = ViewBag.Status, 
+                            dateFrom = ViewBag.DateFrom, 
+                            dateTo = ViewBag.DateTo, 
+                            search = ViewBag.Search, 
+                            roomType = ViewBag.RoomType, 
+                            page = ViewBag.CurrentPage + 1 
+                        })">
+                            Próxima <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
     }
 }

@@ -146,8 +146,16 @@
                     <ul class="list-group">
                         @foreach (var doc in Model.Documents)
                         {
+                            var documentTypeText = doc.Type switch
+                            {
+                                DocumentType.Contract => "Contrato",
+                                DocumentType.Receipt => "Recibo",
+                                DocumentType.TaxDeclaration => "Declaração Fiscal",
+                                DocumentType.TermsOfUse => "Termos de Uso",
+                                _ => doc.Type.ToString()
+                            };
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>@doc.Type</span>
+                                <span>@documentTypeText</span>
                                 <a href="@Url.Action("DownloadDocument", "Client", new { documentId = doc.Id })" class="btn btn-sm btn-primary">
                                     <i class="bi bi-download"></i> Download
                                 </a>

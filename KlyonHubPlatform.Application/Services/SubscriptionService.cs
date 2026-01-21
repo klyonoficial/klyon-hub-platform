@@ -68,7 +68,7 @@ namespace KlyonHubPlatform.Application.Services
 
                     processed.Add(subscription);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log error
                     subscription.FailedPaymentAttempts++;

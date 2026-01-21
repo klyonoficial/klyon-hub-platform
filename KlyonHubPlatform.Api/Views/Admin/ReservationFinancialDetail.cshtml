@@ -1,0 +1,395 @@
+@using KlyonHubPlatform.Domain.Entities
+@{
+    ViewData["Title"] = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    
+    var reservation = ViewBag.Reservation as Reservation;
+    var commission = ViewBag.Commission as ReservationCommission;
+    var transfer = ViewBag.Transfer as Transfer;
+    var auditLogs = ViewBag.AuditLogs as List<AuditLog> ?? new List<AuditLog>();
+    
+    var grossValue = reservation?.TotalValue ?? 0m;
+    var commissionAmount = commission?.CommissionAmount ?? (grossValue * 0.20m);
+    var commissionPercentage = commission?.CommissionPercentage ?? 20m;
+    var netValue = commission?.CoworkingAmount ?? (grossValue - commissionAmount);
+}
+
+<style>
+    .detail-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .info-row {
+        padding: 1rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    .info-label {
+        font-weight: 600;
+        color: #666;
+        margin-bottom: 0.25rem;
+    }
+    .info-value {
+        font-size: 1.1rem;
+        color: #1a1a1a;
+    }
+    .financial-highlight {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .audit-log-item {
+        padding: 1rem;
+        border-left: 4px solid #667eea;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+    .audit-log-item .before-after {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-file-earmark-text text-primary me-2"></i>
+                    Drill-Down Final – Detalhe da Reserva (Visão Financeira)
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-shield-check"></i> Auditoria total da reserva #@reservation?.Id
+                </p>
+            </div>
+            <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Resumo Financeiro -->
+    <div class="container mb-4">
+        <div class="financial-highlight">
+            <div class="row g-4">
+                <div class="col-md-3">
+                    <h6 class="opacity-75 mb-2">Valor Bruto</h6>
+                    <h2 class="mb-0">R$ @grossValue.ToString("N2")</h2>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="opacity-75 mb-2">Comissão Aplicada</h6>
+                    <h2 class="mb-0">@commissionPercentage.ToString("F1")% (R$ @commissionAmount.ToString("N2"))</h2>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="opacity-75 mb-2">Valor Líquido</h6>
+                    <h2 class="mb-0">R$ @netValue.ToString("N2")</h2>
+                </div>
+                <div class="col-md-3">
+                    <h6 class="opacity-75 mb-2">Status</h6>
+                    <h2 class="mb-0">
+                        <span class="badge bg-light text-dark fs-6">
+                            @if (reservation?.Status == "Completed")
+                            {
+                                <text><i class="bi bi-check-circle text-success"></i> Concluída</text>
+                            }
+                            else if (reservation?.Status == "Confirmed")
+                            {
+                                <text><i class="bi bi-clock-history text-info"></i> Confirmada</text>
+                            }
+                            else
+                            {
+                                @reservation?.Status
+                            }
+                        </span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row g-4">
+            <!-- Dados do Cliente -->
+            <div class="col-md-6">
+                <div class="detail-card card">
+                    <div class="section-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-person text-primary me-2"></i>
+                            Dados do Cliente
+                        </h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="info-row">
+                            <div class="info-label">Nome/Razão Social</div>
+                            <div class="info-value">@(reservation?.Client?.RazaoSocial ?? reservation?.Client?.NomeFantasia ?? reservation?.Client?.ContactName ?? reservation?.Client?.User?.FullName ?? "N/A")</div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(reservation?.Client?.CNPJ))
+                        {
+                            <div class="info-row">
+                                <div class="info-label">CNPJ</div>
+                                <div class="info-value">@reservation.Client.CNPJ</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(reservation?.Client?.CPF))
+                        {
+                            <div class="info-row">
+                                <div class="info-label">CPF</div>
+                                <div class="info-value">@reservation.Client.CPF</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(reservation?.Client?.ContactEmail))
+                        {
+                            <div class="info-row">
+                                <div class="info-label">E-mail</div>
+                                <div class="info-value">@reservation.Client.ContactEmail</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(reservation?.Client?.ContactPhone))
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Telefone</div>
+                                <div class="info-value">@reservation.Client.ContactPhone</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dados do Coworking -->
+            <div class="col-md-6">
+                <div class="detail-card card">
+                    <div class="section-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-building text-primary me-2"></i>
+                            Dados do Coworking
+                        </h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="info-row">
+                            <div class="info-label">Nome</div>
+                            <div class="info-value">@(reservation?.CoworkingAddress?.Coworking?.Name ?? "N/A")</div>
+                        </div>
+                        @if (reservation?.CoworkingAddress != null)
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Endereço</div>
+                                <div class="info-value">
+                                    @reservation.CoworkingAddress.Address, @reservation.CoworkingAddress.Number
+                                    <br>
+                                    @reservation.CoworkingAddress.Neighborhood - @reservation.CoworkingAddress.City/@reservation.CoworkingAddress.State
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Produto Contratado -->
+        <div class="row g-4 mt-0">
+            <div class="col-md-12">
+                <div class="detail-card card">
+                    <div class="section-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-box-seam text-primary me-2"></i>
+                            Produto Contratado
+                        </h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="info-row">
+                            <div class="info-label">Tipo de Sala</div>
+                            <div class="info-value">
+                                <span class="badge bg-primary fs-6">
+                                    @if (reservation?.RoomType == "Shared")
+                                    {
+                                        <text>Sala Compartilhada</text>
+                                    }
+                                    else if (reservation?.RoomType == "Private")
+                                    {
+                                        <text>Sala Privativa</text>
+                                    }
+                                    else if (reservation?.RoomType == "Auditorium")
+                                    {
+                                        <text>Auditório</text>
+                                    }
+                                    else
+                                    {
+                                        @reservation?.RoomType
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Data da Reserva</div>
+                            <div class="info-value">@reservation?.ReservationDate.ToString("dd/MM/yyyy")</div>
+                        </div>
+                        @if (reservation?.StartTime != null && reservation?.EndTime != null)
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Horário</div>
+                                <div class="info-value">
+                                    @reservation.StartTime.Value.ToString(@"hh\:mm") até @reservation.EndTime.Value.ToString(@"hh\:mm")
+                                </div>
+                            </div>
+                        }
+                        <div class="info-row">
+                            <div class="info-label">Créditos Utilizados</div>
+                            <div class="info-value">@(reservation?.CreditsUsed ?? 0) créditos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informações Financeiras -->
+        <div class="row g-4 mt-0">
+            <div class="col-md-12">
+                <div class="detail-card card">
+                    <div class="section-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-cash-coin text-primary me-2"></i>
+                            Informações Financeiras
+                        </h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="info-row">
+                            <div class="info-label">Valor Bruto</div>
+                            <div class="info-value">
+                                <strong class="text-success">R$ @grossValue.ToString("N2")</strong>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Comissão Aplicada</div>
+                            <div class="info-value">
+                                <strong class="text-warning">@commissionPercentage.ToString("F1")% = R$ @commissionAmount.ToString("N2")</strong>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Valor Líquido Repassado</div>
+                            <div class="info-value">
+                                <strong class="text-primary">R$ @netValue.ToString("N2")</strong>
+                            </div>
+                        </div>
+                        @if (reservation?.ClientConfirmedAt != null)
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Data da Confirmação do Cliente</div>
+                                <div class="info-value">@reservation.ClientConfirmedAt.Value.ToString("dd/MM/yyyy HH:mm")</div>
+                            </div>
+                        }
+                        @if (reservation?.CoworkingConfirmedAt != null)
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Data da Confirmação do Coworking</div>
+                                <div class="info-value">@reservation.CoworkingConfirmedAt.Value.ToString("dd/MM/yyyy HH:mm")</div>
+                            </div>
+                        }
+                        @if (transfer != null)
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Data do Repasse Automático</div>
+                                <div class="info-value">
+                                    @((transfer.ProcessedAt ?? transfer.CreatedAt).ToString("dd/MM/yyyy HH:mm"))
+                                    @if (transfer.Status == TransferStatus.Completed)
+                                    {
+                                        <span class="badge bg-success ms-2">
+                                            <i class="bi bi-check-circle"></i> Processado
+                                        </span>
+                                    }
+                                    else if (transfer.Status == TransferStatus.Pending)
+                                    {
+                                        <span class="badge bg-warning ms-2">
+                                            <i class="bi bi-clock"></i> Pendente
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="info-row">
+                                <div class="info-label">Data do Repasse Automático</div>
+                                <div class="info-value">
+                                    <span class="text-muted">—</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs de Alterações -->
+        @if (auditLogs.Any())
+        {
+            <div class="row g-4 mt-0">
+                <div class="col-md-12">
+                    <div class="detail-card card">
+                        <div class="section-header">
+                            <h4 class="mb-0">
+                                <i class="bi bi-clock-history text-primary me-2"></i>
+                                Logs de Alterações (Antes/Depois)
+                            </h4>
+                        </div>
+                        <div class="card-body p-4">
+                            @foreach (var log in auditLogs)
+                            {
+                                <div class="audit-log-item">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <strong>@log.Action</strong>
+                                            <div class="text-muted small">@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</div>
+                                        </div>
+                                        <span class="badge bg-secondary">@log.EntityType</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(log.OldValues) || !string.IsNullOrEmpty(log.NewValues))
+                                    {
+                                        <div class="before-after">
+                                            <div>
+                                                <strong class="text-danger">Antes:</strong>
+                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.OldValues ?? "—")</pre>
+                                            </div>
+                                            <div>
+                                                <strong class="text-success">Depois:</strong>
+                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.NewValues ?? "—")</pre>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="container mt-4 mb-4">
+    <div class="alert alert-info">
+        <h5 class="mb-2">
+            <i class="bi bi-lightbulb"></i>
+            Perfeito para:
+        </h5>
+        <ul class="mb-0">
+            <li><strong>Suporte:</strong> Verificar histórico completo da reserva</li>
+            <li><strong>Auditoria:</strong> Rastrear todas as alterações e valores</li>
+            <li><strong>Conflitos Financeiros:</strong> Resolver divergências com dados completos</li>
+        </ul>
+    </div>
+</div>

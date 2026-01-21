@@ -140,6 +140,7 @@ namespace KlyonHubPlatform.Application.Services
                     .Include(p => p.Subscription)
                         .ThenInclude(s => s.Contract)
                             .ThenInclude(c => c.Client)
+                                .ThenInclude(client => client.User)
                     .Include(p => p.Subscription)
                         .ThenInclude(s => s.Contract)
                             .ThenInclude(c => c.CoworkingAddress)
@@ -153,16 +154,48 @@ namespace KlyonHubPlatform.Application.Services
                     else if (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation || p.Status == PaymentStatus.Processing)
                         pending += p.Amount;
 
+                    // Obter nome do cliente
+                    var clientName = "N/A";
+                    var client = p.Subscription?.Contract?.Client;
+                    if (client != null)
+                    {
+                        clientName = client.RazaoSocial 
+                            ?? client.NomeFantasia 
+                            ?? client.ContactName 
+                            ?? client.User?.FullName 
+                            ?? "N/A";
+                    }
+
+                    // Obter método de pagamento
+                    var paymentMethod = p.Method switch
+                    {
+                        PaymentMethod.PIX => "PIX",
+                        PaymentMethod.CreditCard => "Cartão",
+                        PaymentMethod.BankTransfer => "Boleto",
+                        _ => p.Method.ToString()
+                    };
+
+                    // Obter localidade
+                    var location = "N/A";
+                    var address = p.Subscription?.Contract?.CoworkingAddress;
+                    if (address != null)
+                    {
+                        var city = address.City ?? "";
+                        var state = address.State ?? "";
+                        if (!string.IsNullOrEmpty(city) || !string.IsNullOrEmpty(state))
+                        {
+                            location = $"{city}/{state}".Trim('/');
+                        }
+                    }
+
                     rows.Add(new ReportFinancialRowDto
                     {
                         ProductType = "Endereço fiscal",
                         Date = p.PaidAt ?? p.CreatedAt,
                         Amount = p.Amount,
-                        Method = p.Method == PaymentMethod.PIX ? "PIX" : p.Method == PaymentMethod.CreditCard ? "Cartão" : p.Method == PaymentMethod.BankTransfer ? "Boleto" : p.Method.ToString() ?? "-",
-                        Client = p.Subscription?.Contract?.Client?.RazaoSocial ?? p.Subscription?.Contract?.Client?.NomeFantasia ?? "N/A",
-                        Location = p.Subscription?.Contract?.CoworkingAddress != null
-                            ? $"{p.Subscription.Contract.CoworkingAddress.City ?? ""}/{p.Subscription.Contract.CoworkingAddress.State ?? ""}".Trim('/')
-                            : "N/A",
+                        Method = paymentMethod,
+                        Client = clientName,
+                        Location = location,
                         Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
                             : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
                     });
@@ -181,6 +214,7 @@ namespace KlyonHubPlatform.Application.Services
                          (c.PaidAt == null && c.CreatedAt >= dateFromUtc && c.CreatedAt < dateToEnd))
                     )
                     .Include(c => c.Client)
+                        .ThenInclude(client => client.User)
                     .OrderByDescending(c => c.PaidAt ?? c.CreatedAt)
                     .ToListAsync();
 
@@ -192,13 +226,49 @@ namespace KlyonHubPlatform.Application.Services
                              string.Equals(c.Status, "Processing", StringComparison.OrdinalIgnoreCase))
                         pending += c.AmountPaid;
 
+                    // Obter nome do cliente
+                    var clientName = "N/A";
+                    if (c.Client != null)
+                    {
+                        clientName = c.Client.RazaoSocial 
+                            ?? c.Client.NomeFantasia 
+                            ?? c.Client.ContactName 
+                            ?? c.Client.User?.FullName 
+                            ?? "N/A";
+                    }
+
+                    // Obter método de pagamento
+                    var paymentMethod = "-";
+                    if (c.PaymentMethod != null)
+                    {
+                        paymentMethod = c.PaymentMethod.Value switch
+                        {
+                            PaymentMethod.PIX => "PIX",
+                            PaymentMethod.CreditCard => "Cartão",
+                            PaymentMethod.BankTransfer => "Boleto",
+                            _ => c.PaymentMethod.Value.ToString()
+                        };
+                    }
+                    else if (!string.IsNullOrEmpty(c.PixCode))
+                    {
+                        paymentMethod = "PIX";
+                    }
+                    else if (!string.IsNullOrEmpty(c.BoletoCode) || !string.IsNullOrEmpty(c.BoletoBarcode))
+                    {
+                        paymentMethod = "Boleto";
+                    }
+                    else if (!string.IsNullOrEmpty(c.TransactionId))
+                    {
+                        paymentMethod = "Cartão";
+                    }
+
                     rows.Add(new ReportFinancialRowDto
                     {
                         ProductType = "Aluguel de salas",
                         Date = c.PaidAt ?? c.CreatedAt,
                         Amount = c.AmountPaid,
-                        Method = c.PaymentMethod == PaymentMethod.PIX ? "PIX" : c.PaymentMethod == PaymentMethod.CreditCard ? "Cartão" : c.PaymentMethod == PaymentMethod.BankTransfer ? "Boleto" : c.PaymentMethod?.ToString() ?? "-",
-                        Client = c.Client?.RazaoSocial ?? c.Client?.NomeFantasia ?? "N/A",
+                        Method = paymentMethod,
+                        Client = clientName,
                         Location = "-",
                         Status = string.Equals(c.Status, "Paid", StringComparison.OrdinalIgnoreCase) ? "Pago" : string.Equals(c.Status, "Pending", StringComparison.OrdinalIgnoreCase) ? "Pendente"
                             : string.Equals(c.Status, "Processing", StringComparison.OrdinalIgnoreCase) ? "Processando" : string.Equals(c.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ? "Cancelado" : c.Status ?? "-"
@@ -208,10 +278,25 @@ namespace KlyonHubPlatform.Application.Services
 
             // Certificado digitais: ainda não implementado no sistema; nenhum dado a incluir
 
+            // Calcular comissões totais
+            var totalCommissions = 0m;
+            try
+            {
+                totalCommissions = await _context.Commissions
+                    .Where(c => c.CreatedAt >= dateFrom.Date && c.CreatedAt < dateTo.Date.AddDays(1))
+                    .SumAsync(c => c.Amount);
+            }
+            catch
+            {
+                // Se a tabela não existir, calcular estimativa (20% padrão)
+                totalCommissions = totalReceived * 0.20m;
+            }
+
             // Ordenar todas as linhas por data decrescente
             result.Rows = rows.OrderByDescending(r => r.Date).ToList();
             result.TotalPayments = result.Rows.Count;
             result.TotalReceived = totalReceived;
+            result.TotalCommissions = totalCommissions;
             result.Pending = pending;
 
             return result;

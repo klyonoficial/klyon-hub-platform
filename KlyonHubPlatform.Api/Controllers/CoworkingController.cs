@@ -175,7 +175,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (Photos != null && Photos.Count > 0)
                 {
                     var photoCount = 0;
-                    foreach (var photo in Photos.Take(10)) // Máximo 10 fotos
+                    foreach (var photo in Photos.Take(2)) // Máximo 2 fotos
                     {
                         if (photo.Length > 0)
                         {
@@ -394,8 +394,14 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditAddress(int id)
+        public async Task<IActionResult> EditAddress(int? id)
         {
+            if (!id.HasValue || id.Value <= 0)
+            {
+                TempData["Error"] = "ID do endereço inválido.";
+                return RedirectToAction("MyAddresses");
+            }
+
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -408,7 +414,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var address = await _context.CoworkingAddresses
                 .Include(a => a.Location)
-                .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
+                .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
 
             if (address == null)
             {
@@ -426,7 +432,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditAddress(int id, int locationId, string address, string number, string? complement,
-            string neighborhood, string city, string state, string zipCode, [FromForm(Name = "BasePrice")] decimal basePrice, int maxContracts, bool isAvailable)
+            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts, bool isAvailable)
         {
             try
             {
@@ -913,7 +919,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Relatório de receita de aluguel de salas: total, por tipo de sala (qual produto mais faturou) e por cliente.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo)
+        public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo, int page = 1, int pageSize = 15)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -967,26 +973,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 ("Shared", "Sala compartilhada", list.Where(r => r.RoomType == "Shared").ToList()),
                 ("Private", "Sala privativa", list.Where(r => r.RoomType == "Private").ToList()),
                 ("Auditorium", "Auditório", list.Where(r => r.RoomType == "Auditorium").ToList())
-            }.Select(x => new Dictionary<string, object>
+            }.Select(x => 
             {
-                ["RoomTypeKey"] = x.Item1,
-                ["Label"] = x.Item2,
-                ["Revenue"] = (decimal)x.Item3.Sum(r => r.TotalValue),
-                ["Count"] = x.Item3.Count,
-                ["Details"] = x.Item3.Select(r =>
+                var allDetails = x.Item3.Select(r => new Dictionary<string, object>
                 {
-                    var comm = commissions.FirstOrDefault(c => c.ReservationId == r.Id);
-                    var tr = transfers.FirstOrDefault(t => t.ReservationId == r.Id);
-                    return new Dictionary<string, object>
-                    {
-                        ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
-                        ["ClientName"] = ClientDisplayName(r),
-                        ["Value"] = r.TotalValue,
-                        ["Credits"] = r.CreditsUsed,
-                        ["Lucro"] = comm != null ? (object)comm.CoworkingAmount : null,
-                        ["RepasseEm"] = tr != null ? (tr.ProcessedAt ?? tr.CreatedAt).ToString("dd/MM/yyyy HH:mm") : null
-                    };
-                }).ToList()
+                    ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                    ["ClientName"] = ClientDisplayName(r),
+                    ["Value"] = r.TotalValue,
+                    ["Credits"] = r.CreditsUsed
+                }).ToList();
+                
+                var totalDetails = allDetails.Count;
+                var totalPages = totalDetails > 0 ? (int)Math.Ceiling(totalDetails / (double)pageSize) : 1;
+                if (page > totalPages && totalPages > 0) page = totalPages;
+                
+                var pagedDetails = allDetails
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+                
+                return new Dictionary<string, object>
+                {
+                    ["RoomTypeKey"] = x.Item1,
+                    ["Label"] = x.Item2,
+                    ["Revenue"] = (decimal)x.Item3.Sum(r => r.TotalValue),
+                    ["Count"] = x.Item3.Count,
+                    ["Details"] = pagedDetails,
+                    ["TotalDetails"] = totalDetails,
+                    ["CurrentPage"] = page,
+                    ["TotalPages"] = totalPages
+                };
             }).ToList();
 
             var byClient = list
@@ -996,6 +1012,24 @@ namespace KlyonHubPlatform.Api.Controllers
                     var firstReservation = g.FirstOrDefault();
                     if (firstReservation == null) return null;
                     
+                    var allDetails = g.Select(r => new Dictionary<string, object>
+                    {
+                        ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                        ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
+                        ["Value"] = r.TotalValue,
+                        ["Credits"] = r.CreditsUsed
+                    }).ToList();
+                    
+                    var totalDetails = allDetails.Count;
+                    var totalPages = totalDetails > 0 ? (int)Math.Ceiling(totalDetails / (double)pageSize) : 1;
+                    var clientPage = page;
+                    if (clientPage > totalPages && totalPages > 0) clientPage = totalPages;
+                    
+                    var pagedDetails = allDetails
+                        .Skip((clientPage - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToList();
+                    
                     return new Dictionary<string, object>
                     {
                         ["ClientId"] = g.Key,
@@ -1003,20 +1037,10 @@ namespace KlyonHubPlatform.Api.Controllers
                         ["Count"] = g.Count(),
                         ["Revenue"] = (decimal)g.Sum(r => r.TotalValue),
                         ["Credits"] = g.Sum(r => r.CreditsUsed),
-                        ["Details"] = g.Select(r =>
-                        {
-                            var comm = commissions.FirstOrDefault(c => c.ReservationId == r.Id);
-                            var tr = transfers.FirstOrDefault(t => t.ReservationId == r.Id);
-                            return new Dictionary<string, object>
-                            {
-                                ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
-                                ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
-                                ["Value"] = r.TotalValue,
-                                ["Credits"] = r.CreditsUsed,
-                                ["Lucro"] = comm != null ? (object)comm.CoworkingAmount : null,
-                                ["RepasseEm"] = tr != null ? (tr.ProcessedAt ?? tr.CreatedAt).ToString("dd/MM/yyyy HH:mm") : null
-                            };
-                        }).ToList()
+                        ["Details"] = pagedDetails,
+                        ["TotalDetails"] = totalDetails,
+                        ["CurrentPage"] = clientPage,
+                        ["TotalPages"] = totalPages
                     };
                 })
                 .Where(x => x != null)
@@ -1030,6 +1054,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.DateFrom = dateFrom;
             ViewBag.DateTo = dateTo;
             ViewBag.CoworkingName = cow.Name;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
             return View();
         }
 
@@ -1103,7 +1129,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Profile()
+        public async Task<IActionResult> Profile(int partnersPage = 1, int partnersPageSize = 10, int photosPage = 1, int photosPageSize = 6)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -1115,8 +1141,6 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var coworkingWithDetails = await _context.Coworkings
-                .Include(c => c.Photos)
-                .Include(c => c.Partners)
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == coworkingEntity.Id);
 
@@ -1134,6 +1158,74 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Se a tabela não existir, inicializa como lista vazia
                     coworkingWithDetails.Products = new List<Domain.Entities.CoworkingProduct>();
                 }
+
+                // Paginação dos sócios
+                var partnersQuery = _context.CoworkingPartners
+                    .Where(p => p.CoworkingId == coworkingWithDetails.Id)
+                    .OrderByDescending(p => p.IsPrincipal)
+                    .ThenBy(p => p.Name);
+
+                var totalPartners = await partnersQuery.CountAsync();
+                var totalPartnersPages = totalPartners > 0 ? (int)Math.Ceiling(totalPartners / (double)partnersPageSize) : 1;
+                
+                if (partnersPage > totalPartnersPages && totalPartnersPages > 0)
+                {
+                    partnersPage = totalPartnersPages;
+                }
+
+                var pagedPartners = await partnersQuery
+                    .Skip((partnersPage - 1) * partnersPageSize)
+                    .Take(partnersPageSize)
+                    .ToListAsync();
+
+                coworkingWithDetails.Partners = pagedPartners;
+
+                ViewBag.PartnersTotalItems = totalPartners;
+                ViewBag.PartnersCurrentPage = partnersPage;
+                ViewBag.PartnersTotalPages = totalPartnersPages;
+                ViewBag.PartnersPageSize = partnersPageSize;
+
+                // Paginação das fotos
+                var photosQuery = _context.CoworkingPhotos
+                    .Where(p => p.CoworkingId == coworkingWithDetails.Id)
+                    .OrderByDescending(p => p.IsMain)
+                    .ThenBy(p => p.DisplayOrder)
+                    .ThenBy(p => p.CreatedAt);
+
+                var totalPhotos = await photosQuery.CountAsync();
+                var totalPhotosPages = totalPhotos > 0 ? (int)Math.Ceiling(totalPhotos / (double)photosPageSize) : 1;
+                
+                if (photosPage > totalPhotosPages && totalPhotosPages > 0)
+                {
+                    photosPage = totalPhotosPages;
+                }
+
+                var pagedPhotos = await photosQuery
+                    .Skip((photosPage - 1) * photosPageSize)
+                    .Take(photosPageSize)
+                    .ToListAsync();
+
+                coworkingWithDetails.Photos = pagedPhotos;
+
+                ViewBag.PhotosTotalItems = totalPhotos;
+                ViewBag.PhotosCurrentPage = photosPage;
+                ViewBag.PhotosTotalPages = totalPhotosPages;
+                ViewBag.PhotosPageSize = photosPageSize;
+            }
+            else
+            {
+                // Se não houver detalhes, criar listas vazias
+                coworkingEntity.Partners = new List<Domain.Entities.CoworkingPartner>();
+                ViewBag.PartnersTotalItems = 0;
+                ViewBag.PartnersCurrentPage = 1;
+                ViewBag.PartnersTotalPages = 1;
+                ViewBag.PartnersPageSize = partnersPageSize;
+                
+                coworkingEntity.Photos = new List<Domain.Entities.CoworkingPhoto>();
+                ViewBag.PhotosTotalItems = 0;
+                ViewBag.PhotosCurrentPage = 1;
+                ViewBag.PhotosTotalPages = 1;
+                ViewBag.PhotosPageSize = photosPageSize;
             }
 
             return View(coworkingWithDetails ?? coworkingEntity);
@@ -1217,6 +1309,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (coworkingEntity == null)
                 {
+                    if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    {
+                        return Json(new { success = false, message = "Coworking não encontrado." });
+                    }
                     TempData["Error"] = "Coworking não encontrado.";
                     return RedirectToAction("Profile");
                 }
@@ -1244,11 +1340,32 @@ namespace KlyonHubPlatform.Api.Controllers
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Produtos atualizados");
                 await _context.SaveChangesAsync();
 
+                // Se for requisição AJAX, retornar JSON
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    var updatedProducts = await _context.CoworkingProducts
+                        .Where(p => p.CoworkingId == coworkingEntity.Id && p.IsActive)
+                        .Select(p => p.ProductType)
+                        .ToListAsync();
+                    
+                    return Json(new 
+                    { 
+                        success = true, 
+                        message = "Produtos atualizados com sucesso!",
+                        hasFiscalAddress = updatedProducts.Contains("FiscalAddress"),
+                        hasRoomRental = updatedProducts.Contains("RoomRental")
+                    });
+                }
+
                 TempData["Success"] = "Produtos atualizados com sucesso!";
                 return RedirectToAction("Products");
             }
             catch (Exception ex)
             {
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new { success = false, message = $"Erro ao atualizar produtos: {ex.Message}" });
+                }
                 TempData["Error"] = $"Erro ao atualizar produtos: {ex.Message}";
                 return RedirectToAction("Products");
             }
@@ -1779,15 +1896,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Profile");
                 }
 
-                // Verificar limite de fotos (máximo 10)
+                // Verificar limite de fotos (máximo 2)
                 var existingPhotosCount = await _context.CoworkingPhotos
                     .Where(p => p.CoworkingId == coworkingEntity.Id)
                     .CountAsync();
 
-                var photosToAdd = Photos.Take(10 - existingPhotosCount);
+                var maxPhotos = 2;
+                var photosToAdd = Photos.Take(maxPhotos - existingPhotosCount);
                 if (!photosToAdd.Any())
                 {
-                    TempData["Error"] = "Você já atingiu o limite máximo de 10 fotos.";
+                    TempData["Error"] = $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
+                    TempData["ActiveTab"] = "photos";
                     return RedirectToAction("Profile");
                 }
 
