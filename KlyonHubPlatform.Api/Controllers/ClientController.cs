@@ -483,10 +483,28 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> RegisterClient()
+        public async Task<IActionResult> RegisterClient(int? id = null)
         {
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
+            
+            // Se houver um ID, carregar o cliente para edição
+            if (id.HasValue)
+            {
+                var client = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == id.Value);
+                
+                if (client != null)
+                {
+                    // Se for admin ou o próprio cliente, permitir edição
+                    if (User.IsInRole("Administrator") || client.UserId == int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)))
+                    {
+                        return View(client);
+                    }
+                }
+            }
+            
             return View();
         }
 
@@ -498,10 +516,119 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 var userEmail = User.FindFirstValue(ClaimTypes.Email);
+                var isAdmin = User.IsInRole("Administrator");
                 
+                // Se houver ID, é uma edição
+                if (client.Id > 0)
+                {
+                    var existingClient = await _context.Clients
+                        .Include(c => c.User)
+                        .FirstOrDefaultAsync(c => c.Id == client.Id);
+                    
+                    if (existingClient == null)
+                    {
+                        TempData["Error"] = "Cliente não encontrado.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+                    
+                    // Verificar permissão: admin ou o próprio cliente
+                    if (!isAdmin && existingClient.UserId != userId)
+                    {
+                        TempData["Error"] = "Você não tem permissão para editar este cliente.";
+                        return RedirectToAction("Dashboard");
+                    }
+                    
+                    // Atualizar campos
+                    existingClient.RazaoSocial = client.RazaoSocial;
+                    existingClient.NomeFantasia = client.NomeFantasia;
+                    existingClient.ContactName = client.ContactName;
+                    existingClient.ContactPhone = client.ContactPhone;
+                    existingClient.Address = client.Address;
+                    existingClient.City = client.City;
+                    existingClient.State = client.State;
+                    existingClient.ZipCode = client.ZipCode;
+                    
+                    // Se for admin, permitir alterar email
+                    if (isAdmin && !string.IsNullOrEmpty(client.ContactEmail))
+                    {
+                        existingClient.ContactEmail = client.ContactEmail;
+                    }
+                    
+                    // Validar e atualizar CNPJ/CPF
+                    var cnpjClean = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                    var cpfClean = client.CPF?.Replace(".", "").Replace("-", "").Trim();
+                    
+                    if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length == 14)
+                    {
+                        // Verificar se outro cliente já possui este CNPJ
+                        var allClients = await _context.Clients
+                            .Where(c => c.CNPJ != null && c.Id != existingClient.Id)
+                            .ToListAsync();
+                        var existingCNPJ = allClients.FirstOrDefault(c => 
+                            c.CNPJ != null && 
+                            c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean);
+                        
+                        if (existingCNPJ != null)
+                        {
+                            TempData["Error"] = $"O CNPJ {client.CNPJ} já está cadastrado para outro cliente.";
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+                        existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+                    }
+                    else if (!string.IsNullOrEmpty(cnpjClean))
+                    {
+                        existingClient.CNPJ = null;
+                    }
+                    
+                    if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length == 11)
+                    {
+                        // Verificar se outro cliente já possui este CPF
+                        var allClients = await _context.Clients
+                            .Where(c => c.CPF != null && c.Id != existingClient.Id)
+                            .ToListAsync();
+                        var existingCPF = allClients.FirstOrDefault(c => 
+                            c.CPF != null && 
+                            c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean);
+                        
+                        if (existingCPF != null)
+                        {
+                            TempData["Error"] = $"O CPF {client.CPF} já está cadastrado para outro cliente.";
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+                        existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
+                    }
+                    else if (!string.IsNullOrEmpty(cpfClean))
+                    {
+                        existingClient.CPF = null;
+                    }
+                    
+                    // Remover máscaras do telefone e CEP
+                    if (!string.IsNullOrEmpty(existingClient.ContactPhone))
+                    {
+                        existingClient.ContactPhone = existingClient.ContactPhone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
+                    }
+                    if (!string.IsNullOrEmpty(existingClient.ZipCode))
+                    {
+                        existingClient.ZipCode = existingClient.ZipCode.Replace("-", "");
+                    }
+                    
+                    await _context.SaveChangesAsync();
+                    TempData["Success"] = "Cliente atualizado com sucesso!";
+                    
+                    if (isAdmin)
+                    {
+                        return RedirectToAction("Contracts", "Admin");
+                    }
+                    return RedirectToAction("Dashboard");
+                }
+                
+                // Se não houver ID, é um novo cadastro
                 // Verificar se o usuário já possui um cliente cadastrado
-                var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-                if (existingClient != null)
+                var userClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (userClient != null && !isAdmin)
                 {
                     TempData["Error"] = "Você já possui um cadastro de cliente. Acesse seu perfil para editar as informações.";
                     return RedirectToAction("Dashboard");

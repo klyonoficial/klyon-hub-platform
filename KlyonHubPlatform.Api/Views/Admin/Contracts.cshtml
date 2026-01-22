@@ -101,14 +101,24 @@
                             <tr>
                                 <td><strong>@contract.ContractNumber</strong></td>
                                 <td>
-                                    @(contract.Client?.RazaoSocial ?? contract.Client?.NomeFantasia ?? contract.Client?.ContactName ?? "N/A")
-                                    @if (!string.IsNullOrEmpty(contract.Client?.CNPJ))
+                                    @if (contract.Client != null)
                                     {
-                                        <br><small class="text-muted">CNPJ: @contract.Client.CNPJ</small>
+                                        <a href="@Url.Action("RegisterClient", "Client", new { id = contract.Client.Id })" 
+                                           class="text-decoration-none fw-bold" title="Editar cliente">
+                                            @(contract.Client.RazaoSocial ?? contract.Client.NomeFantasia ?? contract.Client.ContactName ?? "N/A")
+                                        </a>
+                                        @if (!string.IsNullOrEmpty(contract.Client.CNPJ))
+                                        {
+                                            <br><small class="text-muted">CNPJ: @contract.Client.CNPJ</small>
+                                        }
+                                        else if (!string.IsNullOrEmpty(contract.Client.CPF))
+                                        {
+                                            <br><small class="text-muted">CPF: @contract.Client.CPF</small>
+                                        }
                                     }
-                                    else if (!string.IsNullOrEmpty(contract.Client?.CPF))
+                                    else
                                     {
-                                        <br><small class="text-muted">CPF: @contract.Client.CPF</small>
+                                        <span class="text-muted">N/A</span>
                                     }
                                 </td>
                                 <td>
