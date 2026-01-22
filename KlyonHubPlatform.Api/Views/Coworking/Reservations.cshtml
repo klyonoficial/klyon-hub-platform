@@ -157,7 +157,7 @@
                             <th>Telefone</th>
                             <th>Data/Horário</th>
                             <th>Tipo de Sala</th>
-                            <th>Valor/Créditos</th>
+                            <th>Valor (R$)</th>
                             <th>Endereço</th>
                             <th>Status</th>
                             <th>Ações</th>
@@ -266,10 +266,6 @@
                                             @if (totalValue != null && totalValue != DBNull.Value)
                                             {
                                                 <div><strong>R$ @(((decimal)totalValue).ToString("N2"))</strong></div>
-                                                @if (creditsUsed != null && creditsUsed != DBNull.Value)
-                                                {
-                                                    <small class="text-muted">@creditsUsed créditos</small>
-                                                }
                                             }
                                             else
                                             {

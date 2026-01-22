@@ -35,32 +35,97 @@ namespace KlyonHubPlatform.Application.Services
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
 
-            var contract = payment.Subscription?.Contract;
-            if (contract == null)
-                throw new InvalidOperationException("Contrato não encontrado");
+            int coworkingId;
+            string serviceName;
+            int? serviceId = null;
 
-            var address = await _context.CoworkingAddresses
-                .Include(a => a.Coworking)
-                .FirstOrDefaultAsync(a => a.Id == contract.CoworkingAddressId);
+            CoworkingAddress? address = null;
 
-            if (address == null)
-                throw new InvalidOperationException("Endereço não encontrado");
+            // Identificar o serviço e coworking baseado no tipo de pagamento
+            if (payment.SubscriptionId.HasValue && payment.Subscription?.Contract != null)
+            {
+                // Pagamento de Endereço Fiscal (Subscription -> Contract)
+                var contract = payment.Subscription.Contract;
+                address = await _context.CoworkingAddresses
+                    .Include(a => a.Coworking)
+                    .Include(a => a.Location)
+                    .FirstOrDefaultAsync(a => a.Id == contract.CoworkingAddressId);
 
-            // Buscar comissão da localidade
-            var locationCommission = await _context.LocationCommissions
-                .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
-                .OrderByDescending(lc => lc.EffectiveDate)
-                .FirstOrDefaultAsync();
+                if (address == null)
+                    throw new InvalidOperationException("Endereço não encontrado");
 
-            var commissionPercentage = locationCommission?.CommissionPercentage ?? 
-                _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                coworkingId = address.CoworkingId;
+                serviceName = "Contratar Endereço Fiscal";
+            }
+            else if (payment.ReservationId.HasValue && payment.Reservation != null)
+            {
+                // Pagamento de Reserva (Aluguel de Salas)
+                var reservation = payment.Reservation;
+                address = await _context.CoworkingAddresses
+                    .Include(a => a.Coworking)
+                    .Include(a => a.Location)
+                    .FirstOrDefaultAsync(a => a.Id == reservation.CoworkingAddressId);
+
+                if (address == null)
+                    throw new InvalidOperationException("Endereço não encontrado");
+
+                coworkingId = address.CoworkingId;
+                serviceName = "Reservar Sala";
+            }
+            else
+            {
+                throw new InvalidOperationException("Pagamento não possui Subscription ou Reservation associada");
+            }
+
+            // Buscar o ServiceId baseado no nome do serviço
+            var service = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == serviceName && s.IsActive);
+
+            if (service != null)
+            {
+                serviceId = service.Id;
+            }
+
+            // Buscar porcentagem do PartnerService baseado no ServiceId e CoworkingId
+            decimal commissionPercentage = 0;
+            
+            if (serviceId.HasValue)
+            {
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == serviceId.Value);
+
+                if (partnerService != null && partnerService.Percentage > 0)
+                {
+                    commissionPercentage = partnerService.Percentage;
+                }
+            }
+
+            // Se não encontrou porcentagem do PartnerService, usar fallback
+            if (commissionPercentage == 0)
+            {
+                // Buscar comissão da localidade como fallback
+                if (address?.LocationId != null)
+                {
+                    var locationCommission = await _context.LocationCommissions
+                        .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
+                        .OrderByDescending(lc => lc.EffectiveDate)
+                        .FirstOrDefaultAsync();
+
+                    commissionPercentage = locationCommission?.CommissionPercentage ?? 
+                        _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                }
+                else
+                {
+                    commissionPercentage = _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                }
+            }
 
             var commissionAmount = payment.Amount * (commissionPercentage / 100);
 
             var commission = new Commission
             {
                 PaymentId = paymentId,
-                CoworkingId = address.CoworkingId,
+                CoworkingId = coworkingId,
                 Amount = commissionAmount,
                 Percentage = commissionPercentage,
                 TotalPaymentAmount = payment.Amount

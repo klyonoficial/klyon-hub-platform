@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using KlyonHubPlatform.Api.ViewModels;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,11 +23,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -167,9 +171,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     MaxPeople = maxCapacity,
                     MainPhotoId = mainPhoto?.Id,
                     OffersSharedRoom = a.OffersSharedRoom,
-                    SharedRoomCreditsPerHour = a.SharedRoomPricePerHour.HasValue ? (int)Math.Ceiling(a.SharedRoomPricePerHour.Value) : null,
+                    SharedRoomPricePerHour = a.SharedRoomPricePerHour,
                     OffersPrivateRoom = a.OffersPrivateRoom,
-                    PrivateRoomCreditsPerHour = a.PrivateRoomPricePerHour.HasValue ? (int)Math.Ceiling(a.PrivateRoomPricePerHour.Value) : null
+                    PrivateRoomPricePerHour = a.PrivateRoomPricePerHour
                 };
             }).ToList();
 
@@ -230,32 +234,32 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalRatings = totalRatings;
             ViewBag.Ratings = ratings;
 
-            // Verificar se cliente está logado e buscar créditos disponíveis
+            // Verificar se cliente está logado
             var isClientLogged = User.Identity?.IsAuthenticated == true && User.IsInRole("Client");
+            ViewBag.IsClientLogged = isClientLogged;
+
+            // Obter créditos disponíveis do cliente se estiver logado
             int availableCredits = 0;
             if (isClientLogged)
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-                if (client != null)
+                try
                 {
-                    availableCredits = await _context.ClientCredits
-                        .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
-                        .SumAsync(c => c.Credits);
+                    var userId = int.Parse(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier) ?? "0");
+                    var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                    if (client != null)
+                    {
+                        availableCredits = await _context.ClientCredits
+                            .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                            .SumAsync(c => c.Credits);
+                    }
+                }
+                catch
+                {
+                    // Tabela ClientCredits pode não existir ainda ou erro ao buscar
+                    availableCredits = 0;
                 }
             }
             ViewBag.AvailableCredits = availableCredits;
-            ViewBag.IsClientLogged = isClientLogged;
-
-            // Buscar planos de crédito para o modal
-            if (isClientLogged)
-            {
-                var creditPlans = await _context.CreditPlans
-                    .Where(p => p.IsActive)
-                    .OrderBy(p => p.Price)
-                    .ToListAsync();
-                ViewBag.CreditPlans = creditPlans;
-            }
 
             // Passar informações de salas para a view
             ViewBag.OffersSharedRoom = address.OffersSharedRoom;
@@ -433,6 +437,53 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
                 }
 
+                // Validar horários de funcionamento
+                var dayOfWeek = ReservationDate.DayOfWeek.ToString().ToUpper();
+                var operatingHour = await _context.CoworkingOperatingHours
+                    .FirstOrDefaultAsync(h => h.CoworkingId == address.CoworkingId && h.DayOfWeek == dayOfWeek);
+
+                if (operatingHour == null || !operatingHour.IsActive)
+                {
+                    TempData["Error"] = "O coworking não está funcionando neste dia da semana.";
+                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                }
+
+                if (!operatingHour.OpeningTime.HasValue || !operatingHour.ClosingTime.HasValue)
+                {
+                    TempData["Error"] = "Horários de funcionamento não configurados para este dia.";
+                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                }
+
+                // Verificar se o horário da reserva está dentro do horário de funcionamento
+                if (startTimeSpan < operatingHour.OpeningTime || endTimeSpan > operatingHour.ClosingTime)
+                {
+                    TempData["Error"] = $"O horário da reserva deve estar entre {operatingHour.OpeningTime.Value.ToString(@"hh\:mm")} e {operatingHour.ClosingTime.Value.ToString(@"hh\:mm")}.";
+                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                }
+
+                // Verificar se a data está bloqueada
+                var blockedDate = await _context.BlockedDates
+                    .FirstOrDefaultAsync(b => b.CoworkingId == address.CoworkingId && 
+                                             b.BlockedDateValue.Date == ReservationDate.Date);
+
+                if (blockedDate != null)
+                {
+                    if (blockedDate.BlocksFullDay)
+                    {
+                        TempData["Error"] = $"Esta data está bloqueada: {blockedDate.Reason}";
+                        return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    }
+                    else if (blockedDate.StartTime.HasValue && blockedDate.EndTime.HasValue)
+                    {
+                        // Verificar se há sobreposição com o horário bloqueado
+                        if (!(endTimeSpan <= blockedDate.StartTime || startTimeSpan >= blockedDate.EndTime))
+                        {
+                            TempData["Error"] = $"Este horário está bloqueado: {blockedDate.Reason}";
+                            return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                        }
+                    }
+                }
+
                 // Calcular duração em horas
                 var duration = endTimeSpan.Value - startTimeSpan.Value;
                 var hours = (decimal)Math.Max(1, Math.Ceiling(duration.TotalHours)); // Mínimo 1 hora, arredondar para cima
@@ -458,9 +509,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
                 }
 
-                // Calcular valor total (1 crédito = R$ 1,00)
+                // Calcular valor total
                 var totalValue = pricePerHour * hours;
-                var creditsNeeded = (int)Math.Ceiling(totalValue); // Arredondar para cima
 
                 // Verificar disponibilidade baseada no tipo de sala
                 var hasConflict = false;
@@ -508,19 +558,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
                 }
 
-                // Verificar créditos disponíveis
-                var availableCredits = await _context.ClientCredits
-                    .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
-                    .SumAsync(c => c.Credits);
-
-                if (availableCredits < creditsNeeded)
-                {
-                    TempData["Error"] = $"Você não possui créditos suficientes. Necessário: {creditsNeeded} créditos (R$ {totalValue:F2}), Disponível: {availableCredits} créditos";
-                    TempData["ShowBuyCredits"] = true;
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
-                }
-
-                // Criar reserva
+                // Criar reserva com status "Pending" até o pagamento ser confirmado
                 var reservation = new Reservation
                 {
                     ClientId = client.Id,
@@ -530,40 +568,30 @@ namespace KlyonHubPlatform.Api.Controllers
                     EndTime = endTimeSpan,
                     RoomType = RoomType,
                     TotalValue = totalValue,
-                    CreditsUsed = creditsNeeded,
-                    Status = "Confirmed",
+                    Status = "Pending", // Pendente até pagamento ser confirmado
                     CreatedAt = DateTime.UtcNow
                 };
 
                 _context.Reservations.Add(reservation);
-
-                // Deduzir créditos (FIFO - primeiro a vencer)
-                var creditsToDeduct = creditsNeeded;
-                var credits = await _context.ClientCredits
-                    .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow && c.Credits > 0)
-                    .OrderBy(c => c.ExpiresAt)
-                    .ToListAsync();
-
-                foreach (var credit in credits)
-                {
-                    if (creditsToDeduct <= 0) break;
-
-                    if (credit.Credits >= creditsToDeduct)
-                    {
-                        credit.Credits -= creditsToDeduct;
-                        creditsToDeduct = 0;
-                    }
-                    else
-                    {
-                        creditsToDeduct -= credit.Credits;
-                        credit.Credits = 0;
-                    }
-                }
-
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = $"Reserva confirmada com sucesso para {ReservationDate:dd/MM/yyyy}! Você receberá um email de confirmação em breve.";
-                return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                // Criar pagamento direto para a reserva
+                var payment = new Payment
+                {
+                    ReservationId = reservation.Id,
+                    Amount = totalValue,
+                    Status = PaymentStatus.Pending,
+                    Method = PaymentMethod.PIX, // Default, pode ser alterado na tela de pagamento
+                    DueDate = ReservationDate.Date,
+                    ExternalPaymentId = Guid.NewGuid().ToString(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Payments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                // Redirecionar para página de pagamento
+                return RedirectToAction("PaymentDetails", "Client", new { paymentId = payment.Id });
             }
             catch (Exception ex)
             {
@@ -593,10 +621,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (roomType == "Private" && !address.OffersPrivateRoom)
                     return Json(new { error = "Endereço não oferece sala privativa" });
 
-                var opStart = new TimeSpan(8, 0, 0);
-                var opEnd = new TimeSpan(23, 0, 0);
                 var daysInMonth = DateTime.DaysInMonth(year, month);
                 var dates = new Dictionary<string, object>();
+
+                // Carregar horários de funcionamento e datas bloqueadas
+                var operatingHours = await _context.CoworkingOperatingHours
+                    .Where(h => h.CoworkingId == address.CoworkingId)
+                    .ToListAsync();
+                var blockedDates = await _context.BlockedDates
+                    .Where(b => b.CoworkingId == address.CoworkingId &&
+                               b.BlockedDateValue.Year == year &&
+                               b.BlockedDateValue.Month == month)
+                    .ToListAsync();
 
                 // Reservas do mês para este endereço e tipo
                 var first = new DateTime(year, month, 1);
@@ -622,7 +658,34 @@ namespace KlyonHubPlatform.Api.Controllers
                         continue;
                     }
 
+                    // Verificar se a data está bloqueada
+                    var blockedDate = blockedDates.FirstOrDefault(b => b.BlockedDateValue.Date == dt.Date);
+                    if (blockedDate != null && blockedDate.BlocksFullDay)
+                    {
+                        dates[key] = new { fullyBooked = true, occupied = Array.Empty<object>() };
+                        continue;
+                    }
+
+                    // Obter horário de funcionamento para este dia
+                    var dayOfWeek = dt.DayOfWeek.ToString().ToUpper();
+                    var operatingHour = operatingHours.FirstOrDefault(h => h.DayOfWeek == dayOfWeek);
+                    
+                    if (operatingHour == null || !operatingHour.IsActive || !operatingHour.OpeningTime.HasValue || !operatingHour.ClosingTime.HasValue)
+                    {
+                        dates[key] = new { fullyBooked = true, occupied = Array.Empty<object>() };
+                        continue;
+                    }
+
+                    var opStart = operatingHour.OpeningTime.Value;
+                    var opEnd = operatingHour.ClosingTime.Value;
+
                     var dayRes = reservations.Where(r => r.ReservationDate.Date == dt).ToList();
+
+                    // Adicionar horários bloqueados às reservas se houver bloqueio parcial
+                    if (blockedDate != null && !blockedDate.BlocksFullDay && blockedDate.StartTime.HasValue && blockedDate.EndTime.HasValue)
+                    {
+                        dayRes.Add(new { ReservationDate = dt, StartTime = (TimeSpan?)blockedDate.StartTime, EndTime = (TimeSpan?)blockedDate.EndTime });
+                    }
 
                     if (roomType == "Private")
                     {
@@ -730,6 +793,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Se uma data específica foi fornecida, retornar horários disponíveis para aquela data
                 if (date.HasValue)
                 {
+                    // Verificar se a data está bloqueada
+                    var blockedDate = await _context.BlockedDates
+                        .FirstOrDefaultAsync(b => b.CoworkingId == address.CoworkingId && 
+                                                 b.BlockedDateValue.Date == date.Value.Date);
+
+                    if (blockedDate != null && blockedDate.BlocksFullDay)
+                    {
+                        return Json(new
+                        {
+                            available = false,
+                            occupiedSlots = Array.Empty<object>(),
+                            error = $"Data bloqueada: {blockedDate.Reason}"
+                        });
+                    }
+
+                    // Obter horário de funcionamento para este dia
+                    var dayOfWeek = date.Value.DayOfWeek.ToString().ToUpper();
+                    var operatingHour = await _context.CoworkingOperatingHours
+                        .FirstOrDefaultAsync(h => h.CoworkingId == address.CoworkingId && h.DayOfWeek == dayOfWeek);
+
+                    if (operatingHour == null || !operatingHour.IsActive || !operatingHour.OpeningTime.HasValue || !operatingHour.ClosingTime.HasValue)
+                    {
+                        return Json(new
+                        {
+                            available = false,
+                            occupiedSlots = Array.Empty<object>(),
+                            error = "Coworking não funciona neste dia"
+                        });
+                    }
+
                     var reservations = await _context.Reservations
                         .Where(r => r.CoworkingAddressId == addressId &&
                                    r.ReservationDate.Date == date.Value.Date &&
@@ -738,6 +831,12 @@ namespace KlyonHubPlatform.Api.Controllers
                                    r.StartTime.HasValue && r.EndTime.HasValue)
                         .Select(r => new { r.StartTime, r.EndTime })
                         .ToListAsync();
+
+                    // Adicionar horários bloqueados se houver bloqueio parcial
+                    if (blockedDate != null && !blockedDate.BlocksFullDay && blockedDate.StartTime.HasValue && blockedDate.EndTime.HasValue)
+                    {
+                        reservations.Add(new { StartTime = (TimeSpan?)blockedDate.StartTime, EndTime = (TimeSpan?)blockedDate.EndTime });
+                    }
 
                     // Se for sala privativa, retornar horários ocupados
                     if (roomType == "Private")
@@ -751,7 +850,12 @@ namespace KlyonHubPlatform.Api.Controllers
                         return Json(new
                         {
                             available = occupiedSlots.Count == 0,
-                            occupiedSlots = occupiedSlots
+                            occupiedSlots = occupiedSlots,
+                            operatingHours = new
+                            {
+                                opening = operatingHour.OpeningTime.Value.ToString(@"hh\:mm"),
+                                closing = operatingHour.ClosingTime.Value.ToString(@"hh\:mm")
+                            }
                         });
                     }
                     else // Sala compartilhada
@@ -795,7 +899,12 @@ namespace KlyonHubPlatform.Api.Controllers
                             available = true,
                             occupiedSlots = occupiedSlots,
                             maxSeats = maxSeats,
-                            currentOccupancy = timeSlots
+                            currentOccupancy = timeSlots,
+                            operatingHours = new
+                            {
+                                opening = operatingHour.OpeningTime.Value.ToString(@"hh\:mm"),
+                                closing = operatingHour.ClosingTime.Value.ToString(@"hh\:mm")
+                            }
                         });
                     }
                 }

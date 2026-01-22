@@ -4,6 +4,7 @@
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
+@using KlyonHubPlatform.Domain.Entities
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Visualizar Coworking - @Model.Name</h2>
@@ -264,5 +265,151 @@
                 </div>
             </div>
         </div>
+
+        <!-- Serviços e Percentagens -->
+        <div class="card mb-3" id="servicos">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-grid"></i> Serviços e Percentagens</h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceModal">
+                    <i class="bi bi-plus-circle"></i> Adicionar Serviço
+                </button>
+            </div>
+            <div class="card-body">
+                @{
+                    var partnerServices = ViewBag.PartnerServices as List<KlyonHubPlatform.Domain.Entities.PartnerService> ?? new List<KlyonHubPlatform.Domain.Entities.PartnerService>();
+                }
+
+                @if (partnerServices.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Serviço</th>
+                                    <th class="text-end">Percentagem (%)</th>
+                                    <th>Data do Contrato</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ps in partnerServices.Where(ps => ps.Service != null).OrderBy(ps => ps.Service.Name))
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@(ps.Service?.Name ?? "Serviço removido")</strong>
+                                            @if (ps.Service != null && !string.IsNullOrEmpty(ps.Service.Description))
+                                            {
+                                                <br><small class="text-muted">@ps.Service.Description</small>
+                                            }
+                                            @if (ps.Service == null)
+                                            {
+                                                <br><small class="text-danger">Este serviço foi removido do sistema</small>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge bg-primary fs-6">@ps.Percentage.ToString("F2")%</span>
+                                        </td>
+                                        <td>@ps.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            @if (ps.Service != null)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-warning" 
+                                                        onclick="editService(@ps.Id, @ps.ServiceId, '@(ps.Service.Name.Replace("'", "\\'"))', @ps.Percentage)">
+                                                    <i class="bi bi-pencil"></i> Editar
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Serviço removido</span>
+                                            }
+                                            <form method="post" action="@Url.Action("DeletePartnerService", "Admin")" class="d-inline" 
+                                                  onsubmit="return confirm('Tem certeza que deseja remover este serviço?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@ps.Id" />
+                                                <input type="hidden" name="coworkingId" value="@Model.Id" />
+                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                    <i class="bi bi-trash"></i> Remover
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum serviço cadastrado para este parceiro.
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Modal para Adicionar/Editar Serviço -->
+<div class="modal fade" id="addServiceModal" tabindex="-1" aria-labelledby="addServiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addServiceModalLabel">
+                    <i class="bi bi-plus-circle"></i> <span id="serviceModalTitle">Adicionar Serviço</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("SavePartnerService", "Admin")" id="serviceForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Id" id="serviceId" value="0" />
+                <input type="hidden" name="CoworkingId" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="serviceSelect" class="form-label">Serviço <span class="text-danger">*</span></label>
+                        <select class="form-select" id="serviceSelect" name="ServiceId" required>
+                            <option value="">Selecione um serviço...</option>
+                            @{
+                                var services = ViewBag.Services as List<Service> ?? new List<Service>();
+                            }
+                            @foreach (var service in services.OrderBy(s => s.DisplayOrder))
+                            {
+                                <option value="@service.Id">@service.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="servicePercentage" class="form-label">Percentagem (%) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="servicePercentage" name="Percentage" 
+                               step="0.01" min="0" max="100" required placeholder="Ex: 20.00">
+                        <small class="text-muted">Percentagem fechada em contrato (não pode ser alterada pelo parceiro)</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function editService(id, serviceId, serviceName, percentage) {
+        document.getElementById('serviceId').value = id;
+        document.getElementById('serviceSelect').value = serviceId;
+        document.getElementById('serviceSelect').disabled = true; // Não permitir alterar o serviço na edição
+        document.getElementById('servicePercentage').value = percentage;
+        document.getElementById('serviceModalTitle').textContent = 'Editar Percentagem do Serviço';
+        document.getElementById('serviceForm').action = '@Url.Action("SavePartnerService", "Admin")';
+        var modal = new bootstrap.Modal(document.getElementById('addServiceModal'));
+        modal.show();
+    }
+
+    // Resetar modal ao fechar
+    document.getElementById('addServiceModal')?.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('serviceForm').reset();
+        document.getElementById('serviceId').value = '0';
+        document.getElementById('serviceSelect').disabled = false;
+        document.getElementById('serviceModalTitle').textContent = 'Adicionar Serviço';
+    });
+</script>

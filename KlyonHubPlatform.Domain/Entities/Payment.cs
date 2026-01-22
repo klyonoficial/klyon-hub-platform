@@ -5,7 +5,8 @@ namespace KlyonHubPlatform.Domain.Entities
     public class Payment
     {
         public int Id { get; set; }
-        public int SubscriptionId { get; set; }
+        public int? SubscriptionId { get; set; } // Nullable para permitir pagamentos de reservas sem subscription
+        public int? ReservationId { get; set; } // Para pagamentos de reservas
         public string ExternalPaymentId { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
@@ -27,7 +28,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
-        public virtual Subscription Subscription { get; set; } = null!;
+        public virtual Subscription? Subscription { get; set; }
+        public virtual Reservation? Reservation { get; set; }
         public virtual User? Validator { get; set; }
     }
 }

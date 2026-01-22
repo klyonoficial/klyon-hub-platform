@@ -3,6 +3,7 @@
 @{
     ViewData["Title"] = "Detalhes do Pagamento";
     var contract = Model.Subscription?.Contract;
+    var reservation = Model.Reservation;
     var isPending = Model.Status == PaymentStatus.Pending;
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
@@ -48,39 +49,68 @@
             </div>
             <div class="card-body">
                 <dl class="row">
-                    <dt class="col-sm-4">Número do Contrato:</dt>
-                    <dd class="col-sm-8"><strong>@contract?.ContractNumber</strong></dd>
+                    @if (Model.SubscriptionId.HasValue && contract != null)
+                    {
+                        <dt class="col-sm-4">Número do Contrato:</dt>
+                        <dd class="col-sm-8"><strong>@contract.ContractNumber</strong></dd>
 
-                    <dt class="col-sm-4">Endereço:</dt>
-                    <dd class="col-sm-8">
-                        @{
-                            var hasAddress = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.Address);
-                            var hasCity = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.City);
-                            var hasState = !string.IsNullOrWhiteSpace(contract?.CoworkingAddress?.State);
-                            
-                            if (hasAddress || hasCity || hasState)
-                            {
-                                var addressParts = new List<string>();
-                                if (hasAddress)
+                        <dt class="col-sm-4">Endereço:</dt>
+                        <dd class="col-sm-8">
+                            @{
+                                var hasAddress = !string.IsNullOrWhiteSpace(contract.CoworkingAddress?.Address);
+                                var hasCity = !string.IsNullOrWhiteSpace(contract.CoworkingAddress?.City);
+                                var hasState = !string.IsNullOrWhiteSpace(contract.CoworkingAddress?.State);
+                                
+                                if (hasAddress || hasCity || hasState)
                                 {
-                                    addressParts.Add(contract.CoworkingAddress.Address);
+                                    var addressParts = new List<string>();
+                                    if (hasAddress)
+                                    {
+                                        addressParts.Add(contract.CoworkingAddress.Address);
+                                    }
+                                    if (hasCity && hasState)
+                                    {
+                                        addressParts.Add($"{contract.CoworkingAddress.City}/{contract.CoworkingAddress.State}");
+                                    }
+                                    else if (hasCity)
+                                    {
+                                        addressParts.Add(contract.CoworkingAddress.City);
+                                    }
+                                    else if (hasState)
+                                    {
+                                        addressParts.Add(contract.CoworkingAddress.State);
+                                    }
+                                    <text>@string.Join(", ", addressParts)</text>
                                 }
-                                if (hasCity && hasState)
-                                {
-                                    addressParts.Add($"{contract.CoworkingAddress.City}/{contract.CoworkingAddress.State}");
-                                }
-                                else if (hasCity)
-                                {
-                                    addressParts.Add(contract.CoworkingAddress.City);
-                                }
-                                else if (hasState)
-                                {
-                                    addressParts.Add(contract.CoworkingAddress.State);
-                                }
-                                <text>@string.Join(", ", addressParts)</text>
                             }
+                        </dd>
+                    }
+                    else if (Model.ReservationId.HasValue && reservation != null)
+                    {
+                        <dt class="col-sm-4">Tipo:</dt>
+                        <dd class="col-sm-8"><strong>Pagamento de Reserva</strong></dd>
+                        
+                        <dt class="col-sm-4">Reserva ID:</dt>
+                        <dd class="col-sm-8"><strong>#@Model.ReservationId</strong></dd>
+                        
+                        <dt class="col-sm-4">Coworking:</dt>
+                        <dd class="col-sm-8">
+                            @reservation.CoworkingAddress?.Coworking?.Name<br>
+                            <small class="text-muted">@reservation.CoworkingAddress?.City/@reservation.CoworkingAddress?.State</small>
+                        </dd>
+                        
+                        <dt class="col-sm-4">Data da Reserva:</dt>
+                        <dd class="col-sm-8">@reservation.ReservationDate.ToString("dd/MM/yyyy")</dd>
+                        
+                        @if (reservation.StartTime.HasValue && reservation.EndTime.HasValue)
+                        {
+                            <dt class="col-sm-4">Horário:</dt>
+                            <dd class="col-sm-8">@reservation.StartTime.Value.ToString(@"hh\:mm") - @reservation.EndTime.Value.ToString(@"hh\:mm")</dd>
                         }
-                    </dd>
+                        
+                        <dt class="col-sm-4">Tipo de Sala:</dt>
+                        <dd class="col-sm-8">@(reservation.RoomType == "Shared" ? "Compartilhada" : "Privativa")</dd>
+                    }
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4></dd>

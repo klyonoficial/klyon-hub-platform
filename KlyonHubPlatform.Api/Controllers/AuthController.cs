@@ -24,11 +24,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -44,11 +47,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -106,11 +112,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -153,11 +162,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -194,11 +206,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }
@@ -291,11 +306,14 @@ namespace KlyonHubPlatform.Api.Controllers
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role == "Client")
+                {
+                    return RedirectToAction("Services", "Client");
+                }
                 return RedirectToAction("Dashboard", role switch
                 {
                     "Administrator" => "Admin",
                     "CoworkingPartner" => "Coworking",
-                    "Client" => "Client",
                     _ => "Home"
                 });
             }

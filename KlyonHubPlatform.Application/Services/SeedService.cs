@@ -165,6 +165,102 @@ namespace KlyonHubPlatform.Application.Services
                 await _context.SaveChangesAsync();
             }
 
+            // Seed Services
+            var existingServices = await _context.Services.ToListAsync();
+            var existingServiceNames = existingServices.Select(s => s.Name.ToLower()).ToHashSet();
+            
+            var servicesToAdd = new List<Service>
+            {
+                new Service
+                {
+                    Name = "Aluguel de Sala Compartilhada",
+                    Description = "Aluguel de espaço em sala compartilhada para trabalho",
+                    Route = "/Home/Marketplace",
+                    DisplayOrder = 1,
+                    IsActive = true,
+                    ImageUrl = "/images/services/sala-compartilhada.svg"
+                },
+                new Service
+                {
+                    Name = "Aluguel de Sala Particular",
+                    Description = "Aluguel de sala privativa para reuniões e eventos",
+                    Route = "/Home/Marketplace",
+                    DisplayOrder = 2,
+                    IsActive = true,
+                    ImageUrl = "/images/services/sala-particular.svg"
+                },
+                new Service
+                {
+                    Name = "Aluguel de Auditório",
+                    Description = "Aluguel de auditório para eventos e apresentações",
+                    Route = "/Home/Marketplace",
+                    DisplayOrder = 3,
+                    IsActive = true,
+                    ImageUrl = "/images/services/auditorio.svg"
+                },
+                new Service
+                {
+                    Name = "Contratar Endereço Fiscal",
+                    Description = "Contratação de endereço fiscal para empresas",
+                    Route = "/Client/ChooseLocation",
+                    DisplayOrder = 4,
+                    IsActive = true,
+                    ImageUrl = "/images/services/endereco-fiscal.svg"
+                }
+            };
+
+            var newServices = servicesToAdd
+                .Where(s => !existingServiceNames.Contains(s.Name.ToLower()))
+                .ToList();
+
+            if (newServices.Any())
+            {
+                _context.Services.AddRange(newServices);
+                await _context.SaveChangesAsync();
+            }
+
+            // Atualizar serviços existentes com ImageUrl e rotas corretas
+            var servicesToUpdate = existingServices
+                .Where(s => string.IsNullOrEmpty(s.ImageUrl) || 
+                           s.Route == "/marketplace" || 
+                           (s.Route == "/contracts" && s.Name.Contains("Endereço Fiscal")))
+                .ToList();
+
+            var needsRouteUpdate = false;
+
+            foreach (var existingService in existingServices)
+            {
+                var matchingService = servicesToAdd.FirstOrDefault(s => 
+                    s.Name.Equals(existingService.Name, StringComparison.OrdinalIgnoreCase));
+                
+                if (matchingService != null)
+                {
+                    // Atualizar ImageUrl se não tiver
+                    if (string.IsNullOrEmpty(existingService.ImageUrl) && !string.IsNullOrEmpty(matchingService.ImageUrl))
+                    {
+                        existingService.ImageUrl = matchingService.ImageUrl;
+                    }
+
+                    // Corrigir rotas incorretas
+                    if (existingService.Route == "/marketplace" || 
+                        (existingService.Route.Contains("/marketplace") && !existingService.Route.Contains("/Home/Marketplace")))
+                    {
+                        existingService.Route = "/Home/Marketplace";
+                        needsRouteUpdate = true;
+                    }
+                    else if (existingService.Route == "/contracts" && existingService.Name.Contains("Endereço Fiscal"))
+                    {
+                        existingService.Route = "/Client/ChooseLocation";
+                        needsRouteUpdate = true;
+                    }
+                }
+            }
+
+            if (servicesToUpdate.Any() || needsRouteUpdate)
+            {
+                await _context.SaveChangesAsync();
+            }
+
             // Seed System Configurations
             if (!_context.SystemConfigurations.Any())
             {

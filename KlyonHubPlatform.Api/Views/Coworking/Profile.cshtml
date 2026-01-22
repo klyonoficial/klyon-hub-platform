@@ -10,15 +10,15 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
-    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+    <a href="@Url.Action("Dashboard", "Parceiro")" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
 
 @if (TempData["Success"] != null)
 {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
+    <div class="alert alert-success alert-dismissible fade show" role="alert" style="animation: slideDown 0.3s ease-in;">
+        <i class="bi bi-check-circle"></i> <strong>@TempData["Success"]</strong>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
@@ -27,6 +27,14 @@
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Warning"]
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
@@ -45,7 +53,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
         {
             <p class="mb-2 mt-2">Justificativa / itens a corrigir: <span class="text-dark">@Model.RejectionReason</span></p>
         }
-        <form method="post" action="@Url.Action("ResubmitForApproval", "Coworking")" class="d-inline">
+        <form method="post" action="@Url.Action("ResubmitForApproval", "Parceiro")" class="d-inline">
             @Html.AntiForgeryToken()
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Reenviar para análise</button>
         </form>
@@ -59,7 +67,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 }
 
 <!-- Abas -->
-<ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
+<ul class="nav nav-tabs mb-2" id="profileTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab">
             <i class="bi bi-info-circle"></i> Dados Básicos
@@ -100,6 +108,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="hours-tab" data-bs-toggle="tab" data-bs-target="#hours" type="button" role="tab">
+            <i class="bi bi-clock"></i> Horários de Funcionamento
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="profileTabContent">
@@ -107,7 +120,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade show active" id="basic" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Coworking")">
+                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="activeTab" value="basic" />
                     
@@ -146,7 +159,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade" id="contact" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Coworking")">
+                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -186,7 +199,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade" id="address" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Coworking")">
+                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -251,7 +264,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade" id="bank" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Coworking")">
+                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -315,7 +328,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade" id="social" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Coworking")">
+                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -816,6 +829,159 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             </div>
         </div>
     </div>
+
+    <!-- Horários de Funcionamento -->
+    <div class="tab-pane fade" id="hours" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-4"><i class="bi bi-clock"></i> Horários de Funcionamento</h5>
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Obrigatório para ativar reservas.</strong> Configure os horários de funcionamento do seu coworking. 
+                    Os clientes só poderão reservar horários dentro dos períodos configurados.
+                </div>
+
+                @{
+                    var operatingHours = ViewBag.OperatingHours as List<CoworkingOperatingHours> ?? new List<CoworkingOperatingHours>();
+                    var daysOfWeek = new[]
+                    {
+                        ("MONDAY", "Segunda-feira"),
+                        ("TUESDAY", "Terça-feira"),
+                        ("WEDNESDAY", "Quarta-feira"),
+                        ("THURSDAY", "Quinta-feira"),
+                        ("FRIDAY", "Sexta-feira"),
+                        ("SATURDAY", "Sábado"),
+                        ("SUNDAY", "Domingo")
+                    };
+                }
+
+                <form method="post" action="@Url.Action("SaveOperatingHours", "Parceiro")" id="operatingHoursForm" onsubmit="enableAllTimeInputs()">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="CoworkingId" value="@Model.Id" />
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered" style="width: 100%; table-layout: auto;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 20%;">Dia</th>
+                                    <th style="width: 25%;">Abre</th>
+                                    <th style="width: 25%;">Fecha</th>
+                                    <th style="width: 15%;">Ativo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (dayKey, dayName) in daysOfWeek)
+                                {
+                                    var existingHour = operatingHours.FirstOrDefault(h => h.DayOfWeek == dayKey);
+                                    <tr>
+                                        <td><strong>@dayName</strong></td>
+                                        <td>
+                                            <input type="time" 
+                                                   class="form-control" 
+                                                   name="OpeningTime_@dayKey" 
+                                                   value="@(existingHour?.OpeningTime?.ToString(@"HH\:mm") ?? "")"
+                                                   @((existingHour?.IsActive ?? false) ? "" : "disabled") />
+                                        </td>
+                                        <td>
+                                            <input type="time" 
+                                                   class="form-control" 
+                                                   name="ClosingTime_@dayKey" 
+                                                   value="@(existingHour?.ClosingTime?.ToString(@"HH\:mm") ?? "")"
+                                                   @((existingHour?.IsActive ?? false) ? "" : "disabled") />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="hidden" name="IsActive_@dayKey" value="false" />
+                                            <input type="checkbox" 
+                                                   class="form-check-input day-active-checkbox" 
+                                                   name="IsActive_@dayKey" 
+                                                   value="true"
+                                                   data-day="@dayKey"
+                                                   @(existingHour?.IsActive == true ? "checked" : "") />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Salvar Horários
+                        </button>
+                    </div>
+                </form>
+
+                <hr class="my-4" />
+
+                <h5 class="mb-3"><i class="bi bi-calendar-x"></i> Datas Bloqueadas</h5>
+                <p class="text-muted mb-3">
+                    Bloqueie datas específicas para feriados, manutenção, eventos internos, etc.
+                </p>
+
+                @{
+                    var blockedDates = ViewBag.BlockedDates as List<BlockedDate> ?? new List<BlockedDate>();
+                }
+
+                <div class="mb-3">
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addBlockedDateModal">
+                        <i class="bi bi-plus-circle"></i> Adicionar Data Bloqueada
+                    </button>
+                </div>
+
+                @if (blockedDates.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Motivo</th>
+                                    <th>Tipo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var blockedDate in blockedDates)
+                                {
+                                    <tr>
+                                        <td>@blockedDate.BlockedDateValue.ToString("dd/MM/yyyy")</td>
+                                        <td>@blockedDate.Reason</td>
+                                        <td>
+                                            @if (blockedDate.BlocksFullDay)
+                                            {
+                                                <span class="badge bg-danger">Dia Inteiro</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning">
+                                                    @blockedDate.StartTime?.ToString(@"hh\:mm") - @blockedDate.EndTime?.ToString(@"hh\:mm")
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <form method="post" action="@Url.Action("DeleteBlockedDate", "Parceiro")" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este bloqueio?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@blockedDate.Id" />
+                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                    <i class="bi bi-trash"></i> Remover
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-secondary">
+                        <i class="bi bi-info-circle"></i> Nenhuma data bloqueada cadastrada.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
 </div>
 
     <!-- Modal para Adicionar/Editar Sócio (fora das abas para abrir corretamente ao editar) -->
@@ -1195,35 +1361,116 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             }
         });
 
-        // Restaurar aba ativa após salvar
-        @if (TempData["ActiveTab"] != null)
-        {
-            <text>
-            document.addEventListener('DOMContentLoaded', function() {
+        // Garantir que a primeira aba seja exibida ao carregar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            // Restaurar aba ativa após salvar
+            @if (TempData["ActiveTab"] != null)
+            {
+                <text>
                 var activeTab = '@TempData["ActiveTab"]';
                 if (activeTab) {
-                    // Remover classe active de todas as abas
-                    document.querySelectorAll('.nav-link').forEach(function(tab) {
-                        tab.classList.remove('active');
-                    });
-                    document.querySelectorAll('.tab-pane').forEach(function(pane) {
-                        pane.classList.remove('show', 'active');
-                    });
-                    
-                    // Ativar a aba correta
-                    var tabButton = document.getElementById(activeTab + '-tab');
-                    var tabPane = document.getElementById(activeTab);
-                    
-                    if (tabButton && tabPane) {
-                        tabButton.classList.add('active');
-                        tabPane.classList.add('show', 'active');
-                    }
+                    // Aguardar um pouco para garantir que o DOM está pronto
+                    setTimeout(function() {
+                        // Remover classe active de todas as abas
+                        document.querySelectorAll('.nav-link').forEach(function(tab) {
+                            tab.classList.remove('active');
+                        });
+                        document.querySelectorAll('.tab-pane').forEach(function(pane) {
+                            pane.classList.remove('show', 'active');
+                        });
+                        
+                        // Ativar a aba correta usando Bootstrap
+                        var tabButton = document.getElementById(activeTab + '-tab');
+                        var tabPane = document.getElementById(activeTab);
+                        
+                        if (tabButton && tabPane) {
+                            // Usar Bootstrap para ativar a aba corretamente
+                            var tab = new bootstrap.Tab(tabButton);
+                            tab.show();
+                            
+                            // Scroll suave para a aba após um pequeno delay
+                            setTimeout(function() {
+                                tabButton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                
+                                // Destacar visualmente a mensagem de sucesso se existir
+                                var successAlert = document.querySelector('.alert-success');
+                                if (successAlert) {
+                                    successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    successAlert.style.animation = 'pulse 0.5s ease-in-out';
+                                }
+                            }, 200);
+                        }
+                    }, 150);
                 }
-            });
-            </text>
-        }
+                </text>
+            }
+            else
+            {
+                <text>
+                // Garantir que a primeira aba (Dados Básicos) esteja visível
+                var firstTab = document.getElementById('basic-tab');
+                var firstPane = document.getElementById('basic');
+                if (firstTab && firstPane) {
+                    firstTab.classList.add('active');
+                    firstPane.classList.add('show', 'active');
+                }
+                </text>
+            }
+        });
     </script>
     
+    <!-- Modal para Adicionar Data Bloqueada -->
+    <div class="modal fade" id="addBlockedDateModal" tabindex="-1" aria-labelledby="addBlockedDateModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addBlockedDateModalLabel">
+                        <i class="bi bi-calendar-x"></i> Adicionar Data Bloqueada
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="@Url.Action("AddBlockedDate", "Parceiro")">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="CoworkingId" value="@Model.Id" />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="blockedDate" class="form-label">Data <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="blockedDate" name="BlockedDateValue" required min="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="blockReason" class="form-label">Motivo <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="blockReason" name="Reason" placeholder="Ex: Feriado, Manutenção, Evento interno" required maxlength="200" />
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="blocksFullDay" name="BlocksFullDay" value="true" checked onchange="toggleTimeInputs()">
+                                <label class="form-check-label" for="blocksFullDay">
+                                    Bloquear dia inteiro
+                                </label>
+                            </div>
+                        </div>
+                        <div id="timeInputs" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="startTime" class="form-label">Horário Inicial</label>
+                                    <input type="time" class="form-control" id="startTime" name="StartTime" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="endTime" class="form-label">Horário Final</label>
+                                    <input type="time" class="form-control" id="endTime" name="EndTime" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Adicionar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         function updatePartnersPageSize(newSize) {
             window.location.href = '@Url.Action("Profile", "Coworking")?partnersPage=1&partnersPageSize=' + newSize;
@@ -1232,5 +1479,92 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
         function updatePhotosPageSize(newSize) {
             window.location.href = '@Url.Action("Profile", "Coworking")?photosPage=1&photosPageSize=' + newSize;
         }
+
+        // Habilitar/desabilitar campos de horário baseado no checkbox
+        function toggleTimeInputs() {
+            var checkbox = document.getElementById('blocksFullDay');
+            var timeInputs = document.getElementById('timeInputs');
+            if (checkbox.checked) {
+                timeInputs.style.display = 'none';
+                document.getElementById('startTime').value = '';
+                document.getElementById('endTime').value = '';
+            } else {
+                timeInputs.style.display = 'block';
+            }
+        }
+
+        // Habilitar/desabilitar campos de horário ao marcar/desmarcar dia ativo
+        document.querySelectorAll('.day-active-checkbox').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                var day = this.dataset.day;
+                var row = this.closest('tr');
+                var openingInput = row.querySelector('input[name="OpeningTime_' + day + '"]');
+                var closingInput = row.querySelector('input[name="ClosingTime_' + day + '"]');
+                
+                if (this.checked) {
+                    openingInput.disabled = false;
+                    closingInput.disabled = false;
+                } else {
+                    openingInput.disabled = true;
+                    closingInput.value = '';
+                    closingInput.disabled = true;
+                    openingInput.value = '';
+                }
+            });
+        });
+
+        // Inicializar estado dos campos baseado nos checkboxes
+        document.querySelectorAll('.day-active-checkbox').forEach(function(checkbox) {
+            if (!checkbox.checked) {
+                var day = checkbox.dataset.day;
+                var row = checkbox.closest('tr');
+                var openingInput = row.querySelector('input[name="OpeningTime_' + day + '"]');
+                var closingInput = row.querySelector('input[name="ClosingTime_' + day + '"]');
+                openingInput.disabled = true;
+                closingInput.disabled = true;
+            }
+        });
+
+        // Habilitar todos os campos de horário antes de submeter o formulário
+        // Isso garante que os valores sejam enviados mesmo se os campos estiverem desabilitados
+        function enableAllTimeInputs() {
+            document.querySelectorAll('input[type="time"]').forEach(function(input) {
+                input.disabled = false;
+            });
+        }
     </script>
 }
+
+<style>
+    #profileTabContent {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    #profileTabContent .tab-pane {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    
+    #profileTabContent .tab-pane .card {
+        margin-top: 0 !important;
+        border-top: none;
+    }
+    
+    #profileTabContent .tab-pane.show .card-body {
+        padding-top: 1rem;
+    }
+    
+    @@keyframes pulse {
+        0%, 100% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.02);
+        }
+    }
+    
+    .alert-success {
+        box-shadow: 0 2px 8px rgba(25, 135, 84, 0.2);
+    }
+</style>

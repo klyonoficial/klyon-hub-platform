@@ -9,8 +9,14 @@
     var auditLogs = ViewBag.AuditLogs as List<AuditLog> ?? new List<AuditLog>();
     
     var grossValue = reservation?.TotalValue ?? 0m;
-    var commissionAmount = commission?.CommissionAmount ?? (grossValue * 0.20m);
-    var commissionPercentage = commission?.CommissionPercentage ?? 20m;
+    // Se não houver comissão calculada, buscar porcentagem do PartnerService
+    decimal commissionPercentage = commission?.CommissionPercentage ?? 20m;
+    if (commission == null && reservation != null)
+    {
+        // Tentar buscar porcentagem do PartnerService como fallback
+        // (será calculado quando a reserva for confirmada)
+    }
+    var commissionAmount = commission?.CommissionAmount ?? (grossValue * (commissionPercentage / 100m));
     var netValue = commission?.CoworkingAmount ?? (grossValue - commissionAmount);
 }
 
@@ -247,10 +253,6 @@
                                 </div>
                             </div>
                         }
-                        <div class="info-row">
-                            <div class="info-label">Créditos Utilizados</div>
-                            <div class="info-value">@(reservation?.CreditsUsed ?? 0) créditos</div>
-                        </div>
                     </div>
                 </div>
             </div>

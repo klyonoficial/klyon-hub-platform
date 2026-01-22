@@ -22,6 +22,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IPagBankService _pagBankService;
         private readonly IAuditService _auditService;
+        private readonly ISefazService _sefazService;
 
         public AdminController(
             IUserService userService,
@@ -32,7 +33,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IPaymentService paymentService,
             ApplicationDbContext context,
             IPagBankService pagBankService,
-            IAuditService auditService)
+            IAuditService auditService,
+            ISefazService sefazService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -43,6 +45,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _context = context;
             _pagBankService = pagBankService;
             _auditService = auditService;
+            _sefazService = sefazService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -63,6 +66,19 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.ContractsByStatus = dashboardData.ContractsByStatus;
             ViewBag.TopLocations = dashboardData.TopLocations;
             ViewBag.RecentPayments = dashboardData.RecentPayments;
+
+            // Verificar migrations pendentes
+            try
+            {
+                var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
+                ViewBag.PendingMigrationsCount = pendingMigrations.Count();
+                ViewBag.PendingMigrations = pendingMigrations.ToList();
+            }
+            catch (Exception)
+            {
+                ViewBag.PendingMigrationsCount = 0;
+                ViewBag.PendingMigrations = new List<string>();
+            }
 
             // Estatísticas de produtos
             try
@@ -88,6 +104,30 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.ProductsByType = new List<dynamic>();
                 ViewBag.TotalReservations = 0;
                 ViewBag.ReservationsByStatus = new List<dynamic>();
+            }
+
+            // Estatísticas de serviços e percentagens
+            try
+            {
+                // Contar parceiros com serviços sem percentagem definida (ou com percentagem = 0)
+                var partnersWithoutPercentage = await _context.PartnerServices
+                    .Where(ps => ps.Percentage == 0)
+                    .Select(ps => ps.CoworkingId)
+                    .Distinct()
+                    .CountAsync();
+                
+                // Contar total de serviços aguardando definição de percentagem
+                var servicesAwaitingPercentage = await _context.PartnerServices
+                    .Where(ps => ps.Percentage == 0)
+                    .CountAsync();
+                
+                ViewBag.PartnersWithoutPercentage = partnersWithoutPercentage;
+                ViewBag.ServicesAwaitingPercentage = servicesAwaitingPercentage;
+            }
+            catch
+            {
+                ViewBag.PartnersWithoutPercentage = 0;
+                ViewBag.ServicesAwaitingPercentage = 0;
             }
 
             return View();
@@ -272,6 +312,15 @@ namespace KlyonHubPlatform.Api.Controllers
             var totalItems = await _adminService.GetCoworkingsFilteredCountAsync(search, status, isPartner, approvalStatus);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
             
+            // Carregar contagem de serviços para cada coworking
+            var coworkingIds = coworkings.Select(c => c.Id).ToList();
+            var servicesCount = await _context.PartnerServices
+                .Where(ps => coworkingIds.Contains(ps.CoworkingId))
+                .GroupBy(ps => ps.CoworkingId)
+                .Select(g => new { CoworkingId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.CoworkingId, x => x.Count);
+            
+            ViewBag.ServicesCount = servicesCount;
             ViewBag.Search = search;
             ViewBag.Status = status;
             ViewBag.IsPartner = isPartner;
@@ -300,6 +349,20 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData["Error"] = "Coworking não encontrado.";
                 return RedirectToAction("Coworkings");
             }
+
+            // Carregar serviços disponíveis
+            var services = await _context.Services
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.DisplayOrder)
+                .ToListAsync();
+            ViewBag.Services = services;
+
+            // Carregar serviços do parceiro (apenas os que têm serviço ativo)
+            var partnerServices = await _context.PartnerServices
+                .Include(ps => ps.Service)
+                .Where(ps => ps.CoworkingId == id && ps.Service != null && ps.Service.IsActive)
+                .ToListAsync();
+            ViewBag.PartnerServices = partnerServices;
 
             return View(coworking);
         }
@@ -663,6 +726,106 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             var dto = await _reportService.GetClientCreditStatementAsync(clientId, dateFrom, dateTo);
             return View(dto);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetStatementMovementDetails(int? paymentId, int? reservationId)
+        {
+            if (paymentId.HasValue)
+            {
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(c => c.CoworkingAddress)
+                                .ThenInclude(a => a.Location)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(c => c.Client)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                            .ThenInclude(a => a.Coworking)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId.Value);
+
+                if (payment == null)
+                    return Json(new { success = false, message = "Pagamento não encontrado" });
+
+                var paymentData = new
+                {
+                    type = "Pagamento",
+                    id = payment.Id,
+                    amount = payment.Amount,
+                    status = payment.Status.ToString(),
+                    method = payment.Method.ToString(),
+                    dueDate = payment.DueDate.ToString("dd/MM/yyyy"),
+                    paidAt = payment.PaidAt?.ToString("dd/MM/yyyy HH:mm"),
+                    createdAt = payment.CreatedAt.ToString("dd/MM/yyyy HH:mm"),
+                    externalPaymentId = payment.ExternalPaymentId,
+                    pixCode = payment.PixCode,
+                    boletoCode = payment.BoletoCode,
+                    transactionId = payment.TransactionId,
+                    subscription = payment.Subscription != null ? new
+                    {
+                        contractNumber = payment.Subscription.Contract?.ContractNumber,
+                        monthlyValue = payment.Subscription.Contract?.MonthlyValue,
+                        location = payment.Subscription.Contract?.CoworkingAddress?.Location != null
+                            ? $"{payment.Subscription.Contract.CoworkingAddress.Location.City}/{payment.Subscription.Contract.CoworkingAddress.Location.State}"
+                            : null,
+                        address = payment.Subscription.Contract?.CoworkingAddress != null
+                            ? $"{payment.Subscription.Contract.CoworkingAddress.Address}, {payment.Subscription.Contract.CoworkingAddress.Number}"
+                            : null
+                    } : null,
+                    reservation = payment.Reservation != null ? new
+                    {
+                        id = payment.Reservation.Id,
+                        coworkingName = payment.Reservation.CoworkingAddress?.Coworking?.Name,
+                        reservationDate = payment.Reservation.ReservationDate.ToString("dd/MM/yyyy"),
+                        roomType = payment.Reservation.RoomType,
+                        totalValue = payment.Reservation.TotalValue
+                    } : null
+                };
+
+                return Json(new { success = true, data = paymentData });
+            }
+            else if (reservationId.HasValue)
+            {
+                var reservation = await _context.Reservations
+                    .Include(r => r.Client)
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                    .Include(r => r.CoworkingRoom)
+                    .FirstOrDefaultAsync(r => r.Id == reservationId.Value);
+
+                if (reservation == null)
+                    return Json(new { success = false, message = "Reserva não encontrada" });
+
+                var reservationData = new
+                {
+                    type = "Reserva",
+                    id = reservation.Id,
+                    totalValue = reservation.TotalValue,
+                    status = reservation.Status,
+                    reservationDate = reservation.ReservationDate.ToString("dd/MM/yyyy"),
+                    startTime = reservation.StartTime?.ToString(@"hh\:mm"),
+                    endTime = reservation.EndTime?.ToString(@"hh\:mm"),
+                    roomType = reservation.RoomType,
+                    roomTypeDisplay = reservation.RoomType == "Shared" ? "Sala compartilhada" 
+                        : reservation.RoomType == "Private" ? "Sala privativa" 
+                        : reservation.RoomType == "Auditorium" ? "Auditório" 
+                        : reservation.RoomType,
+                    clientConfirmedAt = reservation.ClientConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
+                    coworkingConfirmedAt = reservation.CoworkingConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
+                    coworkingName = reservation.CoworkingAddress?.Coworking?.Name,
+                    coworkingAddress = reservation.CoworkingAddress != null
+                        ? $"{reservation.CoworkingAddress.Address}, {reservation.CoworkingAddress.Number}"
+                        : null,
+                    roomName = reservation.CoworkingRoom?.Name,
+                    createdAt = reservation.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                };
+
+                return Json(new { success = true, data = reservationData });
+            }
+
+            return Json(new { success = false, message = "ID de pagamento ou reserva não fornecido" });
         }
 
         [HttpGet]
@@ -1454,6 +1617,190 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ClearDatabase()
+        {
+            try
+            {
+                // Desabilitar foreign keys temporariamente
+                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
+
+                // Lista completa de tabelas para limpar (na ordem correta - dependentes primeiro)
+                // Preservar: Roles, UserRoles (do admin), SystemConfigurations, Languages, Locations, Services, Users (admin)
+                var tablesToClear = new[]
+                {
+                    // Tabelas dependentes primeiro
+                    "AuditLogs",
+                    "ReservationCommissions",
+                    "Commissions",
+                    "Transfers",
+                    "FiscalNotes",
+                    "Reservations",
+                    "Payments",
+                    "Subscriptions",
+                    "Contracts",
+                    "AddressDeclarations",
+                    "CoworkingRoomPhotos",
+                    "CoworkingRooms",
+                    "CoworkingPhotos",
+                    "CoworkingDocuments",
+                    "CoworkingOperatingHours",
+                    "BlockedDates",
+                    "CoworkingPartners",
+                    "CoworkingAddresses",
+                    "PartnerServices",
+                    "LocationCommissions",
+                    "PlatformCreditBalances",
+                    "Coworkings",
+                    "Clients",
+                    "CreditPurchases",
+                    "ClientCredits",
+                    "CreditPlans",
+                    "CreditCards",
+                    "Documents",
+                    "Interests",
+                    "CoworkingProducts",
+                    "CoworkingRatings",
+                    "Translations"
+                };
+
+                var clearedTables = new List<string>();
+                var errors = new List<string>();
+
+                // Preservar apenas o usuário admin e seus roles antes de limpar
+                var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com");
+                var adminUserRolePairs = new List<(int UserId, int RoleId)>();
+                
+                if (adminUser != null)
+                {
+                    var adminRoles = await _context.UserRoles
+                        .Where(ur => ur.UserId == adminUser.Id)
+                        .ToListAsync();
+                    
+                    adminUserRolePairs = adminRoles.Select(ur => (ur.UserId, ur.RoleId)).ToList();
+                }
+
+                // Limpar todas as tabelas usando uma abordagem mais robusta
+                var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+                
+                foreach (var tableName in tablesToClear)
+                {
+                    try
+                    {
+                        // Verificar se a tabela existe
+                        using var checkCmd = connection.CreateCommand();
+                        checkCmd.CommandText = $@"
+                            SELECT COUNT(*) 
+                            FROM information_schema.tables 
+                            WHERE table_schema = DATABASE() 
+                            AND table_name = '{tableName}'";
+                        
+                        var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                        
+                        if (exists)
+                        {
+                            // Limpar dados da tabela usando DELETE (mais seguro que TRUNCATE com foreign keys)
+                            using var deleteCmd = connection.CreateCommand();
+                            deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
+                            var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
+                            clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Tentar TRUNCATE se DELETE falhar
+                        try
+                        {
+                            using var truncateCmd = connection.CreateCommand();
+                            truncateCmd.CommandText = $"TRUNCATE TABLE `{tableName}`;";
+                            await truncateCmd.ExecuteNonQueryAsync();
+                            clearedTables.Add($"{tableName} (truncate)");
+                        }
+                        catch (Exception ex2)
+                        {
+                            errors.Add($"{tableName}: {ex2.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Erro ao limpar tabela {tableName}: {ex2.Message}");
+                        }
+                    }
+                }
+                
+                await connection.CloseAsync();
+
+                // Limpar UserRoles e Users preservando o admin
+                if (adminUser != null && adminUserRolePairs.Any())
+                {
+                    // Remover todos os UserRoles exceto os do admin
+                    var roleConditions = string.Join(" OR ", adminUserRolePairs.Select(pair => $"(UserId = {pair.UserId} AND RoleId = {pair.RoleId})"));
+                    try
+                    {
+                        await _context.Database.ExecuteSqlRawAsync(
+                            $"DELETE FROM UserRoles WHERE NOT ({roleConditions});");
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"UserRoles: {ex.Message}");
+                    }
+                    
+                    // Remover todos os usuários exceto o admin
+                    try
+                    {
+                        await _context.Database.ExecuteSqlRawAsync(
+                            $"DELETE FROM Users WHERE Id != {adminUser.Id};");
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Users: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // Se não houver admin, limpar todos os usuários e UserRoles
+                    try
+                    {
+                        await _context.Database.ExecuteSqlRawAsync("DELETE FROM UserRoles;");
+                        await _context.Database.ExecuteSqlRawAsync("DELETE FROM Users;");
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Users/UserRoles: {ex.Message}");
+                    }
+                }
+
+                // Reabilitar foreign keys
+                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+
+                // Executar seed novamente para garantir que dados essenciais existam
+                var seedService = new Application.Services.SeedService(_context);
+                await seedService.SeedInitialDataAsync();
+
+                var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas. Dados essenciais (Roles, Configurações, Localidades, Serviços) foram preservados.";
+                if (errors.Any())
+                {
+                    successMessage += $" Avisos: {string.Join("; ", errors.Take(3))}";
+                }
+                TempData["Success"] = successMessage;
+            }
+            catch (Exception ex)
+            {
+                // Reabilitar foreign keys em caso de erro
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+                }
+                catch { }
+
+                TempData["Error"] = $"Erro ao limpar base de dados: {ex.Message}";
+                if (ex.InnerException != null)
+                {
+                    TempData["Error"] += $" Detalhes: {ex.InnerException.Message}";
+                }
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ExecuteSql(string sqlQuery)
         {
             if (string.IsNullOrWhiteSpace(sqlQuery))
@@ -1897,6 +2244,602 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 TempData["Error"] = $"Erro ao adicionar colunas: {ex.Message}";
                 return RedirectToAction("DatabaseManager");
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePartnerService(int Id, int CoworkingId, int ServiceId, decimal Percentage)
+        {
+            try
+            {
+                // Validar se o coworking existe
+                var coworking = await _context.Coworkings.FindAsync(CoworkingId);
+                if (coworking == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Coworkings");
+                }
+
+                // Validar se o serviço existe
+                var service = await _context.Services.FindAsync(ServiceId);
+                if (service == null)
+                {
+                    TempData["Error"] = "Serviço não encontrado.";
+                    return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                }
+
+                // Validar percentagem
+                if (Percentage < 0 || Percentage > 100)
+                {
+                    TempData["Error"] = "A percentagem deve estar entre 0 e 100.";
+                    return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                }
+
+                if (Id > 0)
+                {
+                    // Editar existente
+                    var existing = await _context.PartnerServices.FindAsync(Id);
+                    if (existing == null || existing.CoworkingId != CoworkingId)
+                    {
+                        TempData["Error"] = "Serviço do parceiro não encontrado.";
+                        return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                    }
+
+                    existing.ServiceId = ServiceId;
+                    existing.Percentage = Percentage;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    // Verificar se já existe este serviço para este parceiro
+                    var existing = await _context.PartnerServices
+                        .FirstOrDefaultAsync(ps => ps.CoworkingId == CoworkingId && ps.ServiceId == ServiceId);
+
+                    if (existing != null)
+                    {
+                        TempData["Error"] = "Este serviço já está cadastrado para este parceiro.";
+                        return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                    }
+
+                    // Criar novo
+                    var partnerService = new PartnerService
+                    {
+                        CoworkingId = CoworkingId,
+                        ServiceId = ServiceId,
+                        Percentage = Percentage,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _context.PartnerServices.Add(partnerService);
+                }
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Serviço salvo com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao salvar serviço: {ex.Message}";
+            }
+
+            return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePartnerService(int id, int coworkingId)
+        {
+            try
+            {
+                var partnerService = await _context.PartnerServices.FindAsync(id);
+                if (partnerService == null || partnerService.CoworkingId != coworkingId)
+                {
+                    TempData["Error"] = "Serviço do parceiro não encontrado.";
+                    return RedirectToAction("ViewCoworking", new { id = coworkingId });
+                }
+
+                _context.PartnerServices.Remove(partnerService);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Serviço removido com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao remover serviço: {ex.Message}";
+            }
+
+            return RedirectToAction("ViewCoworking", new { id = coworkingId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SefazConfiguration(string? state = null)
+        {
+            // Lista de estados brasileiros
+            ViewBag.States = new List<string>
+            {
+                "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+                "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+                "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+            };
+
+            // Estados com integração implementada
+            ViewBag.SupportedStates = new List<string> { "ES" };
+
+            // Se não especificado, usar ES como padrão
+            var selectedState = state ?? "ES";
+
+            // Buscar configuração existente para o estado selecionado
+            var config = await _context.SefazConfigurations
+                .Where(c => c.State == selectedState)
+                .OrderByDescending(c => c.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (config == null)
+            {
+                config = new SefazConfiguration
+                {
+                    State = selectedState,
+                    Environment = "Homologacao",
+                    IntermediationServiceDescription = "Intermediação de serviços",
+                    ISSAliquot = 5.0m,
+                    TimeoutSeconds = 30,
+                    IsActive = false
+                };
+            }
+
+            ViewBag.SelectedState = selectedState;
+            ViewBag.IsStateSupported = _sefazService.IsStateSupported(selectedState);
+
+            return View(config);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveSefazConfiguration(SefazConfiguration config)
+        {
+            try
+            {
+                // Normalizar estado para maiúsculas
+                if (!string.IsNullOrWhiteSpace(config.State))
+                {
+                    config.State = config.State.Trim().ToUpper();
+                }
+                else
+                {
+                    config.State = "ES"; // Padrão
+                }
+
+                if (config.Id > 0)
+                {
+                    // Atualizar existente
+                    var existing = await _context.SefazConfigurations.FindAsync(config.Id);
+                    if (existing != null)
+                    {
+                        existing.State = config.State;
+                        existing.Environment = config.Environment;
+                        existing.PlatformCNPJ = config.PlatformCNPJ;
+                        existing.PlatformMunicipalRegistration = config.PlatformMunicipalRegistration;
+                        existing.CertificatePath = config.CertificatePath;
+                        existing.CertificatePassword = config.CertificatePassword;
+                        if (!string.IsNullOrEmpty(config.CertificateContent))
+                        {
+                            existing.CertificateContent = config.CertificateContent;
+                        }
+                        existing.IntermediationServiceCode = config.IntermediationServiceCode;
+                        existing.IntermediationServiceDescription = config.IntermediationServiceDescription;
+                        existing.PlatformCNAE = config.PlatformCNAE;
+                        existing.TaxRegime = config.TaxRegime;
+                        existing.ISSAliquot = config.ISSAliquot;
+                        existing.ISSMunicipality = config.ISSMunicipality;
+                        existing.HomologationUrl = config.HomologationUrl;
+                        existing.ProductionUrl = config.ProductionUrl;
+                        existing.ApiToken = config.ApiToken;
+                        existing.ApiKey = config.ApiKey;
+                        existing.TimeoutSeconds = config.TimeoutSeconds;
+                        existing.IsActive = config.IsActive;
+                        existing.Notes = config.Notes;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    // Criar novo
+                    config.CreatedAt = DateTime.UtcNow;
+                    _context.SefazConfigurations.Add(config);
+                }
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Configuração da SEFAZ ES salva com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao salvar configuração: {ex.Message}";
+            }
+
+            return RedirectToAction("SefazConfiguration");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ExecuteFiscalNoteScript(string noteType, DateTime startDate, DateTime endDate)
+        {
+            try
+            {
+                int notesEmitted = 0;
+                int errors = 0;
+                int unsupportedStates = 0;
+                var errorMessages = new List<string>();
+                var unsupportedStateMessages = new List<string>();
+
+                if (noteType == "Intermediacao")
+                {
+                    // Buscar reservas confirmadas e pagas que ainda não têm NF de intermediação
+                    var reservations = await _context.Reservations
+                        .Include(r => r.Client)
+                        .Include(r => r.CoworkingAddress)
+                            .ThenInclude(a => a.Coworking)
+                        .Where(r => r.Status == "Completed" &&
+                                   r.ReservationDate >= startDate &&
+                                   r.ReservationDate <= endDate &&
+                                   !_context.FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
+                        .ToListAsync();
+
+                    foreach (var reservation in reservations)
+                    {
+                        try
+                        {
+                            // Obter estado do coworking
+                            var coworkingState = reservation.CoworkingAddress?.State?.Trim().ToUpper();
+                            
+                            if (string.IsNullOrWhiteSpace(coworkingState))
+                            {
+                                errors++;
+                                errorMessages.Add($"Reserva #{reservation.Id}: Estado do coworking não informado.");
+                                continue;
+                            }
+
+                            // Verificar se o estado tem integração implementada
+                            if (!_sefazService.IsStateSupported(coworkingState))
+                            {
+                                unsupportedStates++;
+                                unsupportedStateMessages.Add($"Reserva #{reservation.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
+                                continue;
+                            }
+
+                            // Buscar configuração SEFAZ para o estado
+                            var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
+                            
+                            if (config == null)
+                            {
+                                errors++;
+                                errorMessages.Add($"Reserva #{reservation.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
+                                continue;
+                            }
+
+                            // Buscar percentagem de comissão do parceiro para este serviço
+                            var partnerService = await _context.PartnerServices
+                                .Include(ps => ps.Service)
+                                .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress.CoworkingId &&
+                                                          ps.Service.Name.Contains("Reservar Sala"));
+
+                            if (partnerService == null)
+                            {
+                                // Usar percentagem padrão se não houver configuração específica
+                                partnerService = await _context.PartnerServices
+                                    .Include(ps => ps.Service)
+                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress.CoworkingId);
+                            }
+
+                            if (partnerService == null)
+                            {
+                                errors++;
+                                errorMessages.Add($"Reserva #{reservation.Id}: Percentagem de comissão não configurada para o parceiro.");
+                                continue;
+                            }
+
+                            // Calcular comissão
+                            var commissionAmount = Math.Round(reservation.TotalValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
+
+                            // Buscar pagamento relacionado à reserva
+                            var payment = await _context.Payments
+                                .FirstOrDefaultAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Paid);
+
+                            // Criar registro de NF (a emissão real será feita pelo serviço SEFAZ)
+                            var fiscalNote = new FiscalNote
+                            {
+                                Type = "Intermediacao",
+                                ReservationId = reservation.Id,
+                                PaymentId = payment?.Id,
+                                CoworkingId = reservation.CoworkingAddress.CoworkingId,
+                                ClientId = reservation.ClientId,
+                                Amount = commissionAmount,
+                                CommissionAmount = commissionAmount,
+                                ServiceAmount = reservation.TotalValue,
+                                IssueDate = DateTime.UtcNow,
+                                Status = "Pendente",
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            _context.FiscalNotes.Add(fiscalNote);
+                            notesEmitted++;
+                        }
+                        catch (Exception ex)
+                        {
+                            errors++;
+                            errorMessages.Add($"Reserva #{reservation.Id}: {ex.Message}");
+                        }
+                    }
+
+                    // Buscar contratos ativos que ainda não têm NF de intermediação
+                    var contracts = await _context.Contracts
+                        .Include(c => c.Client)
+                        .Include(c => c.CoworkingAddress)
+                            .ThenInclude(a => a.Coworking)
+                        .Where(c => c.Status == ContractStatus.Active &&
+                                   c.StartDate >= startDate &&
+                                   c.StartDate <= endDate &&
+                                   !_context.FiscalNotes.Any(fn => fn.ContractId == c.Id && fn.Type == "Intermediacao"))
+                        .ToListAsync();
+
+                    foreach (var contract in contracts)
+                    {
+                        try
+                        {
+                            // Obter estado do coworking
+                            var coworkingState = contract.CoworkingAddress?.State?.Trim().ToUpper();
+                            
+                            if (string.IsNullOrWhiteSpace(coworkingState))
+                            {
+                                errors++;
+                                errorMessages.Add($"Contrato #{contract.Id}: Estado do coworking não informado.");
+                                continue;
+                            }
+
+                            // Verificar se o estado tem integração implementada
+                            if (!_sefazService.IsStateSupported(coworkingState))
+                            {
+                                unsupportedStates++;
+                                unsupportedStateMessages.Add($"Contrato #{contract.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
+                                continue;
+                            }
+
+                            // Buscar configuração SEFAZ para o estado
+                            var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
+                            
+                            if (config == null)
+                            {
+                                errors++;
+                                errorMessages.Add($"Contrato #{contract.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
+                                continue;
+                            }
+
+                            // Buscar percentagem de comissão do parceiro para endereço fiscal
+                            var partnerService = await _context.PartnerServices
+                                .Include(ps => ps.Service)
+                                .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress.CoworkingId &&
+                                                          ps.Service.Name.Contains("Endereço Fiscal"));
+
+                            if (partnerService == null)
+                            {
+                                partnerService = await _context.PartnerServices
+                                    .Include(ps => ps.Service)
+                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress.CoworkingId);
+                            }
+
+                            if (partnerService == null)
+                            {
+                                errors++;
+                                errorMessages.Add($"Contrato #{contract.Id}: Percentagem de comissão não configurada.");
+                                continue;
+                            }
+
+                            // Calcular comissão mensal
+                            var commissionAmount = Math.Round(contract.MonthlyValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
+
+                            var fiscalNote = new FiscalNote
+                            {
+                                Type = "Intermediacao",
+                                ContractId = contract.Id,
+                                CoworkingId = contract.CoworkingAddress.CoworkingId,
+                                ClientId = contract.ClientId,
+                                Amount = commissionAmount,
+                                CommissionAmount = commissionAmount,
+                                ServiceAmount = contract.MonthlyValue,
+                                IssueDate = DateTime.UtcNow,
+                                Status = "Pendente",
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            _context.FiscalNotes.Add(fiscalNote);
+                            notesEmitted++;
+                        }
+                        catch (Exception ex)
+                        {
+                            errors++;
+                            errorMessages.Add($"Contrato #{contract.Id}: {ex.Message}");
+                        }
+                    }
+                }
+                else if (noteType == "Servico")
+                {
+                    // NF de Serviço é emitida pelo parceiro, mas podemos criar registros para rastreamento
+                    TempData["Info"] = "Notas Fiscais de Serviço devem ser emitidas pelo parceiro diretamente na SEFAZ.";
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Emitir as notas fiscais criadas via SEFAZ
+                var pendingNotes = await _context.FiscalNotes
+                    .Include(fn => fn.Coworking)
+                        .ThenInclude(c => c.Addresses)
+                    .Where(fn => fn.Status == "Pendente" && fn.Type == "Intermediacao")
+                    .ToListAsync();
+
+                int emittedCount = 0;
+                int emissionErrors = 0;
+
+                foreach (var note in pendingNotes)
+                {
+                    try
+                    {
+                        // Obter estado do coworking
+                        string? coworkingState = null;
+                        
+                        if (note.ReservationId.HasValue)
+                        {
+                            var reservation = await _context.Reservations
+                                .Include(r => r.CoworkingAddress)
+                                .FirstOrDefaultAsync(r => r.Id == note.ReservationId);
+                            coworkingState = reservation?.CoworkingAddress?.State?.Trim().ToUpper();
+                        }
+                        else if (note.ContractId.HasValue)
+                        {
+                            var contract = await _context.Contracts
+                                .Include(c => c.CoworkingAddress)
+                                .FirstOrDefaultAsync(c => c.Id == note.ContractId);
+                            coworkingState = contract?.CoworkingAddress?.State?.Trim().ToUpper();
+                        }
+
+                        if (string.IsNullOrWhiteSpace(coworkingState))
+                        {
+                            emissionErrors++;
+                            errorMessages.Add($"NF #{note.Id}: Estado do coworking não encontrado.");
+                            continue;
+                        }
+
+                        // Buscar configuração SEFAZ para o estado
+                        var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
+                        
+                        if (config == null)
+                        {
+                            emissionErrors++;
+                            errorMessages.Add($"NF #{note.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}.");
+                            continue;
+                        }
+
+                        var emittedNote = await _sefazService.IssueIntermediationNoteAsync(note, config);
+                        _context.FiscalNotes.Update(emittedNote);
+                        emittedCount++;
+                    }
+                    catch (NotSupportedException ex)
+                    {
+                        emissionErrors++;
+                        errorMessages.Add($"NF #{note.Id}: {ex.Message}");
+                        note.Status = "Erro";
+                        note.ErrorMessage = ex.Message;
+                        note.UpdatedAt = DateTime.UtcNow;
+                        _context.FiscalNotes.Update(note);
+                    }
+                    catch (Exception ex)
+                    {
+                        emissionErrors++;
+                        errorMessages.Add($"NF #{note.Id}: {ex.Message}");
+                        note.Status = "Erro";
+                        note.ErrorMessage = ex.Message;
+                        note.UpdatedAt = DateTime.UtcNow;
+                        _context.FiscalNotes.Update(note);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                var message = $"Script executado com sucesso! {notesEmitted} nota(s) fiscal(is) criada(s), {emittedCount} emitida(s) na SEFAZ.";
+                if (unsupportedStates > 0)
+                {
+                    message += $" {unsupportedStates} registro(s) ignorado(s) - estado sem integração implementada.";
+                    if (unsupportedStateMessages.Any())
+                    {
+                        TempData["UnsupportedStates"] = string.Join("<br>", unsupportedStateMessages.Take(10));
+                    }
+                }
+                if (errors > 0 || emissionErrors > 0)
+                {
+                    message += $" {errors + emissionErrors} erro(s) encontrado(s).";
+                    if (errorMessages.Any())
+                    {
+                        TempData["ErrorDetails"] = string.Join("<br>", errorMessages.Take(10));
+                    }
+                }
+                TempData["Success"] = message;
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao executar script: {ex.Message}";
+            }
+
+            return RedirectToAction("SefazConfiguration");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
+        {
+            var query = _context.FiscalNotes
+                .Include(fn => fn.Client)
+                    .ThenInclude(c => c.User)
+                .Include(fn => fn.Coworking)
+                .Include(fn => fn.Reservation)
+                .Include(fn => fn.Contract)
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(fn => fn.Status == status);
+            }
+
+            if (!string.IsNullOrEmpty(type))
+            {
+                query = query.Where(fn => fn.Type == type);
+            }
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var fiscalNotes = await query
+                .OrderByDescending(fn => fn.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.Status = status;
+            ViewBag.Type = type;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            return View(fiscalNotes);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelFiscalNote(int fiscalNoteId, string cancellationReason)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(cancellationReason))
+                {
+                    TempData["Error"] = "Justificativa do cancelamento é obrigatória.";
+                    return RedirectToAction("FiscalNotes");
+                }
+
+                var result = await _sefazService.CancelFiscalNoteAsync(fiscalNoteId, cancellationReason);
+                
+                if (result)
+                {
+                    TempData["Success"] = "Nota fiscal cancelada com sucesso!";
+                }
+                else
+                {
+                    TempData["Error"] = "Erro ao cancelar nota fiscal.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao cancelar nota fiscal: {ex.Message}";
+            }
+
+            return RedirectToAction("FiscalNotes");
         }
     }
 }

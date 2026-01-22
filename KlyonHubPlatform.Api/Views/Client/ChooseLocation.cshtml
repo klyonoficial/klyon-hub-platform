@@ -8,54 +8,192 @@
 
 @{
     var availableAddressesCount = ViewBag.AvailableAddressesCount as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var regions = ViewBag.Regions as List<string> ?? new List<string>();
+    var states = ViewBag.States as List<string> ?? new List<string>();
+    var currentRegion = ViewBag.Region as string;
+    var currentState = ViewBag.State as string;
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var totalPages = ViewBag.TotalPages as int? ?? 1;
+    var totalItems = ViewBag.TotalItems as int? ?? 0;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-geo-alt"></i> Alugar Endereço Fiscal - Escolher Localidade</h2>
 </div>
 
-<div class="row">
-    @foreach (var location in Model)
-    {
-        var hasAvailableAddresses = availableAddressesCount.ContainsKey(location.Id) && availableAddressesCount[location.Id] > 0;
-        var addressCount = hasAvailableAddresses ? availableAddressesCount[location.Id] : 0;
-        var cityImageUrl = CityImages.GetCityImageUrl(location.City, location.State);
-        
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 @(hasAvailableAddresses ? "border-success" : "border-secondary")" style="position: relative;">
-                @if (hasAvailableAddresses)
-                {
-                    <span class="badge bg-success position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                        <i class="bi bi-check-circle"></i> @addressCount @(addressCount == 1 ? "endereço disponível" : "endereços disponíveis")
-                    </span>
-                }
-                else
-                {
-                    <span class="badge bg-secondary position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                        <i class="bi bi-x-circle"></i> Sem endereços
-                    </span>
-                }
-                
-                <div class="card-body p-0">
-                    <div class="position-relative" style="height: 250px; overflow: hidden;">
-                        <img src="@cityImageUrl" 
-                             alt="@location.City" 
-                             class="card-img-top" 
-                             style="width: 100%; height: 100%; object-fit: cover;"
-                             onerror="this.src='https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop';">
-                    </div>
-                    <div class="p-3">
-                        <p class="card-text mb-2">
-                            <strong>Estado:</strong> @location.State<br>
-                            <strong>Região:</strong> @location.Region
-                        </p>
-                        <a href="@Url.Action("AvailableAddresses", "Client", new { locationId = location.Id })" 
-                           class="btn btn-primary w-100 @(hasAvailableAddresses ? "" : "disabled")">
-                            <i class="bi bi-arrow-right"></i> Ver Endereços Disponíveis
-                        </a>
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("ChooseLocation", "Client")" id="filterForm">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="region" class="form-label"><i class="bi bi-map"></i> Filtrar por Região</label>
+                    <select class="form-select" id="region" name="region" onchange="document.getElementById('filterForm').submit();">
+                        <option value="">Todas as Regiões</option>
+                        @foreach (var reg in regions)
+                        {
+                            if (currentRegion == reg)
+                            {
+                                <option value="@reg" selected>@reg</option>
+                            }
+                            else
+                            {
+                                <option value="@reg">@reg</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="state" class="form-label"><i class="bi bi-geo-alt"></i> Filtrar por Estado</label>
+                    <select class="form-select" id="state" name="state" onchange="document.getElementById('filterForm').submit();">
+                        <option value="">Todos os Estados</option>
+                        @foreach (var st in states)
+                        {
+                            if (currentState == st)
+                            {
+                                <option value="@st" selected>@st</option>
+                            }
+                            else
+                            {
+                                <option value="@st">@st</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="button" class="btn btn-secondary w-100" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Limpar Filtros
+                    </button>
+                </div>
+            </div>
+            <input type="hidden" name="page" value="1" id="pageInput">
+        </form>
+    </div>
+</div>
+
+<!-- Informações de resultados -->
+<div class="mb-3">
+    <p class="text-muted mb-0">
+        <i class="bi bi-info-circle"></i> 
+        Mostrando <strong>@Model.Count</strong> de <strong>@totalItems</strong> localidades
+        @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentState))
+        {
+            <span>(filtradas)</span>
+        }
+        | Ordenadas por disponibilidade
+    </p>
+</div>
+
+@if (Model.Any())
+{
+    <div class="row">
+        @foreach (var location in Model)
+        {
+            var hasAvailableAddresses = availableAddressesCount.ContainsKey(location.Id) && availableAddressesCount[location.Id] > 0;
+            var addressCount = hasAvailableAddresses ? availableAddressesCount[location.Id] : 0;
+            var cityImageUrl = CityImages.GetCityImageUrl(location.City, location.State);
+            
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 @(hasAvailableAddresses ? "border-success" : "border-secondary")" style="position: relative;">
+                    @if (hasAvailableAddresses)
+                    {
+                        <span class="badge bg-success position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                            <i class="bi bi-check-circle"></i> @addressCount @(addressCount == 1 ? "endereço disponível" : "endereços disponíveis")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                            <i class="bi bi-x-circle"></i> Sem endereços
+                        </span>
+                    }
+                    
+                    <div class="card-body p-0">
+                        <div class="position-relative" style="height: 250px; overflow: hidden;">
+                            <img src="@cityImageUrl" 
+                                 alt="@location.City" 
+                                 class="card-img-top" 
+                                 style="width: 100%; height: 100%; object-fit: cover;"
+                                 onerror="this.src='https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop';">
+                        </div>
+                        <div class="p-3">
+                            <p class="card-text mb-2">
+                                <strong>Estado:</strong> @location.State<br>
+                                <strong>Região:</strong> @location.Region
+                            </p>
+                            <a href="@Url.Action("AvailableAddresses", "Client", new { locationId = location.Id })" 
+                               class="btn btn-primary w-100 @(hasAvailableAddresses ? "" : "disabled")">
+                                <i class="bi bi-arrow-right"></i> Ver Endereços Disponíveis
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        }
+    </div>
+
+    <!-- Paginação -->
+    @if (totalPages > 1)
+{
+    <nav aria-label="Navegação de páginas" class="mt-4">
+        <ul class="pagination justify-content-center">
+            @if (currentPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = currentPage - 1 })">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                </li>
+            }
+            
+            @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+            {
+                <li class="page-item @(i == currentPage ? "active" : "")">
+                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = i })">@i</a>
+                </li>
+            }
+            
+            @if (currentPage < totalPages)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = currentPage + 1 })">
+                        Próxima <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link">Próxima <i class="bi bi-chevron-right"></i></span>
+                </li>
+            }
+        </ul>
+    </nav>
     }
-</div>
+}
+else
+{
+    <div class="alert alert-info mt-4">
+        <i class="bi bi-info-circle"></i> 
+        @if (totalItems == 0)
+        {
+            <span>Nenhuma localidade encontrada com os filtros aplicados.</span>
+        }
+        else
+        {
+            <span>Todas as localidades estão sendo exibidas.</span>
+        }
+    </div>
+}
+
+<script>
+    function clearFilters() {
+        window.location.href = '@Url.Action("ChooseLocation", "Client")';
+    }
+</script>

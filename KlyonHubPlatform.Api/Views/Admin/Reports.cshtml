@@ -592,8 +592,9 @@ function showPaymentDetails(row) {
     const method = row.querySelector('td:nth-child(4)').textContent.trim();
     const location = row.querySelector('td:nth-child(6)').textContent.trim();
 
-    // Calcula comissão (20% padrão)
-    const commission = amount * 0.20;
+    // Calcula comissão (estimativa - porcentagem real vem do PartnerService baseado no serviço)
+    // Nota: A porcentagem real é calculada no servidor baseada no serviço (Endereço Fiscal ou Aluguel de Salas)
+    const commission = amount * 0.20; // Estimativa para exibição no modal
     const netValue = amount - commission;
 
     // Cria modal com detalhes
@@ -672,7 +673,7 @@ function showPaymentDetails(row) {
                             <div class="col-md-4">
                                 <div class="card text-white" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                                     <div class="card-body">
-                                        <h6 class="opacity-75 mb-1">Comissão (20%)</h6>
+                                        <h6 class="opacity-75 mb-1">Comissão (estimativa)</h6>
                                         <h4 class="mb-0">R$ ${commission.toFixed(2).replace('.', ',')}</h4>
                                     </div>
                                 </div>

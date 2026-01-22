@@ -7,9 +7,12 @@
     var dateTo = ViewBag.DateTo as DateTime?;
     
     var totalRevenue = Model?.TotalRevenue ?? 0m;
-    var totalCommission = totalRevenue * 0.20m;
+    // Calcular comissão total baseada na porcentagem de cada reserva
+    var totalCommission = Model?.Reservations?.Sum(r => r.TotalValue * (r.CommissionPercentage / 100m)) ?? 0m;
     var totalNetValue = totalRevenue - totalCommission;
     var reservationCount = Model?.Reservations?.Count ?? 0;
+    // Porcentagem média (ou da primeira reserva se houver)
+    var avgCommissionPercentage = Model?.Reservations?.FirstOrDefault()?.CommissionPercentage ?? 20m;
 }
 
 <style>
@@ -107,7 +110,7 @@
             </div>
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <h6 class="mb-1 opacity-75">Comissão (20%)</h6>
+                    <h6 class="mb-1 opacity-75">Comissão (@avgCommissionPercentage.ToString("F2")%)</h6>
                     <h2 class="mb-0">R$ @totalCommission.ToString("N2")</h2>
                 </div>
             </div>
@@ -153,7 +156,7 @@
                             <tbody>
                                 @foreach (var r in Model.Reservations)
                                 {
-                                    var commission = r.TotalValue * 0.20m;
+                                    var commission = r.TotalValue * (r.CommissionPercentage / 100m);
                                     var netValue = r.TotalValue - commission;
                                     var statusClass = r.Status == "Concluída" ? "success" : r.Status == "Confirmada" ? "info" : "warning";
                                     <tr class="clickable-reservation-row" onclick="window.location.href='@Url.Action("ReservationFinancialDetail", "Admin", new { id = r.ReservationId })'">
@@ -182,7 +185,7 @@
                                             <strong class="text-success">R$ @r.TotalValue.ToString("N2")</strong>
                                         </td>
                                         <td class="text-end">
-                                            <span class="text-warning">20%</span><br>
+                                            <span class="text-warning">@r.CommissionPercentage.ToString("F2")%</span><br>
                                             <small class="text-muted">R$ @commission.ToString("N2")</small>
                                         </td>
                                         <td class="text-end">
@@ -208,7 +211,7 @@
                                 <tr>
                                     <td colspan="5"><strong>TOTAL</strong></td>
                                     <td class="text-end"><strong>R$ @totalRevenue.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>20%</strong><br><small>R$ @totalCommission.ToString("N2")</small></td>
+                                    <td class="text-end"><strong>@avgCommissionPercentage.ToString("F2")%</strong><br><small>R$ @totalCommission.ToString("N2")</small></td>
                                     <td class="text-end"><strong>R$ @totalNetValue.ToString("N2")</strong></td>
                                     <td></td>
                                 </tr>

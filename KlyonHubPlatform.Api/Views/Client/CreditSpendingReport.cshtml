@@ -1,19 +1,17 @@
 @{
-    ViewData["Title"] = "Relatório de Gastos de Créditos";
+    ViewData["Title"] = "Relatório de Gastos";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Reservation>
 
 @{
-    var totalCreditsSpent = ViewBag.TotalCreditsSpent as int? ?? 0;
     var totalValueSpent = ViewBag.TotalValueSpent as decimal? ?? 0;
     var totalReservations = ViewBag.TotalReservations as int? ?? 0;
     var confirmedReservations = ViewBag.ConfirmedReservations as int? ?? 0;
     var cancelledReservations = ViewBag.CancelledReservations as int? ?? 0;
     var completedReservations = ViewBag.CompletedReservations as int? ?? 0;
     var monthlySpending = ViewBag.MonthlySpending as dynamic;
-    var filteredCreditsSpent = ViewBag.FilteredCreditsSpent as int? ?? totalCreditsSpent;
     var filteredValueSpent = ViewBag.FilteredValueSpent as decimal? ?? totalValueSpent;
     var filteredReservations = ViewBag.FilteredReservations as int? ?? totalReservations;
     var selectedMonth = ViewBag.SelectedMonth as int?;
@@ -36,7 +34,7 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-graph-up"></i> Relatório de Gastos de Créditos</h2>
+    <h2><i class="bi bi-graph-up"></i> Relatório de Gastos</h2>
     @if (isFiltered)
     {
         <a href="@Url.Action("CreditSpendingReport", "Client")" class="btn btn-outline-secondary btn-sm">
@@ -58,8 +56,8 @@
     <div class="col-md-3 mb-3">
         <div class="card text-center border-primary">
             <div class="card-body">
-                <h3 class="text-primary">@totalCreditsSpent</h3>
-                <p class="card-text text-muted mb-0">Créditos Gastos</p>
+                <h3 class="text-primary">@totalReservations</h3>
+                <p class="card-text text-muted mb-0">Total de Reservas</p>
             </div>
         </div>
     </div>
@@ -74,8 +72,8 @@
     <div class="col-md-3 mb-3">
         <div class="card text-center border-info">
             <div class="card-body">
-                <h3 class="text-info">@totalReservations</h3>
-                <p class="card-text text-muted mb-0">Total de Reservas</p>
+                <h3 class="text-info">@confirmedReservations</h3>
+                <p class="card-text text-muted mb-0">Reservas Confirmadas</p>
             </div>
         </div>
     </div>
@@ -138,9 +136,8 @@
                                 <tr>
                                     <th>Mês/Ano</th>
                                     <th class="text-end">Reservas</th>
-                                    <th class="text-end">Créditos Gastos</th>
-                                    <th class="text-end">Valor Gasto</th>
-                                    <th class="text-end">Média por Reserva</th>
+                                    <th class="text-end">Valor Gasto (R$)</th>
+                                    <th class="text-end">Média por Reserva (R$)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -154,7 +151,6 @@
                                         </strong>
                                     </td>
                                     <td class="text-end">@totalReservations</td>
-                                    <td class="text-end">@totalCreditsSpent crédito(s)</td>
                                     <td class="text-end">R$ @totalValueSpent.ToString("F2")</td>
                                     <td class="text-end">R$ @(totalReservations > 0 ? (totalValueSpent / totalReservations).ToString("F2") : "0,00")</td>
                                 </tr>
@@ -176,7 +172,6 @@
                                             </strong>
                                         </td>
                                         <td class="text-end">@month.Count</td>
-                                        <td class="text-end">@month.Credits crédito(s)</td>
                                         <td class="text-end">R$ @month.Value.ToString("F2")</td>
                                         <td class="text-end">R$ @average.ToString("F2")</td>
                                     </tr>
@@ -188,7 +183,6 @@
                                     <tr class="table-info">
                                         <td><strong>FILTRADO (@(new DateTime(selectedYear.Value, selectedMonth.Value, 1).ToString("MMMM/yyyy", new System.Globalization.CultureInfo("pt-BR"))))</strong></td>
                                         <td class="text-end"><strong>@filteredReservations</strong></td>
-                                        <td class="text-end"><strong>@filteredCreditsSpent crédito(s)</strong></td>
                                         <td class="text-end"><strong>R$ @filteredValueSpent.ToString("F2")</strong></td>
                                         <td class="text-end"><strong>R$ @(filteredReservations > 0 ? (filteredValueSpent / filteredReservations).ToString("F2") : "0,00")</strong></td>
                                     </tr>
@@ -226,8 +220,7 @@
                                     <th>Horário</th>
                                     <th>Coworking</th>
                                     <th>Tipo</th>
-                                    <th class="text-end">Créditos</th>
-                                    <th class="text-end">Valor</th>
+                                    <th class="text-end">Valor (R$)</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -267,7 +260,6 @@
                                             <small class="text-muted">@reservation.CoworkingAddress.Location.City - @reservation.CoworkingAddress.Location.State</small>
                                         </td>
                                         <td>@(reservation.RoomType == "Shared" ? "Compartilhada" : "Privativa")</td>
-                                        <td class="text-end">@reservation.CreditsUsed</td>
                                         <td class="text-end">R$ @reservation.TotalValue.ToString("F2")</td>
                                         <td><span class="badge bg-@statusClass">@statusText</span></td>
                                     </tr>

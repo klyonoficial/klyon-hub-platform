@@ -43,6 +43,12 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<PlatformCreditBalance> PlatformCreditBalances { get; set; }
         public DbSet<CoworkingRoom> CoworkingRooms { get; set; }
         public DbSet<CoworkingRoomPhoto> CoworkingRoomPhotos { get; set; }
+        public DbSet<CoworkingOperatingHours> CoworkingOperatingHours { get; set; }
+        public DbSet<BlockedDate> BlockedDates { get; set; }
+        public DbSet<Service> Services { get; set; }
+        public DbSet<PartnerService> PartnerServices { get; set; }
+        public DbSet<SefazConfiguration> SefazConfigurations { get; set; }
+        public DbSet<FiscalNote> FiscalNotes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -126,7 +132,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
             modelBuilder.Entity<Payment>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.HasOne(e => e.Subscription).WithMany(s => s.Payments).HasForeignKey(e => e.SubscriptionId);
+                entity.HasOne(e => e.Subscription).WithMany(s => s.Payments).HasForeignKey(e => e.SubscriptionId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Reservation).WithMany().HasForeignKey(e => e.ReservationId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Validator).WithMany().HasForeignKey(e => e.ValidatedBy).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasConversion<string>();
                 entity.Property(e => e.Method).HasConversion<string>();
@@ -383,7 +390,6 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.EndTime).HasColumnType("TIME");
                 entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20).HasDefaultValue("Shared");
                 entity.Property(e => e.TotalValue).HasColumnType("DECIMAL(10,2)").IsRequired();
-                entity.Property(e => e.CreditsUsed).IsRequired();
                 entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Confirmed");
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
@@ -429,6 +435,115 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.CoworkingRoomId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CoworkingOperatingHours configuration
+            modelBuilder.Entity<CoworkingOperatingHours>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(e => new { e.CoworkingId, e.DayOfWeek }).IsUnique();
+                entity.Property(e => e.DayOfWeek).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // BlockedDate configuration
+            modelBuilder.Entity<BlockedDate>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(e => new { e.CoworkingId, e.BlockedDateValue });
+                entity.Property(e => e.Reason).HasMaxLength(200);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // Service configuration
+            modelBuilder.Entity<Service>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Description).HasMaxLength(1000);
+                entity.Property(e => e.Route).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.ImageUrl).HasMaxLength(500);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // PartnerService configuration
+            modelBuilder.Entity<PartnerService>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Service)
+                    .WithMany(s => s.PartnerServices)
+                    .HasForeignKey(e => e.ServiceId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(e => new { e.CoworkingId, e.ServiceId }).IsUnique();
+                entity.Property(e => e.Percentage).HasColumnType("DECIMAL(5,2)").IsRequired();
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // SefazConfiguration configuration (uma configuração por estado)
+            modelBuilder.Entity<SefazConfiguration>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.State).IsRequired().HasMaxLength(2);
+                entity.HasIndex(e => new { e.State, e.Environment }).IsUnique();
+                entity.Property(e => e.Environment).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.PlatformCNPJ).IsRequired().HasMaxLength(18);
+                entity.Property(e => e.PlatformMunicipalRegistration).HasMaxLength(50);
+                entity.Property(e => e.IntermediationServiceCode).HasMaxLength(20);
+                entity.Property(e => e.IntermediationServiceDescription).HasMaxLength(500);
+                entity.Property(e => e.PlatformCNAE).HasMaxLength(20);
+                entity.Property(e => e.TaxRegime).HasMaxLength(100);
+                entity.Property(e => e.ISSMunicipality).HasMaxLength(200);
+                entity.Property(e => e.ISSAliquot).HasColumnType("DECIMAL(5,2)");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // FiscalNote configuration
+            modelBuilder.Entity<FiscalNote>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Reservation)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReservationId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Contract)
+                    .WithMany()
+                    .HasForeignKey(e => e.ContractId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Payment)
+                    .WithMany()
+                    .HasForeignKey(e => e.PaymentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Client)
+                    .WithMany()
+                    .HasForeignKey(e => e.ClientId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Type).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Number).HasMaxLength(50);
+                entity.Property(e => e.VerificationCode).HasMaxLength(50);
+                entity.Property(e => e.AccessKey).HasMaxLength(50);
+                entity.Property(e => e.Amount).HasColumnType("DECIMAL(10,2)").IsRequired();
+                entity.Property(e => e.CommissionAmount).HasColumnType("DECIMAL(10,2)");
+                entity.Property(e => e.ServiceAmount).HasColumnType("DECIMAL(10,2)");
+                entity.HasIndex(e => e.AccessKey);
+                entity.HasIndex(e => new { e.Type, e.ReservationId, e.ContractId });
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
         }

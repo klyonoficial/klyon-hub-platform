@@ -1,0 +1,377 @@
+@{
+    ViewData["Title"] = "Configuração SEFAZ";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.SefazConfiguration
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt"></i> Configuração SEFAZ - Emissão de Notas Fiscais</h2>
+    <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        @if (TempData["ErrorDetails"] != null)
+        {
+            <br><small>@Html.Raw(TempData["ErrorDetails"])</small>
+        }
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Info"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle"></i> @TempData["Info"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["UnsupportedStates"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> <strong>Estados sem integração:</strong>
+        <br><small>@Html.Raw(TempData["UnsupportedStates"])</small>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Parâmetros de Configuração</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="@Url.Action("SefazConfiguration", "Admin")" class="mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Estado (UF) <span class="text-danger">*</span></label>
+                            <select class="form-select" name="state" onchange="this.form.submit()" required>
+                                @{
+                                    var states = ViewBag.States as List<string> ?? new List<string>();
+                                    var supportedStates = ViewBag.SupportedStates as List<string> ?? new List<string>();
+                                    var selectedState = ViewBag.SelectedState as string ?? "ES";
+                                }
+                                @foreach (var state in states)
+                                {
+                                    var isSupported = supportedStates.Contains(state);
+                                    var isSelected = state == selectedState;
+                                    <option value="@state" selected="@isSelected">
+                                        @state @(isSupported ? "✓" : "(Não implementado)")
+                                    </option>
+                                }
+                            </select>
+                            <small class="text-muted">Selecione o estado para configurar a integração SEFAZ</small>
+                        </div>
+                    </div>
+                </form>
+
+                @{
+                    var isStateSupported = ViewBag.IsStateSupported as bool? ?? false;
+                    var currentState = ViewBag.SelectedState as string ?? "ES";
+                    var supportedStates = ViewBag.SupportedStates as List<string> ?? new List<string>();
+                }
+
+                @if (!isStateSupported)
+                {
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Atenção:</strong> A integração SEFAZ ainda não foi implementada para o estado <strong>@currentState</strong>.
+                        @if (supportedStates.Any())
+                        {
+                            <text>
+                            <br>Estados com integração disponível: <strong>@string.Join(", ", supportedStates)</strong>
+                            </text>
+                        }
+                    </div>
+                }
+
+                <form method="post" action="@Url.Action("SaveSefazConfiguration", "Admin")" id="sefazConfigForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Id" value="@(Model?.Id ?? 0)" />
+                    <input type="hidden" name="State" value="@currentState" />
+
+                    <!-- Ambiente -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ambiente <span class="text-danger">*</span></label>
+                        <select class="form-select" name="Environment" required>
+                            <option value="Homologacao" selected="@(Model?.Environment == "Homologacao")">Homologação</option>
+                            <option value="Producao" selected="@(Model?.Environment == "Producao")">Produção</option>
+                        </select>
+                        <small class="text-muted">Use Homologação para testes e Produção para ambiente real</small>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <!-- Credenciais da Plataforma -->
+                    <h6 class="mb-3"><i class="bi bi-building"></i> Credenciais da Plataforma (Klyon)</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">CNPJ da Plataforma <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="PlatformCNPJ" 
+                                   value="@Model?.PlatformCNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Inscrição Municipal <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="PlatformMunicipalRegistration" 
+                                   value="@Model?.PlatformMunicipalRegistration" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">CNAE <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="PlatformCNAE" 
+                                   value="@Model?.PlatformCNAE" placeholder="Ex: 6201-5/00" required>
+                            <small class="text-muted">CNAE de intermediação de serviços</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Regime Tributário <span class="text-danger">*</span></label>
+                            <select class="form-select" name="TaxRegime" required>
+                                <option value="">Selecione...</option>
+                                <option value="Simples Nacional" selected="@(Model?.TaxRegime == "Simples Nacional")">Simples Nacional</option>
+                                <option value="Lucro Presumido" selected="@(Model?.TaxRegime == "Lucro Presumido")">Lucro Presumido</option>
+                                <option value="Lucro Real" selected="@(Model?.TaxRegime == "Lucro Real")">Lucro Real</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <!-- Certificado Digital -->
+                    <h6 class="mb-3"><i class="bi bi-shield-lock"></i> Certificado Digital</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Caminho do Certificado (.pfx)</label>
+                        <input type="text" class="form-control" name="CertificatePath" 
+                               value="@Model?.CertificatePath" placeholder="Caminho completo do arquivo .pfx">
+                        <small class="text-muted">Ou faça upload do certificado abaixo</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Upload do Certificado (.pfx)</label>
+                        <input type="file" class="form-control" id="certificateFile" accept=".pfx">
+                        <small class="text-muted">O certificado será convertido para base64 e armazenado</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Senha do Certificado</label>
+                        <input type="password" class="form-control" name="CertificatePassword" 
+                               value="@Model?.CertificatePassword" placeholder="Senha do certificado digital">
+                    </div>
+
+                    <input type="hidden" name="CertificateContent" id="certificateContent" value="@Model?.CertificateContent" />
+
+                    <hr class="my-4" />
+
+                    <!-- Configurações de Serviço -->
+                    <h6 class="mb-3"><i class="bi bi-list-check"></i> Configurações de Serviço</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Código do Serviço (LC 116) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="IntermediationServiceCode" 
+                                   value="@Model?.IntermediationServiceCode" placeholder="Ex: 14.01" required>
+                            <small class="text-muted">Código de intermediação de serviços</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Descrição do Serviço</label>
+                            <input type="text" class="form-control" name="IntermediationServiceDescription" 
+                                   value="@(Model?.IntermediationServiceDescription ?? "Intermediação de serviços")">
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <!-- Configurações de ISS -->
+                    <h6 class="mb-3"><i class="bi bi-percent"></i> Configurações de ISS</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Alíquota de ISS (%) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="ISSAliquot" 
+                                   value="@(Model?.ISSAliquot ?? 0)" step="0.01" min="0" max="100" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Município de Incidência <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="ISSMunicipality" 
+                                   value="@Model?.ISSMunicipality" placeholder="Ex: Vitória/ES" required>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <!-- URLs da SEFAZ ES -->
+                    <h6 class="mb-3"><i class="bi bi-link-45deg"></i> URLs da SEFAZ ES</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">URL Homologação</label>
+                        <input type="url" class="form-control" name="HomologationUrl" 
+                               value="@Model?.HomologationUrl" placeholder="https://homologacao.sefaz.es.gov.br/api">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">URL Produção</label>
+                        <input type="url" class="form-control" name="ProductionUrl" 
+                               value="@Model?.ProductionUrl" placeholder="https://sefaz.es.gov.br/api">
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <!-- Configurações Adicionais -->
+                    <h6 class="mb-3"><i class="bi bi-sliders"></i> Configurações Adicionais</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Token de API</label>
+                            <input type="text" class="form-control" name="ApiToken" 
+                                   value="@Model?.ApiToken" placeholder="Token de autenticação">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Chave de API</label>
+                            <input type="text" class="form-control" name="ApiKey" 
+                                   value="@Model?.ApiKey" placeholder="Chave de API">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Timeout (segundos)</label>
+                        <input type="number" class="form-control" name="TimeoutSeconds" 
+                               value="@(Model?.TimeoutSeconds ?? 30)" min="10" max="300">
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="IsActive" value="true" 
+                                   id="isActive" checked="@(Model?.IsActive ?? true)">
+                            <label class="form-check-label" for="isActive">
+                                Configuração Ativa
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Observações</label>
+                        <textarea class="form-control" name="Notes" rows="3">@Model?.Notes</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> Salvar Configuração
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Botão de Execução -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-play-circle"></i> Executar Script</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Execute o script para emitir notas fiscais pendentes.</p>
+                
+                <form method="post" action="@Url.Action("ExecuteFiscalNoteScript", "Admin")" id="executeScriptForm">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de NF</label>
+                        <select class="form-select" name="noteType" required>
+                            <option value="Intermediacao">Intermediação (Comissão)</option>
+                            <option value="Servico">Serviço (Parceiro)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Inicial</label>
+                        <input type="date" class="form-control mb-2" name="startDate" 
+                               value="@DateTime.Now.AddMonths(-1).ToString("yyyy-MM-dd")" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Final</label>
+                        <input type="date" class="form-control" name="endDate" 
+                               value="@DateTime.Now.ToString("yyyy-MM-dd")" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Tem certeza que deseja executar o script de emissão de notas fiscais? Isso irá criar e emitir as NFs pendentes.');">
+                        <i class="bi bi-play-fill"></i> Executar Script
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Informações -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informações</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <small>
+                        <strong>Fluxo Fiscal:</strong><br>
+                        • Plataforma emite NF de <strong>Intermediação</strong> (apenas sobre a comissão)<br>
+                        • Parceiro emite NF de <strong>Serviço</strong> (valor total do serviço)<br>
+                        • O sistema identifica automaticamente o estado do parceiro e usa a integração correspondente
+                    </small>
+                </div>
+                <div class="alert alert-warning">
+                    <small>
+                        <strong>Importante:</strong><br>
+                        • Certifique-se de que o certificado digital está válido<br>
+                        • Teste primeiro em Homologação<br>
+                        • Verifique as configurações antes de executar em Produção<br>
+                        • Estados sem integração: será exibida mensagem informativa
+                    </small>
+                </div>
+                <div class="alert alert-success">
+                    <small>
+                        <strong>Estados com Integração Implementada:</strong><br>
+                        • <strong>ES</strong> (Espírito Santo) ✓
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Notas Fiscais Emitidas -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-receipt-cutoff"></i> Notas Fiscais Emitidas</h6>
+            </div>
+            <div class="card-body">
+                <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-list"></i> Ver Todas as Notas Fiscais
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Converter certificado para base64 ao fazer upload
+    document.getElementById('certificateFile')?.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const base64 = event.target.result.split(',')[1]; // Remove data:application/x-pkcs12;base64,
+                document.getElementById('certificateContent').value = base64;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+</script>

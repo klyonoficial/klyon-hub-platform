@@ -38,7 +38,7 @@
 
 <div class="row">
     <div class="col-md-12">
-        <div class="card">
+        <div class="card border-warning">
             <div class="card-header bg-warning text-dark">
                 <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Aviso de Segurança</h5>
             </div>
@@ -62,54 +62,123 @@
 
 <div class="row mt-4">
     <div class="col-md-12">
-        <div class="card border-primary">
+        <div class="card border-primary shadow-lg">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Migrations do Entity Framework</h5>
+                <h4 class="mb-0"><i class="bi bi-arrow-repeat"></i> Migrations do Entity Framework</h4>
+                <small>Execute as migrations para aplicar alterações de estrutura do banco de dados</small>
             </div>
             <div class="card-body">
-                <p class="mb-2">Execute as <strong>migrations pendentes</strong> para criar ou alterar tabelas e colunas (ex.: CoworkingRooms, CoworkingRoomPhotos, Reservations.CoworkingRoomId). Equivale ao <code>dotnet ef database update</code>.</p>
+                <p class="mb-3">
+                    <strong>O que são migrations?</strong> As migrations são scripts que criam ou alteram a estrutura do banco de dados 
+                    (tabelas, colunas, índices, etc.). Execute-as sempre que houver novas alterações de estrutura.
+                </p>
+                <p class="mb-3 text-muted">
+                    <i class="bi bi-info-circle"></i> Equivale ao comando <code>dotnet ef database update</code> executado via terminal.
+                </p>
+                
                 @if (pendingMigrations.Any())
                 {
-                    <div class="alert alert-warning mb-3">
-                        <strong><i class="bi bi-exclamation-triangle"></i> @pendingMigrations.Count migration(s) pendente(s):</strong>
-                        <ul class="mb-0 mt-2">
-                            @foreach (var m in pendingMigrations)
-                            {
-                                <li><code>@m</code></li>
-                            }
-                        </ul>
+                    <div class="alert alert-warning mb-4 border-warning">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+                            <div class="flex-grow-1">
+                                <h5 class="alert-heading mb-2">
+                                    <strong>@pendingMigrations.Count Migration(s) Pendente(s)</strong>
+                                </h5>
+                                <p class="mb-2">
+                                    As seguintes alterações de estrutura estão aguardando execução:
+                                </p>
+                                <ul class="mb-3">
+                                    @foreach (var m in pendingMigrations)
+                                    {
+                                        <li><code class="bg-light p-1 rounded">@m</code></li>
+                                    }
+                                </ul>
+                                <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-warning btn-lg" 
+                                            onclick="return confirm('⚠️ ATENÇÃO: Você está prestes a executar @pendingMigrations.Count migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?');">
+                                        <i class="bi bi-play-circle-fill"></i> Executar @pendingMigrations.Count Migration(s) Pendente(s)
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
                     </div>
-                    <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-primary" onclick="return confirm('Executar as @pendingMigrations.Count migration(s) pendente(s) no banco?');">
-                            <i class="bi bi-play-circle"></i> Executar migrations pendentes
-                        </button>
-                    </form>
                 }
                 else
                 {
-                    <p class="text-success mb-2"><i class="bi bi-check-circle"></i> Nenhuma migration pendente. O banco está atualizado.</p>
-                    <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">Tentar executar novamente</button>
-                    </form>
+                    <div class="alert alert-success mb-4 border-success">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill fs-3 me-3"></i>
+                            <div>
+                                <h5 class="alert-heading mb-1">
+                                    <strong>Banco de Dados Atualizado</strong>
+                                </h5>
+                                <p class="mb-2">Nenhuma migration pendente. Todas as alterações de estrutura já foram aplicadas.</p>
+                                <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-arrow-clockwise"></i> Verificar Novamente
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                 }
                 @if (appliedMigrations.Any())
                 {
+                    <hr class="my-4" />
                     <details class="mt-3">
-                        <summary class="text-muted small">Ver migrations já aplicadas</summary>
-                        <ul class="small text-muted mb-0 mt-1" style="max-height: 200px; overflow-y: auto;">
-                            @foreach (var m in appliedMigrations.Take(50))
-                            {
-                                <li><code>@m</code></li>
-                            }
-                            @if (appliedMigrations.Count() > 50)
-                            {
-                                <li>... e mais @(appliedMigrations.Count() - 50)</li>
-                            }
-                        </ul>
+                        <summary class="text-primary fw-bold" style="cursor: pointer;">
+                            <i class="bi bi-chevron-down"></i> Ver @appliedMigrations.Count() Migration(s) Já Aplicada(s)
+                        </summary>
+                        <div class="mt-3 p-3 bg-light rounded" style="max-height: 300px; overflow-y: auto;">
+                            <ul class="small mb-0">
+                                @foreach (var m in appliedMigrations.Take(50))
+                                {
+                                    <li class="mb-1">
+                                        <code class="text-success">@m</code>
+                                        <span class="badge bg-success ms-2">Aplicada</span>
+                                    </li>
+                                }
+                                @if (appliedMigrations.Count() > 50)
+                                {
+                                    <li class="text-muted">... e mais @(appliedMigrations.Count() - 50) migration(s)</li>
+                                }
+                            </ul>
+                        </div>
                     </details>
                 }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Limpar Base de Dados (Testes)</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                    <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Atenção!</h6>
+                    <p class="mb-2">Esta ação irá <strong>apagar todos os dados de teste</strong> do banco de dados, incluindo:</p>
+                    <ul class="mb-2">
+                        <li>Contratos, Reservas, Pagamentos</li>
+                        <li>Clientes, Coworkings, Endereços</li>
+                        <li>Comissões, Transferências, Notas Fiscais</li>
+                        <li>Usuários (exceto o administrador)</li>
+                    </ul>
+                    <p class="mb-0"><strong>Serão preservados:</strong> Roles, Configurações do Sistema, Localidades, Serviços e o usuário administrador.</p>
+                </div>
+                <form method="post" action="@Url.Action("ClearDatabase", "Admin")" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger btn-lg" 
+                            onclick="return confirm('⚠️ ATENÇÃO: Você está prestes a APAGAR TODOS OS DADOS DE TESTE do banco de dados.\n\nIsso irá:\n- Apagar todos os contratos, reservas e pagamentos\n- Apagar todos os clientes e coworkings\n- Apagar todos os usuários (exceto admin)\n- Limpar comissões, transferências e notas fiscais\n\nDados preservados:\n- Roles e permissões\n- Configurações do sistema\n- Localidades e Serviços\n- Usuário administrador\n\nTem CERTEZA ABSOLUTA que deseja continuar?');">
+                        <i class="bi bi-trash-fill"></i> Limpar Base
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -326,6 +395,18 @@
 </div>
 
 @section Scripts {
+    <style>
+        details summary {
+            cursor: pointer;
+            user-select: none;
+        }
+        details summary:hover {
+            opacity: 0.8;
+        }
+        details[open] summary .bi-chevron-down::before {
+            content: "\f284"; /* bi-chevron-up */
+        }
+    </style>
     <script>
         function copyToEditor(text) {
             const textarea = document.querySelector('textarea[name="sqlQuery"]');

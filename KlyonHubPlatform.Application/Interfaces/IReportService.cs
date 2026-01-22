@@ -31,6 +31,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string Type { get; set; } = "Entrada"; // "Entrada" ou "Saída"
         public int CreditsDelta { get; set; }  // positivo = compra, negativo = uso
         public decimal Amount { get; set; }    // R$
+        public int? PaymentId { get; set; } // ID do pagamento se for entrada
+        public int? ReservationId { get; set; } // ID da reserva se for saída
     }
 
     /// <summary>Filtros de produto: null/"" = Todos, "EnderecoFiscal", "AluguelSalas", "CertificadoDigitais"</summary>
@@ -88,6 +90,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string CoworkingName { get; set; } = string.Empty;
         public decimal TotalRevenue { get; set; }
         public int ReservationCount { get; set; }
+        public decimal CommissionPercentage { get; set; }
     }
 
     /// <summary>Detalhe de receita do coworking: reservas com tipo de sala, data e cliente.</summary>
@@ -109,6 +112,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         public int CreditsUsed { get; set; }
         public string ClientName { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        public decimal CommissionPercentage { get; set; }
     }
 
     public class DashboardViewModel

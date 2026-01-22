@@ -1,0 +1,164 @@
+@{
+    ViewData["Title"] = "Serviços e Percentagens";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Service>
+
+@{
+    var partnerServices = ViewBag.PartnerServices as List<KlyonHubPlatform.Domain.Entities.PartnerService> ?? new List<KlyonHubPlatform.Domain.Entities.PartnerService>();
+    var partnerServiceIds = ViewBag.PartnerServiceIds as HashSet<int> ?? new HashSet<int>();
+    var coworkingId = ViewBag.CoworkingId as int? ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Info"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle"></i> @TempData["Info"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="alert alert-warning">
+    <i class="bi bi-info-circle"></i> <strong>Importante:</strong> A percentagem de cada serviço é definida em contrato pelo administrador e não pode ser alterada pelo parceiro. Ao adicionar um serviço, a percentagem será definida posteriormente pelo administrador.
+</div>
+
+<!-- Serviços Cadastrados -->
+@if (partnerServices.Any())
+{
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-check-circle"></i> Serviços Cadastrados (@partnerServices.Count)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Serviço</th>
+                            <th>Descrição</th>
+                            <th class="text-end">Percentagem (%)</th>
+                            <th class="text-center">Data de Cadastro</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ps in partnerServices.OrderBy(ps => ps.Service.Name))
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@ps.Service.Name</strong>
+                                </td>
+                                <td>
+                                    <small class="text-muted">@(string.IsNullOrEmpty(ps.Service.Description) ? "-" : ps.Service.Description)</small>
+                                </td>
+                                <td class="text-end">
+                                    @if (ps.Percentage > 0)
+                                    {
+                                        <span class="badge bg-success fs-6">@ps.Percentage.ToString("F2")%</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">Aguardando definição</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <small>@ps.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                </td>
+                                <td class="text-center">
+                                    <form method="post" action="@Url.Action("RemoveService", "Coworking")" class="d-inline" 
+                                          onsubmit="return confirm('Tem certeza que deseja remover o serviço \'@ps.Service.Name\'?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="partnerServiceId" value="@ps.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i> Remover
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Serviços Disponíveis -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Serviços Disponíveis</h5>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var service in Model.OrderBy(s => s.DisplayOrder).ThenBy(s => s.Name))
+                {
+                    var isAdded = partnerServiceIds.Contains(service.Id);
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 @(isAdded ? "border-success" : "border-secondary")">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0">@service.Name</h6>
+                                    @if (isAdded)
+                                    {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Cadastrado
+                                        </span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(service.Description))
+                                {
+                                    <p class="card-text text-muted small mb-3">@service.Description</p>
+                                }
+                                @if (isAdded)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary w-100" disabled>
+                                        <i class="bi bi-check-circle"></i> Já Cadastrado
+                                    </button>
+                                }
+                                else
+                                {
+                                    <form method="post" action="@Url.Action("AddService", "Coworking")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="serviceId" value="@service.Id" />
+                                        <button type="submit" class="btn btn-sm btn-primary w-100">
+                                            <i class="bi bi-plus-circle"></i> Adicionar Serviço
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum serviço disponível no momento.
+            </div>
+        }
+    </div>
+</div>

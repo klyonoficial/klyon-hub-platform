@@ -80,7 +80,101 @@ namespace KlyonHubPlatform.Api.Controllers
             _logger = logger;
         }
 
+        [HttpGet]
+        public async Task<IActionResult> Services()
+        {
+            var marketplaceRoute = Url.Action("Marketplace", "Home") ?? "/Home/Marketplace";
+            var chooseLocationRoute = Url.Action("ChooseLocation", "Client") ?? "/Client/ChooseLocation";
+
+            // Buscar serviços ativos ou criar serviços padrão se não existirem
+            var services = await _context.Services
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.DisplayOrder)
+                .ToListAsync();
+
+            // Corrigir rotas incorretas de serviços relacionados a salas
+            var roomServiceKeywords = new[] { "Sala", "Auditório", "Aluguel" };
+            var needsUpdate = false;
+
+            foreach (var service in services)
+            {
+                // Se o serviço é relacionado a salas e tem rota incorreta, corrigir
+                if (roomServiceKeywords.Any(keyword => service.Name.Contains(keyword)) && 
+                    service.Route != marketplaceRoute && 
+                    !service.Route.Contains("/Home/Marketplace"))
+                {
+                    service.Route = marketplaceRoute;
+                    service.UpdatedAt = DateTime.UtcNow;
+                    needsUpdate = true;
+                }
+                // Corrigir rotas que apontam para /marketplace (sem /Home/)
+                else if (service.Route == "/marketplace" || service.Route.Contains("/marketplace") && !service.Route.Contains("/Home/Marketplace"))
+                {
+                    service.Route = marketplaceRoute;
+                    service.UpdatedAt = DateTime.UtcNow;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate)
+            {
+                await _context.SaveChangesAsync();
+                services = await _context.Services
+                    .Where(s => s.IsActive)
+                    .OrderBy(s => s.DisplayOrder)
+                    .ToListAsync();
+            }
+
+            // Se não houver serviços cadastrados, criar os serviços padrão
+            if (!services.Any())
+            {
+                var defaultServices = new[]
+                {
+                    new Domain.Entities.Service
+                    {
+                        Name = "Contratar Endereço Fiscal",
+                        Description = "Contrate um endereço fiscal para sua empresa",
+                        Route = chooseLocationRoute,
+                        DisplayOrder = 1,
+                        IsActive = true,
+                        ImageUrl = "/images/services/endereco-fiscal.svg",
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Domain.Entities.Service
+                    {
+                        Name = "Reservar Sala",
+                        Description = "Reserve salas de coworking para reuniões e trabalho",
+                        Route = marketplaceRoute,
+                        DisplayOrder = 2,
+                        IsActive = true,
+                        ImageUrl = "/images/services/sala-compartilhada.svg",
+                        CreatedAt = DateTime.UtcNow
+                    }
+                };
+
+                foreach (var service in defaultServices)
+                {
+                    _context.Services.Add(service);
+                }
+                await _context.SaveChangesAsync();
+
+                services = await _context.Services
+                    .Where(s => s.IsActive)
+                    .OrderBy(s => s.DisplayOrder)
+                    .ToListAsync();
+            }
+
+            return View(services);
+        }
+
         public async Task<IActionResult> Dashboard()
+        {
+            // Redirecionar para a página de Serviços (página principal do cliente)
+            return RedirectToAction("Services");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DashboardDetails()
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients
@@ -90,22 +184,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenInclude(ct => ct.Subscription)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
-            // Buscar créditos disponíveis
-            int availableCredits = 0;
-            if (client != null)
-            {
-                try
-                {
-                    availableCredits = await _context.ClientCredits
-                        .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
-                        .SumAsync(c => c.Credits);
-                }
-                catch
-                {
-                    // Tabela ClientCredits pode não existir ainda
-                    availableCredits = 0;
-                }
-            }
+            // Sistema de créditos removido - não buscamos mais créditos
 
             // Buscar reservas do cliente
             int reservationsCount = 0;
@@ -125,9 +204,9 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             ViewBag.Client = client;
-            ViewBag.AvailableCredits = availableCredits;
+            // ViewBag.AvailableCredits removido - sistema não usa mais créditos
             ViewBag.ReservationsCount = reservationsCount;
-            return View();
+            return View("Dashboard");
         }
 
         [HttpGet]
@@ -229,8 +308,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (existingCNPJ != null)
                     {
                         TempData["Error"] = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
-                        ViewBag.UserEmail = userEmail;
-                        return View(existingClient);
+                        return RedirectToAction("Profile");
                     }
                     // Salvar CNPJ com máscara
                     existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
@@ -238,8 +316,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length != 14)
                 {
                     TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos.";
-                    ViewBag.UserEmail = userEmail;
-                    return View(existingClient);
+                    return RedirectToAction("Profile");
                 }
 
                 // Validar CPF se informado
@@ -256,8 +333,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (existingCPF != null)
                     {
                         TempData["Error"] = $"O CPF {client.CPF} já está cadastrado no sistema.";
-                        ViewBag.UserEmail = userEmail;
-                        return View(existingClient);
+                        return RedirectToAction("Profile");
                     }
                     // Salvar CPF com máscara
                     existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
@@ -265,8 +341,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length != 11)
                 {
                     TempData["Error"] = "CPF inválido. O CPF deve conter 11 dígitos.";
-                    ViewBag.UserEmail = userEmail;
-                    return View(existingClient);
+                    return RedirectToAction("Profile");
                 }
 
                 // Atualizar campos (exceto ContactEmail que sempre vem do usuário)
@@ -307,16 +382,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (!allowedExtensions.Contains(fileExtension))
                     {
                         TempData["Error"] = "Formato de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.";
-                        ViewBag.UserEmail = userEmail;
-                        return View(existingClient);
+                        return RedirectToAction("Profile");
                     }
                     
                     // Validar tamanho (máximo 5MB)
                     if (Logo.Length > 5 * 1024 * 1024)
                     {
                         TempData["Error"] = "O arquivo é muito grande. O tamanho máximo é 5MB.";
-                        ViewBag.UserEmail = userEmail;
-                        return View(existingClient);
+                        return RedirectToAction("Profile");
                     }
                     
                     try
@@ -337,8 +410,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     catch (Exception ex)
                     {
                         TempData["Error"] = $"Erro ao fazer upload da logo: {ex.Message}";
-                        ViewBag.UserEmail = userEmail;
-                        return View(existingClient);
+                        return RedirectToAction("Profile");
                     }
                 }
                 
@@ -351,21 +423,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Message.Contains("Duplicate entry"))
             {
-                var userEmail = User.FindFirstValue(ClaimTypes.Email);
                 TempData["Error"] = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
-                ViewBag.UserEmail = userEmail;
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-                return View(existingClient);
+                return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
-                var userEmail = User.FindFirstValue(ClaimTypes.Email);
                 TempData["Error"] = $"Erro ao atualizar perfil: {ex.Message}";
-                ViewBag.UserEmail = userEmail;
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-                return View(existingClient);
+                return RedirectToAction("Profile");
             }
         }
 
@@ -486,21 +550,74 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ChooseLocation()
+        public async Task<IActionResult> ChooseLocation(string? region = null, string? state = null, int page = 1)
         {
-            var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+            const int pageSize = 6;
+            
+            // Query base
+            var query = _context.Locations.Where(l => l.IsActive);
+            
+            // Aplicar filtros
+            if (!string.IsNullOrEmpty(region))
+            {
+                query = query.Where(l => l.Region == region);
+            }
+            
+            if (!string.IsNullOrEmpty(state))
+            {
+                query = query.Where(l => l.State == state);
+            }
+            
+            var allLocations = await query.ToListAsync();
             
             // Verificar quais localidades têm endereços disponíveis
-            var locationIds = locations.Select(l => l.Id).ToList();
+            var locationIds = allLocations.Select(l => l.Id).ToList();
             var availableAddressesCount = await _context.CoworkingAddresses
                 .Where(a => a.IsAvailable && a.CurrentContracts < a.MaxContracts && locationIds.Contains(a.LocationId))
                 .GroupBy(a => a.LocationId)
                 .Select(g => new { LocationId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.LocationId, x => x.Count);
             
-            ViewBag.AvailableAddressesCount = availableAddressesCount;
+            // Ordenar por disponibilidade (com endereços primeiro) e depois por estado
+            var sortedLocations = allLocations
+                .OrderByDescending(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
+                .ThenBy(l => l.State)
+                .ToList();
             
-            return View(locations);
+            // Paginação
+            var totalItems = sortedLocations.Count;
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            page = Math.Max(1, Math.Min(page, totalPages));
+            
+            var pagedLocations = sortedLocations
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+            
+            ViewBag.AvailableAddressesCount = availableAddressesCount;
+            ViewBag.Region = region;
+            ViewBag.State = state;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            
+            // Buscar regiões e estados únicos para os filtros
+            ViewBag.Regions = await _context.Locations
+                .Where(l => l.IsActive)
+                .Select(l => l.Region)
+                .Distinct()
+                .OrderBy(r => r)
+                .ToListAsync();
+            
+            ViewBag.States = await _context.Locations
+                .Where(l => l.IsActive)
+                .Select(l => l.State)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToListAsync();
+            
+            return View(pagedLocations);
         }
 
         [HttpGet]
@@ -827,7 +944,15 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> PaymentDetails(int id)
         {
-            var payment = await _paymentService.GetPaymentByIdAsync(id);
+            var payment = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                .Include(p => p.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                .FirstOrDefaultAsync(p => p.Id == id);
+            
             if (payment == null)
             {
                 return NotFound();
@@ -841,14 +966,72 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("RegisterClient");
             }
 
-            var contract = await _context.Contracts
-                .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+            bool isAuthorized = false;
             
-            if (contract == null || contract.ClientId != client.Id)
+            // Verificar se é pagamento de subscription (contrato)
+            if (payment.SubscriptionId.HasValue && payment.Subscription != null)
             {
-                if (!User.IsInRole("Administrator"))
+                var contract = await _context.Contracts
+                    .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+                
+                if (contract != null && contract.ClientId == client.Id)
                 {
-                    return Forbid();
+                    isAuthorized = true;
+                }
+            }
+            // Verificar se é pagamento de reserva
+            else if (payment.ReservationId.HasValue)
+            {
+                var reservation = await _context.Reservations
+                    .FirstOrDefaultAsync(r => r.Id == payment.ReservationId.Value);
+                
+                if (reservation != null && reservation.ClientId == client.Id)
+                {
+                    isAuthorized = true;
+                }
+            }
+            
+            if (!isAuthorized && !User.IsInRole("Administrator"))
+            {
+                return Forbid();
+            }
+            
+            // Usar o serviço para gerar códigos se necessário
+            if (payment.Status == PaymentStatus.Pending)
+            {
+                try
+                {
+                    if (payment.Method == PaymentMethod.PIX && string.IsNullOrEmpty(payment.PixCode))
+                    {
+                        await _paymentService.GeneratePixCodeAsync(payment.Id);
+                        // Recarregar o pagamento
+                        payment = await _context.Payments
+                            .Include(p => p.Subscription)
+                                .ThenInclude(s => s.Contract)
+                                    .ThenInclude(c => c.CoworkingAddress)
+                            .Include(p => p.Reservation)
+                                .ThenInclude(r => r.CoworkingAddress)
+                                    .ThenInclude(a => a.Coworking)
+                            .FirstOrDefaultAsync(p => p.Id == id);
+                    }
+                    else if (payment.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(payment.BoletoCode))
+                    {
+                        await _paymentService.GenerateBoletoCodeAsync(payment.Id);
+                        // Recarregar o pagamento
+                        payment = await _context.Payments
+                            .Include(p => p.Subscription)
+                                .ThenInclude(s => s.Contract)
+                                    .ThenInclude(c => c.CoworkingAddress)
+                            .Include(p => p.Reservation)
+                                .ThenInclude(r => r.CoworkingAddress)
+                                    .ThenInclude(a => a.Coworking)
+                            .FirstOrDefaultAsync(p => p.Id == id);
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+                {
+                    // PagBank não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
+                    TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
                 }
             }
 
@@ -1428,209 +1611,31 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> BuyCredits()
         {
-            var plans = await _context.CreditPlans
-                .Where(p => p.IsActive)
-                .OrderBy(p => p.Price)
-                .ToListAsync();
-
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-            
-            int availableCredits = 0;
-            if (client != null)
-            {
-                try
-                {
-                    availableCredits = await _context.ClientCredits
-                        .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
-                        .SumAsync(c => c.Credits);
-                }
-                catch
-                {
-                    // Tabela ClientCredits pode não existir ainda
-                    availableCredits = 0;
-                }
-            }
-
-            ViewBag.AvailableCredits = availableCredits;
-            return View(plans);
+            // Sistema de créditos removido - redirecionar para dashboard
+            TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
+            return RedirectToAction("Dashboard");
         }
 
         [HttpGet]
         public async Task<IActionResult> CheckoutCredits(int creditPlanId)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var client = await _context.Clients
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.UserId == userId);
-
-            if (client == null)
-            {
-                TempData["Error"] = "Cliente não encontrado.";
-                return RedirectToAction("BuyCredits");
-            }
-
-            var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == creditPlanId && p.IsActive);
-            if (plan == null)
-            {
-                TempData["Error"] = "Plano não encontrado ou indisponível.";
-                return RedirectToAction("BuyCredits");
-            }
-
-            ViewBag.Plan = plan;
-            ViewBag.Client = client;
-            ViewBag.TotalCredits = plan.Credits + plan.BonusCredits;
-
-            return View();
+            // Sistema de créditos removido
+            TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
+            return RedirectToAction("Dashboard");
         }
 
         [HttpPost]
         public async Task<IActionResult> GenerateCreditPurchasePix([FromBody] CreditPlanIdRequest req)
         {
-            try
-            {
-                if (req == null || req.CreditPlanId <= 0)
-                    return Json(new { success = false, error = "Plano inválido." });
-
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.UserId == userId);
-                if (client == null)
-                    return Json(new { success = false, error = "Cliente não encontrado." });
-
-                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == req.CreditPlanId && p.IsActive);
-                if (plan == null)
-                    return Json(new { success = false, error = "Plano não encontrado ou indisponível." });
-
-                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
-                var clientEmail = client.ContactEmail ?? client.User.Email;
-                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-                var clientPhone = client.ContactPhone ?? client.User.Phone;
-
-                var purchase = new CreditPurchase
-                {
-                    ClientId = client.Id,
-                    CreditPlanId = plan.Id,
-                    AmountPaid = plan.Price,
-                    CreditsReceived = plan.Credits,
-                    BonusCredits = plan.BonusCredits,
-                    Status = "Processing",
-                    PaymentMethod = PaymentMethod.PIX,
-                    ExternalPaymentId = Guid.NewGuid().ToString()
-                };
-                _context.CreditPurchases.Add(purchase);
-                await _context.SaveChangesAsync();
-
-                var orderResponse = await _pagBankService.CreateOrderAsync(
-                    referenceId: purchase.ExternalPaymentId,
-                    amount: plan.Price,
-                    method: PaymentMethod.PIX,
-                    clientName: clientName,
-                    clientEmail: clientEmail,
-                    clientTaxId: clientTaxId,
-                    clientPhone: clientPhone
-                );
-
-                purchase.ExternalPaymentId = orderResponse.Id;
-                if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
-                {
-                    var qr = orderResponse.QrCodes.First();
-                    purchase.PixCode = qr.Text;
-                    purchase.PixExpiresAt = qr.ExpirationDate;
-                }
-                await _context.SaveChangesAsync();
-
-                return Json(new { success = true, purchaseId = purchase.Id, pixCode = purchase.PixCode, pixExpiresAt = purchase.PixExpiresAt });
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
-            {
-                return Json(new { success = false, error = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, error = ex.Message });
-            }
+            // Sistema de créditos removido
+            return Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." });
         }
 
         [HttpPost]
         public async Task<IActionResult> GenerateCreditPurchaseBoleto([FromBody] CreditPlanIdRequest req)
         {
-            try
-            {
-                if (req == null || req.CreditPlanId <= 0)
-                    return Json(new { success = false, error = "Plano inválido." });
-
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.UserId == userId);
-                if (client == null)
-                    return Json(new { success = false, error = "Cliente não encontrado." });
-
-                var plan = await _context.CreditPlans.FirstOrDefaultAsync(p => p.Id == req.CreditPlanId && p.IsActive);
-                if (plan == null)
-                    return Json(new { success = false, error = "Plano não encontrado ou indisponível." });
-
-                var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
-                var clientEmail = client.ContactEmail ?? client.User.Email;
-                var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-                var clientPhone = client.ContactPhone ?? client.User.Phone;
-                var clientAddress = new Application.DTOs.PagBank.PagBankAddress
-                {
-                    Street = client.Address ?? "Não informado",
-                    Number = "S/N",
-                    Locality = "Não informado",
-                    City = client.City ?? "Não informado",
-                    RegionCode = client.State ?? "SP",
-                    Country = "BRA",
-                    PostalCode = client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
-                };
-
-                var purchase = new CreditPurchase
-                {
-                    ClientId = client.Id,
-                    CreditPlanId = plan.Id,
-                    AmountPaid = plan.Price,
-                    CreditsReceived = plan.Credits,
-                    BonusCredits = plan.BonusCredits,
-                    Status = "Processing",
-                    PaymentMethod = PaymentMethod.BankTransfer,
-                    ExternalPaymentId = Guid.NewGuid().ToString()
-                };
-                _context.CreditPurchases.Add(purchase);
-                await _context.SaveChangesAsync();
-
-                var orderResponse = await _pagBankService.CreateOrderAsync(
-                    referenceId: purchase.ExternalPaymentId,
-                    amount: plan.Price,
-                    method: PaymentMethod.BankTransfer,
-                    clientName: clientName,
-                    clientEmail: clientEmail,
-                    clientTaxId: clientTaxId,
-                    clientPhone: clientPhone,
-                    clientAddress: clientAddress
-                );
-
-                purchase.ExternalPaymentId = orderResponse.Id;
-                if (orderResponse.Charges != null && orderResponse.Charges.Any())
-                {
-                    var ch = orderResponse.Charges.First();
-                    if (ch.PaymentMethod?.Boleto != null)
-                    {
-                        purchase.BoletoBarcode = ch.PaymentMethod.Boleto.Barcode;
-                        purchase.BoletoCode = ch.PaymentMethod.Boleto.FormattedBarcode;
-                        purchase.BoletoExpiresAt = ch.PaymentMethod.Boleto.DueDate;
-                    }
-                }
-                await _context.SaveChangesAsync();
-
-                return Json(new { success = true, purchaseId = purchase.Id, boletoBarcode = purchase.BoletoBarcode, boletoCode = purchase.BoletoCode, boletoExpiresAt = purchase.BoletoExpiresAt });
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
-            {
-                return Json(new { success = false, error = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, error = ex.Message });
-            }
+            // Sistema de créditos removido
+            return Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." });
         }
 
         [HttpPost]
@@ -2042,7 +2047,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             ViewBag.Address = address;
             ViewBag.Coworking = address.Coworking;
-            ViewBag.AvailableCredits = availableCredits;
+            // ViewBag.AvailableCredits removido - sistema não usa mais créditos
             ViewBag.OffersSharedRoom = address.OffersSharedRoom;
             ViewBag.OffersPrivateRoom = address.OffersPrivateRoom;
             ViewBag.SharedRoomPricePerHour = address.SharedRoomPricePerHour ?? 0;
@@ -2207,7 +2212,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     EndTime = End,
                     RoomType = RoomType,
                     TotalValue = totalValue,
-                    CreditsUsed = creditsNeeded,
                     Status = "Confirmed",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -2364,7 +2368,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
             }
             await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);
-            TempData["Success"] = "Confirmação registrada. Após o coworking confirmar seu comparecimento, os créditos serão repassados.";
+            TempData["Success"] = "Confirmação registrada. Após o coworking confirmar seu comparecimento, o pagamento será processado.";
             return RedirectToAction("MyReservations");
         }
 
@@ -2403,7 +2407,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Calcular totais (sempre baseado em todas as reservas para os cards de resumo)
-                var totalCreditsSpent = allReservations.Sum(r => r.CreditsUsed);
                 var totalValueSpent = allReservations.Sum(r => r.TotalValue);
                 var totalReservations = allReservations.Count;
                 var confirmedReservations = allReservations.Count(r => r.Status == "Confirmed");
@@ -2411,7 +2414,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 var completedReservations = allReservations.Count(r => r.Status == "Completed");
 
                 // Calcular totais filtrados (para exibição na tabela quando filtrado)
-                var filteredCreditsSpent = reservations.Sum(r => r.CreditsUsed);
                 var filteredValueSpent = reservations.Sum(r => r.TotalValue);
                 var filteredReservations = reservations.Count;
 
@@ -2422,7 +2424,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         Year = g.Key.Year,
                         Month = g.Key.Month,
-                        Credits = g.Sum(r => r.CreditsUsed),
                         Value = g.Sum(r => r.TotalValue),
                         Count = g.Count()
                     })
@@ -2430,14 +2431,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenByDescending(x => x.Month)
                     .ToList();
 
-                ViewBag.TotalCreditsSpent = totalCreditsSpent;
                 ViewBag.TotalValueSpent = totalValueSpent;
                 ViewBag.TotalReservations = totalReservations;
                 ViewBag.ConfirmedReservations = confirmedReservations;
                 ViewBag.CancelledReservations = cancelledReservations;
                 ViewBag.CompletedReservations = completedReservations;
                 ViewBag.MonthlySpending = monthlySpending;
-                ViewBag.FilteredCreditsSpent = filteredCreditsSpent;
                 ViewBag.FilteredValueSpent = filteredValueSpent;
                 ViewBag.FilteredReservations = filteredReservations;
                 ViewBag.SelectedMonth = month;

@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="~/css/klyon-theme.css" asp-append-version="true">
+    <link rel="stylesheet" href="~/css/loading.css" asp-append-version="true">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -70,7 +71,7 @@
                             }
                             else if (isCoworking && !isAdmin)
                             {
-                                <a class="nav-link" href="@Url.Action("Dashboard", "Coworking")">
+                                <a class="nav-link" href="@Url.Action("Dashboard", "Parceiro")">
                                     <i class="bi bi-speedometer2"></i> Dashboard
                                 </a>
                             }
@@ -81,8 +82,26 @@
                                 </a>
                             }
                         </li>
-                        <li class="nav-item">
-                            <span class="nav-link">@User.Identity.Name</span>
+                        <li class="nav-item dropdown" id="userMenuDropdown">
+                            <span class="nav-link dropdown-toggle" id="userNameLink" style="cursor: pointer;" 
+                                  onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                @User.Identity.Name
+                            </span>
+                            <ul class="dropdown-menu" id="userMenu" style="display: none; margin-top: 0;" 
+                                onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                @if (isClient)
+                                {
+                                    <li><a class="dropdown-item" href="@Url.Action("Profile", "Client")">
+                                        <i class="bi bi-person-badge"></i> Meu Perfil
+                                    </a></li>
+                                }
+                                else if (isCoworking)
+                                {
+                                    <li><a class="dropdown-item" href="@Url.Action("Profile", "Parceiro")">
+                                        <i class="bi bi-person-badge"></i> Meu Perfil
+                                    </a></li>
+                                }
+                            </ul>
                         </li>
                         <li class="nav-item">
                             <form method="post" action="@Url.Action("Logout", "Auth")" class="d-inline">
@@ -139,6 +158,9 @@
                             <a class="nav-link" href="@Url.Action("SystemConfigurations", "Admin")">
                                 <i class="bi bi-gear"></i> Configurações do Sistema
                             </a>
+                            <a class="nav-link" href="@Url.Action("SefazConfiguration", "Admin")">
+                                <i class="bi bi-receipt"></i> Configuração SEFAZ
+                            </a>
                             <a class="nav-link" href="@Url.Action("DatabaseManager", "Admin")">
                                 <i class="bi bi-database"></i> Gerenciador de BD
                             </a>
@@ -150,74 +172,152 @@
                             var hasFiscalAddress = ViewData["HasFiscalAddress"] as bool? ?? false;
                             var hasRoomRental = ViewData["HasRoomRental"] as bool? ?? false;
                             
-                            <a class="nav-link" href="@Url.Action("Dashboard", "Coworking")">
+                            <a class="nav-link" href="@Url.Action("Dashboard", "Parceiro")">
                                 <i class="bi bi-speedometer2"></i> Dashboard
                             </a>
-                            <a class="nav-link" href="@Url.Action("Profile", "Coworking")">
-                                <i class="bi bi-person-badge"></i> Meu Perfil
+                            
+                            @* Menu Endereço Fiscal com submenu *@
+                            <div class="sidebar-dropdown" id="enderecoFiscalParceiroDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="enderecoFiscalParceiroLink" 
+                                   onmouseenter="showSidebarMenu('enderecoFiscalParceiro')" 
+                                   onmouseleave="hideSidebarMenu('enderecoFiscalParceiro')">
+                                    <i class="bi bi-geo-alt-fill"></i> Endereço Fiscal
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="enderecoFiscalParceiroMenu" 
+                                    onmouseenter="showSidebarMenu('enderecoFiscalParceiro')" 
+                                    onmouseleave="hideSidebarMenu('enderecoFiscalParceiro')">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("MyAddresses", "Parceiro")">
+                                            <i class="bi bi-geo-alt"></i> Meus Endereços Fiscais
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("ActiveContracts", "Parceiro")">
+                                            <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <a class="nav-link" href="@Url.Action("MyContract", "Parceiro")">
+                                <i class="bi bi-file-earmark-text"></i> Meu Contrato
                             </a>
-                            <a class="nav-link" href="@Url.Action("Products", "Coworking")">
-                                <i class="bi bi-box-seam"></i> Produtos
+                            <a class="nav-link" href="@Url.Action("Services", "Parceiro")">
+                                <i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens
                             </a>
                             
-                            @* Menu de Endereço Fiscal - sempre aparece para facilitar acesso *@
-                            <a class="nav-link" href="@Url.Action("MyAddresses", "Coworking")">
-                                <i class="bi bi-geo-alt"></i> Meus Endereços Fiscais
-                            </a>
-                            <a class="nav-link" href="@Url.Action("ActiveContracts", "Coworking")">
-                                <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
+                            <a class="nav-link" href="@Url.Action("Reservations", "Parceiro")">
+                                <i class="bi bi-calendar-check"></i> Reservas
                             </a>
                             
                             @* Menu de Aluguel de Salas - só aparece se o produto estiver marcado *@
                             @if (hasRoomRental)
                             {
-                                <a class="nav-link" href="@Url.Action("Reservations", "Coworking")">
-                                    <i class="bi bi-calendar-check"></i> Reservas de Salas
-                                </a>
-                                <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Coworking")">
+                                <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Parceiro")">
                                     <i class="bi bi-currency-dollar"></i> Receita de Salas
                                 </a>
                             }
                             
-                            <a class="nav-link" href="@Url.Action("Commissions", "Coworking")">
-                                <i class="bi bi-cash-coin"></i> Comissões
-                            </a>
-                            <a class="nav-link" href="@Url.Action("Transfers", "Coworking")">
-                                <i class="bi bi-arrow-left-right"></i> Repasses
-                            </a>
+                            @* Menu Financeiro com submenu *@
+                            <div class="sidebar-dropdown" id="financeiroParceiroDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="financeiroParceiroLink" 
+                                   onmouseenter="showSidebarMenu('financeiroParceiro')" 
+                                   onmouseleave="hideSidebarMenu('financeiroParceiro')">
+                                    <i class="bi bi-wallet2"></i> Financeiro
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="financeiroParceiroMenu" 
+                                    onmouseenter="showSidebarMenu('financeiroParceiro')" 
+                                    onmouseleave="hideSidebarMenu('financeiroParceiro')">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Commissions", "Parceiro")">
+                                            <i class="bi bi-cash-coin"></i> Comissões
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Transfers", "Parceiro")">
+                                            <i class="bi bi-arrow-left-right"></i> Repasses
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         }
                         @if (User.IsInRole("Client"))
                         {
-                            <a class="nav-link" href="@Url.Action("Dashboard", "Client")">
+                            <a class="nav-link" href="@Url.Action("Services", "Client")">
+                                <i class="bi bi-grid"></i> Serviços
+                            </a>
+                            <a class="nav-link" href="@Url.Action("DashboardDetails", "Client")">
                                 <i class="bi bi-speedometer2"></i> Dashboard
                             </a>
-                            <a class="nav-link" href="@Url.Action("Profile", "Client")">
-                                <i class="bi bi-person-badge"></i> Meu Perfil
-                            </a>
-                            <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
-                                <i class="bi bi-building"></i> Reservar Sala de Coworking
-                            </a>
-                            <a class="nav-link" href="@Url.Action("MyReservations", "Client")">
-                                <i class="bi bi-calendar-check"></i> Minhas Reservas
-                            </a>
-                            <a class="nav-link" href="@Url.Action("BuyCredits", "Client")">
-                                <i class="bi bi-wallet2"></i> Comprar Créditos
-                            </a>
+                            
+                            @* Menu Reservar Sala com submenu *@
+                            <div class="sidebar-dropdown" id="reservarSalaDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="reservarSalaLink" 
+                                   onmouseenter="showSidebarMenu('reservarSala')" 
+                                   onmouseleave="hideSidebarMenu('reservarSala')">
+                                    <i class="bi bi-building"></i> Reservar Sala
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="reservarSalaMenu" 
+                                    onmouseenter="showSidebarMenu('reservarSala')" 
+                                    onmouseleave="hideSidebarMenu('reservarSala')">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
+                                            <i class="bi bi-search"></i> Buscar Salas
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("MyReservations", "Client")">
+                                            <i class="bi bi-calendar-check"></i> Minhas Reservas
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            
                             <a class="nav-link" href="@Url.Action("CreditSpendingReport", "Client")">
                                 <i class="bi bi-graph-up"></i> Relatório de Gastos
                             </a>
-                            <a class="nav-link" href="@Url.Action("MyContracts", "Client")">
-                                <i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal
-                            </a>
-                            <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
-                                <i class="bi bi-credit-card"></i> Cobranças de Endereço Fiscal
-                            </a>
-                            <a class="nav-link" href="@Url.Action("Declarations", "Client")">
-                                <i class="bi bi-file-earmark-text"></i> Declarações de Endereço Fiscal
-                            </a>
-                            <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
-                                <i class="bi bi-geo-alt-fill"></i> Alugar Endereço Fiscal
-                            </a>
+                            
+                            @* Menu Endereço Fiscal com submenu *@
+                            <div class="sidebar-dropdown" id="enderecoFiscalDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="enderecoFiscalLink" 
+                                   onmouseenter="showSidebarMenu('enderecoFiscal')" 
+                                   onmouseleave="hideSidebarMenu('enderecoFiscal')">
+                                    <i class="bi bi-geo-alt-fill"></i> Endereço Fiscal
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="enderecoFiscalMenu" 
+                                    onmouseenter="showSidebarMenu('enderecoFiscal')" 
+                                    onmouseleave="hideSidebarMenu('enderecoFiscal')">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
+                                            <i class="bi bi-credit-card"></i> Meus Pagamentos
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
+                                            <i class="bi bi-plus-circle"></i> Contratar Endereço Fiscal
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("MyContracts", "Client")">
+                                            <i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
+                                            <i class="bi bi-receipt"></i> Cobranças de Endereço Fiscal
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Declarations", "Client")">
+                                            <i class="bi bi-file-text"></i> Declarações de Endereço Fiscal
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         }
                     </nav>
                 </div>
@@ -236,6 +336,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/masks.js" asp-append-version="true"></script>
+    <script src="~/js/loading.js" asp-append-version="true"></script>
     <script>
         // Garantir que os formulários de idioma recarreguem a página após o submit
         document.addEventListener('DOMContentLoaded', function() {
@@ -246,6 +347,196 @@
                     // O servidor já faz o redirect, mas isso garante que funcione
                 });
             });
+        });
+
+        // Variáveis para controlar os timeouts de fechamento
+        let hideUserMenuTimeout = null;
+        let hideSidebarMenuTimeouts = {};
+
+        // Função para mostrar o menu do usuário ao passar o mouse
+        function showUserMenu() {
+            // Cancelar qualquer timeout de fechamento pendente
+            if (hideUserMenuTimeout) {
+                clearTimeout(hideUserMenuTimeout);
+                hideUserMenuTimeout = null;
+            }
+            
+            const userMenu = document.getElementById('userMenu');
+            if (userMenu) {
+                userMenu.style.display = 'block';
+            }
+        }
+
+        // Função para esconder o menu do usuário ao sair do mouse
+        function hideUserMenu() {
+            const userMenu = document.getElementById('userMenu');
+            if (userMenu) {
+                // Delay para evitar fechar quando o mouse está se movendo entre elementos
+                hideUserMenuTimeout = setTimeout(function() {
+                    const dropdown = document.getElementById('userMenuDropdown');
+                    if (dropdown) {
+                        // Verificar se o mouse ainda está sobre o dropdown ou o menu
+                        const isHovering = dropdown.matches(':hover') || 
+                                          (userMenu && userMenu.matches(':hover'));
+                        
+                        if (!isHovering) {
+                            userMenu.style.display = 'none';
+                        }
+                    }
+                }, 150);
+            }
+        }
+
+        // Função para mostrar o submenu da sidebar
+        function showSidebarMenu(menuId) {
+            // Cancelar qualquer timeout de fechamento pendente para este menu
+            if (hideSidebarMenuTimeouts[menuId]) {
+                clearTimeout(hideSidebarMenuTimeouts[menuId]);
+                hideSidebarMenuTimeouts[menuId] = null;
+            }
+            
+            const menu = document.getElementById(menuId + 'Menu');
+            if (menu) {
+                menu.style.display = 'block';
+            }
+        }
+
+        // Função para esconder o submenu da sidebar
+        function hideSidebarMenu(menuId) {
+            const menu = document.getElementById(menuId + 'Menu');
+            const dropdown = document.getElementById(menuId + 'Dropdown');
+            
+            if (menu) {
+                // Delay para evitar fechar quando o mouse está se movendo entre elementos
+                hideSidebarMenuTimeouts[menuId] = setTimeout(function() {
+                    if (dropdown) {
+                        // Verificar se o mouse ainda está sobre o dropdown ou o menu
+                        const isHovering = dropdown.matches(':hover') || 
+                                          (menu && menu.matches(':hover'));
+                        
+                        if (!isHovering) {
+                            menu.style.display = 'none';
+                        }
+                    } else {
+                        menu.style.display = 'none';
+                    }
+                }, 150);
+            }
+        }
+
+        // Garantir que os menus funcionem corretamente ao carregar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            // Menu do usuário no topo
+            const dropdown = document.getElementById('userMenuDropdown');
+            const userMenu = document.getElementById('userMenu');
+            
+            if (dropdown && userMenu) {
+                // Adicionar event listeners para melhor controle
+                dropdown.addEventListener('mouseenter', function() {
+                    showUserMenu();
+                });
+                
+                dropdown.addEventListener('mouseleave', function() {
+                    hideUserMenu();
+                });
+                
+                // Garantir que o menu também responda ao hover direto
+                userMenu.addEventListener('mouseenter', function() {
+                    showUserMenu();
+                });
+                
+                userMenu.addEventListener('mouseleave', function() {
+                    hideUserMenu();
+                });
+            }
+
+            // Submenus da sidebar
+            const enderecoFiscalDropdown = document.getElementById('enderecoFiscalDropdown');
+            const enderecoFiscalMenu = document.getElementById('enderecoFiscalMenu');
+            
+            if (enderecoFiscalDropdown && enderecoFiscalMenu) {
+                enderecoFiscalDropdown.addEventListener('mouseenter', function() {
+                    showSidebarMenu('enderecoFiscal');
+                });
+                
+                enderecoFiscalDropdown.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('enderecoFiscal');
+                });
+                
+                enderecoFiscalMenu.addEventListener('mouseenter', function() {
+                    showSidebarMenu('enderecoFiscal');
+                });
+                
+                enderecoFiscalMenu.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('enderecoFiscal');
+                });
+            }
+
+            // Submenu Reservar Sala
+            const reservarSalaDropdown = document.getElementById('reservarSalaDropdown');
+            const reservarSalaMenu = document.getElementById('reservarSalaMenu');
+            
+            if (reservarSalaDropdown && reservarSalaMenu) {
+                reservarSalaDropdown.addEventListener('mouseenter', function() {
+                    showSidebarMenu('reservarSala');
+                });
+                
+                reservarSalaDropdown.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('reservarSala');
+                });
+                
+                reservarSalaMenu.addEventListener('mouseenter', function() {
+                    showSidebarMenu('reservarSala');
+                });
+                
+                reservarSalaMenu.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('reservarSala');
+                });
+            }
+
+            // Submenu Endereço Fiscal Parceiro
+            const enderecoFiscalParceiroDropdown = document.getElementById('enderecoFiscalParceiroDropdown');
+            const enderecoFiscalParceiroMenu = document.getElementById('enderecoFiscalParceiroMenu');
+            
+            if (enderecoFiscalParceiroDropdown && enderecoFiscalParceiroMenu) {
+                enderecoFiscalParceiroDropdown.addEventListener('mouseenter', function() {
+                    showSidebarMenu('enderecoFiscalParceiro');
+                });
+                
+                enderecoFiscalParceiroDropdown.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('enderecoFiscalParceiro');
+                });
+                
+                enderecoFiscalParceiroMenu.addEventListener('mouseenter', function() {
+                    showSidebarMenu('enderecoFiscalParceiro');
+                });
+                
+                enderecoFiscalParceiroMenu.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('enderecoFiscalParceiro');
+                });
+            }
+
+            // Submenu Financeiro Parceiro
+            const financeiroParceiroDropdown = document.getElementById('financeiroParceiroDropdown');
+            const financeiroParceiroMenu = document.getElementById('financeiroParceiroMenu');
+            
+            if (financeiroParceiroDropdown && financeiroParceiroMenu) {
+                financeiroParceiroDropdown.addEventListener('mouseenter', function() {
+                    showSidebarMenu('financeiroParceiro');
+                });
+                
+                financeiroParceiroDropdown.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('financeiroParceiro');
+                });
+                
+                financeiroParceiroMenu.addEventListener('mouseenter', function() {
+                    showSidebarMenu('financeiroParceiro');
+                });
+                
+                financeiroParceiroMenu.addEventListener('mouseleave', function() {
+                    hideSidebarMenu('financeiroParceiro');
+                });
+            }
         });
     </script>
     @await RenderSectionAsync("Scripts", required: false)

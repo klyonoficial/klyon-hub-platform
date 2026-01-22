@@ -9,7 +9,14 @@
 @Html.AntiForgeryToken()
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-building"></i> Gerenciar Coworkings</h2>
+    <div>
+        <h2><i class="bi bi-building"></i> Gerenciar Coworkings</h2>
+        <p class="text-muted mb-0">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Para definir percentagens de comissão por serviço:</strong> 
+            Clique no botão <i class="bi bi-percent"></i> ou no badge de serviços na coluna "Serviços" para acessar a configuração de percentagens de cada parceiro.
+        </p>
+    </div>
 </div>
 
 <!-- Filtros -->
@@ -84,6 +91,7 @@
                             <th>Email</th>
                             <th>Telefone</th>
                             <th>Endereços</th>
+                            <th>Serviços</th>
                             <th>Status</th>
                             <th>Aprovação</th>
                             <th>Tipo</th>
@@ -102,6 +110,28 @@
                                 <td>@(coworking.ContactPhone ?? "-")</td>
                                 <td>
                                     <span class="badge bg-info">@(coworking.Addresses?.Count ?? 0) endereços</span>
+                                </td>
+                                <td>
+                                    @{
+                                        var servicesCount = ViewBag.ServicesCount as Dictionary<int, int> ?? new Dictionary<int, int>();
+                                        var count = servicesCount.ContainsKey(coworking.Id) ? servicesCount[coworking.Id] : 0;
+                                    }
+                                    @if (count > 0)
+                                    {
+                                        <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                           class="badge bg-success text-decoration-none" 
+                                           title="Clique para gerenciar serviços e percentagens">
+                                            <i class="bi bi-grid"></i> @count serviço(s)
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                           class="badge bg-secondary text-decoration-none" 
+                                           title="Clique para adicionar serviços e definir percentagens">
+                                            <i class="bi bi-plus-circle"></i> Adicionar
+                                        </a>
+                                    }
                                 </td>
                                 <td>
                                     <span class="badge bg-@(coworking.IsActive ? "success" : "danger")">
@@ -125,6 +155,11 @@
                                     <button class="btn btn-sm btn-info" onclick="viewCoworking(@coworking.Id)" title="Visualizar">
                                         <i class="bi bi-eye-fill"></i>
                                     </button>
+                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                       class="btn btn-sm btn-primary" 
+                                       title="Gerenciar Serviços e Percentagens">
+                                        <i class="bi bi-percent"></i>
+                                    </a>
                                     <button class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </button>

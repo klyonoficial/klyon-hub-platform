@@ -6,7 +6,6 @@
     var isClientLogged = ViewBag.IsClientLogged ?? false;
     var isAvailable = Model.Address.IsAvailable && Model.Address.CurrentContracts < Model.Address.MaxContracts;
     var returnUrl = Model.ReturnUrl ?? Url.Action("Marketplace", "Home")!;
-    var availableCredits = ViewBag.AvailableCredits ?? 0;
     
     // Verificar se o coworking oferece aluguel de sala
     var offersRoomRental = Model.Coworking.Products?.Any(p => p.ProductType == "RoomRental" && p.IsActive) ?? false;
@@ -25,6 +24,9 @@
     if (Model.Address.OffersPrivateRoom && Model.Address.PrivateRoomMaxSeats.HasValue)
         maxCapacity = Math.Max(maxCapacity, Model.Address.PrivateRoomMaxSeats.Value);
     if (maxCapacity == 0) maxCapacity = Model.Address.MaxContracts;
+    
+    // Créditos disponíveis do cliente
+    var availableCredits = ViewBag.AvailableCredits as int? ?? 0;
 }
 
 <style>
@@ -549,11 +551,8 @@
                                         <a href="@Url.Action("BookRoom", "Client", new { id = Model.Address.Id })" class="btn btn-warning w-100 btn-lg mb-2">
                                             <i class="bi bi-calendar-check"></i> Reservar com Calendário
                                         </a>
-                                        <button type="button" class="btn btn-outline-warning w-100 btn-lg mb-2" data-bs-toggle="modal" data-bs-target="#buyCreditsModal">
-                                            <i class="bi bi-wallet2"></i> Comprar Créditos
-                                        </button>
-                                        <div class="alert alert-warning mb-0">
-                                            <small><i class="bi bi-exclamation-triangle"></i> Você precisa de créditos para fazer reservas.</small>
+                                        <div class="alert alert-info mb-0">
+                                            <small><i class="bi bi-info-circle"></i> O pagamento será processado ao confirmar a reserva.</small>
                                         </div>
                                     }
                                 }
@@ -588,7 +587,7 @@
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-muted">Sala Privativa</span>
-                                        <strong>@((int)Model.Address.PrivateRoomPricePerHour.Value) créditos/hora</strong>
+                                        <strong>R$ @Model.Address.PrivateRoomPricePerHour.Value.ToString("F2")/hora</strong>
                                     </div>
                                 </div>
                             }
@@ -643,9 +642,8 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-success mb-3">
-                        <i class="bi bi-wallet2"></i> <strong>Créditos disponíveis:</strong> @availableCredits créditos
-                        <small class="d-block mt-1">O valor será calculado automaticamente em créditos</small>
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> <strong>Pagamento:</strong> O valor será calculado automaticamente e o pagamento será processado ao confirmar a reserva.
                     </div>
                     <form method="post" action="@Url.Action("CreateReservation", "Home")" id="reservationForm" novalidate>
                         @Html.AntiForgeryToken()
@@ -691,7 +689,7 @@
                                                 <i class="bi bi-door-closed"></i> Privativa
                                                 @if (ViewBag.PrivateRoomPricePerHour != null)
                                                 {
-                                                    <small class="d-block">@((int)((decimal)ViewBag.PrivateRoomPricePerHour)) créditos/hora</small>
+                                                    <small class="d-block">R$ @(((decimal)ViewBag.PrivateRoomPricePerHour).ToString("F2"))/hora</small>
                                                 }
                                             </label>
                                         }
@@ -725,18 +723,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-md-12">
-                                <div class="alert alert-warning" id="creditsWarning" style="display: none;">
-                                    <i class="bi bi-exclamation-triangle"></i> <span id="creditsWarningText"></span>
-                                </div>
-                                @if (availableCredits < 1)
-                                {
-                                    <div class="alert alert-danger">
-                                        <i class="bi bi-exclamation-triangle"></i> Você não possui créditos suficientes. 
-                                        <a href="@Url.Action("BuyCredits", "Client")" class="alert-link">Compre créditos agora</a>.
-                                    </div>
-                                }
                             </div>
                         </div>
 
@@ -1028,72 +1014,6 @@
 </div>
 
 <!-- Modal de Compra de Créditos -->
-@if (isClientLogged)
-{
-    <div class="modal fade" id="buyCreditsModal" tabindex="-1" aria-labelledby="buyCreditsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="buyCreditsModalLabel">
-                        <i class="bi bi-wallet2"></i> Comprar Créditos
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-3">Você precisa de créditos para fazer reservas de salas. Escolha um plano abaixo:</p>
-                    @if (ViewBag.CreditPlans != null)
-                    {
-                        var plans = ViewBag.CreditPlans as List<KlyonHubPlatform.Domain.Entities.CreditPlan>;
-                        if (plans != null && plans.Any())
-                        {
-                            <div class="list-group">
-                                @foreach (var plan in plans)
-                                {
-                                    <a href="@Url.Action("CheckoutCredits", "Client", new { creditPlanId = plan.Id, returnUrl = Url.Action("MarketplaceDetails", "Home", new { id = Model.Address.Id }) })" 
-                                       class="list-group-item list-group-item-action">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <strong>@plan.Name</strong>
-                                                <div class="small text-muted">
-                                                    @plan.Credits créditos
-                                                    @if (plan.BonusCredits > 0)
-                                                    {
-                                                        <span class="text-success">+ @plan.BonusCredits bônus</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div class="text-end">
-                                                <strong class="text-primary">R$ @plan.Price.ToString("N2")</strong>
-                                            </div>
-                                        </div>
-                                    </a>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> Nenhum plano de crédito disponível no momento.
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Não foi possível carregar os planos de crédito.
-                        </div>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-primary">
-                        <i class="bi bi-arrow-right"></i> Ver Todos os Planos
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-}
 
 <!-- Modal de Galeria de Fotos -->
 <div class="modal fade" id="photoGalleryModal" tabindex="-1" aria-labelledby="photoGalleryModalLabel" aria-hidden="true">
@@ -1190,9 +1110,6 @@
         // Validação de horários no modal de reserva
         var reservationStartTime = document.getElementById('reservationStartTime');
         var reservationEndTime = document.getElementById('reservationEndTime');
-        var creditsWarning = document.getElementById('creditsWarning');
-        var creditsWarningText = document.getElementById('creditsWarningText');
-        var availableCredits = @availableCredits;
         var sharedPricePerHour = @(ViewBag.SharedRoomPricePerHour?.ToString("F2") ?? "0");
         var privatePricePerHour = @(ViewBag.PrivateRoomPricePerHour?.ToString("F2") ?? "0");
 
@@ -1400,40 +1317,6 @@
             });
         }
 
-        // Abrir modal de compra de créditos se necessário
-        @if (TempData["ShowBuyCredits"] != null && (bool)TempData["ShowBuyCredits"])
-        {
-            <text>
-            document.addEventListener('DOMContentLoaded', function() {
-                var buyCreditsModalElement = document.getElementById('buyCreditsModal');
-                if (buyCreditsModalElement) {
-                    var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
-                    buyCreditsModal.show();
-                }
-            });
-            </text>
-        }
-
-        // Se cliente tentar reservar sem créditos, abrir modal de compra
-        @if (isClientLogged && availableCredits == 0)
-        {
-            <text>
-            document.addEventListener('DOMContentLoaded', function() {
-                // Se houver algum botão tentando abrir o modal de reserva, interceptar
-                var reservationBtn = document.querySelector('[data-bs-target="#reservationModal"]');
-                if (reservationBtn) {
-                    reservationBtn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        var buyCreditsModalElement = document.getElementById('buyCreditsModal');
-                        if (buyCreditsModalElement) {
-                            var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
-                            buyCreditsModal.show();
-                        }
-                    });
-                }
-            });
-            </text>
-        }
         document.addEventListener('DOMContentLoaded', function() {
             // Máscara para telefone com formatação dinâmica
             const phoneInput = document.querySelector('input[name="Phone"]');
@@ -1603,19 +1486,6 @@
                 });
             }
 
-            // Abrir modal de compra de créditos se necessário
-            @if (TempData["ShowBuyCredits"] != null && (bool)TempData["ShowBuyCredits"])
-            {
-                <text>
-                setTimeout(function() {
-                    var buyCreditsModalElement = document.getElementById('buyCreditsModal');
-                    if (buyCreditsModalElement) {
-                        var buyCreditsModal = new bootstrap.Modal(buyCreditsModalElement);
-                        buyCreditsModal.show();
-                    }
-                }, 500);
-                </text>
-            }
         });
     </script>
 }

@@ -30,19 +30,45 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(x => x.Id == reservation.Id);
             if (r == null || r.CoworkingAddress?.Coworking == null) return;
 
-            var pctVal = await _config.GetValueAsync("Platform.CommissionPercentage");
-            decimal pct = 20m;
-            if (!string.IsNullOrEmpty(pctVal) && decimal.TryParse(pctVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-                pct = parsed;
+            // Buscar porcentagem do PartnerService baseado no serviço "Reservar Sala"
+            decimal pct = 20m; // Fallback padrão
+            
+            var service = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
 
-            var total = (decimal)r.CreditsUsed;
+            if (service != null && r.CoworkingAddress.CoworkingId > 0)
+            {
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == r.CoworkingAddress.CoworkingId && ps.ServiceId == service.Id);
+                
+                if (partnerService != null && partnerService.Percentage > 0)
+                {
+                    pct = partnerService.Percentage;
+                }
+                else
+                {
+                    // Fallback: usar configuração do sistema
+                    var pctVal = await _config.GetValueAsync("Platform.CommissionPercentage");
+                    if (!string.IsNullOrEmpty(pctVal) && decimal.TryParse(pctVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                        pct = parsed;
+                }
+            }
+            else
+            {
+                // Fallback: usar configuração do sistema
+                var pctVal = await _config.GetValueAsync("Platform.CommissionPercentage");
+                if (!string.IsNullOrEmpty(pctVal) && decimal.TryParse(pctVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    pct = parsed;
+            }
+
+            var total = r.TotalValue;
             var commissionAmount = Math.Round(total * (pct / 100m), 2, MidpointRounding.AwayFromZero);
             var coworkingAmount = Math.Round(total - commissionAmount, 2, MidpointRounding.AwayFromZero);
 
             _context.ReservationCommissions.Add(new ReservationCommission
             {
                 ReservationId = r.Id,
-                TotalCredits = total,
+                TotalCredits = total, // Mantido para compatibilidade, mas agora representa valor em R$
                 CommissionPercentage = pct,
                 CommissionAmount = commissionAmount,
                 CoworkingAmount = coworkingAmount

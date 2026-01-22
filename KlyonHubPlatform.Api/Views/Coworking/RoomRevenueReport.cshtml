@@ -80,7 +80,7 @@
                         <th class="text-end">Receita (R$)</th>
                     </tr>
                 </thead>
-                @* colspan 4 na detail-row para Data, Cliente, Valor, Créditos *@
+                @* colspan 3 na detail-row para Data, Cliente, Valor *@
                 <tbody>
                     @foreach (var x in byRoomType)
                     {
@@ -103,7 +103,7 @@
                                         var pageSize = ViewBag.PageSize as int? ?? 15;
                                         
                                         <table class="table table-sm mb-0">
-                                            <thead><tr><th>Data</th><th>Cliente</th><th class="text-end">Valor (R$)</th><th class="text-end">Créditos</th></tr></thead>
+                                            <thead><tr><th>Data</th><th>Cliente</th><th class="text-end">Valor (R$)</th></tr></thead>
                                             <tbody>
                                                 @foreach (var d in detailsRoom)
                                                 {
@@ -111,7 +111,6 @@
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "ClientName", "")</td>
                                                         <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
-                                                        <td class="text-end">@V(d, "Credits", 0)</td>
                                                     </tr>
                                                 }
                                             </tbody>
@@ -194,7 +193,6 @@
                         <th>Cliente</th>
                         <th class="text-end">Reservas</th>
                         <th class="text-end">Total (R$)</th>
-                        <th class="text-end">Créditos usados</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -210,7 +208,7 @@
                             <td class="text-end">@V(c, "Credits", 0)</td>
                         </tr>
                         <tr class="detail-row" style="display:none">
-                            <td colspan="5" class="p-0">
+                            <td colspan="4" class="p-0">
                                 <div class="p-3 bg-light">
                                     @if (detailsClient.Any())
                                     {
@@ -228,7 +226,6 @@
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "RoomTypeLabel", "")</td>
                                                         <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
-                                                        <td class="text-end">@V(d, "Credits", 0)</td>
                                                     </tr>
                                                 }
                                             </tbody>

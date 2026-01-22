@@ -28,9 +28,9 @@ namespace KlyonHubPlatform.Api.ViewModels
         
         // Serviços disponíveis
         public bool OffersSharedRoom { get; set; }
-        public int? SharedRoomCreditsPerHour { get; set; } // Créditos por hora para sala compartilhada
+        public decimal? SharedRoomPricePerHour { get; set; } // Preço por hora para sala compartilhada (R$)
         public bool OffersPrivateRoom { get; set; }
-        public int? PrivateRoomCreditsPerHour { get; set; } // Créditos por hora para sala privativa
+        public decimal? PrivateRoomPricePerHour { get; set; } // Preço por hora para sala privativa (R$)
     }
 
     public class MarketplaceListVm

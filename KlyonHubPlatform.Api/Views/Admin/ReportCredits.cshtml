@@ -1,13 +1,12 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model List<ClientCreditsReportDto>
 @{
-    ViewData["Title"] = "Relatório de Créditos (Ledger / Conta Corrente)";
+    ViewData["Title"] = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
     Layout = "~/Views/Shared/_Layout.cshtml";
     
-    var totalPurchased = Model?.Sum(c => c.TotalCreditsPurchased) ?? 0;
     var totalPaid = Model?.Sum(c => c.TotalAmountPaid) ?? 0m;
-    var totalCurrentBalance = Model?.Sum(c => c.CurrentBalance) ?? 0;
-    var totalConsumed = totalPurchased - totalCurrentBalance;
+    var totalSpent = Model?.Sum(c => c.SpendingByCoworking.Sum(s => s.TotalValue)) ?? 0m;
+    var totalCurrentBalance = totalPaid - totalSpent;
 }
 
 <style>
@@ -55,10 +54,10 @@
             <div>
                 <h1 class="fw-bold mb-2">
                     <i class="bi bi-wallet2 text-primary me-2"></i>
-                    Relatório de Créditos (Ledger / Conta Corrente)
+                    Relatório Financeiro de Clientes (Ledger / Conta Corrente)
                 </h1>
                 <p class="text-muted mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning"></i> Muito importante para evitar dor de cabeça
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Extrato financeiro de todos os clientes
                 </p>
             </div>
             <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary">
@@ -76,26 +75,26 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                    <h6>Créditos Comprados por Clientes</h6>
-                    <h2>@totalPurchased</h2>
+                    <h6>Total Recebido dos Clientes</h6>
+                    <h2>R$ @totalPaid.ToString("N2")</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                    <h6>Créditos Consumidos</h6>
-                    <h2>@totalConsumed</h2>
+                    <h6>Total Gasto em Reservas</h6>
+                    <h2>R$ @totalSpent.ToString("N2")</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <h6>Créditos Repassados</h6>
-                    <h2>@totalConsumed</h2>
+                    <h6>Total Repassado aos Coworkings</h6>
+                    <h2>R$ @totalSpent.ToString("N2")</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                     <h6>Saldo Atual (Disponível)</h6>
-                    <h2>@totalCurrentBalance</h2>
+                    <h2>R$ @totalCurrentBalance.ToString("N2")</h2>
                 </div>
             </div>
         </div>
@@ -107,10 +106,10 @@
             <div class="section-header">
                 <h3 class="mb-0">
                     <i class="bi bi-people text-primary me-2"></i>
-                    Créditos por Cliente
+                    Extrato Financeiro por Cliente
                 </h3>
                 <p class="text-muted mb-0 mt-2">
-                    <i class="bi bi-chevron-right"></i> Clique na linha para ver o extrato completo (compras e gastos)
+                    <i class="bi bi-chevron-right"></i> Clique na linha para ver o extrato completo (pagamentos e gastos)
                 </p>
             </div>
             <div class="card-body p-0">
@@ -122,9 +121,9 @@
                                 <tr>
                                     <th style="width: 2.5rem;"></th>
                                     <th><strong>Cliente</strong></th>
-                                    <th class="text-end"><strong>Saldo Atual</strong></th>
-                                    <th class="text-end"><strong>Créditos Comprados</strong></th>
-                                    <th class="text-end"><strong>Valor Pago (R$)</strong></th>
+                                    <th class="text-end"><strong>Saldo Atual (R$)</strong></th>
+                                    <th class="text-end"><strong>Total Pago (R$)</strong></th>
+                                    <th class="text-end"><strong>Total Gasto (R$)</strong></th>
                                     <th><strong>Gasto por Coworking</strong></th>
                                 </tr>
                             </thead>
@@ -139,15 +138,22 @@
                                             <strong class="text-primary">@c.ClientName</strong>
                                         </td>
                                         <td class="text-end">
-                                            <span class="badge bg-success fs-6 px-3 py-2">
-                                                <i class="bi bi-wallet2"></i> @c.CurrentBalance créditos
+                                            @{
+                                                var clientSpent = c.SpendingByCoworking?.Sum(s => s.TotalValue) ?? 0m;
+                                                var clientBalance = c.TotalAmountPaid - clientSpent;
+                                            }
+                                            <span class="badge @(clientBalance >= 0 ? "bg-success" : "bg-danger") fs-6 px-3 py-2">
+                                                <i class="bi bi-wallet2"></i> R$ @clientBalance.ToString("N2")
                                             </span>
                                         </td>
                                         <td class="text-end">
-                                            <strong>@c.TotalCreditsPurchased</strong>
+                                            <strong class="text-success">R$ @c.TotalAmountPaid.ToString("N2")</strong>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-success">R$ @c.TotalAmountPaid.ToString("N2")</strong>
+                                            @{
+                                                var totalClientSpent = c.SpendingByCoworking?.Sum(s => s.TotalValue) ?? 0m;
+                                            }
+                                            <strong class="text-danger">R$ @totalClientSpent.ToString("N2")</strong>
                                         </td>
                                         <td>
                                             @if (c.SpendingByCoworking != null && c.SpendingByCoworking.Any())
@@ -158,7 +164,7 @@
                                                         <span class="badge bg-light text-dark">
                                                             <i class="bi bi-building"></i> @s.CoworkingName
                                                             <br>
-                                                            <small>@s.CreditsUsed créditos (R$ @s.TotalValue.ToString("F2"))</small>
+                                                            <small>R$ @s.TotalValue.ToString("F2")</small>
                                                         </span>
                                                     }
                                                 </div>
@@ -174,9 +180,9 @@
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="2"><strong>TOTAL</strong></td>
-                                    <td class="text-end"><strong>@totalCurrentBalance créditos</strong></td>
-                                    <td class="text-end"><strong>@totalPurchased</strong></td>
+                                    <td class="text-end"><strong>R$ @totalCurrentBalance.ToString("N2")</strong></td>
                                     <td class="text-end"><strong>R$ @totalPaid.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>R$ @totalSpent.ToString("N2")</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>
@@ -187,7 +193,7 @@
                 {
                     <div class="p-5 text-center">
                         <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
-                        <p class="text-muted mt-3 mb-0">Nenhum cliente com compra de créditos ou uso em reservas.</p>
+                        <p class="text-muted mt-3 mb-0">Nenhum cliente com pagamentos ou reservas registradas.</p>
                     </div>
                 }
             </div>

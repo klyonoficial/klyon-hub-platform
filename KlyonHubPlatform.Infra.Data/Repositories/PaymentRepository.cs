@@ -20,6 +20,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             return await _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
+                .Include(p => p.Reservation)
                 .FirstOrDefaultAsync(p => p.Id == id);
         }
 

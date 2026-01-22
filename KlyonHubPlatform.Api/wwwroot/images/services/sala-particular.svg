@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="bgGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="tableGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bgGradient2)"/>
+  
+  <!-- Room outline -->
+  <rect x="150" y="100" width="500" height="400" rx="20" fill="#ffffff" opacity="0.1" stroke="#ffffff" stroke-width="3" stroke-opacity="0.3"/>
+  
+  <!-- Conference table -->
+  <ellipse cx="400" cy="350" rx="180" ry="100" fill="url(#tableGradient)" opacity="0.9"/>
+  <ellipse cx="400" cy="340" rx="160" ry="90" fill="#ffffff" opacity="0.2"/>
+  
+  <!-- Chairs around table -->
+  <g transform="translate(400, 350)">
+    <!-- Chair 1 (top) -->
+    <rect x="-25" y="-150" width="50" height="60" rx="8" fill="#ffffff" opacity="0.6"/>
+    <circle cx="0" cy="-120" r="15" fill="#ffffff" opacity="0.4"/>
+    
+    <!-- Chair 2 (right) -->
+    <rect x="130" y="-30" width="60" height="50" rx="8" fill="#ffffff" opacity="0.6"/>
+    <circle cx="160" cy="-5" r="15" fill="#ffffff" opacity="0.4"/>
+    
+    <!-- Chair 3 (bottom) -->
+    <rect x="-25" y="90" width="50" height="60" rx="8" fill="#ffffff" opacity="0.6"/>
+    <circle cx="0" cy="120" r="15" fill="#ffffff" opacity="0.4"/>
+    
+    <!-- Chair 4 (left) -->
+    <rect x="-190" y="-30" width="60" height="50" rx="8" fill="#ffffff" opacity="0.6"/>
+    <circle cx="-160" cy="-5" r="15" fill="#ffffff" opacity="0.4"/>
+  </g>
+  
+  <!-- Whiteboard/Screen -->
+  <rect x="250" y="150" width="300" height="120" rx="10" fill="#ffffff" opacity="0.3" stroke="#ffffff" stroke-width="2" stroke-opacity="0.5"/>
+  <line x1="270" y1="180" x2="530" y2="180" stroke="#ffffff" stroke-width="2" stroke-opacity="0.4"/>
+  <line x1="270" y1="210" x2="530" y2="210" stroke="#ffffff" stroke-width="2" stroke-opacity="0.4"/>
+  <line x1="270" y1="240" x2="530" y2="240" stroke="#ffffff" stroke-width="2" stroke-opacity="0.4"/>
+  
+  <!-- Decorative elements -->
+  <circle cx="100" cy="80" r="40" fill="#ffffff" opacity="0.1"/>
+  <circle cx="700" cy="120" r="35" fill="#ffffff" opacity="0.1"/>
+  <circle cx="50" cy="500" r="30" fill="#ffffff" opacity="0.15"/>
+</svg>

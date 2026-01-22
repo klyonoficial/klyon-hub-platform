@@ -160,6 +160,32 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
+                // Se o model binding falhou, criar uma nova instância e fazer binding manual
+                if (coworking == null)
+                {
+                    coworking = new Coworking
+                    {
+                        Name = Request.Form["Name"].ToString(),
+                        CNPJ = Request.Form["CNPJ"].ToString(),
+                        TradeName = Request.Form["TradeName"].ToString(),
+                        ContactEmail = Request.Form["ContactEmail"].ToString(),
+                        ContactPhone = Request.Form["ContactPhone"].ToString(),
+                        BankName = Request.Form["BankName"].ToString(),
+                        BankAgency = Request.Form["BankAgency"].ToString(),
+                        BankAccount = Request.Form["BankAccount"].ToString(),
+                        BankPixKey = Request.Form["BankPixKey"].ToString()
+                    };
+                }
+
+                // Validar campos obrigatórios
+                if (string.IsNullOrWhiteSpace(coworking.Name) || string.IsNullOrWhiteSpace(coworking.CNPJ))
+                {
+                    TempData["Error"] = "Nome e CNPJ são obrigatórios.";
+                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
+                    ViewBag.UserEmail = userEmail;
+                    return View(coworking);
+                }
+
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 coworking.UserId = userId;
                 coworking.IsActive = true;
@@ -234,6 +260,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
+                // Validar se há horários de funcionamento configurados
+                var operatingHours = await _context.CoworkingOperatingHours
+                    .Where(h => h.CoworkingId == createdCoworking.Id && h.IsActive)
+                    .CountAsync();
+
+                if (operatingHours == 0)
+                {
+                    TempData["Warning"] = "Coworking cadastrado, mas é necessário configurar os horários de funcionamento no perfil para ativar reservas.";
+                }
+
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Coworking cadastrado com sucesso!";
@@ -242,7 +278,9 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao cadastrar coworking: {ex.Message}";
-                return View(coworking);
+                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+                ViewBag.UserEmail = userEmail;
+                return View(coworking ?? new Coworking());
             }
         }
 
@@ -790,7 +828,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 ["CreatedAt"] = r.CreatedAt,
                 ["RoomType"] = r.RoomType ?? "",
                 ["TotalValue"] = (object?)r.TotalValue ?? DBNull.Value,
-                ["CreditsUsed"] = (object?)r.CreditsUsed ?? DBNull.Value,
                 ["ClientConfirmedAt"] = r.ClientConfirmedAt ?? (object)DBNull.Value,
                 ["CoworkingConfirmedAt"] = r.CoworkingConfirmedAt ?? (object)DBNull.Value
             }).Concat(interests.Select(i => new Dictionary<string, object>
@@ -808,7 +845,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 ["CreatedAt"] = i.CreatedAt,
                 ["RoomType"] = (object?)null ?? DBNull.Value,
                 ["TotalValue"] = DBNull.Value,
-                ["CreditsUsed"] = DBNull.Value
             })).OrderByDescending(x => ((DateTime)x["ReservationDate"]))
                 .ThenByDescending(x => ((DateTime)x["CreatedAt"]))
                 .ToList();
@@ -911,7 +947,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
             }
             await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);
-            TempData["Success"] = "Comparecimento confirmado. Após a confirmação do cliente, os créditos serão repassados automaticamente.";
+            TempData["Success"] = "Comparecimento confirmado. Após a confirmação do cliente, o pagamento será processado automaticamente.";
             return RedirectToAction("Reservations");
         }
 
@@ -980,7 +1016,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
                     ["ClientName"] = ClientDisplayName(r),
                     ["Value"] = r.TotalValue,
-                    ["Credits"] = r.CreditsUsed
                 }).ToList();
                 
                 var totalDetails = allDetails.Count;
@@ -1017,7 +1052,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
                         ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
                         ["Value"] = r.TotalValue,
-                        ["Credits"] = r.CreditsUsed
                     }).ToList();
                     
                     var totalDetails = allDetails.Count;
@@ -1036,7 +1070,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         ["ClientName"] = ClientDisplayName(firstReservation),
                         ["Count"] = g.Count(),
                         ["Revenue"] = (decimal)g.Sum(r => r.TotalValue),
-                        ["Credits"] = g.Sum(r => r.CreditsUsed),
                         ["Details"] = pagedDetails,
                         ["TotalDetails"] = totalDetails,
                         ["CurrentPage"] = clientPage,
@@ -1228,6 +1261,20 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.PhotosPageSize = photosPageSize;
             }
 
+            // Carregar horários de funcionamento
+            var operatingHours = await _context.CoworkingOperatingHours
+                .Where(h => h.CoworkingId == (coworkingWithDetails ?? coworkingEntity).Id)
+                .OrderBy(h => h.DayOfWeek)
+                .ToListAsync();
+            ViewBag.OperatingHours = operatingHours;
+
+            // Carregar datas bloqueadas
+            var blockedDates = await _context.BlockedDates
+                .Where(b => b.CoworkingId == (coworkingWithDetails ?? coworkingEntity).Id)
+                .OrderByDescending(b => b.BlockedDateValue)
+                .ToListAsync();
+            ViewBag.BlockedDates = blockedDates;
+
             return View(coworkingWithDetails ?? coworkingEntity);
         }
 
@@ -1274,6 +1321,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 coworkingEntity.UpdatedAt = DateTime.UtcNow;
 
                 await _coworkingService.UpdateAsync(coworkingEntity);
+
+                // Validar se há horários de funcionamento configurados (obrigatório)
+                var operatingHoursCount = await _context.CoworkingOperatingHours
+                    .Where(h => h.CoworkingId == coworkingEntity.Id && h.IsActive)
+                    .CountAsync();
+
+                if (operatingHoursCount == 0)
+                {
+                    TempData["Warning"] = "É obrigatório configurar os horários de funcionamento. Configure na aba 'Horários de Funcionamento'.";
+                    TempData["ActiveTab"] = "hours";
+                }
 
                 TempData["Success"] = "Dados do coworking atualizados com sucesso!";
                 // Manter a aba ativa após salvar
@@ -2472,6 +2530,333 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var contentType = document.FileName.EndsWith(".pdf") ? "application/pdf" : "image/jpeg";
             return File(fileBytes, contentType, document.FileName);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null || coworkingEntity.Id != CoworkingId)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var daysOfWeek = new[] { "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY" };
+
+                foreach (var day in daysOfWeek)
+                {
+                    var isActiveKey = $"IsActive_{day}";
+                    var isActive = form.ContainsKey(isActiveKey) && form[isActiveKey].ToString() == "true";
+                    var openingTimeStr = form.ContainsKey($"OpeningTime_{day}") ? form[$"OpeningTime_{day}"].ToString() : null;
+                    var closingTimeStr = form.ContainsKey($"ClosingTime_{day}") ? form[$"ClosingTime_{day}"].ToString() : null;
+
+                    // Converter strings de horário para TimeSpan
+                    TimeSpan? openingTime = null;
+                    TimeSpan? closingTime = null;
+                    
+                    if (!string.IsNullOrWhiteSpace(openingTimeStr) && TimeSpan.TryParse(openingTimeStr, out var opening))
+                    {
+                        openingTime = opening;
+                    }
+                    
+                    if (!string.IsNullOrWhiteSpace(closingTimeStr) && TimeSpan.TryParse(closingTimeStr, out var closing))
+                    {
+                        closingTime = closing;
+                    }
+
+                    var existing = await _context.CoworkingOperatingHours
+                        .FirstOrDefaultAsync(h => h.CoworkingId == CoworkingId && h.DayOfWeek == day);
+
+                    if (existing != null)
+                    {
+                        existing.IsActive = isActive;
+                        existing.OpeningTime = isActive ? openingTime : null;
+                        existing.ClosingTime = isActive ? closingTime : null;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else if (isActive)
+                    {
+                        var newHour = new CoworkingOperatingHours
+                        {
+                            CoworkingId = CoworkingId,
+                            DayOfWeek = day,
+                            IsActive = true,
+                            OpeningTime = openingTime,
+                            ClosingTime = closingTime,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.CoworkingOperatingHours.Add(newHour);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Horários de funcionamento salvos com sucesso!";
+                TempData["ActiveTab"] = "hours";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao salvar horários: {ex.Message}";
+                TempData["ActiveTab"] = "hours";
+            }
+
+            return RedirectToAction("Profile");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null || coworkingEntity.Id != CoworkingId)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Verificar se já existe bloqueio para esta data
+                var existing = await _context.BlockedDates
+                    .FirstOrDefaultAsync(b => b.CoworkingId == CoworkingId && b.BlockedDateValue.Date == BlockedDateValue.Date);
+
+                if (existing != null)
+                {
+                    TempData["Error"] = "Já existe um bloqueio para esta data.";
+                    TempData["ActiveTab"] = "hours";
+                    return RedirectToAction("Profile");
+                }
+
+                var blockedDate = new BlockedDate
+                {
+                    CoworkingId = CoworkingId,
+                    BlockedDateValue = BlockedDateValue.Date,
+                    Reason = Reason,
+                    BlocksFullDay = BlocksFullDay,
+                    StartTime = BlocksFullDay ? null : StartTime,
+                    EndTime = BlocksFullDay ? null : EndTime,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.BlockedDates.Add(blockedDate);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Data bloqueada adicionada com sucesso!";
+                TempData["ActiveTab"] = "hours";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao adicionar data bloqueada: {ex.Message}";
+                TempData["ActiveTab"] = "hours";
+            }
+
+            return RedirectToAction("Profile");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteBlockedDate(int id)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Profile");
+                }
+
+                var blockedDate = await _context.BlockedDates
+                    .FirstOrDefaultAsync(b => b.Id == id && b.CoworkingId == coworkingEntity.Id);
+
+                if (blockedDate == null)
+                {
+                    TempData["Error"] = "Data bloqueada não encontrada.";
+                    TempData["ActiveTab"] = "hours";
+                    return RedirectToAction("Profile");
+                }
+
+                _context.BlockedDates.Remove(blockedDate);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Data bloqueada removida com sucesso!";
+                TempData["ActiveTab"] = "hours";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao remover data bloqueada: {ex.Message}";
+                TempData["ActiveTab"] = "hours";
+            }
+
+            return RedirectToAction("Profile");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> MyContract()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            var partnerServices = await _context.PartnerServices
+                .Include(ps => ps.Service)
+                .Where(ps => ps.CoworkingId == coworkingEntity.Id)
+                .OrderBy(ps => ps.Service.Name)
+                .ToListAsync();
+
+            return View(partnerServices);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Services()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            // Buscar todos os serviços disponíveis
+            var allServices = await _context.Services
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.DisplayOrder)
+                .ThenBy(s => s.Name)
+                .ToListAsync();
+
+            // Buscar serviços já cadastrados pelo parceiro
+            var partnerServices = await _context.PartnerServices
+                .Include(ps => ps.Service)
+                .Where(ps => ps.CoworkingId == coworkingEntity.Id)
+                .ToListAsync();
+
+            var partnerServiceIds = partnerServices.Select(ps => ps.ServiceId).ToHashSet();
+
+            ViewBag.PartnerServices = partnerServices;
+            ViewBag.PartnerServiceIds = partnerServiceIds;
+            ViewBag.CoworkingId = coworkingEntity.Id;
+
+            return View(allServices);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddService(int serviceId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Services");
+                }
+
+                // Verificar se o serviço existe e está ativo
+                var service = await _context.Services
+                    .FirstOrDefaultAsync(s => s.Id == serviceId && s.IsActive);
+
+                if (service == null)
+                {
+                    TempData["Error"] = "Serviço não encontrado ou inativo.";
+                    return RedirectToAction("Services");
+                }
+
+                // Verificar se já está cadastrado
+                var existing = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingEntity.Id && ps.ServiceId == serviceId);
+
+                if (existing != null)
+                {
+                    TempData["Error"] = "Este serviço já está cadastrado.";
+                    return RedirectToAction("Services");
+                }
+
+                // Criar novo PartnerService
+                // A percentagem será definida pelo administrador em contrato, inicialmente 0
+                var partnerService = new PartnerService
+                {
+                    CoworkingId = coworkingEntity.Id,
+                    ServiceId = serviceId,
+                    Percentage = 0, // Será definido pelo admin em contrato
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.PartnerServices.Add(partnerService);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = $"Serviço '{service.Name}' adicionado com sucesso! A percentagem será definida em contrato pelo administrador.";
+                return RedirectToAction("Services");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao adicionar serviço: {ex.Message}";
+                return RedirectToAction("Services");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveService(int partnerServiceId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Services");
+                }
+
+                // Verificar se o PartnerService pertence ao coworking
+                var partnerService = await _context.PartnerServices
+                    .Include(ps => ps.Service)
+                    .FirstOrDefaultAsync(ps => ps.Id == partnerServiceId && ps.CoworkingId == coworkingEntity.Id);
+
+                if (partnerService == null)
+                {
+                    TempData["Error"] = "Serviço não encontrado ou não pertence a este parceiro.";
+                    return RedirectToAction("Services");
+                }
+
+                var serviceName = partnerService.Service.Name;
+
+                _context.PartnerServices.Remove(partnerService);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = $"Serviço '{serviceName}' removido com sucesso!";
+                return RedirectToAction("Services");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao remover serviço: {ex.Message}";
+                return RedirectToAction("Services");
+            }
         }
     }
 }

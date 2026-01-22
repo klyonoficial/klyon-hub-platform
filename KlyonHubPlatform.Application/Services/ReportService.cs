@@ -202,76 +202,78 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
-            // Aluguel de salas (CreditPurchase - créditos para reservas)
+            // Aluguel de salas (Reservations -> Payments)
             if (productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.AluguelSalas)
             {
                 var dateFromUtc = dateFrom.Date;
                 var dateToEnd = dateTo.Date.AddDays(1);
 
-                var purchases = await _context.CreditPurchases
-                    .Where(c =>
-                        ((c.PaidAt != null && c.PaidAt >= dateFromUtc && c.PaidAt < dateToEnd) ||
-                         (c.PaidAt == null && c.CreatedAt >= dateFromUtc && c.CreatedAt < dateToEnd))
+                var reservationPayments = await _context.Payments
+                    .Where(p =>
+                        p.ReservationId != null &&
+                        ((p.PaidAt != null && p.PaidAt >= dateFromUtc && p.PaidAt < dateToEnd) ||
+                         (p.PaidAt == null && p.CreatedAt >= dateFromUtc && p.CreatedAt < dateToEnd))
                     )
-                    .Include(c => c.Client)
-                        .ThenInclude(client => client.User)
-                    .OrderByDescending(c => c.PaidAt ?? c.CreatedAt)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                            .ThenInclude(client => client.User)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                            .ThenInclude(a => a.Location)
+                    .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                     .ToListAsync();
 
-                foreach (var c in purchases)
+                foreach (var p in reservationPayments)
                 {
-                    var isPaid = string.Equals(c.Status, "Paid", StringComparison.OrdinalIgnoreCase);
-                    if (isPaid) totalReceived += c.AmountPaid;
-                    else if (string.Equals(c.Status, "Pending", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(c.Status, "Processing", StringComparison.OrdinalIgnoreCase))
-                        pending += c.AmountPaid;
+                    var isPaid = p.Status == PaymentStatus.Paid;
+                    if (isPaid) totalReceived += p.Amount;
+                    else if (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation || p.Status == PaymentStatus.Processing)
+                        pending += p.Amount;
 
                     // Obter nome do cliente
                     var clientName = "N/A";
-                    if (c.Client != null)
+                    var client = p.Reservation?.Client;
+                    if (client != null)
                     {
-                        clientName = c.Client.RazaoSocial 
-                            ?? c.Client.NomeFantasia 
-                            ?? c.Client.ContactName 
-                            ?? c.Client.User?.FullName 
+                        clientName = client.RazaoSocial 
+                            ?? client.NomeFantasia 
+                            ?? client.ContactName 
+                            ?? client.User?.FullName 
                             ?? "N/A";
                     }
 
                     // Obter método de pagamento
-                    var paymentMethod = "-";
-                    if (c.PaymentMethod != null)
+                    var paymentMethod = p.Method switch
                     {
-                        paymentMethod = c.PaymentMethod.Value switch
+                        PaymentMethod.PIX => "PIX",
+                        PaymentMethod.CreditCard => "Cartão",
+                        PaymentMethod.BankTransfer => "Boleto",
+                        _ => p.Method.ToString()
+                    };
+
+                    // Obter localidade
+                    var location = "N/A";
+                    var address = p.Reservation?.CoworkingAddress;
+                    if (address != null)
+                    {
+                        var city = address.City ?? "";
+                        var state = address.State ?? "";
+                        if (!string.IsNullOrEmpty(city) || !string.IsNullOrEmpty(state))
                         {
-                            PaymentMethod.PIX => "PIX",
-                            PaymentMethod.CreditCard => "Cartão",
-                            PaymentMethod.BankTransfer => "Boleto",
-                            _ => c.PaymentMethod.Value.ToString()
-                        };
-                    }
-                    else if (!string.IsNullOrEmpty(c.PixCode))
-                    {
-                        paymentMethod = "PIX";
-                    }
-                    else if (!string.IsNullOrEmpty(c.BoletoCode) || !string.IsNullOrEmpty(c.BoletoBarcode))
-                    {
-                        paymentMethod = "Boleto";
-                    }
-                    else if (!string.IsNullOrEmpty(c.TransactionId))
-                    {
-                        paymentMethod = "Cartão";
+                            location = $"{city}/{state}".Trim('/');
+                        }
                     }
 
                     rows.Add(new ReportFinancialRowDto
                     {
                         ProductType = "Aluguel de salas",
-                        Date = c.PaidAt ?? c.CreatedAt,
-                        Amount = c.AmountPaid,
+                        Date = p.PaidAt ?? p.CreatedAt,
+                        Amount = p.Amount,
                         Method = paymentMethod,
                         Client = clientName,
-                        Location = "-",
-                        Status = string.Equals(c.Status, "Paid", StringComparison.OrdinalIgnoreCase) ? "Pago" : string.Equals(c.Status, "Pending", StringComparison.OrdinalIgnoreCase) ? "Pendente"
-                            : string.Equals(c.Status, "Processing", StringComparison.OrdinalIgnoreCase) ? "Processando" : string.Equals(c.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ? "Cancelado" : c.Status ?? "-"
+                        Location = location,
+                        Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
+                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
                     });
                 }
             }
@@ -304,14 +306,24 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<List<ClientCreditsReportDto>> GetClientCreditsReportAsync()
         {
+            // Buscar clientes que têm pagamentos ou reservas
             var clientIds = new HashSet<int>();
 
-            var purchased = await _context.CreditPurchases
-                .Where(c => c.Status != null && c.Status.ToLower() == "paid")
-                .Select(c => c.ClientId)
-                .Distinct()
+            // Buscar clientes através de pagamentos (via Subscription ou Reservation)
+            var paymentsWithClients = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Contract)
+                .Include(p => p.Reservation)
                 .ToListAsync();
-            foreach (var id in purchased) clientIds.Add(id);
+
+            foreach (var p in paymentsWithClients)
+            {
+                if (p.Subscription?.Contract?.ClientId != null)
+                    clientIds.Add(p.Subscription.Contract.ClientId);
+                if (p.Reservation?.ClientId != null)
+                    clientIds.Add(p.Reservation.ClientId);
+            }
 
             var reserved = await _context.Reservations
                 .Where(r => r.Status != "Cancelled")
@@ -326,18 +338,28 @@ namespace KlyonHubPlatform.Application.Services
                 var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == cid);
                 var name = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.ContactName ?? client?.User?.FullName ?? $"Cliente #{cid}";
 
-                var totalCredits = await _context.CreditPurchases
-                    .Where(c => c.ClientId == cid && c.Status != null && c.Status.ToLower() == "paid")
-                    .SumAsync(c => c.CreditsReceived + c.BonusCredits);
-                var totalPaid = await _context.CreditPurchases
-                    .Where(c => c.ClientId == cid && c.Status != null && c.Status.ToLower() == "paid")
-                    .SumAsync(c => c.AmountPaid);
+                // Total pago pelo cliente (todos os pagamentos aprovados via Subscription ou Reservation)
+                var clientPayments = await _context.Payments
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                    .Include(p => p.Reservation)
+                    .ToListAsync();
 
+                var totalPaid = clientPayments
+                    .Where(p => (p.SubscriptionId != null && p.Subscription?.Contract?.ClientId == cid) ||
+                               (p.ReservationId != null && p.Reservation?.ClientId == cid))
+                    .Sum(p => p.Amount);
+
+                // Reservas do cliente
                 var resList = await _context.Reservations
                     .Where(r => r.ClientId == cid && r.Status != "Cancelled")
                     .Include(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Coworking)
                     .ToListAsync();
+                
+                var totalSpent = resList.Sum(r => r.TotalValue);
+                
                 var spending = resList
                     .Where(r => r.CoworkingAddress != null)
                     .GroupBy(r => r.CoworkingAddress!.CoworkingId)
@@ -345,26 +367,25 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         CoworkingId = g.Key,
                         CoworkingName = g.First().CoworkingAddress?.Coworking?.Name ?? "N/A",
-                        CreditsUsed = g.Sum(r => r.CreditsUsed),
+                        CreditsUsed = 0, // Não usamos mais créditos
                         TotalValue = g.Sum(r => r.TotalValue)
                     })
                     .ToList();
 
-                var balance = await _context.ClientCredits
-                    .Where(cc => cc.ClientId == cid && cc.ExpiresAt > DateTime.UtcNow)
-                    .SumAsync(cc => cc.Credits);
+                // Saldo atual = Total pago - Total gasto em reservas
+                var currentBalance = totalPaid - totalSpent;
 
                 list.Add(new ClientCreditsReportDto
                 {
                     ClientId = cid,
                     ClientName = name,
-                    TotalCreditsPurchased = totalCredits,
+                    TotalCreditsPurchased = 0, // Não usamos mais créditos, manter 0 para compatibilidade
                     TotalAmountPaid = totalPaid,
                     SpendingByCoworking = spending,
-                    CurrentBalance = balance
+                    CurrentBalance = 0 // Não usamos mais créditos, usar TotalAmountPaid - TotalSpent
                 });
             }
-            return list.OrderByDescending(c => c.TotalCreditsPurchased + c.SpendingByCoworking.Sum(s => s.CreditsUsed)).ToList();
+            return list.OrderByDescending(c => c.TotalAmountPaid).ToList();
         }
 
         public async Task<ClientCreditStatementDto> GetClientCreditStatementAsync(int clientId, DateTime? dateFrom = null, DateTime? dateTo = null)
@@ -374,13 +395,39 @@ namespace KlyonHubPlatform.Application.Services
                 ? (client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? $"Cliente #{clientId}")
                 : $"Cliente #{clientId}";
 
-            var balance = await _context.ClientCredits
-                .Where(cc => cc.ClientId == clientId && cc.ExpiresAt > DateTime.UtcNow)
-                .SumAsync(cc => cc.Credits);
-
-            var purchases = await _context.CreditPurchases
-                .Where(c => c.ClientId == clientId && c.Status != null && c.Status.ToLower() == "paid")
+            // Calcular saldo atual: Total pago - Total gasto
+            var allPayments = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Contract)
+                .Include(p => p.Reservation)
                 .ToListAsync();
+
+            var totalPaid = allPayments
+                .Where(p => (p.SubscriptionId != null && p.Subscription?.Contract?.ClientId == clientId) ||
+                           (p.ReservationId != null && p.Reservation?.ClientId == clientId))
+                .Sum(p => p.Amount);
+
+            var totalSpent = await _context.Reservations
+                .Where(r => r.ClientId == clientId && r.Status != "Cancelled")
+                .SumAsync(r => r.TotalValue);
+
+            var balance = totalPaid - totalSpent;
+
+            var payments = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
+                            .ThenInclude(a => a.Location)
+                .Include(p => p.Reservation)
+                .ToListAsync();
+
+            // Filtrar pagamentos do cliente em memória
+            payments = payments
+                .Where(p => (p.SubscriptionId != null && p.Subscription?.Contract?.ClientId == clientId) ||
+                           (p.ReservationId != null && p.Reservation?.ClientId == clientId))
+                .ToList();
 
             var reservations = await _context.Reservations
                 .Where(r => r.ClientId == clientId && r.Status != "Cancelled")
@@ -393,18 +440,33 @@ namespace KlyonHubPlatform.Application.Services
 
             var rows = new List<ClientCreditStatementRowDto>();
 
-            foreach (var c in purchases)
+            foreach (var p in payments)
             {
-                var d = c.PaidAt ?? c.CreatedAt;
+                var d = p.PaidAt ?? p.CreatedAt;
                 if (d >= dateFromUtc && d < dateToEnd)
+                {
+                    var description = "Pagamento";
+                    if (p.Subscription != null && p.Subscription.Contract != null)
+                    {
+                        var location = p.Subscription.Contract.CoworkingAddress?.Location;
+                        description = $"Pagamento - Endereço Fiscal" + (location != null ? $" ({location.City}/{location.State})" : "");
+                    }
+                    else if (p.ReservationId != null)
+                    {
+                        description = "Pagamento - Reserva";
+                    }
+
                     rows.Add(new ClientCreditStatementRowDto
                     {
                         Date = d,
-                        Description = "Compra de créditos",
+                        Description = description,
                         Type = "Entrada",
-                        CreditsDelta = c.CreditsReceived + c.BonusCredits,
-                        Amount = c.AmountPaid
+                        CreditsDelta = 0, // Não usamos mais créditos
+                        Amount = p.Amount,
+                        PaymentId = p.Id,
+                        ReservationId = null
                     });
+                }
             }
 
             foreach (var r in reservations)
@@ -416,8 +478,10 @@ namespace KlyonHubPlatform.Application.Services
                         Date = d,
                         Description = "Reserva - " + (r.CoworkingAddress?.Coworking?.Name ?? "Coworking"),
                         Type = "Saída",
-                        CreditsDelta = -r.CreditsUsed,
-                        Amount = r.TotalValue
+                        CreditsDelta = 0, // Não usamos mais créditos
+                        Amount = r.TotalValue,
+                        PaymentId = null,
+                        ReservationId = r.Id
                     });
             }
 
@@ -427,7 +491,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 ClientId = clientId,
                 ClientName = name,
-                CurrentBalance = balance,
+                CurrentBalance = 0, // Não usamos mais créditos, calcular como totalPaid - totalSpent
                 DateFrom = dateFrom,
                 DateTo = dateTo,
                 Movements = rows
@@ -436,6 +500,10 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<List<CoworkingRevenueReportDto>> GetCoworkingRevenueReportAsync()
         {
+            // Buscar o serviço "Reservar Sala" para obter o ServiceId
+            var service = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
+
             var data = await _context.Reservations
                 .Where(r => (r.Status == "Confirmed" || r.Status == "Completed"))
                 .Include(r => r.CoworkingAddress)
@@ -446,10 +514,27 @@ namespace KlyonHubPlatform.Application.Services
                     CoworkingId = g.Key.CoworkingId,
                     CoworkingName = g.Key.Name ?? "",
                     TotalRevenue = g.Sum(r => r.TotalValue),
-                    ReservationCount = g.Count()
+                    ReservationCount = g.Count(),
+                    CommissionPercentage = 20m // Será atualizado abaixo
                 })
                 .OrderByDescending(x => x.TotalRevenue)
                 .ToListAsync();
+
+            // Buscar porcentagem do PartnerService para cada coworking
+            if (service != null)
+            {
+                foreach (var item in data)
+                {
+                    var partnerService = await _context.PartnerServices
+                        .FirstOrDefaultAsync(ps => ps.CoworkingId == item.CoworkingId && ps.ServiceId == service.Id);
+                    
+                    if (partnerService != null && partnerService.Percentage > 0)
+                    {
+                        item.CommissionPercentage = partnerService.Percentage;
+                    }
+                }
+            }
+
             return data;
         }
 
@@ -457,6 +542,23 @@ namespace KlyonHubPlatform.Application.Services
         {
             var cow = await _context.Coworkings.FindAsync(coworkingId);
             var name = cow?.Name ?? $"Coworking #{coworkingId}";
+
+            // Buscar o serviço "Reservar Sala" para obter o ServiceId
+            var service = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
+
+            // Buscar porcentagem do PartnerService para este coworking e serviço
+            decimal defaultCommissionPercentage = 20m; // Fallback padrão
+            if (service != null)
+            {
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == service.Id);
+                
+                if (partnerService != null && partnerService.Percentage > 0)
+                {
+                    defaultCommissionPercentage = partnerService.Percentage;
+                }
+            }
 
             IQueryable<Reservation> q = _context.Reservations
                 .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == coworkingId && (r.Status == "Confirmed" || r.Status == "Completed"))
@@ -468,21 +570,23 @@ namespace KlyonHubPlatform.Application.Services
             if (dateTo.HasValue)
                 q = q.Where(r => r.ReservationDate <= dateTo.Value.Date.AddDays(1));
 
-            var res = await q
+            var reservations = await q
                 .OrderByDescending(r => r.ReservationDate)
                 .ThenByDescending(r => r.StartTime)
-                .Select(r => new CoworkingReservationDetailRowDto
-                {
-                    ReservationId = r.Id,
-                    Date = r.ReservationDate,
-                    RoomType = r.RoomType,
-                    RoomTypeDisplay = r.RoomType == "Shared" ? "Sala compartilhada" : r.RoomType == "Private" ? "Sala privativa" : r.RoomType == "Auditorium" ? "Auditório" : r.RoomType,
-                    TotalValue = r.TotalValue,
-                    CreditsUsed = r.CreditsUsed,
-                    ClientName = r.Client == null ? "Cliente não identificado" : (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "N/A"),
-                    Status = r.Status == "Completed" ? "Concluída" : "Confirmada"
-                })
                 .ToListAsync();
+
+            var res = reservations.Select(r => new CoworkingReservationDetailRowDto
+            {
+                ReservationId = r.Id,
+                Date = r.ReservationDate,
+                RoomType = r.RoomType,
+                RoomTypeDisplay = r.RoomType == "Shared" ? "Sala compartilhada" : r.RoomType == "Private" ? "Sala privativa" : r.RoomType == "Auditorium" ? "Auditório" : r.RoomType,
+                TotalValue = r.TotalValue,
+                CreditsUsed = 0, // Não usamos mais créditos
+                ClientName = r.Client == null ? "Cliente não identificado" : (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "N/A"),
+                Status = r.Status == "Completed" ? "Concluída" : "Confirmada",
+                CommissionPercentage = defaultCommissionPercentage
+            }).ToList();
 
             return new CoworkingRevenueDetailDto
             {

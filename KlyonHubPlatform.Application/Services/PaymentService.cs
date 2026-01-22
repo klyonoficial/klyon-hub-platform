@@ -86,9 +86,11 @@ namespace KlyonHubPlatform.Application.Services
             await _paymentRepository.UpdateAsync(payment);
 
             // Atualizar assinatura
-            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
-            if (subscription != null)
+            if (payment.SubscriptionId.HasValue)
             {
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                if (subscription != null)
+                {
                 subscription.LastBillingDate = DateTime.UtcNow;
                 subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
                 subscription.FailedPaymentAttempts = 0;
@@ -171,6 +173,7 @@ namespace KlyonHubPlatform.Application.Services
                     }
                     await _contractRepository.UpdateAsync(contract);
                 }
+                }
             }
 
             // Calcular e criar comissão
@@ -236,7 +239,9 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não encontrado");
 
             // Buscar informações do cliente
-            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (!payment.SubscriptionId.HasValue)
+                throw new InvalidOperationException("Pagamento não possui assinatura associada.");
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
             if (subscription == null)
                 throw new InvalidOperationException("Assinatura não encontrada");
 
@@ -288,7 +293,9 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não encontrado");
 
             // Buscar informações do cliente
-            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (!payment.SubscriptionId.HasValue)
+                throw new InvalidOperationException("Pagamento não possui assinatura associada.");
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
             if (subscription == null)
                 throw new InvalidOperationException("Assinatura não encontrada");
 
@@ -424,7 +431,9 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ser processados");
 
             // Buscar informações do cliente
-            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+            if (!payment.SubscriptionId.HasValue)
+                throw new InvalidOperationException("Pagamento não possui assinatura associada.");
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
             if (subscription == null)
                 throw new InvalidOperationException("Assinatura não encontrada");
 
@@ -513,9 +522,11 @@ namespace KlyonHubPlatform.Application.Services
             await _paymentRepository.UpdateAsync(payment);
 
             // Atualizar assinatura
-            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
-            if (subscription != null)
+            if (payment.SubscriptionId.HasValue)
             {
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                if (subscription != null)
+                {
                 subscription.LastBillingDate = DateTime.UtcNow;
                 subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
                 subscription.FailedPaymentAttempts = 0;
@@ -597,6 +608,7 @@ namespace KlyonHubPlatform.Application.Services
                         contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
                     }
                     await _contractRepository.UpdateAsync(contract);
+                }
                 }
             }
 

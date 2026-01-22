@@ -97,6 +97,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<ISefazService, SefazService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 builder.Services.AddScoped<IReservationTransferService, ReservationTransferService>();
@@ -158,6 +159,12 @@ app.UseMiddleware<AuditMiddleware>();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Rota de alias para Parceiro -> Coworking
+app.MapControllerRoute(
+    name: "parceiro",
+    pattern: "Parceiro/{action=Dashboard}/{id?}",
+    defaults: new { controller = "Coworking" });
 
 // Initialize database
 using (var scope = app.Services.CreateScope())

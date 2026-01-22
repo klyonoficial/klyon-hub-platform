@@ -6,8 +6,9 @@
     
     var totalReservations = Model?.Sum(x => x.ReservationCount) ?? 0;
     var totalRevenue = Model?.Sum(x => x.TotalRevenue) ?? 0m;
-    var estimatedCommission = totalRevenue * 0.20m; // 20% padrão
-    var estimatedNetValue = totalRevenue - estimatedCommission;
+    // Calcular comissão total baseada na porcentagem de cada coworking
+    var totalCommission = Model?.Sum(x => x.TotalRevenue * (x.CommissionPercentage / 100m)) ?? 0m;
+    var estimatedNetValue = totalRevenue - totalCommission;
 }
 
 <style>
@@ -106,8 +107,8 @@
                 <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="mb-1 opacity-75">Comissão (20%)</h6>
-                            <div class="kpi-value">R$ @estimatedCommission.ToString("N2")</div>
+                            <h6 class="mb-1 opacity-75">Comissão Total</h6>
+                            <div class="kpi-value">R$ @totalCommission.ToString("N2")</div>
                         </div>
                         <i class="bi bi-percent" style="font-size: 3rem; opacity: 0.3;"></i>
                     </div>
@@ -150,7 +151,7 @@
                                     <th><strong>Coworking</strong></th>
                                     <th class="text-end"><strong>Total de Reservas</strong></th>
                                     <th class="text-end"><strong>Faturamento Bruto (R$)</strong></th>
-                                    <th class="text-end"><strong>Comissão da Plataforma (20%)</strong></th>
+                                    <th class="text-end"><strong>Comissão da Plataforma (%)</strong></th>
                                     <th class="text-end"><strong>Valor Líquido Repassado (R$)</strong></th>
                                     <th class="text-end"><strong>Status</strong></th>
                                 </tr>
@@ -158,7 +159,7 @@
                             <tbody>
                                 @foreach (var x in Model)
                                 {
-                                    var commission = x.TotalRevenue * 0.20m;
+                                    var commission = x.TotalRevenue * (x.CommissionPercentage / 100m);
                                     var netValue = x.TotalRevenue - commission;
                                     <tr class="clickable-row" onclick="window.location.href='@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = x.CoworkingId })'">
                                         <td>
@@ -195,7 +196,7 @@
                                     <td colspan="2"><strong>TOTAL</strong></td>
                                     <td class="text-end"><strong>@totalReservations</strong></td>
                                     <td class="text-end"><strong>R$ @totalRevenue.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>R$ @estimatedCommission.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>R$ @totalCommission.ToString("N2")</strong></td>
                                     <td class="text-end"><strong>R$ @estimatedNetValue.ToString("N2")</strong></td>
                                     <td></td>
                                 </tr>

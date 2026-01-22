@@ -130,25 +130,25 @@
                                 <div class="mb-3">
                                     <small class="text-muted d-block mb-2"><strong>Serviços Disponíveis:</strong></small>
                                     <div class="d-flex flex-column gap-1">
-                                        @if (item.OffersSharedRoom && item.SharedRoomCreditsPerHour.HasValue)
+                                        @if (item.OffersSharedRoom && item.SharedRoomPricePerHour.HasValue)
                                         {
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <span class="small">
                                                     <i class="bi bi-people"></i> Sala Compartilhada
                                                 </span>
                                                 <span class="badge bg-primary">
-                                                    @item.SharedRoomCreditsPerHour.Value crédito(s)/hora
+                                                    R$ @item.SharedRoomPricePerHour.Value.ToString("F2")/hora
                                                 </span>
                                             </div>
                                         }
-                                        @if (item.OffersPrivateRoom && item.PrivateRoomCreditsPerHour.HasValue)
+                                        @if (item.OffersPrivateRoom && item.PrivateRoomPricePerHour.HasValue)
                                         {
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <span class="small">
                                                     <i class="bi bi-door-closed"></i> Sala Privativa
                                                 </span>
                                                 <span class="badge bg-primary">
-                                                    @item.PrivateRoomCreditsPerHour.Value crédito(s)/hora
+                                                    R$ @item.PrivateRoomPricePerHour.Value.ToString("F2")/hora
                                                 </span>
                                             </div>
                                         }
