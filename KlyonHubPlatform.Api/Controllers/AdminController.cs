@@ -1325,9 +1325,9 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                // Corrige migrações órfãs (aplicadas parcialmente fora do EF, ex.: 20260124)
-                await _context.Database.ExecuteSqlRawAsync(
-                    "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124120000_AddReservationDoubleConfirmAndPlatformCredits', '8.0.0')");
+                // Corrige migrações órfãs (aplicadas parcialmente ou que dependem de tabelas opcionais)
+                foreach (var m in new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" })
+                    await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
 
                 var pending = await _context.Database.GetPendingMigrationsAsync();
                 var list = pending.ToList();

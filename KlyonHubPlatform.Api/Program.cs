@@ -199,14 +199,27 @@ using (var scope = app.Services.CreateScope())
             }
             else
             {
+                // Corrige migrações órfãs (aplicadas parcialmente ou que dependem de tabelas opcionais)
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                var orphanMigrations = new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" };
+                foreach (var m in orphanMigrations)
+                {
+                    try
+                    {
+                        await dbContext.Database.ExecuteSqlRawAsync(
+                            "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
+                    }
+                    catch (Exception ex) { logger.LogWarning(ex, "Ao registrar migração órfã {M}: {Message}", m, ex.Message); }
+                }
+
                 // Se as tabelas existem, aplicar migrações pendentes
                 try
                 {
                     await dbContext.Database.MigrateAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Se não houver migrações, apenas continuar
+                    logger.LogWarning(ex, "MigrateAsync: {Message}", ex.Message);
                 }
             }
         }

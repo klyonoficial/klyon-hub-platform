@@ -11,7 +11,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // 1) Tabela PlatformCreditBalances (conta do administrador) — idempotente para retentativas
+            // 1) Tabela PlatformCreditBalances (conta do administrador) — idempotente
             migrationBuilder.Sql(@"
                 CREATE TABLE IF NOT EXISTS PlatformCreditBalances (
                     Id INT NOT NULL,
@@ -26,69 +26,41 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 WHERE NOT EXISTS (SELECT 1 FROM PlatformCreditBalances LIMIT 1);
             ");
 
-            // 2) Colunas em Reservations: confirmação dupla
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ClientConfirmedAt",
-                table: "Reservations",
-                type: "datetime(6)",
-                nullable: true);
+            // 2) Colunas em Reservations — ADD COLUMN IF NOT EXISTS (MariaDB)
+            migrationBuilder.Sql("ALTER TABLE Reservations ADD COLUMN IF NOT EXISTS ClientConfirmedAt datetime(6) NULL;");
+            migrationBuilder.Sql("ALTER TABLE Reservations ADD COLUMN IF NOT EXISTS CoworkingConfirmedAt datetime(6) NULL;");
 
-            migrationBuilder.AddColumn<DateTime>(
-                name: "CoworkingConfirmedAt",
-                table: "Reservations",
-                type: "datetime(6)",
-                nullable: true);
+            // 3) ReservationId em Transfers (FK: MariaDB não tem IF NOT EXISTS; usa verificação)
+            migrationBuilder.Sql("ALTER TABLE Transfers ADD COLUMN IF NOT EXISTS ReservationId int NULL;");
+            migrationBuilder.Sql("CREATE INDEX IF NOT EXISTS IX_Transfers_ReservationId ON Transfers (ReservationId);");
+            migrationBuilder.Sql(@"
+                SET @fk_exists = (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+                    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'Transfers'
+                    AND CONSTRAINT_NAME = 'FK_Transfers_Reservations_ReservationId');
+                SET @sql = IF(@fk_exists = 0,
+                    'ALTER TABLE Transfers ADD CONSTRAINT FK_Transfers_Reservations_ReservationId FOREIGN KEY (ReservationId) REFERENCES Reservations(Id) ON DELETE SET NULL',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            // 3) ReservationId em Transfers
-            migrationBuilder.AddColumn<int>(
-                name: "ReservationId",
-                table: "Transfers",
-                type: "int",
-                nullable: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Transfers_ReservationId",
-                table: "Transfers",
-                column: "ReservationId");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Transfers_Reservations_ReservationId",
-                table: "Transfers",
-                column: "ReservationId",
-                principalTable: "Reservations",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
-
-            // 4) Tabela ReservationCommissions
-            migrationBuilder.CreateTable(
-                name: "ReservationCommissions",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("MySQL:ValueGenerationStrategy", "MySql:Identity"),
-                    ReservationId = table.Column<int>(type: "int", nullable: false),
-                    TotalCredits = table.Column<decimal>(type: "decimal(10,2)", precision: 10, scale: 2, nullable: false),
-                    CommissionPercentage = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    CommissionAmount = table.Column<decimal>(type: "decimal(10,2)", precision: 10, scale: 2, nullable: false),
-                    CoworkingAmount = table.Column<decimal>(type: "decimal(10,2)", precision: 10, scale: 2, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP(6)")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ReservationCommissions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ReservationCommissions_Reservations_ReservationId",
-                        column: x => x.ReservationId,
-                        principalTable: "Reservations",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ReservationCommissions_ReservationId",
-                table: "ReservationCommissions",
-                column: "ReservationId");
+            // 4) Tabela ReservationCommissions — idempotente
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ReservationCommissions (
+                    Id int NOT NULL AUTO_INCREMENT,
+                    ReservationId int NOT NULL,
+                    TotalCredits decimal(10,2) NOT NULL,
+                    CommissionPercentage decimal(5,2) NOT NULL,
+                    CommissionAmount decimal(10,2) NOT NULL,
+                    CoworkingAmount decimal(10,2) NOT NULL,
+                    CreatedAt datetime(6) NOT NULL DEFAULT (CURRENT_TIMESTAMP(6)),
+                    PRIMARY KEY (Id),
+                    KEY IX_ReservationCommissions_ReservationId (ReservationId),
+                    CONSTRAINT FK_ReservationCommissions_Reservations_ReservationId
+                        FOREIGN KEY (ReservationId) REFERENCES Reservations (Id) ON DELETE CASCADE
+                ) CHARACTER SET utf8mb4;
+            ");
 
             // 5) Parâmetro de comissão (se não existir)
             migrationBuilder.Sql(@"
