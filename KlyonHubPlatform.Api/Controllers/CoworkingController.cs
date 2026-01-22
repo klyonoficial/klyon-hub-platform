@@ -2815,6 +2815,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 .OrderBy(ps => ps.Service.Name)
                 .ToListAsync();
 
+            // Verificar se os menus de coworking estão habilitados
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
+            if (!showCoworkingMenus)
+            {
+                partnerServices = partnerServices
+                    .Where(ps => ps.Service.Name == "Contratar Endereço Fiscal")
+                    .ToList();
+            }
+
             return View(partnerServices);
         }
 

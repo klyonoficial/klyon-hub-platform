@@ -913,6 +913,21 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> SystemConfigurations()
         {
+            // Inicializar configuração de menus de coworking se não existir
+            var coworkingMenusConfig = await _systemConfigurationService.GetByKeyAsync("Features.EnableCoworkingMenus");
+            if (coworkingMenusConfig == null)
+            {
+                await _systemConfigurationService.CreateOrUpdateAsync(
+                    key: "Features.EnableCoworkingMenus",
+                    value: "false",
+                    description: "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false",
+                    category: "Features",
+                    isEncrypted: false,
+                    isSensitive: false,
+                    updatedBy: User.Identity?.Name
+                );
+            }
+            
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
             
@@ -1325,9 +1340,9 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                // Corrige migrações órfãs (aplicadas parcialmente fora do EF, ex.: 20260124)
-                await _context.Database.ExecuteSqlRawAsync(
-                    "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124120000_AddReservationDoubleConfirmAndPlatformCredits', '8.0.0')");
+                // Corrige migrações órfãs (aplicadas parcialmente ou que dependem de tabelas opcionais)
+                foreach (var m in new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" })
+                    await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
 
                 var pending = await _context.Database.GetPendingMigrationsAsync();
                 var list = pending.ToList();

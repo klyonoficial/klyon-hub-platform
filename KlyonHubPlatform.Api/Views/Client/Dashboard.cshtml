@@ -1,6 +1,10 @@
+@inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
     ViewData["Title"] = "Dashboard Cliente";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    // Verificar se os menus de coworking estão habilitados
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 }
 
 @model KlyonHubPlatform.Domain.Entities.Client
@@ -49,44 +53,44 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-building"></i> Reservas de Coworking</h5>
-                    <h2 class="display-4">@(ViewBag.ReservationsCount ?? 0)</h2>
-                    <a href="@Url.Action("Marketplace", "Home")" class="btn btn-light btn-sm mt-2">
-                        <i class="bi bi-search"></i> Ver Marketplace
-                    </a>
+        @if (showCoworkingMenus)
+        {
+            <div class="col-md-3">
+                <div class="card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-building"></i> Reservas de Coworking</h5>
+                        <h2 class="display-4">@(ViewBag.ReservationsCount ?? 0)</h2>
+                        <a href="@Url.Action("Marketplace", "Home")" class="btn btn-light btn-sm mt-2">
+                            <i class="bi bi-search"></i> Ver Marketplace
+                        </a>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <div class="card-body">
-                </div>
-            </div>
-        </div>
+        }
     </div>
 
-    <!-- Seção de Aluguel de Coworking -->
-    <div class="card mb-4 border-warning">
-        <div class="card-header bg-warning text-dark">
-            <h5><i class="bi bi-building"></i> Aluguel de Coworking</h5>
-        </div>
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h6 class="mb-2">Encontre e reserve salas de coworking</h6>
-                    <p class="text-muted mb-0">Explore nosso marketplace e reserve salas para reuniões, eventos ou trabalho em equipe.</p>
-                </div>
-                <div class="col-md-4 text-end">
-                    <a href="@Url.Action("Marketplace", "Home")" class="btn btn-warning btn-lg">
-                        <i class="bi bi-search"></i> Acessar Marketplace
-                    </a>
+    @if (showCoworkingMenus)
+    {
+        <!-- Seção de Aluguel de Coworking -->
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5><i class="bi bi-building"></i> Aluguel de Coworking</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="mb-2">Encontre e reserve salas de coworking</h6>
+                        <p class="text-muted mb-0">Explore nosso marketplace e reserve salas para reuniões, eventos ou trabalho em equipe.</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <a href="@Url.Action("Marketplace", "Home")" class="btn btn-warning btn-lg">
+                            <i class="bi bi-search"></i> Acessar Marketplace
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
 
     <div class="card">
         <div class="card-header">
