@@ -35,6 +35,7 @@
                     <option value="">Todos os status</option>
                     <option value="Pending" selected="@(ViewBag.Status == "Pending")">Pendente</option>
                     <option value="Processing" selected="@(ViewBag.Status == "Processing")">Processando</option>
+                    <option value="AwaitingValidation" selected="@(ViewBag.Status == "AwaitingValidation")">Aguardando Validação</option>
                     <option value="Paid" selected="@(ViewBag.Status == "Paid")">Pago</option>
                     <option value="Failed" selected="@(ViewBag.Status == "Failed")">Falhou</option>
                 </select>
@@ -149,7 +150,7 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (payment.Status == PaymentStatus.Pending)
+                                    @if (payment.Status == PaymentStatus.Pending || payment.Status == PaymentStatus.AwaitingValidation)
                                     {
                                         <form method="post" action="@Url.Action("ConfirmPayment", "Admin")" style="display: inline;">
                                             @Html.AntiForgeryToken()

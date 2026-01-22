@@ -1,10 +1,12 @@
+@model KlyonHubPlatform.Domain.Entities.Client?
 @{
-    ViewData["Title"] = "Cadastro de Cliente";
+    ViewData["Title"] = Model == null ? "Cadastro de Cliente" : "Editar Cliente";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var client = Model ?? new KlyonHubPlatform.Domain.Entities.Client();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-person-plus"></i> Cadastro de Cliente</h2>
+    <h2><i class="bi bi-person-plus"></i> @(Model == null ? "Cadastro de Cliente" : "Editar Cliente")</h2>
 </div>
 
 @if (TempData["Success"] != null)
@@ -27,56 +29,60 @@
     <div class="card-body">
         <form method="post" action="@Url.Action("RegisterClient", "Client")">
             @Html.AntiForgeryToken()
+            @if (Model != null)
+            {
+                <input type="hidden" name="Id" value="@Model.Id" />
+            }
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="RazaoSocial" class="form-label">Razão Social</label>
-                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial">
+                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@client.RazaoSocial">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
-                    <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia">
+                    <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia" value="@client.NomeFantasia">
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="CNPJ" class="form-label">CNPJ</label>
-                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18">
+                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="CPF" class="form-label">CPF (se pessoa física)</label>
-                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14">
+                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF">
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="ContactName" class="form-label">Nome do Contato</label>
-                    <input type="text" class="form-control" id="ContactName" name="ContactName" required>
+                    <input type="text" class="form-control" id="ContactName" name="ContactName" value="@client.ContactName" required>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ContactEmail" class="form-label">Email de Contato</label>
                     <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
-                           value="@ViewBag.UserEmail" readonly required>
-                    <small class="form-text text-muted">Este email é o mesmo do seu cadastro e não pode ser alterado.</small>
+                           value="@(Model?.ContactEmail ?? ViewBag.UserEmail)" @(Model == null ? "readonly" : "") required>
+                    <small class="form-text text-muted">@(Model == null ? "Este email é o mesmo do seu cadastro e não pode ser alterado." : "")</small>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="ContactPhone" class="form-label">Telefone</label>
-                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15">
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15" value="@client.ContactPhone">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ZipCode" class="form-label">CEP</label>
-                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" placeholder="00000-000" maxlength="9">
+                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" placeholder="00000-000" maxlength="9" value="@(client.ZipCode != null && client.ZipCode.Length == 8 ? client.ZipCode.Insert(5, "-") : client.ZipCode)">
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-8 mb-3">
                     <label for="Address" class="form-label">Endereço</label>
-                    <input type="text" class="form-control" id="Address" name="Address">
+                    <input type="text" class="form-control" id="Address" name="Address" value="@client.Address">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="City" class="form-label">Cidade</label>
-                    <input type="text" class="form-control" id="City" name="City">
+                    <input type="text" class="form-control" id="City" name="City" value="@client.City">
                 </div>
             </div>
             <div class="row">
@@ -84,33 +90,33 @@
                     <label for="State" class="form-label">Estado <span class="text-danger">*</span></label>
                     <select class="form-select" id="State" name="State" required>
                         <option value="">Selecione o estado</option>
-                        <option value="AC">AC - Acre</option>
-                        <option value="AL">AL - Alagoas</option>
-                        <option value="AP">AP - Amapá</option>
-                        <option value="AM">AM - Amazonas</option>
-                        <option value="BA">BA - Bahia</option>
-                        <option value="CE">CE - Ceará</option>
-                        <option value="DF">DF - Distrito Federal</option>
-                        <option value="ES">ES - Espírito Santo</option>
-                        <option value="GO">GO - Goiás</option>
-                        <option value="MA">MA - Maranhão</option>
-                        <option value="MT">MT - Mato Grosso</option>
-                        <option value="MS">MS - Mato Grosso do Sul</option>
-                        <option value="MG">MG - Minas Gerais</option>
-                        <option value="PA">PA - Pará</option>
-                        <option value="PB">PB - Paraíba</option>
-                        <option value="PR">PR - Paraná</option>
-                        <option value="PE">PE - Pernambuco</option>
-                        <option value="PI">PI - Piauí</option>
-                        <option value="RJ">RJ - Rio de Janeiro</option>
-                        <option value="RN">RN - Rio Grande do Norte</option>
-                        <option value="RS">RS - Rio Grande do Sul</option>
-                        <option value="RO">RO - Rondônia</option>
-                        <option value="RR">RR - Roraima</option>
-                        <option value="SC">SC - Santa Catarina</option>
-                        <option value="SP">SP - São Paulo</option>
-                        <option value="SE">SE - Sergipe</option>
-                        <option value="TO">TO - Tocantins</option>
+                        <option value="AC" selected="@(client.State == "AC")">AC - Acre</option>
+                        <option value="AL" selected="@(client.State == "AL")">AL - Alagoas</option>
+                        <option value="AP" selected="@(client.State == "AP")">AP - Amapá</option>
+                        <option value="AM" selected="@(client.State == "AM")">AM - Amazonas</option>
+                        <option value="BA" selected="@(client.State == "BA")">BA - Bahia</option>
+                        <option value="CE" selected="@(client.State == "CE")">CE - Ceará</option>
+                        <option value="DF" selected="@(client.State == "DF")">DF - Distrito Federal</option>
+                        <option value="ES" selected="@(client.State == "ES")">ES - Espírito Santo</option>
+                        <option value="GO" selected="@(client.State == "GO")">GO - Goiás</option>
+                        <option value="MA" selected="@(client.State == "MA")">MA - Maranhão</option>
+                        <option value="MT" selected="@(client.State == "MT")">MT - Mato Grosso</option>
+                        <option value="MS" selected="@(client.State == "MS")">MS - Mato Grosso do Sul</option>
+                        <option value="MG" selected="@(client.State == "MG")">MG - Minas Gerais</option>
+                        <option value="PA" selected="@(client.State == "PA")">PA - Pará</option>
+                        <option value="PB" selected="@(client.State == "PB")">PB - Paraíba</option>
+                        <option value="PR" selected="@(client.State == "PR")">PR - Paraná</option>
+                        <option value="PE" selected="@(client.State == "PE")">PE - Pernambuco</option>
+                        <option value="PI" selected="@(client.State == "PI")">PI - Piauí</option>
+                        <option value="RJ" selected="@(client.State == "RJ")">RJ - Rio de Janeiro</option>
+                        <option value="RN" selected="@(client.State == "RN")">RN - Rio Grande do Norte</option>
+                        <option value="RS" selected="@(client.State == "RS")">RS - Rio Grande do Sul</option>
+                        <option value="RO" selected="@(client.State == "RO")">RO - Rondônia</option>
+                        <option value="RR" selected="@(client.State == "RR")">RR - Roraima</option>
+                        <option value="SC" selected="@(client.State == "SC")">SC - Santa Catarina</option>
+                        <option value="SP" selected="@(client.State == "SP")">SP - São Paulo</option>
+                        <option value="SE" selected="@(client.State == "SE")">SE - Sergipe</option>
+                        <option value="TO" selected="@(client.State == "TO")">TO - Tocantins</option>
                     </select>
                 </div>
             </div>
