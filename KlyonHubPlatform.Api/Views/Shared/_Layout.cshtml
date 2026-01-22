@@ -1,3 +1,9 @@
+@inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
+@{
+    // Verificar se os menus de coworking estão habilitados
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -48,7 +54,7 @@
                         var isAdmin = User.IsInRole("Administrator");
                         var isAuthenticated = User.Identity?.IsAuthenticated == true;
                     }
-                    @if (!isAuthenticated || (isClient && !isCoworking && !isAdmin))
+                    @if ((!isAuthenticated || (isClient && !isCoworking && !isAdmin)) && showCoworkingMenus)
                     {
                         <li class="nav-item">
                             <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
@@ -207,16 +213,20 @@
                                 <i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens
                             </a>
                             
-                            <a class="nav-link" href="@Url.Action("Reservations", "Parceiro")">
-                                <i class="bi bi-calendar-check"></i> Reservas
-                            </a>
-                            
-                            @* Menu de Aluguel de Salas - só aparece se o produto estiver marcado *@
-                            @if (hasRoomRental)
+                            @* Menu de Reservas e Aluguel de Salas - só aparece se habilitado nas configurações *@
+                            @if (showCoworkingMenus)
                             {
-                                <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Parceiro")">
-                                    <i class="bi bi-currency-dollar"></i> Receita de Salas
+                                <a class="nav-link" href="@Url.Action("Reservations", "Parceiro")">
+                                    <i class="bi bi-calendar-check"></i> Reservas
                                 </a>
+                                
+                                @* Menu de Aluguel de Salas - só aparece se o produto estiver marcado *@
+                                @if (hasRoomRental)
+                                {
+                                    <a class="nav-link" href="@Url.Action("RoomRevenueReport", "Parceiro")">
+                                        <i class="bi bi-currency-dollar"></i> Receita de Salas
+                                    </a>
+                                }
                             }
                             
                             @* Menu Financeiro com submenu *@
@@ -252,29 +262,32 @@
                                 <i class="bi bi-speedometer2"></i> Dashboard
                             </a>
                             
-                            @* Menu Reservar Sala com submenu *@
-                            <div class="sidebar-dropdown" id="reservarSalaDropdown">
-                                <a class="nav-link sidebar-dropdown-toggle" id="reservarSalaLink" 
-                                   onmouseenter="showSidebarMenu('reservarSala')" 
-                                   onmouseleave="hideSidebarMenu('reservarSala')">
-                                    <i class="bi bi-building"></i> Reservar Sala
-                                    <i class="bi bi-chevron-right float-end"></i>
-                                </a>
-                                <ul class="sidebar-submenu" id="reservarSalaMenu" 
-                                    onmouseenter="showSidebarMenu('reservarSala')" 
-                                    onmouseleave="hideSidebarMenu('reservarSala')">
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
-                                            <i class="bi bi-search"></i> Buscar Salas
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("MyReservations", "Client")">
-                                            <i class="bi bi-calendar-check"></i> Minhas Reservas
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
+                            @* Menu Reservar Sala com submenu - só aparece se habilitado nas configurações *@
+                            @if (showCoworkingMenus)
+                            {
+                                <div class="sidebar-dropdown" id="reservarSalaDropdown">
+                                    <a class="nav-link sidebar-dropdown-toggle" id="reservarSalaLink" 
+                                       onmouseenter="showSidebarMenu('reservarSala')" 
+                                       onmouseleave="hideSidebarMenu('reservarSala')">
+                                        <i class="bi bi-building"></i> Reservar Sala
+                                        <i class="bi bi-chevron-right float-end"></i>
+                                    </a>
+                                    <ul class="sidebar-submenu" id="reservarSalaMenu" 
+                                        onmouseenter="showSidebarMenu('reservarSala')" 
+                                        onmouseleave="hideSidebarMenu('reservarSala')">
+                                        <li>
+                                            <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
+                                                <i class="bi bi-search"></i> Buscar Salas
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="nav-link" href="@Url.Action("MyReservations", "Client")">
+                                                <i class="bi bi-calendar-check"></i> Minhas Reservas
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            }
                             
                             <a class="nav-link" href="@Url.Action("CreditSpendingReport", "Client")">
                                 <i class="bi bi-graph-up"></i> Relatório de Gastos

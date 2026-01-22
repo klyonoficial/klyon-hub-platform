@@ -913,6 +913,21 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> SystemConfigurations()
         {
+            // Inicializar configuração de menus de coworking se não existir
+            var coworkingMenusConfig = await _systemConfigurationService.GetByKeyAsync("Features.EnableCoworkingMenus");
+            if (coworkingMenusConfig == null)
+            {
+                await _systemConfigurationService.CreateOrUpdateAsync(
+                    key: "Features.EnableCoworkingMenus",
+                    value: "false",
+                    description: "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false",
+                    category: "Features",
+                    isEncrypted: false,
+                    isSensitive: false,
+                    updatedBy: User.Identity?.Name
+                );
+            }
+            
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
             

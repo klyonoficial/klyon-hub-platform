@@ -1,6 +1,10 @@
+@inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
     ViewData["Title"] = "Meu Perfil - Coworking";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    // Verificar se os menus de coworking estão habilitados
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
@@ -108,11 +112,14 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
     </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="hours-tab" data-bs-toggle="tab" data-bs-target="#hours" type="button" role="tab">
-            <i class="bi bi-clock"></i> Horários de Funcionamento
-        </button>
-    </li>
+    @if (showCoworkingMenus)
+    {
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="hours-tab" data-bs-toggle="tab" data-bs-target="#hours" type="button" role="tab">
+                <i class="bi bi-clock"></i> Horários de Funcionamento
+            </button>
+        </li>
+    }
 </ul>
 
 <div class="tab-content" id="profileTabContent">
@@ -780,8 +787,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
         </div>
     </div>
 
-    <!-- Horários de Funcionamento -->
-    <div class="tab-pane fade" id="hours" role="tabpanel">
+    @if (showCoworkingMenus)
+    {
+        <!-- Horários de Funcionamento -->
+        <div class="tab-pane fade" id="hours" role="tabpanel">
         <div class="card">
             <div class="card-body">
                 <h5 class="mb-3"><i class="bi bi-clock"></i> Horários de Funcionamento</h5>
@@ -932,6 +941,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             </div>
         </div>
     </div>
+    }
 </div>
 
     <!-- Modal para Upload de Fotos -->
@@ -1529,6 +1539,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             </div>
         </div>
     </div>
+    }
 
     <script>
         function updatePartnersPageSize(newSize) {
