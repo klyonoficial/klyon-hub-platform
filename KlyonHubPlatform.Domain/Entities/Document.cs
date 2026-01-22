@@ -12,6 +12,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? Description { get; set; }
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ExpiresAt { get; set; }
+        /// <summary>
+        /// UUID do documento na D4Sign (quando enviado para assinatura eletrônica).
+        /// </summary>
+        public string? D4SignDocumentUuid { get; set; }
 
         // Navigation properties
         public virtual Contract Contract { get; set; } = null!;

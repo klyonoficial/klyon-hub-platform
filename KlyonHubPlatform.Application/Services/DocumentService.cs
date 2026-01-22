@@ -26,6 +26,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IHostEnvironment _environment;
         private readonly StorageServiceFactory _storageFactory;
         private readonly ISystemConfigurationService _systemConfigService;
+        private readonly ID4SignService _d4SignService;
 
         public DocumentService(
             IDocumentRepository documentRepository,
@@ -35,7 +36,8 @@ namespace KlyonHubPlatform.Application.Services
             IConfiguration configuration,
             IHostEnvironment environment,
             StorageServiceFactory storageFactory,
-            ISystemConfigurationService systemConfigService)
+            ISystemConfigurationService systemConfigService,
+            ID4SignService d4SignService)
         {
             _documentRepository = documentRepository;
             _contractRepository = contractRepository;
@@ -45,6 +47,7 @@ namespace KlyonHubPlatform.Application.Services
             _environment = environment;
             _storageFactory = storageFactory;
             _systemConfigService = systemConfigService;
+            _d4SignService = d4SignService;
         }
 
         public async Task<DocumentModel> GenerateContractDocumentAsync(int contractId)
@@ -193,13 +196,36 @@ namespace KlyonHubPlatform.Application.Services
             
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
+            string? d4SignUuid = null;
+            if (await _d4SignService.IsConfiguredAsync())
+            {
+                var signerEmail = contract.Client.ContactEmail ?? contract.Client.User?.Email;
+                if (!string.IsNullOrWhiteSpace(signerEmail))
+                {
+                    try
+                    {
+                        d4SignUuid = await _d4SignService.SendContractForSignatureAsync(
+                            pdfBytes,
+                            fileName,
+                            signerEmail,
+                            contract.Client.ContactName ?? contract.Client.RazaoSocial ?? contract.Client.NomeFantasia,
+                            message: $"Contrato de Endereço Fiscal {contract.ContractNumber}. Por favor, assine o documento.");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"D4Sign: erro ao enviar contrato para assinatura: {ex.Message}");
+                    }
+                }
+            }
+
             var documentEntity = new DocumentModel
             {
                 ContractId = contractId,
                 Type = DocumentType.Contract,
                 FileName = fileName,
                 FilePath = filePath,
-                Description = "Contrato de Endereço Fiscal"
+                Description = "Contrato de Endereço Fiscal",
+                D4SignDocumentUuid = d4SignUuid
             };
 
             return await _documentRepository.CreateAsync(documentEntity);

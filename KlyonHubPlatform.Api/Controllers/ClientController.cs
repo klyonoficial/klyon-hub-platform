@@ -53,6 +53,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IReservationTransferService _reservationTransferService;
         private readonly IEmailService _emailService;
         private readonly ILogger<ClientController> _logger;
+        private readonly ISystemConfigurationService _systemConfig;
 
         public ClientController(
             IContractService contractService,
@@ -65,7 +66,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ApplicationDbContext context,
             IReservationTransferService reservationTransferService,
             IEmailService emailService,
-            ILogger<ClientController> logger)
+            ILogger<ClientController> logger,
+            ISystemConfigurationService systemConfig)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -78,6 +80,14 @@ namespace KlyonHubPlatform.Api.Controllers
             _reservationTransferService = reservationTransferService;
             _emailService = emailService;
             _logger = logger;
+            _systemConfig = systemConfig;
+        }
+
+        private async Task<long> GetMaxPhotoSizeBytesAsync()
+        {
+            var mb = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            if (int.TryParse(mb, out var n) && n > 0) return n * 1024L * 1024L;
+            return 5 * 1024L * 1024L;
         }
 
         [HttpGet]
@@ -224,6 +234,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
+
+            var maxPhotoMb = 5;
+            var mbStr = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            if (int.TryParse(mbStr, out var n) && n > 0) maxPhotoMb = n;
+            ViewBag.MaxPhotoSizeMB = maxPhotoMb;
             
             return View(client);
         }
@@ -385,10 +400,11 @@ namespace KlyonHubPlatform.Api.Controllers
                         return RedirectToAction("Profile");
                     }
                     
-                    // Validar tamanho (máximo 5MB)
-                    if (Logo.Length > 5 * 1024 * 1024)
+                    var maxBytes = await GetMaxPhotoSizeBytesAsync();
+                    var maxMb = (int)(maxBytes / (1024 * 1024));
+                    if (Logo.Length > maxBytes)
                     {
-                        TempData["Error"] = "O arquivo é muito grande. O tamanho máximo é 5MB.";
+                        TempData["Error"] = $"O arquivo é muito grande. O tamanho máximo é {maxMb}MB. (Configurável em Admin > Configurações > Upload.MaxPhotoSizeMB)";
                         return RedirectToAction("Profile");
                     }
                     
@@ -554,39 +570,38 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             const int pageSize = 6;
             
-            // Query base
+            // Query base: localidades ativas
             var query = _context.Locations.Where(l => l.IsActive);
-            
-            // Aplicar filtros
-            if (!string.IsNullOrEmpty(region))
-            {
-                query = query.Where(l => l.Region == region);
-            }
-            
-            if (!string.IsNullOrEmpty(state))
-            {
-                query = query.Where(l => l.State == state);
-            }
-            
             var allLocations = await query.ToListAsync();
-            
-            // Verificar quais localidades têm endereços disponíveis
             var locationIds = allLocations.Select(l => l.Id).ToList();
+            
+            // Contar endereços disponíveis por localidade (IsAvailable, CurrentContracts < MaxContracts)
             var availableAddressesCount = await _context.CoworkingAddresses
                 .Where(a => a.IsAvailable && a.CurrentContracts < a.MaxContracts && locationIds.Contains(a.LocationId))
                 .GroupBy(a => a.LocationId)
                 .Select(g => new { LocationId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.LocationId, x => x.Count);
             
-            // Ordenar por disponibilidade (com endereços primeiro) e depois por estado
-            var sortedLocations = allLocations
-                .OrderByDescending(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
+            // Mostrar somente localidades que tenham pelo menos um endereço cadastrado
+            var locationsWithAddresses = allLocations
+                .Where(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
+                .ToList();
+            
+            // Aplicar filtros de região e estado
+            if (!string.IsNullOrEmpty(region))
+                locationsWithAddresses = locationsWithAddresses.Where(l => l.Region == region).ToList();
+            if (!string.IsNullOrEmpty(state))
+                locationsWithAddresses = locationsWithAddresses.Where(l => l.State == state).ToList();
+            
+            // Ordenar por quantidade de endereços (maior primeiro) e depois por estado
+            var sortedLocations = locationsWithAddresses
+                .OrderByDescending(l => availableAddressesCount[l.Id])
                 .ThenBy(l => l.State)
                 .ToList();
             
             // Paginação
             var totalItems = sortedLocations.Count;
-            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            var totalPages = totalItems > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
             page = Math.Max(1, Math.Min(page, totalPages));
             
             var pagedLocations = sortedLocations
@@ -602,20 +617,12 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             
-            // Buscar regiões e estados únicos para os filtros
-            ViewBag.Regions = await _context.Locations
-                .Where(l => l.IsActive)
-                .Select(l => l.Region)
-                .Distinct()
-                .OrderBy(r => r)
-                .ToListAsync();
-            
-            ViewBag.States = await _context.Locations
-                .Where(l => l.IsActive)
-                .Select(l => l.State)
-                .Distinct()
-                .OrderBy(s => s)
-                .ToListAsync();
+            // Filtros: apenas regiões e estados que possuem ao menos uma localidade com endereço
+            var baseWithAddresses = allLocations
+                .Where(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
+                .ToList();
+            ViewBag.Regions = baseWithAddresses.Select(l => l.Region).Where(r => !string.IsNullOrEmpty(r)).Distinct().OrderBy(r => r!).ToList();
+            ViewBag.States = baseWithAddresses.Select(l => l.State).Distinct().OrderBy(s => s).ToList();
             
             return View(pagedLocations);
         }

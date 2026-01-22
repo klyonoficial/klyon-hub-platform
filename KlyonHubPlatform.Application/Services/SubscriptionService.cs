@@ -26,6 +26,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 ContractId = contractId,
                 MonthlyAmount = monthlyAmount,
+                BillingCycle = "Monthly",
                 Status = SubscriptionStatus.Active,
                 NextBillingDate = DateTime.UtcNow.AddMonths(1),
                 ExternalSubscriptionId = Guid.NewGuid().ToString()

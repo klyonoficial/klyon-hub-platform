@@ -6,6 +6,7 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace KlyonHubPlatform.Api.Controllers
@@ -918,6 +919,11 @@ namespace KlyonHubPlatform.Api.Controllers
             // Obter o provedor de storage atual
             var currentProvider = await _systemConfigurationService.GetValueAsync("Storage.Provider") ?? "AWS";
             
+            // D4Sign: considerar configurado quando TokenAPI e SafeUuid preenchidos
+            var d4Token = await _systemConfigurationService.GetValueAsync("D4Sign.TokenAPI");
+            var d4Safe = await _systemConfigurationService.GetValueAsync("D4Sign.SafeUuid");
+            ViewBag.D4SignConfigured = !string.IsNullOrWhiteSpace(d4Token) && !string.IsNullOrWhiteSpace(d4Safe);
+            
             ViewBag.GroupedConfigurations = groupedByCategory;
             ViewBag.Categories = groupedByCategory.Select(g => g.Key).ToList();
             ViewBag.CurrentStorageProvider = currentProvider;
@@ -1319,6 +1325,10 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
+                // Corrige migrações órfãs (aplicadas parcialmente fora do EF, ex.: 20260124)
+                await _context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124120000_AddReservationDoubleConfirmAndPlatformCredits', '8.0.0')");
+
                 var pending = await _context.Database.GetPendingMigrationsAsync();
                 var list = pending.ToList();
                 if (list.Count == 0)
@@ -1335,6 +1345,201 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData["Error"] = "Erro ao executar migrations: " + msg;
             }
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Verifica se a tabela CoworkingOperatingHours existe e se há dados (horários de funcionamento).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyCoworkingOperatingHours()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+                var sb = new System.Text.StringBuilder();
+
+                try
+                {
+                    // 1. Verificar se a tabela existe
+                    await using (var cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"
+                            SELECT COUNT(*) FROM information_schema.tables 
+                            WHERE table_schema = DATABASE() AND table_name = 'CoworkingOperatingHours'";
+                        var exists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+                        sb.AppendLine(exists ? "[OK] Tabela CoworkingOperatingHours existe." : "[FALTA] Tabela CoworkingOperatingHours NÃO existe. Use 'Criar tabela' abaixo.");
+                        sb.AppendLine();
+
+                        if (!exists)
+                        {
+                            TempData["VerifyOperatingHoursResult"] = sb.ToString();
+                            return RedirectToAction("DatabaseManager");
+                        }
+                    }
+
+                    // 2. Contar registros
+                    await using (var cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT COUNT(*) FROM CoworkingOperatingHours";
+                        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                        sb.AppendLine($"Total de registros: {count}");
+                        sb.AppendLine();
+                    }
+
+                    // 3. Amostra (até 20)
+                    await using (var cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"
+                            SELECT Id, CoworkingId, DayOfWeek, OpeningTime, ClosingTime, IsActive, CreatedAt 
+                            FROM CoworkingOperatingHours 
+                            ORDER BY CoworkingId, DayOfWeek 
+                            LIMIT 20";
+                        await using var reader = await cmd.ExecuteReaderAsync();
+                        if (!reader.HasRows)
+                        {
+                            sb.AppendLine("(Nenhum registro ainda. Os horários são gravados ao salvar em Parceiro > Meu Perfil > Horários de Funcionamento.)");
+                        }
+                        else
+                        {
+                            sb.AppendLine("Amostra (Id | CoworkingId | DayOfWeek | OpeningTime | ClosingTime | IsActive | CreatedAt):");
+                            while (await reader.ReadAsync())
+                            {
+                                var id = reader.GetInt32(0);
+                                var cid = reader.GetInt32(1);
+                                var day = reader.GetString(2);
+                                var op = reader.IsDBNull(3) ? "NULL" : reader.GetFieldValue<TimeSpan>(3).ToString(@"hh\:mm");
+                                var cl = reader.IsDBNull(4) ? "NULL" : reader.GetFieldValue<TimeSpan>(4).ToString(@"hh\:mm");
+                                var act = reader.GetBoolean(5);
+                                var ca = reader.GetDateTime(6).ToString("yyyy-MM-dd HH:mm");
+                                sb.AppendLine($"  {id} | {cid} | {day} | {op} | {cl} | {act} | {ca}");
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    if (!wasOpen) await connection.CloseAsync();
+                }
+
+                TempData["VerifyOperatingHoursResult"] = sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                TempData["VerifyOperatingHoursResult"] = $"[ERRO] {ex.Message}";
+                if (ex.InnerException != null)
+                    TempData["VerifyOperatingHoursResult"] += "\r\n" + ex.InnerException.Message;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Cria a tabela CoworkingOperatingHours (horários de funcionamento) se não existir. Execução manual pelo admin.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCoworkingOperatingHoursTable()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+
+                var tableExists = false;
+                try
+                {
+                    await using var checkCmd = connection.CreateCommand();
+                    checkCmd.CommandText = @"
+                        SELECT COUNT(*) FROM information_schema.tables 
+                        WHERE table_schema = DATABASE() AND table_name = 'CoworkingOperatingHours'";
+                    tableExists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                }
+                catch { tableExists = false; }
+                finally { if (!wasOpen) await connection.CloseAsync(); }
+
+                if (tableExists)
+                {
+                    TempData["Info"] = "A tabela CoworkingOperatingHours já existe. Nenhuma alteração feita.";
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                var createSql = @"
+                    CREATE TABLE IF NOT EXISTS CoworkingOperatingHours (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        CoworkingId INT NOT NULL,
+                        DayOfWeek VARCHAR(20) NOT NULL CHARACTER SET utf8mb4,
+                        OpeningTime TIME(6) NULL,
+                        ClosingTime TIME(6) NULL,
+                        IsActive TINYINT(1) NOT NULL,
+                        CreatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UpdatedAt DATETIME(6) NULL,
+                        CONSTRAINT FK_CoworkingOperatingHours_Coworkings_CoworkingId 
+                            FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
+                        UNIQUE KEY IX_CoworkingOperatingHours_CoworkingId_DayOfWeek (CoworkingId, DayOfWeek)
+                    ) CHARACTER SET utf8mb4";
+                await _context.Database.ExecuteSqlRawAsync(createSql);
+
+                TempData["Success"] = "Tabela CoworkingOperatingHours criada com sucesso. Os horários de funcionamento passam a ser persistidos ao salvar no perfil do parceiro.";
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = "Erro ao criar CoworkingOperatingHours: " + msg;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Adiciona a coluna D4SignDocumentUuid na tabela Documents se não existir (D4Sign / assinatura eletrônica).
+        /// Corrige o erro "Unknown column 'd.D4SignDocumentUuid' in 'field list'" em PaymentDetails e outros.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddD4SignDocumentUuidColumn()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+
+                var columnExists = false;
+                try
+                {
+                    await using var checkCmd = connection.CreateCommand();
+                    checkCmd.CommandText = @"
+                        SELECT COUNT(*) FROM information_schema.columns 
+                        WHERE table_schema = DATABASE() AND table_name = 'Documents' AND column_name = 'D4SignDocumentUuid'";
+                    columnExists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                }
+                catch { columnExists = false; }
+                finally { if (!wasOpen) await connection.CloseAsync(); }
+
+                if (columnExists)
+                {
+                    TempData["Info"] = "A coluna Documents.D4SignDocumentUuid já existe. Nenhuma alteração feita.";
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                const string alterSql = @"ALTER TABLE Documents ADD COLUMN D4SignDocumentUuid VARCHAR(64) NULL CHARACTER SET utf8mb4;";
+                await _context.Database.ExecuteSqlRawAsync(alterSql);
+
+                TempData["Success"] = "Coluna Documents.D4SignDocumentUuid criada com sucesso. O erro em PaymentDetails/contratos deve estar resolvido.";
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = "Erro ao adicionar coluna D4SignDocumentUuid: " + msg;
+            }
+
             return RedirectToAction("DatabaseManager");
         }
 
@@ -2248,10 +2453,18 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SavePartnerService(int Id, int CoworkingId, int ServiceId, decimal Percentage)
+        public async Task<IActionResult> SavePartnerService(int Id, int CoworkingId, int ServiceId)
         {
             try
             {
+                // Parse da percentagem: aceita vírgula ou ponto (ex.: 12,5 ou 12.5)
+                var percentageStr = (Request.Form["Percentage"].ToString() ?? "").Trim().Replace(",", ".");
+                if (!decimal.TryParse(percentageStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var percentage))
+                {
+                    TempData["Error"] = "Percentagem inválida. Use números decimais (ex.: 12,5 ou 12.5).";
+                    return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                }
+
                 // Validar se o coworking existe
                 var coworking = await _context.Coworkings.FindAsync(CoworkingId);
                 if (coworking == null)
@@ -2269,7 +2482,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
 
                 // Validar percentagem
-                if (Percentage < 0 || Percentage > 100)
+                if (percentage < 0 || percentage > 100)
                 {
                     TempData["Error"] = "A percentagem deve estar entre 0 e 100.";
                     return RedirectToAction("ViewCoworking", new { id = CoworkingId });
@@ -2286,7 +2499,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     }
 
                     existing.ServiceId = ServiceId;
-                    existing.Percentage = Percentage;
+                    existing.Percentage = percentage;
                     existing.UpdatedAt = DateTime.UtcNow;
                 }
                 else
@@ -2306,7 +2519,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     {
                         CoworkingId = CoworkingId,
                         ServiceId = ServiceId,
-                        Percentage = Percentage,
+                        Percentage = percentage,
                         CreatedAt = DateTime.UtcNow
                     };
 

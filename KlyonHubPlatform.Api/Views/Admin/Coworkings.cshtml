@@ -13,8 +13,8 @@
         <h2><i class="bi bi-building"></i> Gerenciar Coworkings</h2>
         <p class="text-muted mb-0">
             <i class="bi bi-info-circle"></i> 
-            <strong>Para definir percentagens de comissão por serviço:</strong> 
-            Clique no botão <i class="bi bi-percent"></i> ou no badge de serviços na coluna "Serviços" para acessar a configuração de percentagens de cada parceiro.
+            <strong>Percentagens:</strong> Clique no botão <i class="bi bi-percent"></i> ou no badge da coluna "Serviços" para configurar percentagens. 
+            <strong>Endereços:</strong> Clique no badge da coluna "Endereços" para ver os endereços de cada coworking.
         </p>
     </div>
 </div>
@@ -109,7 +109,11 @@
                                 <td>@((coworking.ContactEmail ?? coworking.User?.Email) ?? "-")</td>
                                 <td>@(coworking.ContactPhone ?? "-")</td>
                                 <td>
-                                    <span class="badge bg-info">@(coworking.Addresses?.Count ?? 0) endereços</span>
+                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#enderecos" 
+                                       class="badge bg-info text-decoration-none" 
+                                       title="Clique para ver os endereços deste coworking">
+                                        @(coworking.Addresses?.Count ?? 0) endereço(s)
+                                    </a>
                                 </td>
                                 <td>
                                     @{

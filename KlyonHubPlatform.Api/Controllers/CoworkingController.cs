@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using System.Security.Claims;
 using System.IO;
 using KlyonHubPlatform.Application.Interfaces;
@@ -23,6 +24,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAddressDeclarationService _addressDeclarationService;
         private readonly IAuditService _auditService;
         private readonly IReservationTransferService _reservationTransferService;
+        private readonly ISystemConfigurationService _systemConfig;
 
         public CoworkingController(
             ICoworkingService coworkingService,
@@ -32,7 +34,8 @@ namespace KlyonHubPlatform.Api.Controllers
             StorageServiceFactory storageFactory,
             IAddressDeclarationService addressDeclarationService,
             IAuditService auditService,
-            IReservationTransferService reservationTransferService)
+            IReservationTransferService reservationTransferService,
+            ISystemConfigurationService systemConfig)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
@@ -42,6 +45,14 @@ namespace KlyonHubPlatform.Api.Controllers
             _addressDeclarationService = addressDeclarationService;
             _auditService = auditService;
             _reservationTransferService = reservationTransferService;
+            _systemConfig = systemConfig;
+        }
+
+        private async Task<long> GetMaxPhotoSizeBytesAsync()
+        {
+            var mb = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            if (int.TryParse(mb, out var n) && n > 0) return n * 1024L * 1024L;
+            return 5 * 1024L * 1024L;
         }
 
         /// <summary>Se o cadastro está Aprovado, qualquer alteração retorna para Em análise.</summary>
@@ -195,6 +206,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 createdCoworking.ApprovalStatus = CoworkingApprovalStatus.UnderReview;
                 createdCoworking.SubmittedAt = DateTime.UtcNow;
                 await _auditService.LogActionAsync(userId, "Submitted", "Coworking", createdCoworking.Id, null, "{\"ApprovalStatus\":\"UnderReview\"}");
+                var maxPhotoBytes = await GetMaxPhotoSizeBytesAsync();
                 var storageService = await _storageFactory.GetStorageServiceAsync();
 
                 // Processar fotos
@@ -203,7 +215,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     var photoCount = 0;
                     foreach (var photo in Photos.Take(2)) // Máximo 2 fotos
                     {
-                        if (photo.Length > 0)
+                        if (photo.Length > 0 && photo.Length <= maxPhotoBytes)
                         {
                             using var stream = new MemoryStream();
                             await photo.CopyToAsync(stream);
@@ -470,7 +482,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditAddress(int id, int locationId, string address, string number, string? complement,
-            string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts, bool isAvailable)
+            string neighborhood, string city, string state, string zipCode, int maxContracts, bool isAvailable)
         {
             try
             {
@@ -504,6 +516,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     ViewBag.Address = existingAddress;
                     return View(existingAddress);
                 }
+
+                // Interpretar Preço Base manualmente (vírgula ou ponto) para evitar zerar por cultura do model binder
+                var basePriceStr = Request.Form["BasePrice"].ToString().Trim().Replace(",", ".");
+                if (!decimal.TryParse(basePriceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var basePrice))
+                    basePrice = existingAddress.BasePrice;
 
                 // Validar preço base (não pode ser negativo)
                 if (basePrice < 0)
@@ -1173,6 +1190,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
+            var maxPhotoMb = 5;
+            var mbStr = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            if (int.TryParse(mbStr, out var n) && n > 0) maxPhotoMb = n;
+            ViewBag.MaxPhotoSizeMB = maxPhotoMb;
+
             var coworkingWithDetails = await _context.Coworkings
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == coworkingEntity.Id);
@@ -1293,31 +1315,74 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Register");
                 }
 
-                // Atualizar dados básicos
-                coworkingEntity.Name = coworking.Name;
-                coworkingEntity.CNPJ = coworking.CNPJ;
-                coworkingEntity.TradeName = coworking.TradeName;
-                coworkingEntity.Description = coworking.Description;
-                coworkingEntity.ContactEmail = coworking.ContactEmail;
-                coworkingEntity.ContactPhone = coworking.ContactPhone;
-                coworkingEntity.SecondaryPhone = coworking.SecondaryPhone;
-                coworkingEntity.SecondaryEmail = coworking.SecondaryEmail;
-                coworkingEntity.Website = coworking.Website;
-                coworkingEntity.Instagram = coworking.Instagram;
-                coworkingEntity.Facebook = coworking.Facebook;
-                coworkingEntity.LinkedIn = coworking.LinkedIn;
-                coworkingEntity.Address = coworking.Address;
-                coworkingEntity.AddressNumber = coworking.AddressNumber;
-                coworkingEntity.AddressComplement = coworking.AddressComplement;
-                coworkingEntity.AddressNeighborhood = coworking.AddressNeighborhood;
-                coworkingEntity.AddressCity = coworking.AddressCity;
-                coworkingEntity.AddressState = coworking.AddressState;
-                coworkingEntity.AddressZipCode = coworking.AddressZipCode;
-                coworkingEntity.BankName = coworking.BankName;
-                coworkingEntity.BankAgency = coworking.BankAgency;
-                coworkingEntity.BankAccount = coworking.BankAccount;
-                coworkingEntity.BankAccountType = coworking.BankAccountType;
-                coworkingEntity.BankPixKey = coworking.BankPixKey;
+                var activeTab = Request.Form["activeTab"].ToString();
+
+                // Atualizar apenas os campos da aba enviada (evita apagar endereço, contato, etc. ao salvar outra aba)
+                switch (activeTab)
+                {
+                    case "basic":
+                        coworkingEntity.Name = coworking.Name;
+                        coworkingEntity.CNPJ = coworking.CNPJ;
+                        coworkingEntity.TradeName = coworking.TradeName;
+                        coworkingEntity.Description = coworking.Description;
+                        break;
+                    case "contact":
+                        coworkingEntity.ContactEmail = coworking.ContactEmail;
+                        coworkingEntity.ContactPhone = coworking.ContactPhone;
+                        coworkingEntity.SecondaryPhone = coworking.SecondaryPhone;
+                        coworkingEntity.SecondaryEmail = coworking.SecondaryEmail;
+                        break;
+                    case "address":
+                        coworkingEntity.AddressZipCode = coworking.AddressZipCode;
+                        coworkingEntity.Address = coworking.Address;
+                        coworkingEntity.AddressNumber = coworking.AddressNumber;
+                        coworkingEntity.AddressComplement = coworking.AddressComplement;
+                        coworkingEntity.AddressNeighborhood = coworking.AddressNeighborhood;
+                        coworkingEntity.AddressCity = coworking.AddressCity;
+                        coworkingEntity.AddressState = coworking.AddressState;
+                        break;
+                    case "bank":
+                        coworkingEntity.BankName = coworking.BankName;
+                        coworkingEntity.BankAgency = coworking.BankAgency;
+                        coworkingEntity.BankAccount = coworking.BankAccount;
+                        coworkingEntity.BankAccountType = coworking.BankAccountType;
+                        coworkingEntity.BankPixKey = coworking.BankPixKey;
+                        break;
+                    case "social":
+                        coworkingEntity.Website = coworking.Website;
+                        coworkingEntity.Instagram = coworking.Instagram;
+                        coworkingEntity.Facebook = coworking.Facebook;
+                        coworkingEntity.LinkedIn = coworking.LinkedIn;
+                        break;
+                    default:
+                        // Fallback: atualizar todas as seções (ex.: activeTab ausente em requisições antigas)
+                        coworkingEntity.Name = coworking.Name;
+                        coworkingEntity.CNPJ = coworking.CNPJ;
+                        coworkingEntity.TradeName = coworking.TradeName;
+                        coworkingEntity.Description = coworking.Description;
+                        coworkingEntity.ContactEmail = coworking.ContactEmail;
+                        coworkingEntity.ContactPhone = coworking.ContactPhone;
+                        coworkingEntity.SecondaryPhone = coworking.SecondaryPhone;
+                        coworkingEntity.SecondaryEmail = coworking.SecondaryEmail;
+                        coworkingEntity.Website = coworking.Website;
+                        coworkingEntity.Instagram = coworking.Instagram;
+                        coworkingEntity.Facebook = coworking.Facebook;
+                        coworkingEntity.LinkedIn = coworking.LinkedIn;
+                        coworkingEntity.Address = coworking.Address;
+                        coworkingEntity.AddressNumber = coworking.AddressNumber;
+                        coworkingEntity.AddressComplement = coworking.AddressComplement;
+                        coworkingEntity.AddressNeighborhood = coworking.AddressNeighborhood;
+                        coworkingEntity.AddressCity = coworking.AddressCity;
+                        coworkingEntity.AddressState = coworking.AddressState;
+                        coworkingEntity.AddressZipCode = coworking.AddressZipCode;
+                        coworkingEntity.BankName = coworking.BankName;
+                        coworkingEntity.BankAgency = coworking.BankAgency;
+                        coworkingEntity.BankAccount = coworking.BankAccount;
+                        coworkingEntity.BankAccountType = coworking.BankAccountType;
+                        coworkingEntity.BankPixKey = coworking.BankPixKey;
+                        break;
+                }
+
                 coworkingEntity.UpdatedAt = DateTime.UtcNow;
 
                 await _coworkingService.UpdateAsync(coworkingEntity);
@@ -1334,8 +1399,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 TempData["Success"] = "Dados do coworking atualizados com sucesso!";
-                // Manter a aba ativa após salvar
-                var activeTab = Request.Form["activeTab"].ToString();
                 if (!string.IsNullOrEmpty(activeTab))
                 {
                     TempData["ActiveTab"] = activeTab;
@@ -1345,7 +1408,6 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao atualizar dados: {ex.Message}";
-                // Manter a aba ativa mesmo em caso de erro
                 var activeTab = Request.Form["activeTab"].ToString();
                 if (!string.IsNullOrEmpty(activeTab))
                 {
@@ -1500,6 +1562,7 @@ namespace KlyonHubPlatform.Api.Controllers
             };
             _context.CoworkingRooms.Add(room);
             await _context.SaveChangesAsync();
+            var maxPhotoBytes = await GetMaxPhotoSizeBytesAsync();
             var storage = await _storageFactory.GetStorageServiceAsync();
             var folder = $"coworkings/{cow.Id}/rooms/{room.Id}";
             if (RoomPhotos != null && RoomPhotos.Length > 0)
@@ -1507,7 +1570,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 int order = 0;
                 foreach (var f in RoomPhotos.Take(10))
                 {
-                    if (f == null || f.Length == 0 || f.Length > 5 * 1024 * 1024) continue;
+                    if (f == null || f.Length == 0 || f.Length > maxPhotoBytes) continue;
                     var ext = Path.GetExtension(f.FileName); if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
                     using var ms = new MemoryStream();
                     await f.CopyToAsync(ms);
@@ -1542,13 +1605,14 @@ namespace KlyonHubPlatform.Api.Controllers
             room.UpdatedAt = DateTime.UtcNow;
             if (RoomPhotos != null && RoomPhotos.Length > 0)
             {
+                var maxPhotoBytes = await GetMaxPhotoSizeBytesAsync();
                 var storage = await _storageFactory.GetStorageServiceAsync();
                 var folder = $"coworkings/{cow.Id}/rooms/{room.Id}";
                 var maxOrder = await _context.CoworkingRoomPhotos.Where(p => p.CoworkingRoomId == room.Id).MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
                 int order = maxOrder + 1;
                 foreach (var f in RoomPhotos.Take(10))
                 {
-                    if (f == null || f.Length == 0 || f.Length > 5 * 1024 * 1024) continue;
+                    if (f == null || f.Length == 0 || f.Length > maxPhotoBytes) continue;
                     var ext = Path.GetExtension(f.FileName); if (string.IsNullOrEmpty(ext) || !new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext.ToLower())) ext = ".jpg";
                     using var ms = new MemoryStream();
                     await f.CopyToAsync(ms);
@@ -1968,13 +2032,25 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Profile");
                 }
 
+                var maxBytes = await GetMaxPhotoSizeBytesAsync();
+                var maxMb = (int)(maxBytes / (1024 * 1024));
+                foreach (var p in photosToAdd)
+                {
+                    if (p.Length > 0 && p.Length > maxBytes)
+                    {
+                        TempData["Error"] = $"O arquivo \"{p.FileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
+                        TempData["ActiveTab"] = "photos";
+                        return RedirectToAction("Profile");
+                    }
+                }
+
                 var storageService = await _storageFactory.GetStorageServiceAsync();
                 var coworkingFolder = $"coworkings/{coworkingEntity.Id}/photos";
                 var photoCount = existingPhotosCount;
 
                 foreach (var photo in photosToAdd)
                 {
-                    if (photo.Length > 0 && photo.Length <= 5 * 1024 * 1024) // 5MB
+                    if (photo.Length > 0 && photo.Length <= maxBytes)
                     {
                         using var stream = new MemoryStream();
                         await photo.CopyToAsync(stream);
@@ -2188,6 +2264,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Profile");
                 }
 
+                var maxBytes = await GetMaxPhotoSizeBytesAsync();
+                var maxMb = (int)(maxBytes / (1024 * 1024));
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length > maxBytes)
+                {
+                    TempData["Error"] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMb}MB.";
+                    TempData["ActiveTab"] = "partners";
+                    return RedirectToAction("Profile");
+                }
+
                 partner.CoworkingId = coworkingEntity.Id;
                 partner.CreatedAt = DateTime.UtcNow;
                 partner.IsPrincipal = IsPrincipal;
@@ -2201,7 +2286,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.CoworkingPartners.Add(partner);
                 await _context.SaveChangesAsync();
 
-                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= 5 * 1024 * 1024)
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= maxBytes)
                 {
                     var storageService = await _storageFactory.GetStorageServiceAsync();
                     var folder = $"coworkings/{coworkingEntity.Id}/partners";
@@ -2268,7 +2353,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     foreach (var p in others) p.IsPrincipal = false;
                 }
 
-                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= 5 * 1024 * 1024)
+                var maxBytesPartner = await GetMaxPhotoSizeBytesAsync();
+                var maxMbPartner = (int)(maxBytesPartner / (1024 * 1024));
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length > maxBytesPartner)
+                {
+                    TempData["Error"] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMbPartner}MB.";
+                    TempData["ActiveTab"] = "partners";
+                    return RedirectToAction("Profile");
+                }
+
+                if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= maxBytesPartner)
                 {
                     var storageService = await _storageFactory.GetStorageServiceAsync();
                     if (!string.IsNullOrEmpty(existingPartner.PhotoPath))

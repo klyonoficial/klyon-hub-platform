@@ -34,51 +34,95 @@
 
 @if (Model.Any())
 {
+    <p class="text-muted mb-4">
+        <i class="bi bi-stars text-warning"></i> Escolha um endereço fiscal de qualidade para sua empresa. 
+        Contrato anual, uso do endereço para CNPJ e suporte da Klyon incluídos.
+    </p>
+
     <div class="row">
         @foreach (var address in Model)
         {
             var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
             var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
+            var yearlyPrice = address.BasePrice;
+            var monthlyEquivalent = address.BasePrice / 12;
+            var vacancies = address.MaxContracts - address.CurrentContracts;
+            var coworkingName = address.Coworking?.Name ?? "Coworking";
+            var locationLabel = address.Location != null ? $"{address.Location.City}/{address.Location.State}" : $"{address.City}/{address.State}";
             
-            <div class="col-md-6 mb-4">
-                <div class="card h-100">
+            <div class="col-lg-6 col-xl-4 mb-4">
+                <div class="card h-100 shadow-sm border-0 overflow-hidden" style="border-radius: 12px;">
                     @if (hasMainPhoto && mainPhoto != null)
                     {
-                        <div class="position-relative" style="height: 250px; overflow: hidden; background-color: #f0f0f0;">
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; overflow: hidden; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                            @if (vacancies <= 2)
+                            {
+                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                </span>
+                            }
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
                             <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = mainPhoto.Id })" 
-                                 alt="Foto do Coworking" 
+                                 alt="@coworkingName" 
                                  class="card-img-top" 
-                                 style="width: 100%; height: 100%; object-fit: cover;"
-                                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'250\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'250\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'18\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';">
+                                 style="width: 100%; height: 100%; object-fit: contain; object-position: center;"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'16\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';">
                         </div>
                     }
                     else
                     {
-                        <div class="position-relative" style="height: 250px; overflow: hidden; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;">
-                            <div class="text-center text-muted">
-                                <i class="bi bi-image" style="font-size: 3rem;"></i>
-                                <p class="mt-2 mb-0">Foto não disponível</p>
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                            @if (vacancies <= 2)
+                            {
+                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                </span>
+                            }
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
+                            <div class="text-center text-white opacity-75">
+                                <i class="bi bi-building" style="font-size: 3rem;"></i>
+                                <p class="mt-2 mb-0 small">@coworkingName</p>
                             </div>
                         </div>
                     }
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-geo-alt"></i> @address.Address, @address.Number
+                    <div class="card-body d-flex flex-column">
+                        <h6 class="text-uppercase text-primary fw-bold mb-1" style="font-size: 0.8rem;">@coworkingName</h6>
+                        <h5 class="card-title mb-2">
+                            <i class="bi bi-geo-alt-fill text-primary"></i> @address.Address, @address.Number
+                            @if (!string.IsNullOrEmpty(address.Complement)) { <span class="text-muted">@address.Complement</span> }
                         </h5>
-                        <p class="card-text">
-                            <strong>Bairro:</strong> @address.Neighborhood<br>
-                            <strong>Cidade:</strong> @address.City/@address.State<br>
-                            <strong>CEP:</strong> @address.ZipCode
+                        <p class="card-text text-muted small mb-3">
+                            @address.Neighborhood &middot; @address.City/@address.State<br>
+                            <i class="bi bi-upc"></i> CEP @address.ZipCode
                         </p>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h4 class="text-primary mb-0">R$ @address.BasePrice.ToString("F2")/mês</h4>
-                            <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form" onsubmit="return handleContractSubmit(this)">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="coworkingAddressId" value="@address.Id">
-                                <button type="submit" class="btn btn-primary contract-btn">
-                                    <i class="bi bi-check-circle"></i> Contratar
-                                </button>
-                            </form>
+
+                        <ul class="list-unstyled small mb-3 flex-grow-1">
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Endereço fiscal para CNPJ</li>
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Contrato anual — preço fixo</li>
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Suporte Klyon incluído</li>
+                        </ul>
+
+                        <div class="mt-auto pt-3 border-top">
+                            <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
+                                <div>
+                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString("N2")</span>
+                                    <span class="text-muted">/ano</span>
+                                    <div class="small text-success fw-semibold">
+                                        <i class="bi bi-tag-fill"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
+                                    </div>
+                                </div>
+                                <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form" onsubmit="return handleContractSubmit(this)">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="coworkingAddressId" value="@address.Id">
+                                    <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                        <i class="bi bi-check2-all"></i> Garantir vaga
+                                    </button>
+                                </form>
+                            </div>
+                            @if (vacancies > 0 && vacancies <= 5)
+                            {
+                                <p class="small text-muted mb-0"><i class="bi bi-people"></i> @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</p>
+                            }
                         </div>
                     </div>
                 </div>

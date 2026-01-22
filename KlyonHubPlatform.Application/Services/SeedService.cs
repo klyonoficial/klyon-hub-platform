@@ -130,6 +130,30 @@ namespace KlyonHubPlatform.Application.Services
             }
             await _context.SaveChangesAsync();
 
+            // Localidades adicionais (além das capitais): mesmo estado pode ter várias cidades
+            var additionalLocations = new[] { ("Cariacica", "ES", "Sudeste") };
+            var existingByCityState = (await _context.Locations.ToListAsync())
+                .Select(l => (l.City.Trim().ToLowerInvariant(), l.State.Trim().ToUpperInvariant()))
+                .ToHashSet();
+
+            foreach (var (city, state, region) in additionalLocations)
+            {
+                var key = (city.Trim().ToLowerInvariant(), state.Trim().ToUpperInvariant());
+                if (existingByCityState.Contains(key)) continue;
+
+                var loc = new Location { City = city, State = state, Region = region, IsActive = true };
+                _context.Locations.Add(loc);
+                await _context.SaveChangesAsync();
+                _context.LocationCommissions.Add(new LocationCommission
+                {
+                    LocationId = loc.Id,
+                    CommissionPercentage = 15.0m,
+                    IsActive = true
+                });
+                existingByCityState.Add(key);
+            }
+            await _context.SaveChangesAsync();
+
             // Seed Languages
             if (!_context.Languages.Any())
             {
@@ -537,6 +561,52 @@ namespace KlyonHubPlatform.Application.Services
                         Value = "false",
                         Description = "Usar SSL/TLS para conexão FTP (FTPS)",
                         Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    // D4Sign - Assinatura eletrônica de contratos (endereço fiscal)
+                    new SystemConfiguration
+                    {
+                        Key = "D4Sign.TokenAPI",
+                        Value = "",
+                        Description = "Token da API D4Sign (menu Dev API na conta D4Sign)",
+                        Category = "D4Sign",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "D4Sign.CryptKey",
+                        Value = "",
+                        Description = "Chave criptográfica D4Sign (obrigatória se habilitada na conta)",
+                        Category = "D4Sign",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "D4Sign.UseSandbox",
+                        Value = "true",
+                        Description = "Usar ambiente sandbox D4Sign (true/false). Produção: false.",
+                        Category = "D4Sign",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "D4Sign.SafeUuid",
+                        Value = "",
+                        Description = "UUID do cofre D4Sign onde os contratos serão armazenados (GET /safes)",
+                        Category = "D4Sign",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Upload.MaxPhotoSizeMB",
+                        Value = "5",
+                        Description = "Tamanho máximo por foto (MB) em uploads: galeria do coworking, fotos de sócios, salas, logo do cliente. Ex.: 5 ou 10.",
+                        Category = "Upload",
                         IsSensitive = false,
                         IsEncrypted = false
                     },

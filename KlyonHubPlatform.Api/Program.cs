@@ -106,6 +106,9 @@ builder.Services.AddScoped<IReservationTransferService, ReservationTransferServi
 builder.Services.AddHttpClient<PagBankService>();
 builder.Services.AddScoped<IPagBankService, PagBankService>();
 
+// D4Sign - Assinatura eletrônica de contratos (endereço fiscal)
+builder.Services.AddHttpClient<ID4SignService, D4SignService>();
+
 // Address Declaration Service
 builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService>();
 

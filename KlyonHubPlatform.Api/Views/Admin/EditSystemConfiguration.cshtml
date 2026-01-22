@@ -61,6 +61,15 @@
                                 <a href="https://pagseguro.uol.com.br/" target="_blank">PagBank Produção</a> - Integrações - APIs
                             </text>
                         }
+                        @if (Model.Key == "D4Sign.TokenAPI" || Model.Key == "D4Sign.CryptKey")
+                        {
+                            <text>
+                                <br />
+                                <i class="bi bi-info-circle"></i> <strong>Dica:</strong> Acesse sua conta 
+                                <a href="https://secure.d4sign.com.br/" target="_blank">D4Sign</a> (ou 
+                                <a href="https://sandbox.d4sign.com.br/" target="_blank">Sandbox</a>) e menu <strong>Dev API</strong> para obter Token e CryptKey.
+                            </text>
+                        }
                     </small>
                 }
                 else
@@ -73,6 +82,16 @@
                         </select>
                         <small class="form-text text-muted">
                             <i class="bi bi-info-circle"></i> Use <strong>true</strong> para testes ou <strong>false</strong> para pagamentos reais.
+                        </small>
+                    }
+                    else if (Model.Key == "D4Sign.UseSandbox")
+                    {
+                        <select class="form-control" id="value" name="value" required>
+                            <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Sandbox - sem validade jurídica)</option>
+                            <option value="false" selected="@(Model.Value?.ToLower() == "false")">false (Produção - assinaturas com validade jurídica)</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i> Sandbox para testes; Produção para contratos reais.
                         </small>
                     }
                     else

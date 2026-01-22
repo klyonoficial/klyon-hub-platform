@@ -67,7 +67,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 }
 
 <!-- Abas -->
-<ul class="nav nav-tabs mb-2" id="profileTabs" role="tablist">
+<ul class="nav nav-tabs mb-0" id="profileTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab">
             <i class="bi bi-info-circle"></i> Dados Básicos
@@ -209,7 +209,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     <div class="row">
                         <div class="col-md-3 mb-3">
                             <label for="AddressZipCode" class="form-label">CEP</label>
-                            <input type="text" class="form-control" id="AddressZipCode" name="AddressZipCode" value="@Model.AddressZipCode" placeholder="00000-000" maxlength="9">
+                            <input type="text" class="form-control" id="AddressZipCode" name="AddressZipCode" value="@Model.AddressZipCode" placeholder="00000-000" maxlength="9"
+                                   onkeypress="return onlyNumbersCEP(event)" onblur="buscarCEPProfile(this.value)">
+                            <small class="form-text text-muted">Digite o CEP para preencher endereço, bairro, cidade e estado automaticamente.</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="Address" class="form-label">Endereço</label>
@@ -516,57 +518,6 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
         </div>
     </div>
 
-    <!-- Modal para Upload de Fotos -->
-    <div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="uploadPhotoModalLabel">
-                        <i class="bi bi-upload"></i> Adicionar Fotos
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form method="post" action="@Url.Action("UploadPhotos", "Coworking")" enctype="multipart/form-data" id="uploadPhotoForm">
-                    @Html.AntiForgeryToken()
-                    <div class="modal-body">
-                        <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> 
-                            <strong>Foto de Capa:</strong> A primeira foto enviada será automaticamente definida como "Foto de Capa" e será exibida para os clientes na página de endereços disponíveis. 
-                            Você pode alterar a foto de capa depois clicando no ícone de estrela (<i class="bi bi-star-fill"></i>) na galeria.
-                        </div>
-                        <div class="mb-3">
-                            <label for="Photos" class="form-label">Selecione as fotos (máximo 2 fotos no total)</label>
-                            <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" required>
-                            <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB por foto. <strong>Limite total: 2 fotos.</strong></small>
-                        </div>
-                        <div id="photoPreview" class="row"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-upload"></i> Enviar Fotos
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal para Visualizar Foto -->
-    <div class="modal fade" id="viewPhotoModal" tabindex="-1" aria-labelledby="viewPhotoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="viewPhotoModalLabel">Visualizar Foto</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <img id="viewPhotoImg" src="" alt="Foto" class="img-fluid">
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Sócios -->
     <div class="tab-pane fade" id="partners" role="tabpanel">
         <div class="card">
@@ -711,7 +662,6 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             </div>
         </div>
     </div>
-    </div>
 
     <!-- Documentos Obrigatórios -->
     <div class="tab-pane fade" id="documents" role="tabpanel">
@@ -834,8 +784,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     <div class="tab-pane fade" id="hours" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <h5 class="mb-4"><i class="bi bi-clock"></i> Horários de Funcionamento</h5>
-                <div class="alert alert-info mb-4">
+                <h5 class="mb-3"><i class="bi bi-clock"></i> Horários de Funcionamento</h5>
+                <div class="alert alert-info mb-3">
                     <i class="bi bi-info-circle"></i> 
                     <strong>Obrigatório para ativar reservas.</strong> Configure os horários de funcionamento do seu coworking. 
                     Os clientes só poderão reservar horários dentro dos períodos configurados.
@@ -879,14 +829,14 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                             <input type="time" 
                                                    class="form-control" 
                                                    name="OpeningTime_@dayKey" 
-                                                   value="@(existingHour?.OpeningTime?.ToString(@"HH\:mm") ?? "")"
+                                                   value="@(existingHour?.OpeningTime?.ToString(@"hh\:mm") ?? "")"
                                                    @((existingHour?.IsActive ?? false) ? "" : "disabled") />
                                         </td>
                                         <td>
                                             <input type="time" 
                                                    class="form-control" 
                                                    name="ClosingTime_@dayKey" 
-                                                   value="@(existingHour?.ClosingTime?.ToString(@"HH\:mm") ?? "")"
+                                                   value="@(existingHour?.ClosingTime?.ToString(@"hh\:mm") ?? "")"
                                                    @((existingHour?.IsActive ?? false) ? "" : "disabled") />
                                         </td>
                                         <td class="text-center">
@@ -984,6 +934,57 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     </div>
 </div>
 
+    <!-- Modal para Upload de Fotos -->
+    <div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadPhotoModalLabel">
+                        <i class="bi bi-upload"></i> Adicionar Fotos
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="@Url.Action("UploadPhotos", "Coworking")" enctype="multipart/form-data" id="uploadPhotoForm">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Foto de Capa:</strong> A primeira foto enviada será automaticamente definida como "Foto de Capa" e será exibida para os clientes na página de endereços disponíveis. 
+                            Você pode alterar a foto de capa depois clicando no ícone de estrela (<i class="bi bi-star-fill"></i>) na galeria.
+                        </div>
+                        <div class="mb-3">
+                            <label for="Photos" class="form-label">Selecione as fotos (máximo 2 fotos no total)</label>
+                            <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" required>
+                            <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: @(ViewBag.MaxPhotoSizeMB ?? 5)MB por foto. <strong>Limite total: 2 fotos.</strong></small>
+                        </div>
+                        <div id="photoPreview" class="row"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Enviar Fotos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Visualizar Foto -->
+    <div class="modal fade" id="viewPhotoModal" tabindex="-1" aria-labelledby="viewPhotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewPhotoModalLabel">Visualizar Foto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="viewPhotoImg" src="" alt="Foto" class="img-fluid">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal para Adicionar/Editar Sócio (fora das abas para abrir corretamente ao editar) -->
     <div class="modal fade" id="addPartnerModal" tabindex="-1" aria-labelledby="addPartnerModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -1050,7 +1051,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                 <span class="text-muted d-block small">Nova foto:</span>
                                 <img id="partnerPhotoPreview" src="" alt="" class="rounded-circle border" style="width:80px;height:80px;object-fit:cover;">
                             </div>
-                            <small class="form-text text-muted">JPG, PNG, GIF ou WebP. Máx. 5MB.</small>
+                            <small class="form-text text-muted">JPG, PNG, GIF ou WebP. Máx. @(ViewBag.MaxPhotoSizeMB ?? 5)MB.</small>
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="IsPrincipal" value="true" id="partnerIsPrincipal">
@@ -1076,24 +1077,28 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             preview.innerHTML = '';
             
             if (e.target.files.length > 0) {
-                Array.from(e.target.files).slice(0, 10).forEach((file, index) => {
-                    if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            const col = document.createElement('div');
-                            col.className = 'col-md-3 mb-2';
-                            col.innerHTML = `
-                                <div class="card">
-                                    <img src="${e.target.result}" class="card-img-top" style="height: 150px; object-fit: cover;">
-                                    <div class="card-body p-2">
-                                        <small class="text-muted">${file.name}</small>
-                                    </div>
-                                </div>
-                            `;
-                            preview.appendChild(col);
-                        };
-                        reader.readAsDataURL(file);
+                const files = Array.from(e.target.files).filter(function(f) { return f.type.startsWith('image/'); });
+                if (files.length === 0) return;
+                preview.innerHTML = '<div class="col-12 text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span class="text-muted">Carregando preview…</span></div>';
+                var loaded = 0;
+                function maybeClearLoading() {
+                    loaded++;
+                    if (loaded === files.length) {
+                        var loading = preview.querySelector('.spinner-border');
+                        if (loading && loading.closest('.col-12')) loading.closest('.col-12').remove();
                     }
+                }
+                files.slice(0, 10).forEach(function(file) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        var col = document.createElement('div');
+                        col.className = 'col-md-3 mb-2';
+                        col.innerHTML = '<div class="card"><img src="' + ev.target.result + '" class="card-img-top" style="height: 150px; object-fit: cover;"><div class="card-body p-2"><small class="text-muted">' + (file.name || '') + '</small></div></div>';
+                        preview.appendChild(col);
+                        maybeClearLoading();
+                    };
+                    reader.onerror = maybeClearLoading;
+                    reader.readAsDataURL(file);
                 });
             }
         });
@@ -1200,6 +1205,46 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             return numbers;
         }
 
+        // CEP - Endereço da Sede: máscara e busca ViaCEP
+        function formatarCEP(val) {
+            if (!val) return '';
+            val = val.replace(/\D/g, '');
+            if (val.length > 5) return val.substring(0, 5) + '-' + val.substring(5, 8);
+            return val;
+        }
+        function onlyNumbersCEP(event) {
+            const ch = event.which || event.keyCode;
+            if ((ch >= 48 && ch <= 57) || ch === 8 || ch === 9) return true;
+            event.preventDefault();
+            return false;
+        }
+        document.getElementById('AddressZipCode')?.addEventListener('input', function(e) {
+            e.target.value = formatarCEP(e.target.value);
+        });
+        async function buscarCEPProfile(cep) {
+            cep = (cep || '').replace(/\D/g, '');
+            if (cep.length !== 8) return;
+            try {
+                const r = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
+                const data = await r.json();
+                if (!data.erro) {
+                    var addr = document.getElementById('Address');
+                    var neigh = document.getElementById('AddressNeighborhood');
+                    var city = document.getElementById('AddressCity');
+                    var state = document.getElementById('AddressState');
+                    if (addr) addr.value = data.logradouro || '';
+                    if (neigh) neigh.value = data.bairro || '';
+                    if (city) city.value = data.localidade || '';
+                    if (state) state.value = data.uf || '';
+                } else {
+                    alert('CEP não encontrado. Preencha os dados manualmente.');
+                }
+            } catch (err) {
+                console.error('Erro ao buscar CEP:', err);
+                alert('Erro ao buscar CEP. Preencha os dados manualmente.');
+            }
+        }
+
         // Função para editar sócio a partir de data-partner-json
         function editPartnerFromData(btn) {
             var raw = btn.getAttribute('data-partner-json');
@@ -1273,12 +1318,17 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             }
         });
 
-        // Validação de tamanho da foto do sócio (5MB) no submit
+        // Validação de tamanho da foto do sócio no submit
         document.getElementById('partnerForm')?.addEventListener('submit', function(e) {
             var fi = document.getElementById('partnerPhotoInput');
-            if (fi && fi.files && fi.files[0] && fi.files[0].size > 5 * 1024 * 1024) {
+            var maxPhotoMb = @(ViewBag.MaxPhotoSizeMB ?? 5);
+            var maxSize = maxPhotoMb * 1024 * 1024;
+            if (fi && fi.files && fi.files[0] && fi.files[0].size > maxSize) {
                 e.preventDefault();
-                alert('A foto não pode exceder 5MB.');
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    setTimeout(function() { window.KlyonLoading.hide(); }, 0);
+                }
+                alert('A foto não pode exceder ' + maxPhotoMb + 'MB.');
                 return false;
             }
         });
@@ -1330,23 +1380,31 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             });
         });
 
-        // Validação de tamanho de arquivo
+        // Validação de tamanho de arquivo (galeria)
         document.getElementById('uploadPhotoForm')?.addEventListener('submit', function(e) {
             const fileInput = document.getElementById('Photos');
+            function hideUploadLoading() {
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+            }
             if (fileInput.files.length > 0) {
-                const maxSize = 5 * 1024 * 1024; // 5MB
+                const maxPhotoMb = @(ViewBag.MaxPhotoSizeMB ?? 5);
+                const maxSize = maxPhotoMb * 1024 * 1024;
                 const maxTotalPhotos = 2;
                 const existingPhotosCount = @(ViewBag.PhotosTotalItems ?? 0);
                 const maxFilesToAdd = maxTotalPhotos - existingPhotosCount;
                 
                 if (maxFilesToAdd <= 0) {
                     e.preventDefault();
+                    setTimeout(hideUploadLoading, 0);
                     alert(`Você já atingiu o limite máximo de ${maxTotalPhotos} fotos. Remova uma foto antes de adicionar outra.`);
                     return false;
                 }
                 
                 if (fileInput.files.length > maxFilesToAdd) {
                     e.preventDefault();
+                    setTimeout(hideUploadLoading, 0);
                     alert(`Você pode adicionar no máximo ${maxFilesToAdd} foto(s). Você já possui ${existingPhotosCount} foto(s) de um total de ${maxTotalPhotos} permitidas.`);
                     return false;
                 }
@@ -1354,7 +1412,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 for (let i = 0; i < fileInput.files.length; i++) {
                     if (fileInput.files[i].size > maxSize) {
                         e.preventDefault();
-                        alert(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: 5MB`);
+                        setTimeout(hideUploadLoading, 0);
+                        alert(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: ${maxPhotoMb}MB`);
                         return false;
                     }
                 }
@@ -1536,14 +1595,23 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 }
 
 <style>
+    #profileTabs {
+        width: fit-content;
+    }
+    
     #profileTabContent {
         margin-top: 0 !important;
         padding-top: 0 !important;
+        min-height: 0 !important;
     }
     
     #profileTabContent .tab-pane {
         padding-top: 0 !important;
         margin-top: 0 !important;
+    }
+    
+    #profileTabContent .tab-pane:not(.show) {
+        display: none !important;
     }
     
     #profileTabContent .tab-pane .card {
@@ -1552,7 +1620,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     }
     
     #profileTabContent .tab-pane.show .card-body {
-        padding-top: 1rem;
+        padding-top: 0.5rem;
     }
     
     @@keyframes pulse {

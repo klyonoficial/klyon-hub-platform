@@ -59,7 +59,7 @@
                         <div class="flex-grow-1">
                             <input type="file" class="form-control" id="Logo" name="Logo" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp">
                             <small class="form-text text-muted">
-                                Formatos aceitos: JPG, PNG, GIF, WEBP. Tamanho máximo: 5MB.
+                                Formatos aceitos: JPG, PNG, GIF, WEBP. Tamanho máximo: @(ViewBag.MaxPhotoSizeMB ?? 5)MB.
                             </small>
                         </div>
                     </div>

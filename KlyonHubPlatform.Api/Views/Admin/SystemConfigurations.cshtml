@@ -11,8 +11,11 @@
         { "Email", "E-mail" },
         { "Payment", "Pagamento" },
         { "Storage", "Armazenamento" },
+        { "D4Sign", "D4Sign (Assinatura Eletrônica)" },
+        { "Upload", "Upload (Fotos)" },
         { "General", "Geral" }
     };
+    var d4SignConfigured = ViewBag.D4SignConfigured as bool? ?? false;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -84,8 +87,10 @@
                                             var isActiveStorageConfig = isStorageConfig && 
                                                 ((config.Key.StartsWith("AWS.") && currentStorageProvider.ToUpper() == "AWS") ||
                                                  (config.Key.StartsWith("FTP.") && currentStorageProvider.ToUpper() == "FTP"));
+                                            var isD4SignConfig = config.Key.StartsWith("D4Sign.");
+                                            var isActiveD4SignConfig = isD4SignConfig && d4SignConfigured;
                                             
-                                            <tr class="@(isActiveProvider || isActiveStorageConfig ? "table-info" : "")">
+                                            <tr class="@(isActiveProvider || isActiveStorageConfig || isActiveD4SignConfig ? "table-info" : "")">
                                                 <td>
                                                     <code>@config.Key</code>
                                                     @if (isStorageProvider)
@@ -138,6 +143,21 @@
                                                     else if (isStorageConfig)
                                                     {
                                                         if (isActiveStorageConfig)
+                                                        {
+                                                            <span class="badge bg-info">
+                                                                <i class="bi bi-check-circle"></i> Em Uso
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-secondary">
+                                                                <i class="bi bi-dash-circle"></i> Não Usado
+                                                            </span>
+                                                        }
+                                                    }
+                                                    else if (isD4SignConfig)
+                                                    {
+                                                        if (isActiveD4SignConfig)
                                                         {
                                                             <span class="badge bg-info">
                                                                 <i class="bi bi-check-circle"></i> Em Uso

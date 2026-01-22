@@ -183,7 +183,14 @@ else
         <i class="bi bi-info-circle"></i> 
         @if (totalItems == 0)
         {
-            <span>Nenhuma localidade encontrada com os filtros aplicados.</span>
+            @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentState))
+            {
+                <span>Nenhuma localidade com endereço disponível encontrada para os filtros aplicados.</span>
+            }
+            else
+            {
+                <span>Nenhuma localidade com endereço disponível no momento. Tente novamente mais tarde.</span>
+            }
         }
         else
         {

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
   <defs>
     <linearGradient id="bgGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -43,7 +44,7 @@
   
   <!-- Address sign -->
   <rect x="300" y="100" width="200" height="40" rx="20" fill="#ffffff" opacity="0.9"/>
-  <text x="400" y="125" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#667eea" text-anchor="middle">ENDEREÇO FISCAL</text>
+  <text x="400" y="125" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#667eea" text-anchor="middle">ENDERE&#231;O FISCAL</text>
   
   <!-- Document icon -->
   <g transform="translate(150, 300)">

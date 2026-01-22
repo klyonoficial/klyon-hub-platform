@@ -11,22 +11,19 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // 1) Tabela PlatformCreditBalances (conta do administrador)
-            migrationBuilder.CreateTable(
-                name: "PlatformCreditBalances",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("MySQL:ValueGenerationStrategy", "MySql:Identity"),
-                    TotalCredits = table.Column<decimal>(type: "decimal(12,2)", precision: 12, scale: 2, nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
-                },
-                constraints: table => table.PrimaryKey("PK_PlatformCreditBalances", x => x.Id))
-                .Annotation("MySql:CharSet", "utf8mb4");
-
+            // 1) Tabela PlatformCreditBalances (conta do administrador) — idempotente para retentativas
             migrationBuilder.Sql(@"
-                INSERT INTO PlatformCreditBalances (TotalCredits, UpdatedAt) 
-                VALUES (0, UTC_TIMESTAMP());
+                CREATE TABLE IF NOT EXISTS PlatformCreditBalances (
+                    Id INT NOT NULL,
+                    TotalCredits DECIMAL(12,2) NOT NULL,
+                    UpdatedAt DATETIME(6) NOT NULL,
+                    PRIMARY KEY (Id)
+                ) CHARACTER SET utf8mb4;
+            ");
+            migrationBuilder.Sql(@"
+                INSERT INTO PlatformCreditBalances (Id, TotalCredits, UpdatedAt)
+                SELECT 1, 0, UTC_TIMESTAMP() FROM DUAL
+                WHERE NOT EXISTS (SELECT 1 FROM PlatformCreditBalances LIMIT 1);
             ");
 
             // 2) Colunas em Reservations: confirmação dupla
