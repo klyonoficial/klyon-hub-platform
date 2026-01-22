@@ -306,8 +306,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Remover máscaras do CNPJ e CPF para validação
-                var cnpjClean = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                var cpfClean = client.CPF?.Replace(".", "").Replace("-", "").Trim();
+                // Tratar caso onde o campo pode vir como null ou string vazia
+                var cnpjInput = string.IsNullOrWhiteSpace(client.CNPJ) ? null : client.CNPJ;
+                var cnpjClean = cnpjInput?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                var cpfInput = string.IsNullOrWhiteSpace(client.CPF) ? null : client.CPF;
+                var cpfClean = cpfInput?.Replace(".", "").Replace("-", "").Trim();
 
                 // Validar CNPJ se informado
                 if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length == 14)
@@ -327,11 +330,20 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     // Salvar CNPJ com máscara
                     existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
+                    _context.Entry(existingClient).Property(c => c.CNPJ).IsModified = true;
                 }
                 else if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length != 14)
                 {
                     TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos.";
                     return RedirectToAction("Profile");
+                }
+                else
+                {
+                    // Se o CNPJ vier vazio/null, limpar o CNPJ existente
+                    existingClient.CNPJ = null;
+                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
+                    _context.Entry(existingClient).Property(c => c.CNPJ).IsModified = true;
                 }
 
                 // Validar CPF se informado
@@ -352,11 +364,20 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     // Salvar CPF com máscara
                     existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
+                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
+                    _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
                 }
                 else if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length != 11)
                 {
                     TempData["Error"] = "CPF inválido. O CPF deve conter 11 dígitos.";
                     return RedirectToAction("Profile");
+                }
+                else
+                {
+                    // Se o CPF vier vazio/null, limpar o CPF existente
+                    existingClient.CPF = null;
+                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
+                    _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
                 }
 
                 // Atualizar campos (exceto ContactEmail que sempre vem do usuário)
