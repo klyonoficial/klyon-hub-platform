@@ -635,17 +635,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Remover máscaras do CNPJ e CPF para validação
-                var cnpjClean = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                var cpfClean = client.CPF?.Replace(".", "").Replace("-", "").Trim();
+                var cnpjCleanNew = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                var cpfCleanNew = client.CPF?.Replace(".", "").Replace("-", "").Trim();
 
                 // Validar CNPJ se informado
-                if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length == 14)
+                if (!string.IsNullOrEmpty(cnpjCleanNew) && cnpjCleanNew.Length == 14)
                 {
                     // Buscar todos os clientes e comparar CNPJ sem máscara
                     var allClients = await _context.Clients.Where(c => c.CNPJ != null).ToListAsync();
                     var existingCNPJ = allClients.FirstOrDefault(c => 
                         c.CNPJ != null && 
-                        c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean);
+                        c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjCleanNew);
                     
                     if (existingCNPJ != null)
                     {
@@ -654,9 +654,9 @@ namespace KlyonHubPlatform.Api.Controllers
                         return View(client);
                     }
                     // Salvar CNPJ com máscara
-                    client.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+                    client.CNPJ = $"{cnpjCleanNew.Substring(0, 2)}.{cnpjCleanNew.Substring(2, 3)}.{cnpjCleanNew.Substring(5, 3)}/{cnpjCleanNew.Substring(8, 4)}-{cnpjCleanNew.Substring(12, 2)}";
                 }
-                else if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length != 14)
+                else if (!string.IsNullOrEmpty(cnpjCleanNew) && cnpjCleanNew.Length != 14)
                 {
                     TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos.";
                     ViewBag.UserEmail = userEmail;
@@ -664,13 +664,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Validar CPF se informado
-                if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length == 11)
+                if (!string.IsNullOrEmpty(cpfCleanNew) && cpfCleanNew.Length == 11)
                 {
                     // Buscar todos os clientes e comparar CPF sem máscara
                     var allClients = await _context.Clients.Where(c => c.CPF != null).ToListAsync();
                     var existingCPF = allClients.FirstOrDefault(c => 
                         c.CPF != null && 
-                        c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean);
+                        c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfCleanNew);
                     
                     if (existingCPF != null)
                     {
@@ -679,9 +679,9 @@ namespace KlyonHubPlatform.Api.Controllers
                         return View(client);
                     }
                     // Salvar CPF com máscara
-                    client.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
+                    client.CPF = $"{cpfCleanNew.Substring(0, 3)}.{cpfCleanNew.Substring(3, 3)}.{cpfCleanNew.Substring(6, 3)}-{cpfCleanNew.Substring(9, 2)}";
                 }
-                else if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length != 11)
+                else if (!string.IsNullOrEmpty(cpfCleanNew) && cpfCleanNew.Length != 11)
                 {
                     TempData["Error"] = "CPF inválido. O CPF deve conter 11 dígitos.";
                     ViewBag.UserEmail = userEmail;
