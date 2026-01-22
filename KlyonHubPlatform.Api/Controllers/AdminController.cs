@@ -24,6 +24,9 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPagBankService _pagBankService;
         private readonly IAuditService _auditService;
         private readonly ISefazService _sefazService;
+        private readonly IContractService _contractService;
+        private readonly ICoworkingService _coworkingService;
+        private readonly IAuthService _authService;
 
         public AdminController(
             IUserService userService,
@@ -35,7 +38,10 @@ namespace KlyonHubPlatform.Api.Controllers
             ApplicationDbContext context,
             IPagBankService pagBankService,
             IAuditService auditService,
-            ISefazService sefazService)
+            ISefazService sefazService,
+            IContractService contractService,
+            ICoworkingService coworkingService,
+            IAuthService authService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -47,6 +53,9 @@ namespace KlyonHubPlatform.Api.Controllers
             _pagBankService = pagBankService;
             _auditService = auditService;
             _sefazService = sefazService;
+            _contractService = contractService;
+            _coworkingService = coworkingService;
+            _authService = authService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -3083,6 +3092,189 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
 
             return RedirectToAction("FiscalNotes");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> QuickClientRegistration()
+        {
+            // Buscar endereços disponíveis
+            var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
+            var addressesWithLocation = await _context.CoworkingAddresses
+                .Include(a => a.Coworking)
+                .Include(a => a.Location)
+                .Where(a => availableAddresses.Select(addr => addr.Id).Contains(a.Id))
+                .ToListAsync();
+
+            ViewBag.AvailableAddresses = addressesWithLocation;
+            ViewBag.Locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuickClientRegistration(
+            string contactEmail,
+            string contactName,
+            string? razaoSocial,
+            string? nomeFantasia,
+            string? cnpj,
+            string? cpf,
+            string? contactPhone,
+            string? address,
+            string? city,
+            string? state,
+            string? zipCode,
+            int coworkingAddressId,
+            decimal monthlyValue)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(contactEmail) || string.IsNullOrWhiteSpace(contactName))
+                {
+                    TempData["Error"] = "Email e Nome do Contato são obrigatórios.";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+
+                if (monthlyValue <= 0)
+                {
+                    TempData["Error"] = "O valor mensal deve ser maior que zero.";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+
+                // Verificar se o endereço está disponível
+                var selectedAddress = await _context.CoworkingAddresses
+                    .Include(a => a.Coworking)
+                    .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
+
+                if (selectedAddress == null || !selectedAddress.IsAvailable || 
+                    selectedAddress.CurrentContracts >= selectedAddress.MaxContracts)
+                {
+                    TempData["Error"] = "O endereço selecionado não está disponível para contrato.";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+
+                // Buscar ou criar usuário
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == contactEmail);
+                User user;
+
+                if (existingUser != null)
+                {
+                    user = existingUser;
+                    // Verificar se já existe cliente para este usuário
+                    var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == user.Id);
+                    if (existingClient != null)
+                    {
+                        TempData["Error"] = $"Já existe um cliente cadastrado com o email {contactEmail}. Use a edição de cliente para criar um novo contrato.";
+                        return RedirectToAction("QuickClientRegistration");
+                    }
+                }
+                else
+                {
+                    // Criar novo usuário
+                    var passwordHash = BCrypt.Net.BCrypt.HashPassword("Temp@123"); // Senha temporária
+                    user = new User
+                    {
+                        Email = contactEmail,
+                        PasswordHash = passwordHash,
+                        FullName = contactName,
+                        IsActive = true,
+                        EmailVerified = false // Admin pode verificar depois
+                    };
+                    _context.Users.Add(user);
+                    await _context.SaveChangesAsync();
+
+                    // Atribuir role de Client
+                    var clientRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Client");
+                    if (clientRole != null)
+                    {
+                        _context.UserRoles.Add(new UserRole
+                        {
+                            UserId = user.Id,
+                            RoleId = clientRole.Id
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+                // Criar cliente
+                var client = new Client
+                {
+                    UserId = user.Id,
+                    ContactEmail = contactEmail,
+                    ContactName = contactName,
+                    RazaoSocial = razaoSocial,
+                    NomeFantasia = nomeFantasia,
+                    ContactPhone = contactPhone,
+                    Address = address,
+                    City = city,
+                    State = state,
+                    ZipCode = zipCode?.Replace("-", ""),
+                    IsActive = true
+                };
+
+                // Processar CNPJ
+                if (!string.IsNullOrWhiteSpace(cnpj))
+                {
+                    var cnpjClean = cnpj.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                    if (cnpjClean.Length == 14)
+                    {
+                        // Verificar duplicação
+                        var existingCNPJ = await _context.Clients
+                            .Where(c => c.CNPJ != null && 
+                                c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
+                            .FirstOrDefaultAsync();
+                        
+                        if (existingCNPJ != null)
+                        {
+                            TempData["Error"] = $"O CNPJ {cnpj} já está cadastrado para outro cliente.";
+                            return RedirectToAction("QuickClientRegistration");
+                        }
+                        client.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+                    }
+                }
+
+                // Processar CPF
+                if (!string.IsNullOrWhiteSpace(cpf))
+                {
+                    var cpfClean = cpf.Replace(".", "").Replace("-", "").Trim();
+                    if (cpfClean.Length == 11)
+                    {
+                        // Verificar duplicação
+                        var existingCPF = await _context.Clients
+                            .Where(c => c.CPF != null && 
+                                c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean)
+                            .FirstOrDefaultAsync();
+                        
+                        if (existingCPF != null)
+                        {
+                            TempData["Error"] = $"O CPF {cpf} já está cadastrado para outro cliente.";
+                            return RedirectToAction("QuickClientRegistration");
+                        }
+                        client.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
+                    }
+                }
+
+                // Remover máscaras do telefone
+                if (!string.IsNullOrEmpty(client.ContactPhone))
+                {
+                    client.ContactPhone = client.ContactPhone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
+                }
+
+                _context.Clients.Add(client);
+                await _context.SaveChangesAsync();
+
+                // Criar contrato
+                var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValue);
+
+                TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
+                return RedirectToAction("Contracts", "Admin");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao cadastrar cliente e criar contrato: {ex.Message}";
+                return RedirectToAction("QuickClientRegistration");
+            }
         }
     }
 }
