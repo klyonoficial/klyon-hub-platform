@@ -21,6 +21,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IPagBankService _pagBankService;
         private readonly ApplicationDbContext _context;
         private readonly IAddressDeclarationService? _addressDeclarationService;
+        private readonly ISystemConfigurationService _systemConfigurationService;
 
         public PaymentService(
             IPaymentRepository paymentRepository,
@@ -30,6 +31,7 @@ namespace KlyonHubPlatform.Application.Services
             ICoworkingRepository coworkingRepository,
             IPagBankService pagBankService,
             ApplicationDbContext context,
+            ISystemConfigurationService systemConfigurationService,
             IAddressDeclarationService? addressDeclarationService = null)
         {
             _paymentRepository = paymentRepository;
@@ -40,6 +42,7 @@ namespace KlyonHubPlatform.Application.Services
             _pagBankService = pagBankService;
             _context = context;
             _addressDeclarationService = addressDeclarationService;
+            _systemConfigurationService = systemConfigurationService;
         }
 
         public async Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method)
@@ -453,9 +456,17 @@ namespace KlyonHubPlatform.Application.Services
             var clientTaxId = client.CNPJ ?? client.CPF ?? "";
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
+            // Aplicar percentual de cartão de crédito se configurado
+            decimal amountToCharge = payment.Amount;
+            var feePercentageStr = await _systemConfigurationService.GetValueAsync("Payment.CreditCardFeePercentage");
+            if (!string.IsNullOrWhiteSpace(feePercentageStr) && decimal.TryParse(feePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fee) && fee > 0)
+            {
+                amountToCharge = payment.Amount * (1 + fee / 100);
+            }
+
             var orderResponse = await _pagBankService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
-                amount: payment.Amount,
+                amount: amountToCharge,
                 method: PaymentMethod.CreditCard,
                 clientName: clientName,
                 clientEmail: clientEmail,

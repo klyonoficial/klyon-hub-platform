@@ -113,7 +113,25 @@
                     }
 
                     <dt class="col-sm-4">Valor:</dt>
-                    <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4></dd>
+                    <dd class="col-sm-8">
+                        @if (Model.Method == PaymentMethod.CreditCard && ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
+                        {
+                            <div>
+                                <h4 class="text-primary mb-0">R$ @ViewBag.FinalAmount.ToString("N2")</h4>
+                                <small class="text-muted">
+                                    Valor original: R$ @ViewBag.OriginalAmount.ToString("N2")
+                                    <br>
+                                    <span class="text-warning">
+                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
+                                    </span>
+                                </small>
+                            </div>
+                        }
+                        else
+                        {
+                            <h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4>
+                        }
+                    </dd>
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
@@ -347,7 +365,24 @@
                     </div>
                     <div class="card-body">
                         <p class="text-muted mb-3">
-                            <strong>Valor:</strong> R$ @Model.Amount.ToString("N2")<br>
+                            <strong>Valor:</strong> 
+                            @if (ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
+                            {
+                                <span class="text-primary">R$ @ViewBag.FinalAmount.ToString("N2")</span>
+                                <br>
+                                <small class="text-muted">
+                                    Valor original: R$ @ViewBag.OriginalAmount.ToString("N2")
+                                    <br>
+                                    <span class="text-warning">
+                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
+                                    </span>
+                                </small>
+                            }
+                            else
+                            {
+                                <span class="text-primary">R$ @Model.Amount.ToString("N2")</span>
+                            }
+                            <br>
                             <strong>Vencimento:</strong> @Model.DueDate.ToString("dd/MM/yyyy")
                         </p>
                         

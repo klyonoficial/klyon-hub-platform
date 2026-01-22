@@ -1118,6 +1118,28 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.CreditCards = creditCards;
             }
 
+            // Calcular valor com percentual de cartão de crédito se aplicável
+            decimal originalAmount = payment.Amount;
+            decimal finalAmount = payment.Amount;
+            decimal? feePercentage = null;
+            
+            if (payment.Method == PaymentMethod.CreditCard)
+            {
+                var feePercentageStr = await _systemConfig.GetValueAsync("Payment.CreditCardFeePercentage");
+                if (!string.IsNullOrWhiteSpace(feePercentageStr) && decimal.TryParse(feePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fee))
+                {
+                    feePercentage = fee;
+                    if (fee > 0)
+                    {
+                        finalAmount = originalAmount * (1 + fee / 100);
+                    }
+                }
+            }
+            
+            ViewBag.OriginalAmount = originalAmount;
+            ViewBag.FinalAmount = finalAmount;
+            ViewBag.FeePercentage = feePercentage;
+
             return View(payment);
         }
 

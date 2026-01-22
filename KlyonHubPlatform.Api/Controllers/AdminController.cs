@@ -927,6 +927,21 @@ namespace KlyonHubPlatform.Api.Controllers
                     updatedBy: User.Identity?.Name
                 );
             }
+
+            // Inicializar configurações de percentual de cartão de crédito se não existirem
+            var creditCardFeeConfig = await _systemConfigurationService.GetByKeyAsync("Payment.CreditCardFeePercentage");
+            if (creditCardFeeConfig == null)
+            {
+                await _systemConfigurationService.CreateOrUpdateAsync(
+                    key: "Payment.CreditCardFeePercentage",
+                    value: "0",
+                    description: "Percentual adicional a ser cobrado quando o pagamento for realizado com cartão de crédito. Exemplo: 2.5 para 2,5%",
+                    category: "Payment",
+                    isEncrypted: false,
+                    isSensitive: false,
+                    updatedBy: User.Identity?.Name
+                );
+            }
             
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
