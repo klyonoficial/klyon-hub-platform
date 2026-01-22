@@ -1,0 +1,141 @@
+@{
+    ViewData["Title"] = "Cadastro Realizado com Sucesso";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-check-circle-fill text-success"></i> Cadastro Realizado com Sucesso</h2>
+    <a href="@Url.Action("Contracts", "Admin")" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Contratos
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (ViewBag.Payment != null)
+{
+    var payment = ViewBag.Payment as KlyonHubPlatform.Domain.Entities.Payment;
+    var contract = payment?.Subscription?.Contract;
+    var client = contract?.Client;
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações do Cadastro</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        @if (client != null)
+                        {
+                            <dt class="col-sm-4">Cliente:</dt>
+                            <dd class="col-sm-8">@(client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? "N/A")</dd>
+
+                            <dt class="col-sm-4">Email:</dt>
+                            <dd class="col-sm-8">@(client.ContactEmail ?? "N/A")</dd>
+                        }
+
+                        @if (contract != null)
+                        {
+                            <dt class="col-sm-4">Contrato:</dt>
+                            <dd class="col-sm-8"><strong>#@contract.ContractNumber</strong></dd>
+                        }
+
+                        <dt class="col-sm-4">Valor:</dt>
+                        <dd class="col-sm-8"><strong>R$ @payment.Amount.ToString("N2")</strong></dd>
+
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-warning">Aguardando Pagamento</span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            @if (!string.IsNullOrEmpty(ViewBag.PixCode as string))
+            {
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div id="qrcode" class="d-flex justify-content-center mb-3"></div>
+                            <textarea class="form-control font-monospace small" rows="4" readonly id="pixCodeText" style="font-size: 0.85rem;">@ViewBag.PixCode</textarea>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="copyPixCode()">
+                                <i class="bi bi-clipboard"></i> Copiar Código PIX
+                            </button>
+                        </div>
+                        @if (ViewBag.PixExpiresAt != null)
+                        {
+                            var expiresAt = (DateTime?)ViewBag.PixExpiresAt;
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> Expira em: @expiresAt.Value.ToString("dd/MM/yyyy HH:mm")
+                            </small>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card mb-4 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Código PIX</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0">O código PIX será gerado quando o cliente acessar a página de pagamento.</p>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        // Gerar QR Code do PIX
+        @if (!string.IsNullOrEmpty(ViewBag.PixCode as string))
+        {
+            <text>
+            var pixCode = '@ViewBag.PixCode';
+            if (pixCode && document.getElementById('qrcode')) {
+                new QRCode(document.getElementById('qrcode'), {
+                    text: pixCode,
+                    width: 200,
+                    height: 200,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            }
+            </text>
+        }
+
+        function copyPixCode() {
+            var pixCodeText = document.getElementById('pixCodeText');
+            pixCodeText.select();
+            pixCodeText.setSelectionRange(0, 99999); // Para mobile
+            
+            try {
+                document.execCommand('copy');
+                alert('Código PIX copiado para a área de transferência!');
+            } catch (err) {
+                // Fallback para navegadores modernos
+                navigator.clipboard.writeText(pixCodeText.value).then(function() {
+                    alert('Código PIX copiado para a área de transferência!');
+                }, function(err) {
+                    alert('Erro ao copiar código PIX. Por favor, copie manualmente.');
+                });
+            }
+        }
+    </script>
+}

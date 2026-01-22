@@ -3126,7 +3126,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
             string? state,
             string? zipCode,
             int coworkingAddressId,
-            decimal monthlyValue)
+            decimal monthlyValue,
+            string paymentMethod = "PIX")
         {
             try
             {
@@ -3267,6 +3268,38 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 // Criar contrato
                 var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValue);
 
+                // Buscar o pagamento criado para gerar o código PIX
+                var subscription = await _context.Subscriptions
+                    .FirstOrDefaultAsync(s => s.ContractId == contract.Id);
+                
+                if (subscription != null)
+                {
+                    var payment = await _context.Payments
+                        .Where(p => p.SubscriptionId == subscription.Id && p.Status == PaymentStatus.Pending)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .FirstOrDefaultAsync();
+                    
+                    if (payment != null)
+                    {
+                        try
+                        {
+                            // Gerar código PIX automaticamente
+                            var pixCode = await _paymentService.GeneratePixCodeAsync(payment.Id);
+                            TempData["PixCode"] = pixCode;
+                            TempData["PaymentId"] = payment.Id;
+                            TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
+                            return RedirectToAction("QuickClientRegistrationSuccess", "Admin", new { paymentId = payment.Id });
+                        }
+                        catch (Exception pixEx)
+                        {
+                            // Se falhar ao gerar PIX, ainda mostra sucesso mas avisa que o PIX será gerado depois
+                            TempData["Warning"] = $"Contrato criado, mas o código PIX não pôde ser gerado automaticamente: {pixEx.Message}. O código será gerado quando o cliente acessar a página de pagamento.";
+                            TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
+                            return RedirectToAction("Contracts", "Admin");
+                        }
+                    }
+                }
+
                 TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
                 return RedirectToAction("Contracts", "Admin");
             }
@@ -3275,6 +3308,28 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 TempData["Error"] = $"Erro ao cadastrar cliente e criar contrato: {ex.Message}";
                 return RedirectToAction("QuickClientRegistration");
             }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> QuickClientRegistrationSuccess(int paymentId)
+        {
+            var payment = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.Client)
+                .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+            if (payment == null)
+            {
+                TempData["Error"] = "Pagamento não encontrado.";
+                return RedirectToAction("Contracts", "Admin");
+            }
+
+            ViewBag.Payment = payment;
+            ViewBag.PixCode = payment.PixCode;
+            ViewBag.PixExpiresAt = payment.PixExpiresAt;
+
+            return View();
         }
     }
 }
