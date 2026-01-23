@@ -25,7 +25,7 @@
         // Definir estilos inline para garantir que funcionem e fiquem acima dos modais
         overlay.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background-color: rgba(255, 255, 255, 0.9) !important; display: none !important; justify-content: center !important; align-items: center !important; z-index: 99999 !important;';
         overlay.innerHTML = `
-            <div style="text-align: center;">
+            <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <div class="klyon-loading-spinner"></div>
                 <div class="klyon-loading-text">Carregando...</div>
             </div>

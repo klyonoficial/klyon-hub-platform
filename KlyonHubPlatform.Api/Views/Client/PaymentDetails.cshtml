@@ -438,7 +438,7 @@
             <div class="card-header">
                 <h5 class="mb-0">Ações</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="actionsCardBody">
                 @if (isPending)
                 {
                     @if (Model.Method == PaymentMethod.PIX || Model.Method == PaymentMethod.BankTransfer)
@@ -737,12 +737,172 @@
             );
             
             if (confirmed) {
-                // Salvar o valor atual como anterior antes de submeter
-                selectElement.dataset.previousValue = selectElement.value;
-                selectElement.form.submit();
+                // Garantir que o loading seja exibido após a confirmação
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                    window.KlyonLoading.show();
+                }
+                
+                // Preparar dados do formulário
+                const form = selectElement.form;
+                const formData = new FormData(form);
+                const actionUrl = form.action;
+                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                
+                // Marcar como requisição AJAX manual
+                form.setAttribute('data-ajax-request', 'true');
+                
+                try {
+                    const response = await fetch(actionUrl, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'RequestVerificationToken': token
+                        },
+                        redirect: 'manual'
+                    });
+                    
+                    // Esconder loading após receber resposta
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação
+                    form.removeAttribute('data-ajax-request');
+                    
+                    if (response.ok || response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
+                        // Atualizar as seções dinamicamente
+                        await updatePaymentMethodSections();
+                        
+                        // Salvar o valor atual como anterior
+                        selectElement.dataset.previousValue = selectElement.value;
+                        
+                        showToast('Método de pagamento atualizado com sucesso!', 'success');
+                    } else {
+                        // Restaurar valor anterior em caso de erro
+                        selectElement.value = previousValue;
+                        showToast('Erro ao atualizar método de pagamento. Por favor, tente novamente.', 'error');
+                    }
+                } catch (error) {
+                    // Esconder loading em caso de erro
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação
+                    form.removeAttribute('data-ajax-request');
+                    
+                    // Restaurar valor anterior
+                    selectElement.value = previousValue;
+                    showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
+                    console.error('Erro:', error);
+                }
             } else {
                 // Restaurar valor anterior sem recarregar a página
                 selectElement.value = previousValue;
+            }
+        }
+
+        // Função para atualizar as seções após alterar o método de pagamento
+        async function updatePaymentMethodSections() {
+            const timestamp = new Date().getTime();
+            try {
+                const response = await fetch('@Url.Action("PaymentDetails", "Client", new { id = Model.Id })?_=' + timestamp, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                const html = await response.text();
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Atualizar card de método de pagamento (PIX, Boleto ou Cartão)
+                const newPixCard = tempDiv.querySelector('#pixPaymentCard');
+                const newBoletoCard = tempDiv.querySelector('#boletoPaymentCard');
+                const newCreditCardCard = tempDiv.querySelector('#creditCardPaymentCard');
+                
+                const currentPixCard = document.getElementById('pixPaymentCard');
+                const currentBoletoCard = document.getElementById('boletoPaymentCard');
+                const currentCreditCardCard = document.getElementById('creditCardPaymentCard');
+                
+                // Remover todos os cards de método de pagamento existentes
+                if (currentPixCard) currentPixCard.remove();
+                if (currentBoletoCard) currentBoletoCard.remove();
+                if (currentCreditCardCard) currentCreditCardCard.remove();
+                
+                // Adicionar o novo card de método de pagamento
+                const paymentInfoCard = document.getElementById('paymentInfoCard');
+                if (paymentInfoCard && paymentInfoCard.parentElement) {
+                    // O paymentInfoCard está dentro de uma col-md-8, então inserimos após ele
+                    if (newPixCard) {
+                        const clonedPixCard = newPixCard.cloneNode(true);
+                        paymentInfoCard.parentElement.insertBefore(clonedPixCard, paymentInfoCard.nextSibling);
+                        // Reinicializar QR Code se for PIX
+                        setTimeout(() => {
+                            const pixCodeInput = clonedPixCard.querySelector('#pixCode');
+                            if (pixCodeInput && pixCodeInput.value) {
+                                const qrcodeDiv = clonedPixCard.querySelector('#qrcode');
+                                if (qrcodeDiv) {
+                                    qrcodeDiv.innerHTML = '';
+                                    if (typeof QRCode !== 'undefined') {
+                                        new QRCode(qrcodeDiv, {
+                                            text: pixCodeInput.value,
+                                            width: 200,
+                                            height: 200
+                                        });
+                                    }
+                                }
+                            }
+                        }, 100);
+                    } else if (newBoletoCard) {
+                        const clonedBoletoCard = newBoletoCard.cloneNode(true);
+                        paymentInfoCard.parentElement.insertBefore(clonedBoletoCard, paymentInfoCard.nextSibling);
+                    } else if (newCreditCardCard) {
+                        const clonedCreditCardCard = newCreditCardCard.cloneNode(true);
+                        paymentInfoCard.parentElement.insertBefore(clonedCreditCardCard, paymentInfoCard.nextSibling);
+                    }
+                }
+                
+                // Atualizar card de Ações
+                const newActionsCardBody = tempDiv.querySelector('#actionsCardBody');
+                const currentActionsCardBody = document.getElementById('actionsCardBody');
+                if (newActionsCardBody && currentActionsCardBody) {
+                    currentActionsCardBody.innerHTML = newActionsCardBody.innerHTML;
+                }
+                
+                // Atualizar informações do pagamento completamente
+                const newPaymentInfoBody = tempDiv.querySelector('#paymentInfoBody');
+                const currentPaymentInfoBody = document.getElementById('paymentInfoBody');
+                if (newPaymentInfoBody && currentPaymentInfoBody) {
+                    // Salvar o valor atual do select antes de atualizar
+                    const currentSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
+                    const currentSelectValue = currentSelect ? currentSelect.value : null;
+                    
+                    // Atualizar todo o conteúdo do paymentInfoBody
+                    currentPaymentInfoBody.innerHTML = newPaymentInfoBody.innerHTML;
+                    
+                    // Restaurar o valor do select e atualizar o data-previous-value
+                    if (currentSelectValue) {
+                        const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
+                        if (updatedSelect) {
+                            updatedSelect.value = currentSelectValue;
+                            updatedSelect.dataset.previousValue = currentSelectValue;
+                            // Reatachar o event listener para manter a funcionalidade
+                            updatedSelect.onchange = function() { updatePaymentMethod(this); };
+                        }
+                    } else {
+                        // Se não havia select antes, ainda precisamos anexar o event listener ao novo select
+                        const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
+                        if (updatedSelect) {
+                            updatedSelect.onchange = function() { updatePaymentMethod(this); };
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao atualizar seções:', error);
+                showToast('Erro ao atualizar informações. Por favor, recarregue a página.', 'error');
             }
         }
 

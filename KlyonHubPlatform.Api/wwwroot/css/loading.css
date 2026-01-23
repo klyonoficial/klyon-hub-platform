@@ -13,6 +13,14 @@
     transition: opacity 0.3s ease;
 }
 
+.klyon-loading-overlay > div {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+}
+
 .klyon-loading-overlay.hidden {
     opacity: 0;
     pointer-events: none;
@@ -21,10 +29,11 @@
 .klyon-loading-spinner {
     width: 60px;
     height: 60px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #0d6efd;
+    border: 4px solid rgba(5, 19, 35, 0.1);
+    border-top: 4px solid #051323;
     border-radius: 50%;
     animation: klyon-spin 1s linear infinite;
+    margin: 0 auto;
 }
 
 @keyframes klyon-spin {
@@ -34,9 +43,10 @@
 
 .klyon-loading-text {
     margin-top: 20px;
-    color: #0d6efd;
+    color: #051323;
     font-weight: 600;
     font-size: 16px;
+    text-align: center;
 }
 
 /* Garantir que o modal de confirmação fique acima do loading */
