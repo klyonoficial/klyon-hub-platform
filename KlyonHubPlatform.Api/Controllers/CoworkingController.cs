@@ -1398,7 +1398,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["ActiveTab"] = "hours";
                 }
 
-                TempData["Success"] = "Dados do coworking atualizados com sucesso!";
                 if (!string.IsNullOrEmpty(activeTab))
                 {
                     TempData["ActiveTab"] = activeTab;
@@ -2582,7 +2581,6 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Documento enviado");
                 await _context.SaveChangesAsync();
-                TempData["Success"] = "Documento enviado com sucesso!";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)

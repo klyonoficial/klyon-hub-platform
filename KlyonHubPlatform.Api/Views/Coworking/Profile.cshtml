@@ -415,7 +415,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                         Clique no ícone de estrela (<i class="bi bi-star-fill"></i>) para definir uma foto como principal.
                         <br><strong>Limite:</strong> Você pode ter no máximo <strong>2 fotos</strong> cadastradas.
                     </div>
-                    <div class="row">
+                    <div class="row" id="photosGallery">
                         @foreach (var photo in Model.Photos)
                         {
                             <div class="col-md-3 mb-3">
@@ -890,7 +890,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 @if (blockedDates.Any())
                 {
                     <div class="table-responsive">
-                        <table class="table table-bordered">
+                        <table class="table table-bordered" id="blockedDatesTable">
                             <thead class="table-light">
                                 <tr>
                                     <th>Data</th>
@@ -899,7 +899,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                     <th>Ações</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="blockedDatesTableBody">
                                 @foreach (var blockedDate in blockedDates)
                                 {
                                     <tr>
@@ -1081,25 +1081,406 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 
 @section Scripts {
     <script>
-        // Garantir que o loading seja exibido ao submeter formulários
-        document.addEventListener('DOMContentLoaded', function() {
-            // Adicionar listener para todos os formulários da página
-            document.querySelectorAll('form').forEach(function(form) {
-                form.addEventListener('submit', function(e) {
-                    // REGRA CRÍTICA: NUNCA mostrar loading se há um modal de confirmação (showConfirm) aberto
-                    // O loading só deve aparecer APÓS o usuário clicar em "Confirmar" dentro do showConfirm
-                    if (typeof window.isConfirmModalOpen === 'function' && window.isConfirmModalOpen()) {
+        // Função genérica para converter formulários para AJAX
+        function convertFormToAjax(form, options) {
+            // Opções padrão
+            var defaults = {
+                showLoading: true,
+                hideLoading: true,
+                onSuccess: null,
+                onError: null,
+                reloadOnSuccess: false,
+                updateElement: null // ID do elemento a ser atualizado
+            };
+            var config = Object.assign({}, defaults, options || {});
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Verificar se há modal de confirmação aberto
+                if (typeof window.isConfirmModalOpen === 'function' && window.isConfirmModalOpen()) {
+                    return;
+                }
+                
+                // Verificar se o formulário deve ignorar o loading
+                if (form.classList.contains('no-loading')) {
+                    config.showLoading = false;
+                }
+                
+                // Mostrar loading se configurado
+                if (config.showLoading && typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                    window.KlyonLoading.show();
+                }
+                
+                // Preparar dados do formulário
+                var formData = new FormData(form);
+                var actionUrl = form.action;
+                var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                
+                // Marcar como requisição AJAX manual
+                form.setAttribute('data-ajax-request', 'true');
+                
+                fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'RequestVerificationToken': token
+                    },
+                    redirect: 'manual'
+                })
+                .then(response => {
+                    // Esconder loading após receber resposta
+                    if (config.hideLoading && typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação
+                    form.removeAttribute('data-ajax-request');
+                    
+                    if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
+                        // Sucesso com redirect
+                        if (config.onSuccess) {
+                            config.onSuccess(response);
+                        } else if (config.reloadOnSuccess) {
+                            window.location.reload();
+                        } else if (config.updateElement) {
+                            updateElementContent(config.updateElement);
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        } else if (config.updateTable) {
+                            config.updateTable();
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        } else {
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        }
                         return;
                     }
                     
-                    // Verificar se não é um formulário que deve ignorar o loading
-                    @* if (!form.classList.contains('no-loading') && 
-                        !form.classList.contains('confirm-required') &&
-                        typeof window.KlyonLoading !== 'undefined') {
-                        window.KlyonLoading.show();
-                    } *@
+                    if (response.ok) {
+                        // Sucesso
+                        if (config.onSuccess) {
+                            config.onSuccess(response);
+                        } else if (config.reloadOnSuccess) {
+                            window.location.reload();
+                        } else if (config.updateElement) {
+                            updateElementContent(config.updateElement);
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        } else if (config.updateTable) {
+                            config.updateTable();
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        } else {
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        }
+                    } else {
+                        // Erro
+                        if (config.onError) {
+                            config.onError(response);
+                        } else {
+                            showToast('Erro ao salvar. Por favor, tente novamente.', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Esconder loading em caso de erro
+                    if (config.hideLoading && typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação
+                    form.removeAttribute('data-ajax-request');
+                    
+                    if (config.onError) {
+                        config.onError(error);
+                    } else {
+                        showToast('Erro ao processar requisição: ' + error.message, 'error');
+                        console.error('Erro:', error);
+                    }
                 });
             });
+        }
+        
+        // Função auxiliar para atualizar conteúdo de um elemento
+        function updateElementContent(elementId) {
+            var element = document.getElementById(elementId);
+            if (!element) return;
+            
+            // Fazer requisição para buscar o conteúdo atualizado
+            var timestamp = new Date().getTime();
+            var url = window.location.href;
+            if (url.indexOf('?') > -1) {
+                url += '&_=' + timestamp;
+            } else {
+                url += '?_=' + timestamp;
+            }
+            
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                var newElement = tempDiv.querySelector('#' + elementId);
+                if (newElement && element) {
+                    element.innerHTML = newElement.innerHTML;
+                    // Re-inicializar Select2 se necessário
+                    if (typeof window.KlyonAutocomplete !== 'undefined' && window.KlyonAutocomplete.init) {
+                        window.KlyonAutocomplete.init();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar elemento:', error);
+                showToast('Erro ao atualizar conteúdo. Por favor, recarregue a página.', 'error');
+            });
+        }
+        
+        // Função para atualizar tabela de datas bloqueadas
+        function updateBlockedDatesTable() {
+            var timestamp = new Date().getTime();
+            fetch('@Url.Action("Profile", "Coworking")?tab=hours&_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Encontrar a tabela de datas bloqueadas
+                var newTableBody = tempDiv.querySelector('#blockedDatesTableBody');
+                var currentTableBody = document.getElementById('blockedDatesTableBody');
+                
+                if (newTableBody && currentTableBody) {
+                    // Atualizar apenas o tbody da tabela
+                    currentTableBody.innerHTML = newTableBody.innerHTML;
+                } else {
+                    // Se não encontrou a tabela, atualizar toda a seção de datas bloqueadas
+                    var blockedDatesSection = document.querySelector('#hours .table-responsive');
+                    var newBlockedDatesSection = tempDiv.querySelector('#hours .table-responsive');
+                    if (blockedDatesSection && newBlockedDatesSection) {
+                        blockedDatesSection.innerHTML = newBlockedDatesSection.innerHTML;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar tabela de datas bloqueadas:', error);
+                showToast('Erro ao atualizar tabela. Por favor, recarregue a página.', 'error');
+            });
+        }
+        
+        // Função para atualizar galeria de fotos
+        function updatePhotosGallery() {
+            var timestamp = new Date().getTime();
+            fetch('@Url.Action("Profile", "Coworking")?tab=photos&_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Encontrar a galeria de fotos
+                var newPhotosContainer = tempDiv.querySelector('#photosGallery');
+                var currentPhotosContainer = document.getElementById('photosGallery');
+                
+                if (newPhotosContainer && currentPhotosContainer) {
+                    currentPhotosContainer.innerHTML = newPhotosContainer.innerHTML;
+                    
+                    // Forçar atualização das imagens
+                    var imageTimestamp = new Date().getTime();
+                    var images = currentPhotosContainer.querySelectorAll('img[src*="GetPhoto"]');
+                    images.forEach(function(img) {
+                        var src = img.src;
+                        src = src.split('&t=')[0].split('?t=')[0];
+                        if (src.indexOf('?') > -1) {
+                            img.src = src + '&t=' + imageTimestamp;
+                        } else {
+                            img.src = src + '?t=' + imageTimestamp;
+                        }
+                    });
+                } else {
+                    // Se não encontrou, atualizar toda a aba de fotos
+                    var photosTab = document.getElementById('photos');
+                    var newPhotosTab = tempDiv.querySelector('#photos');
+                    if (photosTab && newPhotosTab) {
+                        photosTab.innerHTML = newPhotosTab.innerHTML;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar galeria de fotos:', error);
+                showToast('Erro ao atualizar galeria. Por favor, recarregue a página.', 'error');
+            });
+        }
+        
+        // Converter todos os formulários para AJAX quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Formulários de UpdateProfile (basic, contact, address, bank, social)
+            // Não recarregar página, apenas mostrar toast de sucesso
+            document.querySelectorAll('form[action*="UpdateProfile"]').forEach(function(form) {
+                if (form.id !== 'partnerForm') { // Excluir partnerForm que já tem tratamento especial
+                    convertFormToAjax(form, {
+                        // Apenas mostrar toast, não recarregar
+                    });
+                }
+            });
+            
+            // Formulário ResubmitForApproval - recarregar para atualizar status de aprovação
+            document.querySelectorAll('form[action*="ResubmitForApproval"]').forEach(function(form) {
+                convertFormToAjax(form, {
+                    reloadOnSuccess: true // Precisa recarregar para atualizar status de aprovação
+                });
+            });
+            
+            // Formulário SaveOperatingHours - não recarregar, apenas toast
+            var operatingHoursForm = document.getElementById('operatingHoursForm');
+            if (operatingHoursForm) {
+                convertFormToAjax(operatingHoursForm, {
+                    // Apenas mostrar toast, não recarregar
+                });
+            }
+            
+            // Formulários UploadDocument - não recarregar, apenas toast
+            document.querySelectorAll('form.document-upload-form').forEach(function(form) {
+                convertFormToAjax(form, {
+                    // Apenas mostrar toast, não recarregar
+                });
+            });
+            
+            // Formulário UploadPhotos - atualizar galeria de fotos
+            var uploadPhotoForm = document.getElementById('uploadPhotoForm');
+            if (uploadPhotoForm) {
+                uploadPhotoForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Mostrar loading
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                        if (typeof window.isConfirmModalOpen === 'function' && !window.isConfirmModalOpen()) {
+                            window.KlyonLoading.show();
+                        }
+                    }
+                    
+                    var formData = new FormData(this);
+                    var actionUrl = this.action;
+                    var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                    
+                    this.setAttribute('data-ajax-request', 'true');
+                    
+                    fetch(actionUrl, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'RequestVerificationToken': token
+                        },
+                        redirect: 'manual'
+                    })
+                    .then(response => {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        
+                        this.removeAttribute('data-ajax-request');
+                        
+                        if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                            // Fechar modal
+                            var modalEl = document.getElementById('uploadPhotoModal');
+                            if (modalEl) {
+                                var modal = bootstrap.Modal.getInstance(modalEl);
+                                if (modal) {
+                                    modal.hide();
+                                }
+                            }
+                            // Atualizar galeria de fotos
+                            updatePhotosGallery();
+                            showToast('Fotos enviadas com sucesso!', 'success');
+                        } else {
+                            showToast('Erro ao enviar fotos. Por favor, tente novamente.', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        this.removeAttribute('data-ajax-request');
+                        showToast('Erro ao enviar fotos: ' + error.message, 'error');
+                        console.error('Erro:', error);
+                    });
+                });
+            }
+            
+            // Formulário AddBlockedDate - atualizar tabela de datas bloqueadas
+            var addBlockedDateForm = document.querySelector('form[action*="AddBlockedDate"]');
+            if (addBlockedDateForm) {
+                addBlockedDateForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Mostrar loading
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                        if (typeof window.isConfirmModalOpen === 'function' && !window.isConfirmModalOpen()) {
+                            window.KlyonLoading.show();
+                        }
+                    }
+                    
+                    var formData = new FormData(this);
+                    var actionUrl = this.action;
+                    var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                    
+                    this.setAttribute('data-ajax-request', 'true');
+                    
+                    fetch(actionUrl, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'RequestVerificationToken': token
+                        },
+                        redirect: 'manual'
+                    })
+                    .then(response => {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        
+                        this.removeAttribute('data-ajax-request');
+                        
+                        if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                            // Fechar modal
+                            var modalEl = document.getElementById('addBlockedDateModal');
+                            if (modalEl) {
+                                var modal = bootstrap.Modal.getInstance(modalEl);
+                                if (modal) {
+                                    modal.hide();
+                                }
+                            }
+                            // Resetar formulário
+                            this.reset();
+                            // Atualizar tabela de datas bloqueadas
+                            updateBlockedDatesTable();
+                            showToast('Data bloqueada adicionada com sucesso!', 'success');
+                        } else {
+                            showToast('Erro ao adicionar data bloqueada. Por favor, tente novamente.', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        this.removeAttribute('data-ajax-request');
+                        showToast('Erro ao adicionar data bloqueada: ' + error.message, 'error');
+                        console.error('Erro:', error);
+                    });
+                });
+            }
         });
 
         // Preview de fotos ao selecionar
@@ -1154,31 +1535,50 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 return;
             }
 
-            // Criar formulário dinamicamente
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '@Url.Action("SetMainPhoto", "Coworking")';
+            // Mostrar loading após confirmação
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                window.KlyonLoading.show();
+            }
             
             // Buscar token anti-forgery
             const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
             const token = tokenInput ? tokenInput.value : '';
             
-            if (token) {
-                const tokenField = document.createElement('input');
-                tokenField.type = 'hidden';
-                tokenField.name = '__RequestVerificationToken';
-                tokenField.value = token;
-                form.appendChild(tokenField);
-            }
+            // Criar FormData
+            const formData = new FormData();
+            formData.append('__RequestVerificationToken', token);
+            formData.append('photoId', photoId);
             
-            const photoIdInput = document.createElement('input');
-            photoIdInput.type = 'hidden';
-            photoIdInput.name = 'photoId';
-            photoIdInput.value = photoId;
-            form.appendChild(photoIdInput);
-            
-            document.body.appendChild(form);
-            form.submit();
+            fetch('@Url.Action("SetMainPhoto", "Coworking")', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'RequestVerificationToken': token
+                },
+                redirect: 'manual'
+            })
+            .then(response => {
+                // Esconder loading após receber resposta
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
+                if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                    // Atualizar galeria de fotos
+                    updatePhotosGallery();
+                    showToast('Foto de capa definida com sucesso!', 'success');
+                } else {
+                    showToast('Erro ao definir foto de capa. Por favor, tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                // Esconder loading em caso de erro
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                showToast('Erro ao definir foto de capa: ' + error.message, 'error');
+                console.error('Erro:', error);
+            });
         }
 
         // Deletar foto
@@ -1193,31 +1593,50 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 return;
             }
 
-            // Criar formulário dinamicamente
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '@Url.Action("DeletePhoto", "Coworking")';
+            // Mostrar loading após confirmação
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                window.KlyonLoading.show();
+            }
             
             // Buscar token anti-forgery
             const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
             const token = tokenInput ? tokenInput.value : '';
             
-            if (token) {
-                const tokenField = document.createElement('input');
-                tokenField.type = 'hidden';
-                tokenField.name = '__RequestVerificationToken';
-                tokenField.value = token;
-                form.appendChild(tokenField);
-            }
+            // Criar FormData
+            const formData = new FormData();
+            formData.append('__RequestVerificationToken', token);
+            formData.append('photoId', photoId);
             
-            const photoIdInput = document.createElement('input');
-            photoIdInput.type = 'hidden';
-            photoIdInput.name = 'photoId';
-            photoIdInput.value = photoId;
-            form.appendChild(photoIdInput);
-            
-            document.body.appendChild(form);
-            form.submit();
+            fetch('@Url.Action("DeletePhoto", "Coworking")', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'RequestVerificationToken': token
+                },
+                redirect: 'manual'
+            })
+            .then(response => {
+                // Esconder loading após receber resposta
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
+                if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                    // Atualizar galeria de fotos
+                    updatePhotosGallery();
+                    showToast('Foto excluída com sucesso!', 'success');
+                } else {
+                    showToast('Erro ao excluir foto. Por favor, tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                // Esconder loading em caso de erro
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                showToast('Erro ao excluir foto: ' + error.message, 'error');
+                console.error('Erro:', error);
+            });
         }
 
         // Função para aplicar máscara de CPF
@@ -1906,7 +2325,56 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             );
             
             if (confirmed) {
-                form.submit();
+                // Mostrar loading após confirmação
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                    window.KlyonLoading.show();
+                }
+                
+                // Enviar requisição via AJAX
+                var formData = new FormData(form);
+                var actionUrl = form.action;
+                var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                
+                // Marcar que este formulário está fazendo uma requisição AJAX manual
+                form.setAttribute('data-ajax-request', 'true');
+                
+                fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'RequestVerificationToken': token
+                    },
+                    redirect: 'manual'
+                })
+                .then(response => {
+                    // Esconder loading após receber resposta
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação de requisição AJAX
+                    form.removeAttribute('data-ajax-request');
+                    
+                    if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                        // Atualizar tabela de datas bloqueadas
+                        updateBlockedDatesTable();
+                        showToast('Bloqueio removido com sucesso!', 'success');
+                    } else {
+                        showToast('Erro ao remover bloqueio. Por favor, tente novamente.', 'error');
+                    }
+                })
+                .catch(error => {
+                    // Esconder loading em caso de erro
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação de requisição AJAX
+                    form.removeAttribute('data-ajax-request');
+                    
+                    showToast('Erro ao remover bloqueio: ' + error.message, 'error');
+                    console.error('Erro:', error);
+                });
             }
         }
     </script>
