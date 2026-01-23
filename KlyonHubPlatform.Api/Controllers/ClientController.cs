@@ -1466,6 +1466,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 payment.Status = PaymentStatus.AwaitingValidation;
                 payment.ReceiptFilePath = receiptPath;
                 payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                // Registrar no histórico que o comprovante foi enviado
+                var history = new PaymentHistory
+                {
+                    PaymentId = paymentId,
+                    Action = "ReceiptUploaded",
+                    ActionBy = userId,
+                    ActionAt = DateTimeHelper.GetBrazilianTime()
+                };
+                _context.PaymentHistories.Add(history);
+
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Comprovante enviado com sucesso! O pagamento está aguardando validação pelo coworking.";
