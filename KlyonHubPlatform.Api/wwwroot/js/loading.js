@@ -4,80 +4,169 @@
 
     // Criar overlay de loading
     function createLoadingOverlay() {
+        // Verificar se já existe
+        let existing = document.getElementById('klyon-loading-overlay');
+        if (existing) {
+            // Garantir que está no body, não dentro de um modal
+            if (existing.parentElement !== document.body) {
+                document.body.appendChild(existing);
+            }
+            return existing;
+        }
+        
+        // Garantir que o body existe
+        if (!document.body) {
+            return null;
+        }
+        
         const overlay = document.createElement('div');
         overlay.id = 'klyon-loading-overlay';
         overlay.className = 'klyon-loading-overlay hidden';
+        // Definir estilos inline para garantir que funcionem e fiquem acima dos modais
+        overlay.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background-color: rgba(255, 255, 255, 0.9) !important; display: none !important; justify-content: center !important; align-items: center !important; z-index: 99999 !important;';
         overlay.innerHTML = `
-            <div class="text-center">
+            <div style="text-align: center;">
                 <div class="klyon-loading-spinner"></div>
                 <div class="klyon-loading-text">Carregando...</div>
             </div>
         `;
+        // Garantir que o overlay seja adicionado ao body, não dentro de um modal
         document.body.appendChild(overlay);
         return overlay;
     }
+    
+    // Criar o overlay quando o DOM estiver pronto
+    function initLoadingOverlay() {
+        if (document.body) {
+            createLoadingOverlay();
+        } else if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                createLoadingOverlay();
+            });
+        } else {
+            // Tentar criar imediatamente
+            setTimeout(function() {
+                if (document.body) {
+                    createLoadingOverlay();
+                }
+            }, 0);
+        }
+    }
+    
+    // Inicializar o overlay
+    initLoadingOverlay();
 
     // Verificar se há modal de confirmação aberto
+    // Esta função é CRÍTICA: o loading NUNCA deve aparecer quando há um showConfirm ativo
+    // IMPORTANTE: Esta função verifica APENAS o modal de confirmação (confirmModal), não outros modais
     function isConfirmModalOpen() {
         const confirmModal = document.getElementById('confirmModal');
         if (!confirmModal) return false;
         
-        // Verificação mais rápida: atributo de dados
+        // Verificação mais rápida e confiável: atributo de dados
+        // Este atributo é definido quando showConfirm() é chamado e removido quando o modal fecha
+        // Esta é a verificação mais confiável porque é controlada diretamente pelo showConfirm
         if (confirmModal.getAttribute('data-confirm-open') === 'true') {
             return true;
         }
         
         // Verificar se o modal está visível usando Bootstrap
+        // Mas APENAS se for o confirmModal específico
         try {
             const modalInstance = bootstrap.Modal.getInstance(confirmModal);
-            if (modalInstance) {
-                // Verificar propriedade _isShown ou _element (Bootstrap 5)
-                if (modalInstance._isShown === true || modalInstance._element === confirmModal) {
+            if (modalInstance && modalInstance._element === confirmModal) {
+                // Verificar propriedade _isShown (Bootstrap 5)
+                if (modalInstance._isShown === true) {
                     return true;
                 }
             }
         } catch (e) {
-            // Se bootstrap não estiver disponível, usar fallback
+            // Se bootstrap não estiver disponível, continuar com outras verificações
         }
         
         // Verificar classes e display como fallback
         // Bootstrap adiciona a classe 'show' quando o modal está visível
+        // Mas APENAS verificar se é o confirmModal específico
         const hasShowClass = confirmModal.classList.contains('show');
-        const computedStyle = window.getComputedStyle(confirmModal);
-        const isDisplayed = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+        if (hasShowClass) {
+            const computedStyle = window.getComputedStyle(confirmModal);
+            const isDisplayed = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+            if (isDisplayed) {
+                // Verificar se realmente é o confirmModal que está visível
+                // Comparar o elemento para garantir que não é outro modal
+                const visibleModals = document.querySelectorAll('.modal.show');
+                for (let i = 0; i < visibleModals.length; i++) {
+                    if (visibleModals[i] === confirmModal) {
+                        return true;
+                    }
+                }
+            }
+        }
         
-        // Verificar se há backdrop (Bootstrap cria um elemento .modal-backdrop quando o modal está aberto)
-        const backdrop = document.querySelector('.modal-backdrop');
-        const hasBackdrop = backdrop !== null;
+        // NÃO verificar backdrop genérico, pois pode ser de qualquer modal
+        // Apenas confiar no atributo data-confirm-open e nas verificações específicas acima
         
-        // Verificar se o modal está sendo animado (classe 'fade' com 'show' indica que está abrindo/fechando)
-        const isAnimating = confirmModal.classList.contains('fade') && hasShowClass;
-        
-        // O modal está aberto se:
-        // 1. Tem a classe 'show' E não está escondido
-        // 2. Tem backdrop (indica que está aberto)
-        // 3. Está sendo animado (abrindo)
-        return (hasShowClass && isDisplayed) || hasBackdrop || isAnimating;
+        return false;
     }
 
     // Mostrar loading
     function showLoading() {
-        // Não mostrar loading se há um modal de confirmação aberto
+        // REGRA CRÍTICA: NUNCA mostrar loading se há um modal de confirmação (showConfirm) aberto
+        // O loading só deve aparecer APÓS o usuário clicar em "Confirmar" dentro do showConfirm
         if (isConfirmModalOpen()) {
+            return;
+        }
+        
+        // Garantir que o body existe
+        if (!document.body) {
             return;
         }
         
         let overlay = document.getElementById('klyon-loading-overlay');
         if (!overlay) {
             overlay = createLoadingOverlay();
+            if (!overlay) {
+                // Se ainda não foi criado, tentar novamente
+                setTimeout(showLoading, 10);
+                return;
+            }
         }
+        
+        // Garantir que o overlay está no body, não dentro de um modal
+        if (overlay.parentElement !== document.body) {
+            document.body.appendChild(overlay);
+        }
+        
+        // Aplicar estilos inline diretamente para garantir que apareça acima dos modais normais
+        // Mas ABAIXO do modal de confirmação (z-index: 10550)
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '1060'; // Acima dos modais normais (1050), mas abaixo do modal de confirmação (10550)
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.visibility = 'visible';
         overlay.classList.remove('hidden');
+        
+        // Forçar reflow para garantir que o navegador renderize
+        void overlay.offsetHeight;
     }
 
     // Esconder loading
     function hideLoading() {
         const overlay = document.getElementById('klyon-loading-overlay');
         if (overlay) {
+            // Remover estilos inline que foram aplicados para mostrar
+            overlay.style.display = 'none';
+            overlay.style.opacity = '0';
+            overlay.style.visibility = 'hidden';
+            overlay.style.pointerEvents = 'none';
             overlay.classList.add('hidden');
         }
     }
@@ -87,33 +176,130 @@
         show: showLoading,
         hide: hideLoading
     };
+    
+    // Expor função de verificação de modal de confirmação para uso externo
+    window.isConfirmModalOpen = isConfirmModalOpen;
+
+    // Função auxiliar para mostrar loading de forma síncrona (sem delay)
+    function showLoadingSync() {
+        // REGRA CRÍTICA: NUNCA mostrar loading se há um modal de confirmação (showConfirm) aberto
+        if (isConfirmModalOpen()) {
+            return;
+        }
+        
+        if (!document.body) {
+            return;
+        }
+        
+        let overlay = document.getElementById('klyon-loading-overlay');
+        if (!overlay) {
+            overlay = createLoadingOverlay();
+            if (!overlay) {
+                return;
+            }
+        }
+        
+        // Garantir que o overlay está no body, não dentro de um modal
+        if (overlay.parentElement !== document.body) {
+            document.body.appendChild(overlay);
+        }
+        
+        // Mostrar de forma síncrona (sem requestAnimationFrame) usando estilos inline
+        // Z-index abaixo do modal de confirmação (10550), mas acima dos modais normais (1050)
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '1060'; // Acima dos modais normais (1050), mas abaixo do modal de confirmação (10550)
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.visibility = 'visible';
+        overlay.classList.remove('hidden');
+        
+        // Forçar reflow imediatamente para garantir renderização
+        void overlay.offsetHeight;
+    }
 
     // Mostrar loading em submissões de formulário
+    // Usar capture phase para garantir que capturamos o evento antes de qualquer outro handler
     document.addEventListener('submit', function(e) {
         const form = e.target;
+        
+        // Verificar se é realmente um formulário
+        if (!form || form.tagName !== 'FORM') {
+            return;
+        }
+        
+        // REGRA CRÍTICA: NUNCA mostrar loading se há um modal de confirmação (showConfirm) aberto
+        // O loading só deve aparecer APÓS o usuário clicar em "Confirmar" dentro do showConfirm
+        if (isConfirmModalOpen()) {
+            return;
+        }
         
         // Não mostrar loading se:
         // 1. O formulário tem a classe 'no-loading'
         // 2. O formulário tem a classe 'confirm-required' (requer confirmação antes - loading será mostrado automaticamente após confirmação)
-        // 3. Há um modal de confirmação aberto (a função showLoading já verifica isso, mas verificamos aqui também para evitar chamadas desnecessárias)
-        if (form.tagName === 'FORM' && 
-            !form.classList.contains('no-loading') &&
-            !form.classList.contains('confirm-required') &&
-            !isConfirmModalOpen()) {
-            showLoading();
+        if (form.classList.contains('no-loading') ||
+            form.classList.contains('confirm-required')) {
+            return;
+        }
+        
+        // Garantir que o overlay existe antes de mostrar
+        let overlay = document.getElementById('klyon-loading-overlay');
+        if (!overlay && document.body) {
+            overlay = createLoadingOverlay();
+        }
+        
+        // Mostrar loading de forma síncrona ANTES de permitir o submit
+        // Isso garante que o loading apareça antes da navegação
+        if (overlay) {
+            // Garantir que o overlay está no body, não dentro de um modal
+            if (overlay.parentElement !== document.body) {
+                document.body.appendChild(overlay);
+            }
+            
+            // Aplicar estilos inline diretamente para garantir que apareça IMEDIATAMENTE
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+            overlay.style.display = 'flex';
+            overlay.style.justifyContent = 'center';
+            overlay.style.alignItems = 'center';
+            overlay.style.zIndex = '1060'; // Acima dos modais normais (1050), mas abaixo do modal de confirmação (10550)
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+            overlay.style.visibility = 'visible';
+            overlay.classList.remove('hidden');
+            
+            // Forçar reflow múltiplas vezes para garantir renderização
+            void overlay.offsetHeight;
+            void overlay.offsetWidth;
+            
+            // Adicionar um micro-delay para garantir que o navegador renderize antes da navegação
+            // Isso é especialmente importante em navegadores que navegam muito rápido
+            setTimeout(function() {
+                // Garantir que ainda está visível
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    overlay.style.zIndex = '1060'; // Acima dos modais normais (1050), mas abaixo do modal de confirmação (10550)
+                }
+            }, 1);
         }
         
         // Para formulários que fazem submit após confirmação, garantir que o loading seja fechado após a resposta
         // Isso será feito automaticamente quando a página recarregar ou quando houver erro
-        if (form.tagName === 'FORM' && !form.classList.contains('no-loading')) {
-            // Se for uma submissão normal (não AJAX), o loading será fechado quando a página recarregar
-            // Se for AJAX, o desenvolvedor deve fechar manualmente após a resposta
-            // Adicionar listener para erros de formulário
-            form.addEventListener('error', function() {
-                hideLoading();
-            }, { once: true });
-        }
-    });
+        form.addEventListener('error', function() {
+            hideLoading();
+        }, { once: true });
+    }, true); // Usar capture phase
     
     // Interceptar erros de requisição para fechar o loading
     window.addEventListener('error', function(e) {
@@ -127,8 +313,14 @@
     });
     
     // Fechar loading quando a página for recarregada (indica que a requisição foi concluída)
+    // Mas apenas se o loading não foi mostrado recentemente (para evitar esconder antes de mostrar)
     window.addEventListener('beforeunload', function() {
-        hideLoading();
+        const overlay = document.getElementById('klyon-loading-overlay');
+        if (overlay && overlay.style.display === 'flex' && !overlay.classList.contains('hidden')) {
+            // Só esconder se o loading estiver realmente visível
+            // Isso evita esconder o loading antes mesmo dele aparecer
+            hideLoading();
+        }
     });
     
     // Função auxiliar para verificar se é uma requisição ao backend
@@ -178,15 +370,21 @@
         const url = args[0];
         const isBackend = isBackendRequest(url);
         
-        // Mostrar loading antes da requisição se for ao backend
-        if (isBackend && !isConfirmModalOpen()) {
+        // Verificar se há um formulário com data-ajax-request (requisição AJAX manual)
+        // Se houver, não gerenciar o loading automaticamente
+        const formWithAjax = document.querySelector('form[data-ajax-request="true"]');
+        const isManualAjax = formWithAjax !== null;
+        
+        // Mostrar loading antes da requisição se for ao backend E não for uma requisição AJAX manual
+        if (isBackend && !isConfirmModalOpen() && !isManualAjax) {
             showLoading();
         }
         
         const fetchPromise = originalFetch.apply(this, args);
         
         // Fechar loading quando a requisição for concluída (sucesso ou erro)
-        if (isBackend) {
+        // Mas APENAS se não for uma requisição AJAX manual (o código que fez a requisição é responsável por esconder)
+        if (isBackend && !isManualAjax) {
             fetchPromise
                 .then(() => {
                     // Pequeno delay para garantir que a resposta foi processada
@@ -264,15 +462,30 @@
 
     // Esconder loading quando a página carregar completamente
     window.addEventListener('load', function() {
-        hideLoading();
+        // Aguardar um pouco para garantir que a página carregou completamente
+        setTimeout(hideLoading, 100);
     });
 
-    // Esconder loading quando DOM estiver pronto
+    // Esconder loading quando DOM estiver pronto (apenas se não houver requisições pendentes)
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(hideLoading, 300);
+            // Aguardar um pouco para verificar se há requisições pendentes
+            setTimeout(function() {
+                // Só esconder se não houver requisições ativas
+                const overlay = document.getElementById('klyon-loading-overlay');
+                if (overlay && overlay.style.display === 'flex') {
+                    // Se o loading está visível mas não há requisições, esconder
+                    hideLoading();
+                }
+            }, 500);
         });
     } else {
-        setTimeout(hideLoading, 300);
+        // DOM já está pronto, esconder após um delay
+        setTimeout(function() {
+            const overlay = document.getElementById('klyon-loading-overlay');
+            if (overlay && overlay.style.display === 'flex') {
+                hideLoading();
+            }
+        }, 500);
     }
 })();

@@ -799,6 +799,12 @@
                 };
                 modal.addEventListener('hidden.bs.modal', handleHidden, { once: true });
                 
+                // REGRA CRÍTICA: Esconder loading se estiver visível antes de mostrar o modal de confirmação
+                // O loading NUNCA deve aparecer na frente do modal de confirmação
+                if (window.KlyonLoading && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
                 // Marcar modal como aberto antes de mostrar
                 modal.setAttribute('data-confirm-open', 'true');
                 
@@ -813,10 +819,18 @@
             });
         }
         
-        // Substituir confirm padrão (opcional - pode ser comentado se não quiser sobrescrever)
-        // window.confirm = function(message) {
-        //     return showConfirm(message, 'Confirmar', 'info');
-        // };
+        // Substituir confirm padrão do JavaScript por showConfirm elegante
+        // NOTA: Como confirm() é síncrono/bloqueante e showConfirm() é assíncrono,
+        // não podemos substituir diretamente. O código deve usar showConfirm() explicitamente.
+        // Esta função serve apenas como fallback e aviso para desenvolvedores.
+        const originalConfirm = window.confirm;
+        window.confirm = function(message) {
+            console.warn('⚠️ window.confirm() foi chamado. Use showConfirm() para uma experiência melhor e consistente com o sistema.');
+            console.warn('Exemplo: const confirmed = await showConfirm("' + message + '", "Confirmar", "info");');
+            // Retornar false por padrão para evitar comportamentos inesperados
+            // Desenvolvedores devem usar showConfirm() diretamente
+            return false;
+        };
     </script>
     
     @await RenderSectionAsync("Scripts", required: false)

@@ -563,7 +563,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 @if (Model.Partners != null && Model.Partners.Any())
                 {
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle" id="partnersTable">
                             <thead>
                                 <tr>
                                     <th style="width:60px">Foto</th>
@@ -574,7 +574,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                     <th class="text-end">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="partnersTableBody">
                                 @foreach (var partner in Model.Partners)
                                 {
                                     <tr>
@@ -1081,6 +1081,27 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 
 @section Scripts {
     <script>
+        // Garantir que o loading seja exibido ao submeter formulários
+        document.addEventListener('DOMContentLoaded', function() {
+            // Adicionar listener para todos os formulários da página
+            document.querySelectorAll('form').forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    // REGRA CRÍTICA: NUNCA mostrar loading se há um modal de confirmação (showConfirm) aberto
+                    // O loading só deve aparecer APÓS o usuário clicar em "Confirmar" dentro do showConfirm
+                    if (typeof window.isConfirmModalOpen === 'function' && window.isConfirmModalOpen()) {
+                        return;
+                    }
+                    
+                    // Verificar se não é um formulário que deve ignorar o loading
+                    if (!form.classList.contains('no-loading') && 
+                        !form.classList.contains('confirm-required') &&
+                        typeof window.KlyonLoading !== 'undefined') {
+                        window.KlyonLoading.show();
+                    }
+                });
+            });
+        });
+
         // Preview de fotos ao selecionar
         document.getElementById('Photos')?.addEventListener('change', function(e) {
             const preview = document.getElementById('photoPreview');
@@ -1304,12 +1325,29 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 sel.appendChild(opt);
             }
             sel.value = role;
+            
+            // Atualizar Select2 se estiver inicializado
+            if ($(sel).hasClass('select2-hidden-accessible')) {
+                $(sel).trigger('change.select2');
+            }
             // Foto atual (só em edição com Id e quando existe PhotoPath)
             var wrap = document.getElementById('partnerPhotoCurrentWrap');
             var imgCur = document.getElementById('partnerPhotoCurrent');
             if (d.Id && d.Id > 0 && d.PhotoPath) {
-                imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id;
+                // Adicionar timestamp para forçar atualização da imagem e evitar cache
+                var photoTimestamp = new Date().getTime();
+                imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id + '&t=' + photoTimestamp;
                 wrap.style.display = 'block';
+                // Forçar reload da imagem para garantir que a versão mais recente seja exibida
+                var newImg = new Image();
+                newImg.onload = function() {
+                    imgCur.src = this.src;
+                };
+                newImg.onerror = function() {
+                    // Se falhar, tentar sem timestamp
+                    imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id;
+                };
+                newImg.src = imgCur.src;
             } else {
                 imgCur.src = '';
                 wrap.style.display = 'none';
@@ -1323,6 +1361,16 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             var modalEl = document.getElementById('addPartnerModal');
             if (!modalEl) return;
             var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            
+            // Aguardar o modal ser exibido antes de atualizar Select2
+            modalEl.addEventListener('shown.bs.modal', function() {
+                // Atualizar Select2 após o modal ser exibido
+                var roleSelect = document.getElementById('partnerRole');
+                if (roleSelect && $(roleSelect).hasClass('select2-hidden-accessible')) {
+                    $(roleSelect).trigger('change.select2');
+                }
+            }, { once: true });
+            
             modal.show();
         }
 
@@ -1342,17 +1390,105 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 
         // Validação de tamanho da foto do sócio no submit
         document.getElementById('partnerForm')?.addEventListener('submit', function(e) {
+            e.preventDefault(); // Sempre prevenir submit padrão para usar AJAX
+            
+            // PRIMEIRA COISA: Mostrar loading ANTES de qualquer validação ou processamento
+            // O loading só será exibido se não houver modal de confirmação aberto
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                // Verificar se não há modal de confirmação aberto antes de mostrar loading
+                if (typeof window.isConfirmModalOpen === 'function' && !window.isConfirmModalOpen()) {
+                    // Mostrar loading de forma síncrona e forçada
+                    window.KlyonLoading.show();
+                    // Forçar reflow para garantir que o loading apareça antes do submit
+                    var overlay = document.getElementById('klyon-loading-overlay');
+                    if (overlay) {
+                        void overlay.offsetHeight;
+                        void overlay.offsetWidth;
+                    }
+                }
+            }
+            
+            // Fazer a validação
             var fi = document.getElementById('partnerPhotoInput');
             var maxPhotoMb = @(ViewBag.MaxPhotoSizeMB ?? 5);
             var maxSize = maxPhotoMb * 1024 * 1024;
             if (fi && fi.files && fi.files[0] && fi.files[0].size > maxSize) {
-                e.preventDefault();
                 if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                    setTimeout(function() { window.KlyonLoading.hide(); }, 0);
+                    window.KlyonLoading.hide();
                 }
                 showToast('A foto não pode exceder ' + maxPhotoMb + 'MB.', 'warning');
                 return false;
             }
+            
+            // Se passou na validação, enviar via AJAX
+            var form = this;
+            var formData = new FormData(form);
+            var actionUrl = form.action;
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            
+            // Marcar que este formulário está fazendo uma requisição AJAX manual
+            // Isso evita que o interceptor de fetch gerencie o loading automaticamente
+            form.setAttribute('data-ajax-request', 'true');
+            
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'RequestVerificationToken': token
+                },
+                // Não seguir redirects automaticamente para poder processar a resposta
+                redirect: 'manual'
+            })
+            .then(response => {         
+                debugger;      
+                // Remover marcação de requisição AJAX
+                form.removeAttribute('data-ajax-request');
+                
+                if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
+                    // Se houve redirect, atualizar apenas a tabela de sócios
+                    updatePartnersTable();
+                    // Fechar o modal
+                    var modalEl = document.getElementById('addPartnerModal');
+                    if (modalEl) {
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                    }
+
+                    showToast('Sócio salvo com sucesso!', 'success');
+                    return;
+                }
+                
+                if (response.ok) {
+                    // Se a resposta foi OK, atualizar apenas a tabela de sócios
+                    updatePartnersTable();
+                    // Fechar o modal
+                    var modalEl = document.getElementById('addPartnerModal');
+                    if (modalEl) {
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                    }
+                    showToast('Sócio salvo com sucesso!', 'success');
+                } else {
+                    // Se houve erro, mostrar mensagem
+                    showToast('Erro ao salvar sócio. Por favor, tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                // Esconder loading em caso de erro
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
+                // Remover marcação de requisição AJAX
+                form.removeAttribute('data-ajax-request');
+                
+                showToast('Erro ao salvar sócio: ' + error.message, 'error');
+                console.error('Erro:', error);
+            });
         });
 
         // Validação de participação (não permitir negativo)
@@ -1554,6 +1690,79 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
     }
 
     <script>
+        // Função para atualizar apenas a tabela de sócios sem recarregar a página
+        function updatePartnersTable() {
+            // Fazer requisição para buscar apenas a tabela atualizada
+            // Adicionar timestamp para evitar cache
+            var timestamp = new Date().getTime();
+            fetch('@Url.Action("Profile", "Coworking")?tab=partners&_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Criar um elemento temporário para parsear o HTML
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Encontrar a tabela de sócios no HTML retornado
+                var newTableBody = tempDiv.querySelector('#partnersTableBody');
+                var currentTableBody = document.getElementById('partnersTableBody');
+                
+                if (newTableBody && currentTableBody) {
+                    // Atualizar apenas o tbody da tabela
+                    currentTableBody.innerHTML = newTableBody.innerHTML;
+                    
+                    // Forçar atualização das imagens adicionando timestamp para evitar cache
+                    var imageTimestamp = new Date().getTime();
+                    var images = currentTableBody.querySelectorAll('img[src*="GetPartnerPhoto"]');
+                    images.forEach(function(img) {
+                        var src = img.src;
+                        // Remover timestamp anterior se existir
+                        src = src.split('&t=')[0].split('?t=')[0];
+                        // Adicionar novo timestamp
+                        if (src.indexOf('?') > -1) {
+                            img.src = src + '&t=' + imageTimestamp;
+                        } else {
+                            img.src = src + '?t=' + imageTimestamp;
+                        }
+                        // Forçar reload da imagem removendo do cache do navegador
+                        var newImg = new Image();
+                        newImg.onload = function() {
+                            img.src = this.src;
+                        };
+                        newImg.src = img.src;
+                    });
+                    
+                    // Re-inicializar Select2 nos novos elementos se necessário
+                    if (typeof window.KlyonAutocomplete !== 'undefined' && window.KlyonAutocomplete.init) {
+                        window.KlyonAutocomplete.init();
+                    }
+
+                    // Esconder loading após receber a resposta
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }                    
+                } else {
+                    // Esconder loading mesmo em caso de erro
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    showToast('Erro ao carregar tabela de sócios. Por favor, tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                // Esconder loading em caso de erro
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                showToast('Erro ao salvar sócios. Por favor, tente novamente.', 'error');
+            });
+        }
+
         function updatePartnersPageSize(newSize) {
             window.location.href = '@Url.Action("Profile", "Coworking")?partnersPage=1&partnersPageSize=' + newSize;
         }
@@ -1623,6 +1832,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             );
             
             if (confirmed) {
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                    window.KlyonLoading.show();
+                }
                 form.submit();
             }
         }
@@ -1640,7 +1852,6 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             }
         }
     </script>
-}
 
 <style>
     #profileTabs {
