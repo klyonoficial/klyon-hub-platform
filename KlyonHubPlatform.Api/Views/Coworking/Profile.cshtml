@@ -1093,11 +1093,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     }
                     
                     // Verificar se não é um formulário que deve ignorar o loading
-                    if (!form.classList.contains('no-loading') && 
+                    @* if (!form.classList.contains('no-loading') && 
                         !form.classList.contains('confirm-required') &&
                         typeof window.KlyonLoading !== 'undefined') {
                         window.KlyonLoading.show();
-                    }
+                    } *@
                 });
             });
         });
@@ -1416,7 +1416,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                     window.KlyonLoading.hide();
                 }
+                debugger;
                 showToast('A foto não pode exceder ' + maxPhotoMb + 'MB.', 'warning');
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
                 return false;
             }
             
@@ -1832,10 +1836,64 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             );
             
             if (confirmed) {
+                // Mostrar loading após confirmação
                 if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
                     window.KlyonLoading.show();
                 }
-                form.submit();
+                
+                // Enviar requisição via AJAX
+                var formData = new FormData(form);
+                var actionUrl = form.action;
+                var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                
+                // Marcar que este formulário está fazendo uma requisição AJAX manual
+                form.setAttribute('data-ajax-request', 'true');
+                
+                fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'RequestVerificationToken': token
+                    },
+                    redirect: 'manual'
+                })
+                .then(response => {
+                    // Esconder loading após receber a resposta
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação de requisição AJAX
+                    form.removeAttribute('data-ajax-request');
+                    
+                    if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
+                        // Se houve redirect, atualizar apenas a tabela de sócios
+                        updatePartnersTable();
+                        showToast('Sócio excluído com sucesso!', 'success');
+                        return;
+                    }
+                    
+                    if (response.ok) {
+                        // Se a resposta foi OK, atualizar apenas a tabela de sócios
+                        updatePartnersTable();
+                        showToast('Sócio excluído com sucesso!', 'success');
+                    } else {
+                        // Se houve erro, mostrar mensagem
+                        showToast('Erro ao excluir sócio. Por favor, tente novamente.', 'error');
+                    }
+                })
+                .catch(error => {
+                    // Esconder loading em caso de erro
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    
+                    // Remover marcação de requisição AJAX
+                    form.removeAttribute('data-ajax-request');
+                    
+                    showToast('Erro ao excluir sócio: ' + error.message, 'error');
+                    console.error('Erro:', error);
+                });
             }
         }
 
