@@ -205,6 +205,38 @@
     color: var(--klyon-text);
 }
 
+/* Botão Info - Texto branco */
+.btn-info {
+    color: #ffffff !important;
+    background-color: var(--klyon-info);
+    border-color: var(--klyon-info);
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-info:hover,
+.btn-info:focus,
+.btn-info:active,
+.btn-info.active,
+.btn-info:not(:disabled):not(.disabled):active,
+.btn-info:not(:disabled):not(.disabled).active {
+    color: #ffffff !important;
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+.btn-info:focus,
+.btn-info.focus {
+    color: #ffffff !important;
+    box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.5);
+}
+
+.btn-info:disabled,
+.btn-info.disabled {
+    color: #ffffff !important;
+    opacity: 0.65;
+}
+
 /* Cards - Klyon Style */
 .card {
     border: none;

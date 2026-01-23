@@ -131,17 +131,62 @@
         hideLoading();
     });
     
-    // Interceptar requisições fetch para fechar o loading após a resposta
+    // Função auxiliar para verificar se é uma requisição ao backend
+    function isBackendRequest(url) {
+        if (!url) return false;
+        
+        // Se for um objeto Request, pegar a URL
+        if (url instanceof Request) {
+            url = url.url;
+        }
+        
+        // Converter para string se necessário
+        const urlString = String(url);
+        
+        // Não é requisição ao backend se:
+        // - É data URI ou blob URI
+        // - É um arquivo estático em pastas específicas (css, js, images, fonts, lib, vendor)
+        // - É um arquivo estático com extensão de mídia (mas não se for uma URL de API/Controller)
+        if (urlString.startsWith('data:') || 
+            urlString.startsWith('blob:') ||
+            urlString.includes('/css/') ||
+            urlString.includes('/js/') ||
+            urlString.includes('/images/') ||
+            urlString.includes('/fonts/') ||
+            urlString.includes('/lib/') ||
+            urlString.includes('/vendor/') ||
+            urlString.includes('/wwwroot/')) {
+            return false;
+        }
+        
+        // Se for um arquivo estático direto (com extensão no final, sem parâmetros de query que indiquem ação)
+        // Mas permitir se for uma URL de controller/action (contém /Client/, /Admin/, /Coworking/, etc)
+        const isStaticFile = urlString.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|mp3)(\?|$)/i);
+        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account)\//i);
+        
+        if (isStaticFile && !isControllerAction) {
+            return false;
+        }
+        
+        // É uma requisição ao backend se não for um arquivo estático
+        return true;
+    }
+
+    // Interceptar requisições fetch para mostrar e fechar o loading
     const originalFetch = window.fetch;
     window.fetch = function(...args) {
+        const url = args[0];
+        const isBackend = isBackendRequest(url);
+        
+        // Mostrar loading antes da requisição se for ao backend
+        if (isBackend && !isConfirmModalOpen()) {
+            showLoading();
+        }
+        
         const fetchPromise = originalFetch.apply(this, args);
         
-        // Verificar se o loading está visível antes de interceptar
-        const overlay = document.getElementById('klyon-loading-overlay');
-        const isLoadingVisible = overlay && !overlay.classList.contains('hidden');
-        
-        if (isLoadingVisible) {
-            // Fechar loading quando a requisição for concluída (sucesso ou erro)
+        // Fechar loading quando a requisição for concluída (sucesso ou erro)
+        if (isBackend) {
             fetchPromise
                 .then(() => {
                     // Pequeno delay para garantir que a resposta foi processada
@@ -156,22 +201,26 @@
         return fetchPromise;
     };
     
-    // Interceptar requisições XMLHttpRequest para fechar o loading após a resposta
+    // Interceptar requisições XMLHttpRequest para mostrar e fechar o loading
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
     
     XMLHttpRequest.prototype.open = function(...args) {
         this._klyonLoadingActive = false;
+        this._klyonRequestUrl = args[1]; // URL da requisição
         return originalXHROpen.apply(this, args);
     };
     
     XMLHttpRequest.prototype.send = function(...args) {
-        const overlay = document.getElementById('klyon-loading-overlay');
-        const isLoadingVisible = overlay && !overlay.classList.contains('hidden');
+        const url = this._klyonRequestUrl || '';
+        const isBackend = isBackendRequest(url);
         
-        if (isLoadingVisible) {
+        // Mostrar loading antes da requisição se for ao backend
+        if (isBackend && !isConfirmModalOpen()) {
             this._klyonLoadingActive = true;
+            showLoading();
             
+            // Fechar loading quando a requisição for concluída
             this.addEventListener('loadend', function() {
                 if (this._klyonLoadingActive) {
                     setTimeout(hideLoading, 100);
@@ -180,6 +229,13 @@
             }, { once: true });
             
             this.addEventListener('error', function() {
+                if (this._klyonLoadingActive) {
+                    setTimeout(hideLoading, 100);
+                    this._klyonLoadingActive = false;
+                }
+            }, { once: true });
+            
+            this.addEventListener('abort', function() {
                 if (this._klyonLoadingActive) {
                     setTimeout(hideLoading, 100);
                     this._klyonLoadingActive = false;
