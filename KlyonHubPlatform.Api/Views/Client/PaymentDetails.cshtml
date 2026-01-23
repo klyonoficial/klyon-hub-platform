@@ -43,11 +43,11 @@
 
 <div class="row">
     <div class="col-md-8">
-        <div class="card mb-4">
+        <div class="card mb-4" id="paymentInfoCard">
             <div class="card-header">
                 <h5 class="mb-0">Informações do Pagamento</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="paymentInfoBody">
                 <dl class="row">
                     @if (Model.SubscriptionId.HasValue && contract != null)
                     {
@@ -140,7 +140,7 @@
                             <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
-                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)">
+                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@Model.Method.ToString()">
                                     @if (Model.Method == PaymentMethod.PIX)
                                     {
                                         <option value="PIX" selected>PIX</option>
@@ -258,7 +258,7 @@
         {
             @if (Model.Method == PaymentMethod.PIX)
             {
-                <div class="card mb-4">
+                <div class="card mb-4" id="pixPaymentCard">
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
                     </div>
@@ -315,7 +315,7 @@
             }
             else if (Model.Method == PaymentMethod.BankTransfer)
             {
-                <div class="card mb-4">
+                <div class="card mb-4" id="boletoPaymentCard">
                     <div class="card-header bg-secondary text-white">
                         <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto Bancário</h5>
                     </div>
@@ -359,7 +359,7 @@
             }
             else if (Model.Method == PaymentMethod.CreditCard)
             {
-                <div class="card mb-4">
+                <div class="card mb-4" id="creditCardPaymentCard">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito</h5>
                     </div>
@@ -454,8 +454,7 @@
 
                         <p class="text-muted small mt-3">
                             <i class="bi bi-info-circle"></i> 
-                            Após o envio do comprovante, o coworking validará o pagamento manualmente.
-                            Seu contrato será ativado após a aprovação.
+                            Após enviar o comprovante, nossa equipe fará a validação manual do pagamento. Assim que aprovado, seu contrato será ativado.
                         </p>
                     }
                     else if (Model.Method == PaymentMethod.CreditCard)
@@ -515,11 +514,11 @@
         </div>
 
         <!-- Card de Histórico -->
-        <div class="card mt-3">
+        <div class="card mt-3" id="paymentHistoryCard">
             <div class="card-header">
                 <h5 class="mb-0"><i class="bi bi-clock-history"></i> Histórico</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="paymentHistoryBody">
                 @if (ViewBag.PaymentHistory != null && ((List<KlyonHubPlatform.Domain.Entities.PaymentHistory>)ViewBag.PaymentHistory).Any())
                 {
                     <div class="list-group">
@@ -728,17 +727,22 @@
         }
 
         async function updatePaymentMethod(selectElement) {
+            // Armazenar o valor anterior antes de mostrar o confirm
+            const previousValue = selectElement.dataset.previousValue || selectElement.value;
+            
             const confirmed = await showConfirm(
-                'Deseja alterar o método de pagamento? Um novo código será gerado.',
+                'Deseja alterar o método de pagamento? Isso pode gerar um novo código de pagamento dependendo do método selecionado.',
                 'Alterar Método de Pagamento',
                 'warning'
             );
             
             if (confirmed) {
+                // Salvar o valor atual como anterior antes de submeter
+                selectElement.dataset.previousValue = selectElement.value;
                 selectElement.form.submit();
             } else {
-                // Restaurar valor anterior recarregando a página
-                location.reload();
+                // Restaurar valor anterior sem recarregar a página
+                selectElement.value = previousValue;
             }
         }
 
@@ -772,18 +776,198 @@
             }
         });
 
-        // Validação de tamanho de arquivo
+        // Função para atualizar o histórico de pagamento
+        function updatePaymentHistory() {
+            var timestamp = new Date().getTime();
+            fetch('@Url.Action("PaymentDetails", "Client", new { id = Model.Id })?_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Encontrar o card de histórico atualizado
+                var newHistoryBody = tempDiv.querySelector('#paymentHistoryBody');
+                var currentHistoryBody = document.getElementById('paymentHistoryBody');
+                
+                if (newHistoryBody && currentHistoryBody) {
+                    currentHistoryBody.innerHTML = newHistoryBody.innerHTML;
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar histórico:', error);
+                showToast('Erro ao atualizar histórico. Por favor, recarregue a página.', 'error');
+            });
+        }
+
+        // Função para atualizar as informações do pagamento
+        function updatePaymentInfo() {
+            var timestamp = new Date().getTime();
+            fetch('@Url.Action("PaymentDetails", "Client", new { id = Model.Id })?_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // Encontrar o card de informações do pagamento atualizado
+                var newPaymentInfoBody = tempDiv.querySelector('#paymentInfoBody');
+                var currentPaymentInfoBody = document.getElementById('paymentInfoBody');
+                
+                if (newPaymentInfoBody && currentPaymentInfoBody) {
+                    currentPaymentInfoBody.innerHTML = newPaymentInfoBody.innerHTML;
+                }
+                
+                // Verificar se as seções de pagamento (PIX, Boleto, Cartão) devem ser ocultadas
+                // Se o status não for mais "Pending", ocultar essas seções
+                var pixCard = document.getElementById('pixPaymentCard');
+                var boletoCard = document.getElementById('boletoPaymentCard');
+                var creditCardCard = document.getElementById('creditCardPaymentCard');
+                
+                // Verificar se existe algum card de pagamento na nova versão
+                var newPixCard = tempDiv.querySelector('#pixPaymentCard');
+                var newBoletoCard = tempDiv.querySelector('#boletoPaymentCard');
+                var newCreditCardCard = tempDiv.querySelector('#creditCardPaymentCard');
+                
+                // Se não existir nenhum card de pagamento na nova versão, significa que o status mudou
+                // e devemos ocultar os cards existentes
+                if (!newPixCard && !newBoletoCard && !newCreditCardCard) {
+                    if (pixCard) {
+                        pixCard.style.display = 'none';
+                    }
+                    if (boletoCard) {
+                        boletoCard.style.display = 'none';
+                    }
+                    if (creditCardCard) {
+                        creditCardCard.style.display = 'none';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar informações do pagamento:', error);
+                showToast('Erro ao atualizar informações. Por favor, recarregue a página.', 'error');
+            });
+        }
+
+        // Converter formulário de envio de comprovante para AJAX
         document.getElementById('confirmPaymentForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
             const fileInput = document.getElementById('receiptFile');
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const maxSize = 10 * 1024 * 1024; // 10MB
                 if (file.size > maxSize) {
-                    e.preventDefault();
                     showToast('O arquivo é muito grande. Tamanho máximo: 10MB', 'warning');
                     return false;
                 }
             }
+            
+            // Verificar se há modal de confirmação aberto
+            if (typeof window.isConfirmModalOpen === 'function' && window.isConfirmModalOpen()) {
+                return;
+            }
+            
+            // Mostrar loading
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                window.KlyonLoading.show();
+            }
+            
+            // Preparar dados do formulário
+            var formData = new FormData(this);
+            var actionUrl = this.action;
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            
+            // Marcar como requisição AJAX manual
+            this.setAttribute('data-ajax-request', 'true');
+            
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'RequestVerificationToken': token
+                },
+                redirect: 'manual'
+            })
+            .then(response => {
+                // Esconder loading após receber resposta
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
+                // Remover marcação
+                this.removeAttribute('data-ajax-request');
+                
+                if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
+                    // Fechar modal
+                    var modalEl = document.getElementById('confirmPaymentModal');
+                    if (modalEl) {
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                    }
+                    
+                    // Limpar formulário
+                    this.reset();
+                    document.getElementById('filePreview').style.display = 'none';
+                    
+                    // Atualizar informações do pagamento (inclui status)
+                    updatePaymentInfo();
+                    
+                    // Atualizar histórico
+                    updatePaymentHistory();
+                    
+                    // Atualizar seção de ações
+                    var timestamp = new Date().getTime();
+                    fetch('@Url.Action("PaymentDetails", "Client", new { id = Model.Id })?_=' + timestamp, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Cache-Control': 'no-cache'
+                        }
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        var tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        var newActionsCard = tempDiv.querySelector('.col-md-4 .card .card-body');
+                        var currentActionsCard = document.querySelector('.col-md-4 .card .card-body');
+                        if (newActionsCard && currentActionsCard) {
+                            currentActionsCard.innerHTML = newActionsCard.innerHTML;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao atualizar ações:', error);
+                    });
+                    
+                    showToast('Comprovante enviado com sucesso! O pagamento está em análise e aguardando validação.', 'success');
+                } else {
+                    showToast('Erro ao enviar comprovante. Por favor, tente novamente.', 'error');
+                }
+            })
+            .catch(error => {
+                // Esconder loading em caso de erro
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                
+                // Remover marcação
+                this.removeAttribute('data-ajax-request');
+                
+                showToast('Erro ao enviar comprovante: ' + error.message, 'error');
+                console.error('Erro:', error);
+            });
         });
     </script>
 }

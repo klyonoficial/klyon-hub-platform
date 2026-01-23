@@ -1490,7 +1490,6 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Comprovante enviado com sucesso! O pagamento está aguardando validação pelo coworking.";
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
             }
             catch (Exception ex)

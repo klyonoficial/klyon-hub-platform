@@ -113,22 +113,34 @@
                                     @switch (payment.Status)
                                     {
                                         case PaymentStatus.Pending:
-                                            <span class="badge bg-warning">Pendente</span>
+                                            <span class="badge bg-pending-payment">
+                                                <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                            </span>
                                             break;
                                         case PaymentStatus.Processing:
-                                            <span class="badge bg-info">Processando</span>
+                                            <span class="badge bg-info">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Processando
+                                            </span>
                                             break;
                                         case PaymentStatus.AwaitingValidation:
-                                            <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                            <span class="badge bg-info">
+                                                <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                            </span>
                                             break;
                                         case PaymentStatus.Paid:
-                                            <span class="badge bg-success">Pago</span>
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Pago
+                                            </span>
                                             break;
                                         case PaymentStatus.Failed:
-                                            <span class="badge bg-danger">Falhou</span>
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-x-circle-fill me-1"></i> Falhou
+                                            </span>
                                             break;
                                         default:
-                                            <span class="badge bg-secondary">@payment.Status</span>
+                                            <span class="badge bg-secondary">
+                                                <i class="bi bi-question-circle-fill me-1"></i> @payment.Status
+                                            </span>
                                             break;
                                     }
                                 </td>
@@ -327,16 +339,34 @@
                         @switch (payment.Status)
                         {
                             case PaymentStatus.Pending:
-                                <span class="badge bg-warning">Pendente</span>
+                                <span class="badge bg-pending-payment">
+                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                </span>
+                                break;
+                            case PaymentStatus.Processing:
+                                <span class="badge bg-info">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Processando
+                                </span>
                                 break;
                             case PaymentStatus.AwaitingValidation:
-                                <span class="badge bg-info">Aguardando Validação</span>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                </span>
                                 break;
                             case PaymentStatus.Paid:
-                                <span class="badge bg-success">Pago</span>
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Pago
+                                </span>
+                                break;
+                            case PaymentStatus.Failed:
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Falhou
+                                </span>
                                 break;
                             default:
-                                <span class="badge bg-secondary">@payment.Status</span>
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-question-circle-fill me-1"></i> @payment.Status
+                                </span>
                                 break;
                         }
                     </div>
@@ -381,13 +411,13 @@
                             html += '<div class="d-flex w-100 justify-content-between">';
                             html += '<h6 class="mb-1">';
                             if (item.action === 'Approved') {
-                                html += '<span class="badge bg-success me-2">Aprovado</span>';
+                                html += '<span class="badge bg-success me-2"><i class="bi bi-check-circle"></i> Aprovado</span>';
                             } else if (item.action === 'Rejected') {
-                                html += '<span class="badge bg-danger me-2">Reprovado</span>';
+                                html += '<span class="badge bg-danger me-2"><i class="bi bi-x-circle"></i> Reprovado</span>';
                             } else if (item.action === 'ReceiptUploaded') {
-                                html += '<span class="badge bg-info me-2">Comprovante Enviado</span>';
+                                html += '<span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>';
                             } else if (item.action === 'ContractCreated') {
-                                html += '<span class="badge bg-primary me-2">Contrato Criado</span>';
+                                html += '<span class="badge bg-primary me-2"><i class="bi bi-file-earmark-text"></i> Contrato Criado</span>';
                             } else {
                                 html += '<span class="badge bg-secondary me-2">' + item.action + '</span>';
                             }
