@@ -9,6 +9,7 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
+using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers

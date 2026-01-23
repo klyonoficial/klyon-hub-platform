@@ -577,11 +577,8 @@ else
             </ul>
         </nav>
         
-        @{
-            var pageSize = ViewBag.PageSize as int? ?? 10;
-        }
         <div class="text-center text-muted small mt-2">
-            Mostrando <strong>@((currentPage - 1) * pageSize + 1)</strong> a <strong>@(Math.Min(currentPage * pageSize, totalItems))</strong> de <strong>@totalItems</strong> contrato(s)
+            Mostrando <strong>@((currentPage - 1) * (ViewBag.PageSize as int? ?? 10) + 1)</strong> a <strong>@(Math.Min(currentPage * (ViewBag.PageSize as int? ?? 10), totalItems))</strong> de <strong>@totalItems</strong> contrato(s)
         </div>
     }
 }
