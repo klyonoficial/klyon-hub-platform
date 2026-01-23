@@ -386,6 +386,8 @@
                                 html += '<span class="badge bg-danger me-2">Reprovado</span>';
                             } else if (item.action === 'ReceiptUploaded') {
                                 html += '<span class="badge bg-info me-2">Comprovante Enviado</span>';
+                            } else if (item.action === 'ContractCreated') {
+                                html += '<span class="badge bg-primary me-2">Contrato Criado</span>';
                             } else {
                                 html += '<span class="badge bg-secondary me-2">' + item.action + '</span>';
                             }

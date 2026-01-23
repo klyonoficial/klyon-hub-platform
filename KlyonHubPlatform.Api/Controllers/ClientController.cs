@@ -913,6 +913,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (payment != null)
                     {
+                        // Registrar no histórico que o contrato foi criado
+                        var history = new PaymentHistory
+                        {
+                            PaymentId = payment.Id,
+                            Action = "ContractCreated",
+                            ActionBy = userId, // ID do cliente que criou o contrato
+                            ActionAt = DateTimeHelper.GetBrazilianTime()
+                        };
+                        _context.PaymentHistories.Add(history);
+                        await _context.SaveChangesAsync();
+                        
                         TempData["Success"] = "Contrato criado com sucesso!";
                         return RedirectToAction("PaymentDetails", new { id = payment.Id });
                     }
