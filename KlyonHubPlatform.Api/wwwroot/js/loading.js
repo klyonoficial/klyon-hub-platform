@@ -56,6 +56,25 @@
     // Inicializar o overlay
     initLoadingOverlay();
 
+    // Flag para rastrear se o loading foi mostrado durante o carregamento inicial da página
+    let initialPageLoad = true;
+    let initialPageLoadTimeout = null;
+    
+    // Mostrar loading no início do carregamento da página
+    if (document.readyState === 'loading') {
+        // Página ainda está carregando, mostrar loading
+        setTimeout(function() {
+            if (document.body) {
+                showLoadingSync();
+            }
+        }, 50);
+    } else if (document.readyState === 'interactive') {
+        // DOM está pronto mas recursos ainda podem estar carregando
+        if (document.body) {
+            showLoadingSync();
+        }
+    }
+
     // Verificar se há modal de confirmação aberto
     // Esta função é CRÍTICA: o loading NUNCA deve aparecer quando há um showConfirm ativo
     // IMPORTANTE: Esta função verifica APENAS o modal de confirmação (confirmModal), não outros modais
@@ -351,10 +370,27 @@
             return false;
         }
         
+        // Ignorar requisições SignalR (negotiate, start, connect)
+        if (urlString.includes('/negotiate') || 
+            urlString.includes('/start?') || 
+            urlString.includes('/connect?') ||
+            urlString.includes('transport=webSockets') ||
+            urlString.includes('clientProtocol=')) {
+            return false;
+        }
+        
+        // Ignorar requisições BrowserLink e AspNetCore Browser Refresh
+        if (urlString.includes('browserLink') || 
+            urlString.includes('aspnetcore-browser-refresh') ||
+            urlString.includes('localhost:61981') ||
+            urlString.includes('localhost:44355')) {
+            return false;
+        }
+        
         // Se for um arquivo estático direto (com extensão no final, sem parâmetros de query que indiquem ação)
         // Mas permitir se for uma URL de controller/action (contém /Client/, /Admin/, /Coworking/, etc)
         const isStaticFile = urlString.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|mp3)(\?|$)/i);
-        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account)\//i);
+        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account|Parceiro)\//i);
         
         if (isStaticFile && !isControllerAction) {
             return false;
@@ -364,6 +400,9 @@
         return true;
     }
 
+    // Contador de requisições ativas ao backend
+    let activeBackendRequests = 0;
+    
     // Interceptar requisições fetch para mostrar e fechar o loading
     const originalFetch = window.fetch;
     window.fetch = function(...args) {
@@ -375,24 +414,39 @@
         const formWithAjax = document.querySelector('form[data-ajax-request="true"]');
         const isManualAjax = formWithAjax !== null;
         
-        // Mostrar loading antes da requisição se for ao backend E não for uma requisição AJAX manual
+        // Mostrar loading antes da requisição se:
+        // 1. For ao backend
+        // 2. Não houver modal de confirmação aberto
+        // 3. Não for uma requisição AJAX manual
+        // (Agora permitimos mostrar loading durante o carregamento inicial também)
         if (isBackend && !isConfirmModalOpen() && !isManualAjax) {
+            activeBackendRequests++;
             showLoading();
         }
         
         const fetchPromise = originalFetch.apply(this, args);
         
         // Fechar loading quando a requisição for concluída (sucesso ou erro)
-        // Mas APENAS se não for uma requisição AJAX manual (o código que fez a requisição é responsável por esconder)
+        // Mas APENAS se não for uma requisição AJAX manual
         if (isBackend && !isManualAjax) {
             fetchPromise
                 .then(() => {
-                    // Pequeno delay para garantir que a resposta foi processada
-                    setTimeout(hideLoading, 100);
+                    activeBackendRequests--;
+                    // Só esconder o loading se não houver mais requisições ativas
+                    if (activeBackendRequests <= 0) {
+                        activeBackendRequests = 0;
+                        // Pequeno delay para garantir que a resposta foi processada
+                        setTimeout(hideLoading, 100);
+                    }
                 })
                 .catch(() => {
-                    // Fechar loading mesmo em caso de erro
-                    setTimeout(hideLoading, 100);
+                    activeBackendRequests--;
+                    // Só esconder o loading se não houver mais requisições ativas
+                    if (activeBackendRequests <= 0) {
+                        activeBackendRequests = 0;
+                        // Fechar loading mesmo em caso de erro
+                        setTimeout(hideLoading, 100);
+                    }
                 });
         }
         
@@ -414,28 +468,45 @@
         const isBackend = isBackendRequest(url);
         
         // Mostrar loading antes da requisição se for ao backend
+        // (Agora permitimos mostrar loading durante o carregamento inicial também)
         if (isBackend && !isConfirmModalOpen()) {
             this._klyonLoadingActive = true;
+            activeBackendRequests++;
             showLoading();
             
             // Fechar loading quando a requisição for concluída
             this.addEventListener('loadend', function() {
                 if (this._klyonLoadingActive) {
-                    setTimeout(hideLoading, 100);
+                    activeBackendRequests--;
+                    // Só esconder o loading se não houver mais requisições ativas
+                    if (activeBackendRequests <= 0) {
+                        activeBackendRequests = 0;
+                        setTimeout(hideLoading, 100);
+                    }
                     this._klyonLoadingActive = false;
                 }
             }, { once: true });
             
             this.addEventListener('error', function() {
                 if (this._klyonLoadingActive) {
-                    setTimeout(hideLoading, 100);
+                    activeBackendRequests--;
+                    // Só esconder o loading se não houver mais requisições ativas
+                    if (activeBackendRequests <= 0) {
+                        activeBackendRequests = 0;
+                        setTimeout(hideLoading, 100);
+                    }
                     this._klyonLoadingActive = false;
                 }
             }, { once: true });
             
             this.addEventListener('abort', function() {
                 if (this._klyonLoadingActive) {
-                    setTimeout(hideLoading, 100);
+                    activeBackendRequests--;
+                    // Só esconder o loading se não houver mais requisições ativas
+                    if (activeBackendRequests <= 0) {
+                        activeBackendRequests = 0;
+                        setTimeout(hideLoading, 100);
+                    }
                     this._klyonLoadingActive = false;
                 }
             }, { once: true });
@@ -459,33 +530,76 @@
             }
         }
     });
-
+    
     // Esconder loading quando a página carregar completamente
     window.addEventListener('load', function() {
-        // Aguardar um pouco para garantir que a página carregou completamente
-        setTimeout(hideLoading, 100);
+        // Se for o carregamento inicial da página, apenas marcar que terminou após um tempo
+        // Mas não esconder o loading aqui - deixar que as requisições fetch/XHR controlem
+        if (initialPageLoad) {
+            // Limpar timeout anterior se existir
+            if (initialPageLoadTimeout) {
+                clearTimeout(initialPageLoadTimeout);
+            }
+            
+            // Aguardar um tempo para marcar que o carregamento inicial terminou
+            // Mas não esconder o loading - deixar que as requisições fetch/XHR controlem
+            initialPageLoadTimeout = setTimeout(function() {
+                initialPageLoad = false;
+                // Se não houver requisições ativas, esconder o loading
+                if (activeBackendRequests <= 0) {
+                    setTimeout(hideLoading, 200);
+                }
+            }, 1000);
+        }
     });
 
     // Esconder loading quando DOM estiver pronto (apenas se não houver requisições pendentes)
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            // Aguardar um pouco para verificar se há requisições pendentes
-            setTimeout(function() {
-                // Só esconder se não houver requisições ativas
-                const overlay = document.getElementById('klyon-loading-overlay');
-                if (overlay && overlay.style.display === 'flex') {
-                    // Se o loading está visível mas não há requisições, esconder
-                    hideLoading();
+            // Se for o carregamento inicial, apenas marcar que terminou após um tempo
+            // Mas não esconder o loading aqui - deixar que as requisições controlem
+            if (initialPageLoad) {
+                // Limpar timeout anterior se existir
+                if (initialPageLoadTimeout) {
+                    clearTimeout(initialPageLoadTimeout);
                 }
-            }, 500);
+                
+                // Aguardar um tempo para marcar que o carregamento inicial terminou
+                // Mas não esconder o loading - deixar que as requisições fetch/XHR controlem
+                initialPageLoadTimeout = setTimeout(function() {
+                    initialPageLoad = false;
+                    // Se não houver requisições ativas, esconder o loading
+                    if (activeBackendRequests <= 0) {
+                        setTimeout(hideLoading, 200);
+                    }
+                }, 1000);
+            }
         });
     } else {
-        // DOM já está pronto, esconder após um delay
-        setTimeout(function() {
-            const overlay = document.getElementById('klyon-loading-overlay');
-            if (overlay && overlay.style.display === 'flex') {
-                hideLoading();
+        // DOM já está pronto
+        if (initialPageLoad) {
+            // Limpar timeout anterior se existir
+            if (initialPageLoadTimeout) {
+                clearTimeout(initialPageLoadTimeout);
             }
-        }, 500);
+            
+            // Aguardar um tempo para marcar que o carregamento inicial terminou
+            initialPageLoadTimeout = setTimeout(function() {
+                initialPageLoad = false;
+                // Se não houver requisições ativas, esconder o loading
+                if (activeBackendRequests <= 0) {
+                    setTimeout(hideLoading, 200);
+                }
+            }, 1000);
+        }
     }
+    
+    // Marcar que não é mais o carregamento inicial após navegação
+    window.addEventListener('beforeunload', function() {
+        initialPageLoad = false;
+        if (initialPageLoadTimeout) {
+            clearTimeout(initialPageLoadTimeout);
+            initialPageLoadTimeout = null;
+        }
+    });
 })();

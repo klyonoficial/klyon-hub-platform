@@ -193,14 +193,12 @@
                             @* Menu Endereço Fiscal com submenu *@
                             <div class="sidebar-dropdown" id="enderecoFiscalParceiroDropdown">
                                 <a class="nav-link sidebar-dropdown-toggle" id="enderecoFiscalParceiroLink" 
-                                   onmouseenter="showSidebarMenu('enderecoFiscalParceiro')" 
-                                   onmouseleave="hideSidebarMenu('enderecoFiscalParceiro')">
+                                   onclick="toggleSidebarMenu('enderecoFiscalParceiro'); return false;" 
+                                   href="#">
                                     <i class="bi bi-geo-alt-fill"></i> Endereço Fiscal
                                     <i class="bi bi-chevron-right float-end"></i>
                                 </a>
-                                <ul class="sidebar-submenu" id="enderecoFiscalParceiroMenu" 
-                                    onmouseenter="showSidebarMenu('enderecoFiscalParceiro')" 
-                                    onmouseleave="hideSidebarMenu('enderecoFiscalParceiro')">
+                                <ul class="sidebar-submenu" id="enderecoFiscalParceiroMenu">
                                     <li>
                                         <a class="nav-link" href="@Url.Action("MyAddresses", "Parceiro")">
                                             <i class="bi bi-geo-alt"></i> Meus Endereços Fiscais
@@ -240,14 +238,12 @@
                             @* Menu Financeiro com submenu *@
                             <div class="sidebar-dropdown" id="financeiroParceiroDropdown">
                                 <a class="nav-link sidebar-dropdown-toggle" id="financeiroParceiroLink" 
-                                   onmouseenter="showSidebarMenu('financeiroParceiro')" 
-                                   onmouseleave="hideSidebarMenu('financeiroParceiro')">
+                                   onclick="toggleSidebarMenu('financeiroParceiro'); return false;" 
+                                   href="#">
                                     <i class="bi bi-wallet2"></i> Financeiro
                                     <i class="bi bi-chevron-right float-end"></i>
                                 </a>
-                                <ul class="sidebar-submenu" id="financeiroParceiroMenu" 
-                                    onmouseenter="showSidebarMenu('financeiroParceiro')" 
-                                    onmouseleave="hideSidebarMenu('financeiroParceiro')">
+                                <ul class="sidebar-submenu" id="financeiroParceiroMenu">
                                     <li>
                                         <a class="nav-link" href="@Url.Action("Commissions", "Parceiro")">
                                             <i class="bi bi-cash-coin"></i> Comissões
@@ -275,14 +271,12 @@
                             {
                                 <div class="sidebar-dropdown" id="reservarSalaDropdown">
                                     <a class="nav-link sidebar-dropdown-toggle" id="reservarSalaLink" 
-                                       onmouseenter="showSidebarMenu('reservarSala')" 
-                                       onmouseleave="hideSidebarMenu('reservarSala')">
+                                       onclick="toggleSidebarMenu('reservarSala'); return false;" 
+                                       href="#">
                                         <i class="bi bi-building"></i> Reservar Sala
                                         <i class="bi bi-chevron-right float-end"></i>
                                     </a>
-                                    <ul class="sidebar-submenu" id="reservarSalaMenu" 
-                                        onmouseenter="showSidebarMenu('reservarSala')" 
-                                        onmouseleave="hideSidebarMenu('reservarSala')">
+                                    <ul class="sidebar-submenu" id="reservarSalaMenu">
                                         <li>
                                             <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
                                                 <i class="bi bi-search"></i> Buscar Salas
@@ -304,14 +298,12 @@
                             @* Menu Endereço Fiscal com submenu *@
                             <div class="sidebar-dropdown" id="enderecoFiscalDropdown">
                                 <a class="nav-link sidebar-dropdown-toggle" id="enderecoFiscalLink" 
-                                   onmouseenter="showSidebarMenu('enderecoFiscal')" 
-                                   onmouseleave="hideSidebarMenu('enderecoFiscal')">
+                                   onclick="toggleSidebarMenu('enderecoFiscal'); return false;" 
+                                   href="#">
                                     <i class="bi bi-geo-alt-fill"></i> Endereço Fiscal
                                     <i class="bi bi-chevron-right float-end"></i>
                                 </a>
-                                <ul class="sidebar-submenu" id="enderecoFiscalMenu" 
-                                    onmouseenter="showSidebarMenu('enderecoFiscal')" 
-                                    onmouseleave="hideSidebarMenu('enderecoFiscal')">
+                                <ul class="sidebar-submenu" id="enderecoFiscalMenu">
                                     <li>
                                         <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
                                             <i class="bi bi-credit-card"></i> Meus Pagamentos
@@ -325,11 +317,6 @@
                                     <li>
                                         <a class="nav-link" href="@Url.Action("MyContracts", "Client")">
                                             <i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
-                                            <i class="bi bi-receipt"></i> Cobranças de Endereço Fiscal
                                         </a>
                                     </li>
                                     <li>
@@ -412,42 +399,126 @@
         }
 
         // Função para mostrar o submenu da sidebar
-        function showSidebarMenu(menuId) {
-            // Cancelar qualquer timeout de fechamento pendente para este menu
-            if (hideSidebarMenuTimeouts[menuId]) {
-                clearTimeout(hideSidebarMenuTimeouts[menuId]);
-                hideSidebarMenuTimeouts[menuId] = null;
-            }
-            
+        // Função para alternar (abrir/fechar) o menu da sidebar
+        function toggleSidebarMenu(menuId) {
+            const dropdown = document.getElementById(menuId + 'Dropdown');
             const menu = document.getElementById(menuId + 'Menu');
-            if (menu) {
+            
+            if (!dropdown || !menu) return;
+            
+            // Verificar se o menu está aberto
+            const isOpen = dropdown.classList.contains('open');
+            
+            if (isOpen) {
+                // Fechar o menu
+                dropdown.classList.remove('open');
+                menu.style.display = 'none';
+            } else {
+                // Fechar outros menus abertos (opcional - pode remover se quiser múltiplos abertos)
+                document.querySelectorAll('.sidebar-dropdown.open').forEach(function(openDropdown) {
+                    if (openDropdown !== dropdown) {
+                        openDropdown.classList.remove('open');
+                        const openMenu = openDropdown.querySelector('.sidebar-submenu');
+                        if (openMenu) {
+                            openMenu.style.display = 'none';
+                        }
+                    }
+                });
+                
+                // Abrir o menu
+                dropdown.classList.add('open');
                 menu.style.display = 'block';
             }
         }
 
-        // Função para esconder o submenu da sidebar
-        function hideSidebarMenu(menuId) {
-            const menu = document.getElementById(menuId + 'Menu');
-            const dropdown = document.getElementById(menuId + 'Dropdown');
+        // Função para verificar se uma URL corresponde à URL atual
+        function isUrlMatch(linkHref, currentPath, currentUrl) {
+            if (!linkHref) return false;
             
-            if (menu) {
-                // Delay para evitar fechar quando o mouse está se movendo entre elementos
-                hideSidebarMenuTimeouts[menuId] = setTimeout(function() {
-                    if (dropdown) {
-                        // Verificar se o mouse ainda está sobre o dropdown ou o menu
-                        const isHovering = dropdown.matches(':hover') || 
-                                          (menu && menu.matches(':hover'));
-                        
-                        if (!isHovering) {
-                            menu.style.display = 'none';
-                        }
-                    } else {
-                        menu.style.display = 'none';
-                    }
-                }, 150);
+            try {
+                // Tentar fazer match mais preciso
+                const linkUrl = new URL(linkHref, window.location.origin);
+                const linkPath = linkUrl.pathname.toLowerCase();
+                
+                // Verificar se a URL atual corresponde ao link (ignorando query strings para comparação)
+                const currentPathOnly = currentPath.split('?')[0];
+                const linkPathOnly = linkPath.split('?')[0];
+                
+                // Match exato ou se a URL atual começa com o path do link
+                if (currentPathOnly === linkPathOnly || 
+                    currentPathOnly.startsWith(linkPathOnly + '/') ||
+                    (linkPathOnly !== '/' && currentPathOnly.includes(linkPathOnly))) {
+                    return true;
+                }
+            } catch (e) {
+                // Se não conseguir criar URL, fazer comparação simples
+                const linkPath = linkHref.toLowerCase();
+                const linkPathOnly = linkPath.split('?')[0];
+                const currentPathOnly = currentPath.split('?')[0];
+                
+                if (currentPathOnly === linkPathOnly || 
+                    currentPathOnly.startsWith(linkPathOnly + '/') ||
+                    (linkPathOnly !== '/' && currentPathOnly.includes(linkPathOnly))) {
+                    return true;
+                }
             }
+            
+            return false;
         }
 
+        // Função para marcar todos os menus ativos (links simples e dropdowns)
+        function checkAndOpenActiveMenu() {
+            const currentPath = window.location.pathname.toLowerCase();
+            const currentUrl = window.location.href.toLowerCase();
+            
+            // Verificar todos os links simples da sidebar (não dropdowns)
+            const sidebar = document.querySelector('.sidebar nav');
+            if (sidebar) {
+                const allLinks = sidebar.querySelectorAll('a.nav-link:not(.sidebar-dropdown-toggle)');
+                allLinks.forEach(function(link) {
+                    const linkHref = link.getAttribute('href');
+                    if (linkHref && linkHref !== '#' && !linkHref.startsWith('#')) {
+                        if (isUrlMatch(linkHref, currentPath, currentUrl)) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    }
+                });
+            }
+            
+            // Lista de todos os menus dropdown
+            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'financeiroParceiro', 'reservarSala'];
+            
+            menuIds.forEach(function(menuId) {
+                const menu = document.getElementById(menuId + 'Menu');
+                if (!menu) return;
+                
+                // Verificar se algum link dentro do menu corresponde à URL atual
+                const links = menu.querySelectorAll('a.nav-link');
+                let hasActiveLink = false;
+                
+                links.forEach(function(link) {
+                    const linkHref = link.getAttribute('href');
+                    if (isUrlMatch(linkHref, currentPath, currentUrl)) {
+                        link.classList.add('active');
+                        hasActiveLink = true;
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+                
+                // Se houver um link ativo, abrir o menu
+                if (hasActiveLink) {
+                    const dropdown = document.getElementById(menuId + 'Dropdown');
+                    if (dropdown) {
+                        dropdown.classList.add('open');
+                        menu.style.display = 'block';
+                    }
+                }
+            });
+        }
+        
         // Garantir que os menus funcionem corretamente ao carregar a página
         document.addEventListener('DOMContentLoaded', function() {
             // Menu do usuário no topo
@@ -474,93 +545,24 @@
                 });
             }
 
-            // Submenus da sidebar
-            const enderecoFiscalDropdown = document.getElementById('enderecoFiscalDropdown');
-            const enderecoFiscalMenu = document.getElementById('enderecoFiscalMenu');
+            // Verificar e abrir menus que contêm itens ativos
+            checkAndOpenActiveMenu();
             
-            if (enderecoFiscalDropdown && enderecoFiscalMenu) {
-                enderecoFiscalDropdown.addEventListener('mouseenter', function() {
-                    showSidebarMenu('enderecoFiscal');
+            // Adicionar event listeners aos links do submenu para manter o menu aberto
+            document.querySelectorAll('.sidebar-submenu a.nav-link').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    // Encontrar o dropdown pai e mantê-lo aberto
+                    const menu = this.closest('.sidebar-submenu');
+                    if (menu) {
+                        const menuId = menu.id.replace('Menu', '');
+                        const dropdown = document.getElementById(menuId + 'Dropdown');
+                        if (dropdown) {
+                            dropdown.classList.add('open');
+                            menu.style.display = 'block';
+                        }
+                    }
                 });
-                
-                enderecoFiscalDropdown.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('enderecoFiscal');
-                });
-                
-                enderecoFiscalMenu.addEventListener('mouseenter', function() {
-                    showSidebarMenu('enderecoFiscal');
-                });
-                
-                enderecoFiscalMenu.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('enderecoFiscal');
-                });
-            }
-
-            // Submenu Reservar Sala
-            const reservarSalaDropdown = document.getElementById('reservarSalaDropdown');
-            const reservarSalaMenu = document.getElementById('reservarSalaMenu');
-            
-            if (reservarSalaDropdown && reservarSalaMenu) {
-                reservarSalaDropdown.addEventListener('mouseenter', function() {
-                    showSidebarMenu('reservarSala');
-                });
-                
-                reservarSalaDropdown.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('reservarSala');
-                });
-                
-                reservarSalaMenu.addEventListener('mouseenter', function() {
-                    showSidebarMenu('reservarSala');
-                });
-                
-                reservarSalaMenu.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('reservarSala');
-                });
-            }
-
-            // Submenu Endereço Fiscal Parceiro
-            const enderecoFiscalParceiroDropdown = document.getElementById('enderecoFiscalParceiroDropdown');
-            const enderecoFiscalParceiroMenu = document.getElementById('enderecoFiscalParceiroMenu');
-            
-            if (enderecoFiscalParceiroDropdown && enderecoFiscalParceiroMenu) {
-                enderecoFiscalParceiroDropdown.addEventListener('mouseenter', function() {
-                    showSidebarMenu('enderecoFiscalParceiro');
-                });
-                
-                enderecoFiscalParceiroDropdown.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('enderecoFiscalParceiro');
-                });
-                
-                enderecoFiscalParceiroMenu.addEventListener('mouseenter', function() {
-                    showSidebarMenu('enderecoFiscalParceiro');
-                });
-                
-                enderecoFiscalParceiroMenu.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('enderecoFiscalParceiro');
-                });
-            }
-
-            // Submenu Financeiro Parceiro
-            const financeiroParceiroDropdown = document.getElementById('financeiroParceiroDropdown');
-            const financeiroParceiroMenu = document.getElementById('financeiroParceiroMenu');
-            
-            if (financeiroParceiroDropdown && financeiroParceiroMenu) {
-                financeiroParceiroDropdown.addEventListener('mouseenter', function() {
-                    showSidebarMenu('financeiroParceiro');
-                });
-                
-                financeiroParceiroDropdown.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('financeiroParceiro');
-                });
-                
-                financeiroParceiroMenu.addEventListener('mouseenter', function() {
-                    showSidebarMenu('financeiroParceiro');
-                });
-                
-                financeiroParceiroMenu.addEventListener('mouseleave', function() {
-                    hideSidebarMenu('financeiroParceiro');
-                });
-            }
+            });
         });
     </script>
     

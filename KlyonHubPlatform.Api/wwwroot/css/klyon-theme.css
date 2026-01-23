@@ -125,10 +125,6 @@
     font-size: 0.8rem;
 }
 
-.sidebar-dropdown:hover .sidebar-dropdown-toggle .bi-chevron-right {
-    transform: rotate(90deg);
-}
-
 .sidebar-submenu {
     list-style: none;
     padding: 0;
@@ -173,9 +169,23 @@
     transform: translateX(5px);
 }
 
+.sidebar-submenu .nav-link.active {
+    background-color: var(--klyon-accent);
+    color: var(--klyon-text) !important;
+    font-weight: 600;
+}
+
 .sidebar-submenu .nav-link i {
     margin-right: 8px;
     font-size: 0.85rem;
+}
+
+.sidebar-dropdown.open .sidebar-dropdown-toggle .bi-chevron-right {
+    transform: rotate(90deg);
+}
+
+.sidebar-dropdown.open .sidebar-submenu {
+    display: block;
 }
 
 /* Buttons - Klyon Style */
