@@ -234,36 +234,40 @@
                             <div class="border rounded p-3 text-center bg-light" style="min-height: 400px; max-height: 500px; overflow: auto; position: relative;">
                                 @{
                                     var receiptUrl = Url.Action("ViewReceipt", "Admin", new { paymentId = payment.Id });
-                                    var isPdf = payment.ReceiptFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+                                    var fileExtension = System.IO.Path.GetExtension(payment.ReceiptFilePath ?? "").ToLowerInvariant();
+                                    if (string.IsNullOrEmpty(fileExtension))
+                                    {
+                                        fileExtension = ".pdf";
+                                    }
+                                    var isPdf = fileExtension == ".pdf";
                                 }
                                 @if (isPdf)
                                 {
                                     <div id="pdfContainer_@payment.Id" style="width: 100%; height: 500px;">
-                                        <iframe src="@receiptUrl" 
-                                                type="application/pdf" 
-                                                style="width: 100%; height: 100%; border: none;" 
-                                                frameborder="0">
-                                            <p>Seu navegador não suporta a visualização de PDFs. 
-                                            <a href="@receiptUrl" download>Clique aqui para baixar o PDF</a></p>
-                                        </iframe>
+                                        <embed src="@receiptUrl" 
+                                               type="application/pdf" 
+                                               style="width: 100%; height: 100%; border: none;" 
+                                               frameborder="0">
+                                        <p>Seu navegador não suporta a visualização de PDFs. 
+                                        <a href="@receiptUrl" download>Clique aqui para baixar o PDF</a></p>
                                     </div>
                                 }
                                 else
                                 {
-                                    <div style="display: flex; justify-content: center; align-items: center; min-height: 400px;" id="receiptContainer_@payment.Id">
-                                        <img src="@(receiptUrl)?t=@DateTime.UtcNow.Ticks" 
-                                             class="img-fluid" 
-                                             style="max-height: 500px; max-width: 100%; object-fit: contain; display: block;" 
-                                             alt="Comprovante"
-                                             onerror="this.onerror=null; document.getElementById('receiptContainer_@payment.Id').innerHTML='<div class=\'text-danger\'><i class=\'bi bi-exclamation-triangle\'></i> Erro ao carregar imagem. <a href=\'@receiptUrl\' download class=\'btn btn-sm btn-primary\'>Clique aqui para baixar</a></div>';">
+                                    <div id="filePreview_@payment.Id" class="mt-3" style="display: block;">
+                                        <img id="previewImage_@payment.Id" 
+                                             src="@(receiptUrl)&t=@DateTime.UtcNow.Ticks" 
+                                             alt="Comprovante" 
+                                             class="img-thumbnail" 
+                                             style="max-width: 100%; max-height: 500px; object-fit: contain; cursor: pointer; display: block; margin: 0 auto;"
+                                             onclick="window.open('@receiptUrl', '_blank')"
+                                             onload="console.log('Imagem carregada com sucesso');"
+                                             onerror="console.error('Erro ao carregar imagem:', this.src); this.onerror=null; var container = document.getElementById('filePreview_@payment.Id'); if (container) { container.innerHTML='<div class=\'text-danger text-center\'><i class=\'bi bi-exclamation-triangle\'></i><br>Erro ao carregar imagem.<br><a href=\'@receiptUrl\' download class=\'btn btn-sm btn-primary mt-2\'>Clique aqui para baixar</a></div>'; }">
                                     </div>
                                 }
                             </div>
                             <div class="mt-2">
                                 @{
-                                    var receiptPath = payment.ReceiptFilePath;
-                                    var lastDot = receiptPath.LastIndexOf('.');
-                                    var fileExtension = lastDot >= 0 ? receiptPath.Substring(lastDot).ToLowerInvariant() : ".pdf";
                                     var fileName = $"comprovante_{payment.Id}{fileExtension}";
                                 }
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadReceipt('@receiptUrl', '@fileName')">

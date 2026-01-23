@@ -1470,8 +1470,21 @@ namespace KlyonHubPlatform.Api.Controllers
             };
 
             // Retornar o arquivo com headers apropriados para visualização inline
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
-            return File(fileBytes, contentType);
+            // Para imagens, não adicionar Content-Disposition para permitir exibição direta
+            if (fileExtension != ".pdf")
+            {
+                // Para imagens, adicionar headers para permitir exibição inline e evitar cache
+                Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+                Response.Headers.Append("Pragma", "no-cache");
+                Response.Headers.Append("Expires", "0");
+                return File(fileBytes, contentType);
+            }
+            else
+            {
+                // Para PDFs, adicionar Content-Disposition inline
+                Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+                return File(fileBytes, contentType);
+            }
         }
 
         [HttpGet]
