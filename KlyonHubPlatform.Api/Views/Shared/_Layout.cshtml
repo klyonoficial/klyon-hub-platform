@@ -555,6 +555,262 @@
             }
         });
     </script>
+    
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;" id="toastContainer"></div>
+    
+    <!-- Sistema de Notificações Toast -->
+    <script>
+        /**
+         * Sistema de notificações toast elegante
+         * Substitui os alerts padrão do JavaScript
+         * 
+         * Uso:
+         * showToast('Mensagem de sucesso', 'success');
+         * showToast('Mensagem de erro', 'error');
+         * showToast('Mensagem de aviso', 'warning');
+         * showToast('Mensagem informativa', 'info');
+         */
+        function showToast(message, type = 'info', duration = 5000) {
+            // Tipos disponíveis: success, error, warning, info
+            const toastTypes = {
+                'success': {
+                    class: 'bg-success text-white',
+                    icon: 'bi-check-circle-fill',
+                    title: 'Sucesso'
+                },
+                'error': {
+                    class: 'bg-danger text-white',
+                    icon: 'bi-exclamation-triangle-fill',
+                    title: 'Erro'
+                },
+                'warning': {
+                    class: 'bg-warning text-dark',
+                    icon: 'bi-exclamation-triangle-fill',
+                    title: 'Atenção'
+                },
+                'info': {
+                    class: 'bg-info text-white',
+                    icon: 'bi-info-circle-fill',
+                    title: 'Informação'
+                }
+            };
+            
+            const config = toastTypes[type] || toastTypes['info'];
+            const toastId = 'toast-' + Date.now();
+            
+            // Criar elemento toast
+            const toastElement = document.createElement('div');
+            toastElement.id = toastId;
+            toastElement.className = 'toast align-items-center border-0 shadow-lg';
+            toastElement.setAttribute('role', 'alert');
+            toastElement.setAttribute('aria-live', 'assertive');
+            toastElement.setAttribute('aria-atomic', 'true');
+            toastElement.style.minWidth = '350px';
+            toastElement.style.maxWidth = '500px';
+            
+            toastElement.innerHTML = `
+                <div class="d-flex ${config.class} rounded">
+                    <div class="toast-body d-flex align-items-center">
+                        <i class="bi ${config.icon} fs-4 me-3"></i>
+                        <div class="flex-grow-1">
+                            <strong>${config.title}:</strong> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast" aria-label="Fechar"></button>
+                    </div>
+                </div>
+            `;
+            
+            // Adicionar ao container
+            const container = document.getElementById('toastContainer');
+            if (!container) {
+                // Criar container se não existir
+                const newContainer = document.createElement('div');
+                newContainer.id = 'toastContainer';
+                newContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                newContainer.style.zIndex = '9999';
+                document.body.appendChild(newContainer);
+                newContainer.appendChild(toastElement);
+            } else {
+                container.appendChild(toastElement);
+            }
+            
+            // Inicializar e mostrar toast
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: duration
+            });
+            
+            toast.show();
+            
+            // Remover elemento após esconder
+            toastElement.addEventListener('hidden.bs.toast', function() {
+                toastElement.remove();
+            });
+            
+            return toast;
+        }
+        
+        // Substituir alert padrão (opcional - pode ser comentado se não quiser sobrescrever)
+        // window.alert = function(message) {
+        //     showToast(message, 'info');
+        // };
+    </script>
+    
+    <!-- Modal de Confirmação Elegante -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title d-flex align-items-center" id="confirmModalLabel">
+                        <i class="bi bi-question-circle-fill text-primary me-2 fs-4"></i>
+                        <span id="confirmModalTitle">Confirmar Ação</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <p class="mb-0" id="confirmModalMessage"></p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="confirmModalConfirm">
+                        <i class="bi bi-check-circle"></i> Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sistema de Confirmação Elegante -->
+    <script>
+        /**
+         * Sistema de confirmação elegante
+         * Substitui o confirm() padrão do JavaScript
+         * 
+         * Uso:
+         * showConfirm('Deseja realmente fazer isso?', 'Atenção', 'warning')
+         *   .then(result => {
+         *     if (result) {
+         *       // Usuário confirmou
+         *     }
+         *   });
+         * 
+         * Ou com async/await:
+         * const confirmed = await showConfirm('Deseja continuar?');
+         * if (confirmed) { ... }
+         */
+        function showConfirm(message, title = 'Confirmar Ação', type = 'info') {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmModal');
+                if (!modal) {
+                    console.error('Modal de confirmação não encontrado');
+                    resolve(false);
+                    return;
+                }
+                
+                const modalTitle = document.getElementById('confirmModalTitle');
+                const modalMessage = document.getElementById('confirmModalMessage');
+                const confirmBtn = document.getElementById('confirmModalConfirm');
+                const cancelBtn = document.getElementById('confirmModalCancel');
+                
+                if (!modalTitle || !modalMessage || !confirmBtn || !cancelBtn) {
+                    console.error('Elementos do modal de confirmação não encontrados');
+                    resolve(false);
+                    return;
+                }
+                
+                const modalInstance = bootstrap.Modal.getOrCreateInstance(modal);
+                
+                // Configurar título e mensagem
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                
+                // Configurar cores e ícones baseado no tipo
+                const typeConfig = {
+                    'danger': {
+                        icon: 'bi-exclamation-triangle-fill',
+                        iconColor: 'text-danger',
+                        btnClass: 'btn-danger'
+                    },
+                    'warning': {
+                        icon: 'bi-exclamation-triangle-fill',
+                        iconColor: 'text-warning',
+                        btnClass: 'btn-warning'
+                    },
+                    'success': {
+                        icon: 'bi-check-circle-fill',
+                        iconColor: 'text-success',
+                        btnClass: 'btn-success'
+                    },
+                    'info': {
+                        icon: 'bi-question-circle-fill',
+                        iconColor: 'text-primary',
+                        btnClass: 'btn-primary'
+                    }
+                };
+                
+                const config = typeConfig[type] || typeConfig['info'];
+                
+                // Atualizar ícone do título
+                const titleIcon = modalTitle.querySelector('i');
+                if (titleIcon) {
+                    titleIcon.className = `bi ${config.icon} ${config.iconColor} me-2 fs-4`;
+                }
+                
+                // Atualizar botão de confirmação
+                confirmBtn.className = `btn ${config.btnClass}`;
+                
+                // Remover listeners anteriores clonando os botões
+                const newConfirmBtn = confirmBtn.cloneNode(true);
+                const newCancelBtn = cancelBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+                cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+                
+                // Adicionar novos listeners
+                newConfirmBtn.addEventListener('click', () => {
+                    modalInstance.hide();
+                    // Remover marcação imediatamente ao confirmar
+                    modal.removeAttribute('data-confirm-open');
+                    // Mostrar loading automaticamente após confirmação
+                    if (window.KlyonLoading) {
+                        window.KlyonLoading.show();
+                    }
+                    resolve(true);
+                });
+                
+                newCancelBtn.addEventListener('click', () => {
+                    modalInstance.hide();
+                    resolve(false);
+                });
+                
+                // Fechar ao clicar no X ou fora do modal
+                const handleHidden = () => {
+                    resolve(false);
+                };
+                modal.addEventListener('hidden.bs.modal', handleHidden, { once: true });
+                
+                // Marcar modal como aberto antes de mostrar
+                modal.setAttribute('data-confirm-open', 'true');
+                
+                // Mostrar modal
+                modalInstance.show();
+                
+                // Remover marcação quando o modal for fechado
+                const handleModalHidden = () => {
+                    modal.removeAttribute('data-confirm-open');
+                };
+                modal.addEventListener('hidden.bs.modal', handleModalHidden, { once: true });
+            });
+        }
+        
+        // Substituir confirm padrão (opcional - pode ser comentado se não quiser sobrescrever)
+        // window.confirm = function(message) {
+        //     return showConfirm(message, 'Confirmar', 'info');
+        // };
+    </script>
+    
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

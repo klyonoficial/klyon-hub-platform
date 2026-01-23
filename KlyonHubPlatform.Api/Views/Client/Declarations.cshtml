@@ -179,7 +179,7 @@ else
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="contractId" value="@contract.Id">
                             <button type="submit" class="btn btn-light btn-sm" 
-                                    onclick="return confirm('Deseja gerar uma nova declaração de autorização de uso de endereço fiscal para este contrato?')">
+                                    onclick="event.preventDefault(); handleGenerateDeclaration(this);">
                                 <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
                             </button>
                         </form>
@@ -323,4 +323,23 @@ else
             </div>
         </div>
     }
+}
+
+@section Scripts {
+    <script>
+        async function handleGenerateDeclaration(button) {
+            const confirmed = await showConfirm(
+                'Deseja gerar uma nova declaração de autorização de uso de endereço fiscal para este contrato?',
+                'Gerar Declaração',
+                'info'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+    </script>
 }

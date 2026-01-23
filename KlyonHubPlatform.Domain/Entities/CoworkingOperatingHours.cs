@@ -15,10 +15,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public TimeSpan? ClosingTime { get; set; }
         /// <summary>Se o coworking está ativo neste dia</summary>
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
+

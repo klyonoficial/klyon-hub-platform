@@ -10,7 +10,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string Period { get; set; } = "Mensal"; // "Mensal", "Semestral", "Anual"
         public int ValidityMonths { get; set; } = 6; // Validade dos créditos em meses
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
 }
+

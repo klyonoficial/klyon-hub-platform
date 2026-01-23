@@ -61,7 +61,7 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Justificativa do cancelamento</summary>
         public string? CancellationReason { get; set; }
         
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         
         // Navigation properties
@@ -72,3 +72,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Client? Client { get; set; }
     }
 }
+

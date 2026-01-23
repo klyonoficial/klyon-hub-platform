@@ -13,10 +13,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsValid { get; set; } = true; // Se a declaração está válida
         public DateTime? InvalidatedAt { get; set; } // Data de invalidação
         public string? InvalidationReason { get; set; } // Motivo da invalidação
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Contract Contract { get; set; } = null!;
     }
 }
+

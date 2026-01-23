@@ -77,6 +77,22 @@
     </div>
 </div>
 
+@section Scripts {
+    <script>
+        async function handleDeleteLocation(form) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja excluir esta localidade? Esta ação não pode ser desfeita.',
+                'Confirmar Exclusão',
+                'danger'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
+    </script>
+}
+
 <!-- Informações de paginação -->
 @if (ViewBag.TotalItems != null)
 {
@@ -140,7 +156,7 @@
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="post" action="@Url.Action("DeleteLocation", "Admin", new { id = location.Id })" class="d-inline" 
-                                  onsubmit="return confirm('Tem certeza que deseja excluir esta localidade? Esta ação não pode ser desfeita.');">
+                                  onsubmit="event.preventDefault(); handleDeleteLocation(this); return false;">
                                 <button type="submit" class="btn btn-sm btn-danger" title="Excluir">
                                     <i class="bi bi-trash"></i>
                                 </button>

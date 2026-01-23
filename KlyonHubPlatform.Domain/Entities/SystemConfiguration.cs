@@ -9,8 +9,9 @@ namespace KlyonHubPlatform.Domain.Entities
         public string Category { get; set; } = string.Empty; // Categoria: Email, Payment, Storage, etc.
         public bool IsEncrypted { get; set; } = false; // Se o valor está criptografado
         public bool IsSensitive { get; set; } = false; // Se é informação sensível (senhas, tokens)
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public string? UpdatedBy { get; set; } // Email do usuário que atualizou
     }
 }
+

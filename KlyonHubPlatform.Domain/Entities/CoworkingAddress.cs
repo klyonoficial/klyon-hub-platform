@@ -26,7 +26,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public decimal? PrivateRoomPricePerHour { get; set; }
         public int? PrivateRoomMaxSeats { get; set; }
         
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
@@ -35,3 +35,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CoworkingRoom> Rooms { get; set; } = new List<CoworkingRoom>();
     }
 }
+

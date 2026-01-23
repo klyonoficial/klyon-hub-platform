@@ -9,6 +9,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string FlagIcon { get; set; } = string.Empty; // 🇧🇷, 🇺🇸, 🇪🇸 ou classes CSS
         public bool IsActive { get; set; } = true;
         public bool IsDefault { get; set; } = false;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
     }
 }
+

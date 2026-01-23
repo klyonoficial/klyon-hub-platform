@@ -13,7 +13,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string Phone { get; set; } = string.Empty;
         public string Status { get; set; } = "Pending"; // Pending, Contacted, Converted, Rejected
         public string? Notes { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public int? ContactedByUserId { get; set; }
         public DateTime? ContactedAt { get; set; }
@@ -23,3 +23,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual User? ContactedByUser { get; set; }
     }
 }
+

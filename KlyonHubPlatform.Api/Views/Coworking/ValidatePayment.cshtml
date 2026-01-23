@@ -106,7 +106,7 @@
                 <form method="post" action="@Url.Action("ApprovePayment", "Coworking")">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="paymentId" value="@Model.Id" />
-                    <button type="submit" class="btn btn-success w-100" onclick="return confirm('Confirma a aprovação deste pagamento? O contrato será ativado automaticamente.')">
+                    <button type="submit" class="btn btn-success w-100" onclick="event.preventDefault(); handleApprovePaymentCoworking(this);">
                         <i class="bi bi-check-circle"></i> Aprovar Pagamento
                     </button>
                 </form>
@@ -126,7 +126,7 @@
                         <textarea class="form-control" id="validationNotes" name="validationNotes" rows="4" required 
                                   placeholder="Informe o motivo da reprovação (ex: comprovante não confere, valor diferente, etc.)"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Confirma a reprovação deste pagamento?')">
+                    <button type="submit" class="btn btn-danger w-100" onclick="event.preventDefault(); handleRejectPaymentCoworking(this);">
                         <i class="bi bi-x-circle"></i> Reprovar Pagamento
                     </button>
                 </form>
@@ -141,9 +141,41 @@
             const notes = document.getElementById('validationNotes').value.trim();
             if (!notes) {
                 e.preventDefault();
-                alert('Por favor, informe a justificativa da reprovação.');
+                showToast('Por favor, informe a justificativa da reprovação.', 'warning');
                 return false;
             }
         });
+
+        // Função para aprovar pagamento com confirmação elegante
+        async function handleApprovePaymentCoworking(button) {
+            const confirmed = await showConfirm(
+                'Confirma a aprovação deste pagamento? O contrato será ativado automaticamente.',
+                'Confirmar Aprovação',
+                'success'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+
+        // Função para reprovar pagamento com confirmação elegante
+        async function handleRejectPaymentCoworking(button) {
+            const confirmed = await showConfirm(
+                'Confirma a reprovação deste pagamento?',
+                'Confirmar Reprovação',
+                'danger'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
     </script>
 }

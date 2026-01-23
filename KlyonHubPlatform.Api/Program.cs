@@ -44,7 +44,13 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.Parse("10.5.29-mariadb")));
+    options.UseMySql(connectionString, ServerVersion.Parse("10.5.29-mariadb"), 
+        mySqlOptions => 
+        {
+            mySqlOptions.EnableRetryOnFailure();
+            // Configurar para não converter timezone - salvar valores DateTime exatamente como estão
+            mySqlOptions.EnableStringComparisonTranslations();
+        }));
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

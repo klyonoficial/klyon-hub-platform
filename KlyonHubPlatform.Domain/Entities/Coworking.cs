@@ -32,7 +32,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? SecondaryEmail { get; set; }
         public bool IsActive { get; set; } = true;
         public bool IsPartner { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Fluxo de aprovação do cadastro
@@ -53,3 +53,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CoworkingProduct> Products { get; set; } = new List<CoworkingProduct>();
     }
 }
+

@@ -318,10 +318,13 @@ function toggleStatus(coworkingId, coworkingName) {
     var approvalStatus = currentUrl.searchParams.get('approvalStatus') || '';
     var page = currentUrl.searchParams.get('page') || '1';
     
-    var action = confirm('Tem certeza que deseja alterar o status do coworking "' + coworkingName + '"?');
-    
-    if (action) {
-        var form = document.createElement('form');
+    showConfirm(
+        'Tem certeza que deseja alterar o status do coworking "' + coworkingName + '"?',
+        'Confirmar Alteração de Status',
+        'warning'
+    ).then(confirmed => {
+        if (confirmed) {
+            var form = document.createElement('form');
         form.method = 'POST';
         form.action = '@Url.Action("ToggleCoworkingStatus", "Admin")?id=' + coworkingId + 
                      '&search=' + encodeURIComponent(search) + 

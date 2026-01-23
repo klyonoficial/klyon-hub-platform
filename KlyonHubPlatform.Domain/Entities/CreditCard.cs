@@ -11,10 +11,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public string Brand { get; set; } = string.Empty; // Visa, Mastercard, etc.
         public bool IsDefault { get; set; } = false;
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Client Client { get; set; } = null!;
     }
 }
+

@@ -88,7 +88,7 @@
                                             data-room-id="@r.Id" data-name="@r.Name" data-room-type="@r.RoomType" data-capacity="@r.Capacity" data-credits="@r.CreditsPerHour" data-active="@(r.IsActive ? "true" : "false")" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <form method="post" action="@Url.Action("DeleteRoom", "Coworking")" style="display:inline;" onsubmit="return confirm('Excluir esta sala?');">
+                                    <form method="post" action="@Url.Action("DeleteRoom", "Coworking")" style="display:inline;" onsubmit="event.preventDefault(); handleDeleteRoom(this); return false;">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="roomId" value="@r.Id" />
                                         <input type="hidden" name="addressId" value="@address.Id" />
@@ -226,5 +226,17 @@
             document.getElementById('editIsActive').checked = (btn.dataset.active === 'true');
             document.getElementById('editRoomForm').querySelector('input[name="RoomPhotos"]').value = '';
         });
+
+        async function handleDeleteRoom(form) {
+            const confirmed = await showConfirm(
+                'Excluir esta sala?',
+                'Confirmar Exclusão',
+                'danger'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
     </script>
 }

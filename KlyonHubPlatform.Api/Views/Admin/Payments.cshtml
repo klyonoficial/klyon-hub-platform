@@ -150,19 +150,15 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (payment.Status == PaymentStatus.Pending || payment.Status == PaymentStatus.AwaitingValidation)
+                                    @if (payment.Status == PaymentStatus.AwaitingValidation && !string.IsNullOrEmpty(payment.ReceiptFilePath))
                                     {
-                                        <form method="post" action="@Url.Action("ConfirmPayment", "Admin")" style="display: inline;">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="paymentId" value="@payment.Id" />
-                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Confirmar pagamento? O contrato será ativado automaticamente.')">
-                                                <i class="bi bi-check-circle"></i> Confirmar
-                                            </button>
-                                        </form>
+                                        <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#paymentModal_@payment.Id">
+                                            <i class="bi bi-file-earmark-text"></i> Validar
+                                        </button>
                                     }
-                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = payment.Id })" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-eye"></i> Ver
-                                    </a>
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#historyModal_@payment.Id">
+                                        <i class="bi bi-clock-history"></i> Histórico
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -197,4 +193,295 @@
             }
         </ul>
     </nav>
+}
+
+@foreach (var payment in Model ?? new List<KlyonHubPlatform.Domain.Entities.Payment>())
+{
+    @if (payment.Status == PaymentStatus.AwaitingValidation && !string.IsNullOrEmpty(payment.ReceiptFilePath))
+    {
+        <!-- Modal para Validar Pagamento -->
+        <div class="modal fade" id="paymentModal_@payment.Id" tabindex="-1" aria-labelledby="paymentModalLabel_@payment.Id" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="paymentModalLabel_@payment.Id">
+                            <i class="bi bi-file-earmark-text"></i> Validar Pagamento #@payment.Id
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <strong>Cliente:</strong> @(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")<br>
+                            <strong>Email:</strong> @payment.Subscription?.Contract?.Client?.ContactEmail<br>
+                            <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
+                            <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Comprovante Enviado:</strong></label>
+                            <div class="border rounded p-3 text-center bg-light" style="min-height: 400px; max-height: 500px; overflow: auto; position: relative;">
+                                @{
+                                    var receiptUrl = Url.Action("ViewReceipt", "Admin", new { paymentId = payment.Id });
+                                    var isPdf = payment.ReceiptFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+                                }
+                                @if (isPdf)
+                                {
+                                    <div id="pdfContainer_@payment.Id" style="width: 100%; height: 500px;">
+                                        <iframe src="@receiptUrl" 
+                                                type="application/pdf" 
+                                                style="width: 100%; height: 100%; border: none;" 
+                                                frameborder="0">
+                                            <p>Seu navegador não suporta a visualização de PDFs. 
+                                            <a href="@receiptUrl" download>Clique aqui para baixar o PDF</a></p>
+                                        </iframe>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div style="display: flex; justify-content: center; align-items: center; min-height: 400px;" id="receiptContainer_@payment.Id">
+                                        <img src="@(receiptUrl)?t=@DateTime.UtcNow.Ticks" 
+                                             class="img-fluid" 
+                                             style="max-height: 500px; max-width: 100%; object-fit: contain; display: block;" 
+                                             alt="Comprovante"
+                                             onerror="this.onerror=null; document.getElementById('receiptContainer_@payment.Id').innerHTML='<div class=\'text-danger\'><i class=\'bi bi-exclamation-triangle\'></i> Erro ao carregar imagem. <a href=\'@receiptUrl\' download class=\'btn btn-sm btn-primary\'>Clique aqui para baixar</a></div>';">
+                                    </div>
+                                }
+                            </div>
+                            <div class="mt-2">
+                                @{
+                                    var receiptPath = payment.ReceiptFilePath;
+                                    var lastDot = receiptPath.LastIndexOf('.');
+                                    var fileExtension = lastDot >= 0 ? receiptPath.Substring(lastDot).ToLowerInvariant() : ".pdf";
+                                    var fileName = $"comprovante_{payment.Id}{fileExtension}";
+                                }
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadReceipt('@receiptUrl', '@fileName')">
+                                    <i class="bi bi-download"></i> Baixar Comprovante
+                                </button>
+                            </div>
+                        </div>
+                        <form id="rejectForm_@payment.Id" method="post" action="@Url.Action("RejectPayment", "Admin")">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                            <div class="mb-3">
+                                <label for="rejectionReason_@payment.Id" class="form-label">
+                                    <strong>Motivo da Reprovação:</strong> <span class="text-danger">*</span>
+                                </label>
+                                <textarea class="form-control" 
+                                          id="rejectionReason_@payment.Id" 
+                                          name="rejectionReason" 
+                                          rows="3" 
+                                          placeholder="Informe o motivo da reprovação (mínimo de 20 caracteres)..." 
+                                          minlength="20" 
+                                          required></textarea>
+                                <small class="form-text text-muted">
+                                    <span id="charCount_@payment.Id">0</span>/20 caracteres (mínimo)
+                                </small>
+                                <div class="invalid-feedback">
+                                    Por favor, informe o motivo da reprovação com pelo menos 20 caracteres.
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        <form method="post" action="@Url.Action("RejectPayment", "Admin")" style="display: inline;" id="rejectFormSubmit_@payment.Id" class="confirm-required">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                            <input type="hidden" name="rejectionReason" id="rejectionReasonHidden_@payment.Id" />
+                            <button type="button" class="btn btn-danger" onclick="submitReject(@payment.Id)">
+                                <i class="bi bi-x-circle"></i> Reprovar
+                            </button>
+                        </form>
+                        <form method="post" action="@Url.Action("ApprovePayment", "Admin")" style="display: inline;" class="confirm-required">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                            <button type="submit" class="btn btn-success" onclick="event.preventDefault(); handleApprovePayment(@payment.Id, this);">
+                                <i class="bi bi-check-circle"></i> Aprovar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal para Histórico -->
+    <div class="modal fade" id="historyModal_@payment.Id" tabindex="-1" aria-labelledby="historyModalLabel_@payment.Id" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="historyModalLabel_@payment.Id">
+                        <i class="bi bi-clock-history"></i> Histórico do Pagamento #@payment.Id
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Cliente:</strong> @(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")<br>
+                        <strong>Email:</strong> @payment.Subscription?.Contract?.Client?.ContactEmail<br>
+                        <strong>Telefone:</strong> @payment.Subscription?.Contract?.Client?.ContactPhone<br>
+                        <strong>CNPJ/CPF:</strong> @(payment.Subscription?.Contract?.Client?.CNPJ ?? payment.Subscription?.Contract?.Client?.CPF ?? "N/A")<br>
+                        <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
+                        <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")<br>
+                        <strong>Status Atual:</strong> 
+                        @switch (payment.Status)
+                        {
+                            case PaymentStatus.Pending:
+                                <span class="badge bg-warning">Pendente</span>
+                                break;
+                            case PaymentStatus.AwaitingValidation:
+                                <span class="badge bg-info">Aguardando Validação</span>
+                                break;
+                            case PaymentStatus.Paid:
+                                <span class="badge bg-success">Pago</span>
+                                break;
+                            default:
+                                <span class="badge bg-secondary">@payment.Status</span>
+                                break;
+                        }
+                    </div>
+                    <hr>
+                    <div id="historyContent_@payment.Id">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        // Carregar histórico ao abrir o modal
+        document.querySelectorAll('[data-bs-target^="#historyModal_"]').forEach(button => {
+            button.addEventListener('click', function() {
+                const paymentId = this.getAttribute('data-bs-target').split('_')[1];
+                loadPaymentHistory(paymentId);
+            });
+        });
+
+        function loadPaymentHistory(paymentId) {
+            const contentDiv = document.getElementById('historyContent_' + paymentId);
+            fetch('@Url.Action("GetPaymentHistory", "Admin")?paymentId=' + paymentId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        contentDiv.innerHTML = '<p class="text-muted text-center">Nenhum histórico encontrado.</p>';
+                    } else {
+                        let html = '<div class="list-group">';
+                        data.forEach(item => {
+                            html += '<div class="list-group-item">';
+                            html += '<div class="d-flex w-100 justify-content-between">';
+                            html += '<h6 class="mb-1">';
+                            if (item.action === 'Approved') {
+                                html += '<span class="badge bg-success me-2">Aprovado</span>';
+                            } else {
+                                html += '<span class="badge bg-danger me-2">Reprovado</span>';
+                            }
+                            html += '</h6>';
+                            html += '<small>' + item.actionAt + '</small>';
+                            html += '</div>';
+                            html += '<p class="mb-1"><strong>Por:</strong> ' + item.actionBy + '</p>';
+                            if (item.rejectionReason) {
+                                html += '<p class="mb-0"><strong>Motivo:</strong> ' + item.rejectionReason + '</p>';
+                            }
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                        contentDiv.innerHTML = html;
+                    }
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = '<p class="text-danger text-center">Erro ao carregar histórico.</p>';
+                });
+        }
+
+        async function submitReject(paymentId) {
+            const reasonInput = document.getElementById('rejectionReason_' + paymentId);
+            const reason = reasonInput.value.trim();
+            
+            // Validação: mínimo de 20 caracteres
+            if (!reason || reason.length < 20) {
+                reasonInput.classList.add('is-invalid');
+                reasonInput.focus();
+                showToast('Por favor, informe o motivo da reprovação com pelo menos 20 caracteres.', 'warning');
+                return;
+            }
+            
+            reasonInput.classList.remove('is-invalid');
+            document.getElementById('rejectionReasonHidden_' + paymentId).value = reason;
+            
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja reprovar este pagamento? O status será alterado para "Aguardando Pagamento".',
+                'Confirmar Reprovação',
+                'warning'
+            );
+            
+            if (confirmed) {
+                // Loading será mostrado automaticamente pelo showConfirm
+                document.getElementById('rejectFormSubmit_' + paymentId).submit();
+            }
+        }
+
+        // Contador de caracteres e validação em tempo real
+        document.querySelectorAll('[id^="rejectionReason_"]').forEach(textarea => {
+            const paymentId = textarea.id.split('_')[1];
+            const charCount = document.getElementById('charCount_' + paymentId);
+            
+            if (charCount) {
+                textarea.addEventListener('input', function() {
+                    const length = this.value.length;
+                    charCount.textContent = length;
+                    
+                    if (length < 20) {
+                        charCount.classList.add('text-danger');
+                        charCount.classList.remove('text-success');
+                        this.classList.remove('is-valid');
+                        this.classList.add('is-invalid');
+                    } else {
+                        charCount.classList.remove('text-danger');
+                        charCount.classList.add('text-success');
+                        this.classList.remove('is-invalid');
+                        this.classList.add('is-valid');
+                    }
+                });
+            }
+        });
+
+        // Função para baixar comprovante sem redirecionar
+        function downloadReceipt(url, fileName) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Função para aprovar pagamento com confirmação elegante
+        async function handleApprovePayment(paymentId, button) {
+            const confirmed = await showConfirm(
+                'Confirmar aprovação do pagamento? O contrato será ativado automaticamente.',
+                'Confirmar Aprovação',
+                'success'
+            );
+            
+            if (confirmed) {
+                // Loading será mostrado automaticamente pelo showConfirm
+                // Encontrar o formulário de aprovação
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+    </script>
 }

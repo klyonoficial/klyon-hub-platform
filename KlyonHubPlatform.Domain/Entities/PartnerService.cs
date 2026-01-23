@@ -10,7 +10,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public int ServiceId { get; set; }
         /// <summary>Percentagem fechada em contrato (definida pelo administrador, não pode ser alterada pelo parceiro)</summary>
         public decimal Percentage { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
@@ -18,3 +18,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Service Service { get; set; } = null!;
     }
 }
+

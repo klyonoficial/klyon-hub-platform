@@ -264,9 +264,15 @@
 </div>
 
 <script>
-function suspendContract(contractId) {
-    if (confirm('Tem certeza que deseja suspender este contrato?')) {
-        alert('Funcionalidade de suspensão será implementada em breve. Contrato ID: ' + contractId);
+async function suspendContract(contractId) {
+    const confirmed = await showConfirm(
+        'Tem certeza que deseja suspender este contrato?',
+        'Confirmar Suspensão',
+        'warning'
+    );
+    
+    if (confirmed) {
+        showToast('Funcionalidade de suspensão será implementada em breve. Contrato ID: ' + contractId, 'info');
     }
 }
 

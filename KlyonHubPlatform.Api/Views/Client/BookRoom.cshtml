@@ -229,7 +229,7 @@
 
     document.getElementById('bookForm').onsubmit = function(){
         if (selectedSlots.length === 0) {
-            alert('Selecione ao menos uma data no calendário.');
+            showToast('Selecione ao menos uma data no calendário.', 'warning');
             return false;
         }
         var invalid = selectedSlots.some(function(s){
@@ -239,7 +239,7 @@
             return end <= start;
         });
         if (invalid) {
-            alert('O horário final deve ser maior que o inicial em todos os itens.');
+            showToast('O horário final deve ser maior que o inicial em todos os itens.', 'warning');
             return false;
         }
         document.getElementById('slotsJsonInput').value = buildSlotsJson();

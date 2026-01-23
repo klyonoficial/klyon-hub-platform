@@ -308,7 +308,7 @@
                         <input type="date" class="form-control" name="endDate" 
                                value="@DateTime.Now.ToString("yyyy-MM-dd")" required>
                     </div>
-                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Tem certeza que deseja executar o script de emissão de notas fiscais? Isso irá criar e emitir as NFs pendentes.');">
+                    <button type="submit" class="btn btn-warning w-100" onclick="event.preventDefault(); handleExecuteNfScript(this);">
                         <i class="bi bi-play-fill"></i> Executar Script
                     </button>
                 </form>
@@ -374,4 +374,19 @@
             reader.readAsDataURL(file);
         }
     });
+
+    async function handleExecuteNfScript(button) {
+        const confirmed = await showConfirm(
+            'Tem certeza que deseja executar o script de emissão de notas fiscais? Isso irá criar e emitir as NFs pendentes.',
+            'Confirmar Execução de Script',
+            'warning'
+        );
+        
+        if (confirmed) {
+            const form = button.closest('form');
+            if (form) {
+                form.submit();
+            }
+        }
+    }
 </script>

@@ -323,7 +323,7 @@
                                                 <span class="text-muted">Serviço removido</span>
                                             }
                                             <form method="post" action="@Url.Action("DeletePartnerService", "Admin")" class="d-inline" 
-                                                  onsubmit="return confirm('Tem certeza que deseja remover este serviço?');">
+                                                  onsubmit="event.preventDefault(); handleDeleteService(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@ps.Id" />
                                                 <input type="hidden" name="coworkingId" value="@Model.Id" />
@@ -424,4 +424,16 @@
             document.getElementById('serviceIdHidden').value = document.getElementById('serviceSelect').value;
         }
     });
+
+    async function handleDeleteService(form) {
+        const confirmed = await showConfirm(
+            'Tem certeza que deseja remover este serviço?',
+            'Confirmar Remoção',
+            'warning'
+        );
+        
+        if (confirmed) {
+            form.submit();
+        }
+    }
 </script>

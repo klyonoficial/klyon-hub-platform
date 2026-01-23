@@ -17,7 +17,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? ZipCode { get; set; }
         public string? LogoPath { get; set; } // Caminho da logomarca
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
@@ -26,3 +26,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CreditCard> CreditCards { get; set; } = new List<CreditCard>();
     }
 }
+

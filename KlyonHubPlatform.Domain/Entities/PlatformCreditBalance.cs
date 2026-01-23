@@ -9,6 +9,7 @@ namespace KlyonHubPlatform.Domain.Entities
     {
         public int Id { get; set; }
         public decimal TotalCredits { get; set; }
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; }
     }
 }
+

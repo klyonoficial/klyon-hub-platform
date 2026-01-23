@@ -19,7 +19,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? BoletoBarcode { get; set; }
         public DateTime? BoletoExpiresAt { get; set; }
         public string? TransactionId { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? PaidAt { get; set; }
 
         // Navigation properties
@@ -27,3 +27,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual CreditPlan CreditPlan { get; set; } = null!;
     }
 }
+

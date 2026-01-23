@@ -17,10 +17,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public TimeSpan? StartTime { get; set; }
         /// <summary>Horário final do bloqueio (se não for dia inteiro)</summary>
         public TimeSpan? EndTime { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
+

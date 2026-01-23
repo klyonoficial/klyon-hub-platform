@@ -87,7 +87,7 @@
                                 </td>
                                 <td class="text-center">
                                     <form method="post" action="@Url.Action("RemoveService", "Coworking")" class="d-inline" 
-                                          onsubmit="return confirm('Tem certeza que deseja remover o serviço \'@ps.Service.Name\'?');">
+                                          onsubmit="event.preventDefault(); handleRemoveService(this, '@ps.Service.Name'); return false;">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="partnerServiceId" value="@ps.Id" />
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -102,6 +102,22 @@
             </div>
         </div>
     </div>
+}
+
+@section Scripts {
+    <script>
+        async function handleRemoveService(form, serviceName) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja remover o serviço \'' + serviceName + '\'?',
+                'Confirmar Remoção',
+                'warning'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
+    </script>
 }
 
 <!-- Serviços Disponíveis -->

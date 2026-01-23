@@ -24,7 +24,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? ValidationNotes { get; set; }
         public int? ValidatedBy { get; set; }
         public DateTime? ValidatedAt { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
@@ -33,3 +33,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual User? Validator { get; set; }
     }
 }
+

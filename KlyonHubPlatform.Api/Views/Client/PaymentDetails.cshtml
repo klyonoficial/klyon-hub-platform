@@ -513,6 +513,51 @@
                 </a>
             </div>
         </div>
+
+        <!-- Card de Histórico -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Histórico</h5>
+            </div>
+            <div class="card-body">
+                @if (ViewBag.PaymentHistory != null && ((List<KlyonHubPlatform.Domain.Entities.PaymentHistory>)ViewBag.PaymentHistory).Any())
+                {
+                    <div class="list-group">
+                        @foreach (var history in (List<KlyonHubPlatform.Domain.Entities.PaymentHistory>)ViewBag.PaymentHistory)
+                        {
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        @if (history.Action == "Approved")
+                                        {
+                                            <span class="badge bg-success me-2"><i class="bi bi-check-circle"></i> Aprovado</span>
+                                        }
+                                        else if (history.Action == "Rejected")
+                                        {
+                                            <span class="badge bg-danger me-2"><i class="bi bi-x-circle"></i> Reprovado</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary me-2">@history.Action</span>
+                                        }
+                                    </h6>
+                                    <small>@history.ActionAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                </div>
+                                <p class="mb-1"><strong>Por:</strong> @(history.ActionByUser?.FullName ?? "Sistema")</p>
+                                @if (!string.IsNullOrEmpty(history.RejectionReason))
+                                {
+                                    <p class="mb-0"><strong>Motivo:</strong> @history.RejectionReason</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center mb-0">Nenhum histórico disponível.</p>
+                }
+            </div>
+        </div>
     </div>
 </div>
 
@@ -664,18 +709,24 @@
             const barcode = document.getElementById('boletoBarcode');
             barcode.select();
             document.execCommand('copy');
-            alert('Código de barras copiado!');
+            showToast('Código de barras copiado!', 'success', 3000);
         }
 
         function copyBoletoCode() {
             const code = document.getElementById('boletoCode');
             code.select();
             document.execCommand('copy');
-            alert('Linha digitável copiada!');
+            showToast('Linha digitável copiada!', 'success', 3000);
         }
 
-        function updatePaymentMethod(selectElement) {
-            if (confirm('Deseja alterar o método de pagamento? Um novo código será gerado.')) {
+        async function updatePaymentMethod(selectElement) {
+            const confirmed = await showConfirm(
+                'Deseja alterar o método de pagamento? Um novo código será gerado.',
+                'Alterar Método de Pagamento',
+                'warning'
+            );
+            
+            if (confirmed) {
                 selectElement.form.submit();
             } else {
                 // Restaurar valor anterior recarregando a página
@@ -721,7 +772,7 @@
                 const maxSize = 10 * 1024 * 1024; // 10MB
                 if (file.size > maxSize) {
                     e.preventDefault();
-                    alert('O arquivo é muito grande. Tamanho máximo: 10MB');
+                    showToast('O arquivo é muito grande. Tamanho máximo: 10MB', 'warning');
                     return false;
                 }
             }

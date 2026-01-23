@@ -8,8 +8,9 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? Description { get; set; }
         public bool IsMain { get; set; }
         public int DisplayOrder { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
 
         public virtual CoworkingRoom CoworkingRoom { get; set; } = null!;
     }
 }
+

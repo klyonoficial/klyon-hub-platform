@@ -10,7 +10,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string FileName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+        public DateTime GeneratedAt { get; set; }
         public DateTime? ExpiresAt { get; set; }
         /// <summary>
         /// UUID do documento na D4Sign (quando enviado para assinatura eletrônica).
@@ -21,3 +21,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Contract Contract { get; set; } = null!;
     }
 }
+

@@ -209,15 +209,15 @@ async function buscarCEP(cep) {
                 const selectedOption = locationSelect.options[locationSelect.selectedIndex];
                 const locationState = selectedOption.getAttribute('data-state');
                 if (locationState !== data.uf) {
-                    alert('Atenção: O estado do CEP (' + data.uf + ') não corresponde ao estado da localidade selecionada (' + locationState + ').');
+                    showToast('Atenção: O estado do CEP (' + data.uf + ') não corresponde ao estado da localidade selecionada (' + locationState + ').', 'warning');
                 }
             }
         } else {
-            alert('CEP não encontrado. Por favor, preencha os dados manualmente.');
+            showToast('CEP não encontrado. Por favor, preencha os dados manualmente.', 'warning');
         }
     } catch (error) {
         console.error('Erro ao buscar CEP:', error);
-        alert('Erro ao buscar CEP. Por favor, preencha os dados manualmente.');
+        showToast('Erro ao buscar CEP. Por favor, preencha os dados manualmente.', 'error');
     }
 }
 
@@ -263,7 +263,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
     const basePrice = parseFloat(document.getElementById('BasePrice').value);
     if (basePrice < 0) {
         e.preventDefault();
-        alert('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.');
+        showToast('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.', 'warning');
         document.getElementById('BasePrice').focus();
         return false;
     }
@@ -272,7 +272,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
     const minContracts = parseInt(document.getElementById('MaxContracts').min);
     if (maxContracts < minContracts) {
         e.preventDefault();
-        alert('O máximo de contratos não pode ser menor que ' + minContracts + '.');
+        showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
         document.getElementById('MaxContracts').focus();
         return false;
     }

@@ -9,7 +9,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public decimal Percentage { get; set; }
         public decimal TotalPaymentAmount { get; set; }
         public bool IsTransferred { get; set; } = false;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? TransferredAt { get; set; }
 
         // Navigation properties
@@ -17,3 +17,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
+

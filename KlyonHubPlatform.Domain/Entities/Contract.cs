@@ -17,7 +17,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? ContractDocumentPath { get; set; }
         public string? SignedBy { get; set; }
         public DateTime? SignedAt { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
         public string? CancellationReason { get; set; }
@@ -34,3 +34,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<Document> Documents { get; set; } = new List<Document>();
     }
 }
+

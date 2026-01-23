@@ -12,10 +12,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? Description { get; set; }
         public DateTime? ExpiresAt { get; set; }
         public bool IsValid { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
+

@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Entities;
+using System.Reflection;
+using System;
 
 namespace KlyonHubPlatform.Infra.Data.Context
 {
@@ -7,6 +9,152 @@ namespace KlyonHubPlatform.Infra.Data.Context
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                return;
+            }
+            
+            base.OnConfiguring(optionsBuilder);
+        }
+
+        public override int SaveChanges()
+        {
+            AdjustDateTimeProperties();
+            return base.SaveChanges();
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            AdjustDateTimeProperties();
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+
+        private void AdjustDateTimeProperties()
+        {
+            // Ajustar todas as datas para horário de Brasília antes de salvar
+            var entries = ChangeTracker.Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+            foreach (var entry in entries)
+            {
+                var entityType = entry.Entity.GetType();
+                var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+                foreach (var property in properties)
+                {
+                    // Processar propriedades DateTime (não nullable)
+                    if (property.PropertyType == typeof(DateTime))
+                    {
+                        var currentValue = (DateTime)property.GetValue(entry.Entity)!;
+                        
+                        // Se for uma nova entidade e a propriedade está com valor default
+                        if (entry.State == EntityState.Added && currentValue == default(DateTime))
+                        {
+                            // Propriedades de data/hora de criação devem receber horário de Brasília
+                            if (property.Name.Contains("CreatedAt", StringComparison.OrdinalIgnoreCase) ||
+                                property.Name.Contains("ActionAt", StringComparison.OrdinalIgnoreCase) ||
+                                property.Name.Contains("GeneratedAt", StringComparison.OrdinalIgnoreCase) ||
+                                property.Name.Contains("AssignedAt", StringComparison.OrdinalIgnoreCase) ||
+                                property.Name.Contains("EffectiveDate", StringComparison.OrdinalIgnoreCase) ||
+                                property.Name.Contains("ActionDate", StringComparison.OrdinalIgnoreCase))
+                            {
+                                property.SetValue(entry.Entity, GetBrazilianTime());
+                            }
+                        }
+                        // Se o valor está em UTC, converter para horário de Brasília
+                        else if (currentValue != default(DateTime) && currentValue.Kind == DateTimeKind.Utc)
+                        {
+                            property.SetValue(entry.Entity, ConvertToBrazilianTime(currentValue));
+                        }
+                        // Se não tem Kind especificado, assumir que já está no horário correto (Brasília)
+                        // Não converter para evitar dupla conversão
+                        else if (currentValue != default(DateTime) && currentValue.Kind == DateTimeKind.Unspecified)
+                        {
+                            // Manter como está, apenas garantir que seja Unspecified
+                            property.SetValue(entry.Entity, DateTime.SpecifyKind(currentValue, DateTimeKind.Unspecified));
+                        }
+                    }
+                    // Processar propriedades DateTime? (nullable)
+                    else if (property.PropertyType == typeof(DateTime?))
+                    {
+                        var currentValue = (DateTime?)property.GetValue(entry.Entity);
+                        
+                        if (currentValue.HasValue)
+                        {
+                            // Se está em UTC, converter para horário de Brasília
+                            if (currentValue.Value.Kind == DateTimeKind.Utc)
+                            {
+                                property.SetValue(entry.Entity, ConvertToBrazilianTime(currentValue.Value));
+                            }
+                            // Se não tem Kind especificado, assumir que já está no horário correto (Brasília)
+                            // Não converter para evitar dupla conversão
+                            else if (currentValue.Value.Kind == DateTimeKind.Unspecified)
+                            {
+                                // Manter como está, apenas garantir que seja Unspecified
+                                property.SetValue(entry.Entity, DateTime.SpecifyKind(currentValue.Value, DateTimeKind.Unspecified));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static DateTime GetBrazilianTime()
+        {
+            try
+            {
+                // Obter horário atual de Brasília
+                var brazilTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+                var utcNow = DateTime.UtcNow;
+                var brazilianTime = TimeZoneInfo.ConvertTimeFromUtc(utcNow, brazilTimeZone);
+                // Marcar como Unspecified para que o EF Core salve o valor exatamente como está, sem conversão
+                return DateTime.SpecifyKind(brazilianTime, DateTimeKind.Unspecified);
+            }
+            catch
+            {
+                // Fallback: se não conseguir obter o timezone, usar UTC-3 manualmente
+                var brazilianTime = DateTime.UtcNow.AddHours(-3);
+                return DateTime.SpecifyKind(brazilianTime, DateTimeKind.Unspecified);
+            }
+        }
+
+        private static DateTime ConvertToBrazilianTime(DateTime utcDateTime)
+        {
+            try
+            {
+                var brazilTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+                DateTime brazilianTime;
+                
+                if (utcDateTime.Kind == DateTimeKind.Unspecified)
+                {
+                    // Assumir que é UTC se não especificado
+                    brazilianTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc), brazilTimeZone);
+                }
+                else if (utcDateTime.Kind == DateTimeKind.Utc)
+                {
+                    brazilianTime = TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, brazilTimeZone);
+                }
+                else
+                {
+                    // Se já está em horário local, assumir que já é horário de Brasília
+                    brazilianTime = utcDateTime;
+                }
+                
+                // Marcar como Unspecified para que o EF Core não faça conversão adicional
+                return DateTime.SpecifyKind(brazilianTime, DateTimeKind.Unspecified);
+            }
+            catch
+            {
+                // Fallback: subtrair 3 horas se não conseguir converter
+                var brazilianTime = utcDateTime.Kind == DateTimeKind.Utc 
+                    ? utcDateTime.AddHours(-3) 
+                    : utcDateTime;
+                return DateTime.SpecifyKind(brazilianTime, DateTimeKind.Unspecified);
+            }
         }
 
         public DbSet<User> Users { get; set; }
@@ -49,6 +197,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<PartnerService> PartnerServices { get; set; }
         public DbSet<SefazConfiguration> SefazConfigurations { get; set; }
         public DbSet<FiscalNote> FiscalNotes { get; set; }
+        public DbSet<PaymentHistory> PaymentHistories { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -61,7 +210,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.Email).IsUnique();
                 entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.PasswordHash).IsRequired();
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // Role configuration
@@ -289,7 +439,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("Pending");
                 entity.Property(e => e.StartTime).HasColumnType("TIME");
                 entity.Property(e => e.EndTime).HasColumnType("TIME");
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CoworkingProduct configuration
@@ -302,7 +453,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.ProductType).IsRequired().HasMaxLength(50);
                 entity.HasIndex(e => new { e.CoworkingId, e.ProductType }).IsUnique();
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CoworkingRating configuration
@@ -320,7 +472,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Rating).IsRequired();
                 entity.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5");
                 entity.Property(e => e.Comment).HasMaxLength(1000);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // ClientCredit configuration
@@ -332,7 +485,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.ClientId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.Credits).IsRequired();
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CreditPlan configuration
@@ -343,7 +497,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Price).IsRequired().HasColumnType("DECIMAL(10,2)");
                 entity.Property(e => e.Credits).IsRequired();
                 entity.Property(e => e.Period).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CreditPurchase configuration
@@ -366,7 +521,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.BoletoCode).HasMaxLength(100);
                 entity.Property(e => e.BoletoBarcode).HasMaxLength(100);
                 entity.Property(e => e.TransactionId).HasMaxLength(255);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // Reservation configuration
@@ -391,7 +547,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20).HasDefaultValue("Shared");
                 entity.Property(e => e.TotalValue).HasColumnType("DECIMAL(10,2)").IsRequired();
                 entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Confirmed");
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // ReservationCommission configuration
@@ -403,7 +560,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.CommissionPercentage).HasColumnType("DECIMAL(5,2)").IsRequired();
                 entity.Property(e => e.CommissionAmount).HasColumnType("DECIMAL(10,2)").IsRequired();
                 entity.Property(e => e.CoworkingAmount).HasColumnType("DECIMAL(10,2)").IsRequired();
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // PlatformCreditBalance configuration (singleton: uma linha com o saldo da plataforma)
@@ -423,7 +581,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CoworkingRoomPhoto configuration
@@ -435,7 +594,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.CoworkingRoomId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // CoworkingOperatingHours configuration
@@ -448,7 +608,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(e => new { e.CoworkingId, e.DayOfWeek }).IsUnique();
                 entity.Property(e => e.DayOfWeek).IsRequired().HasMaxLength(20);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // BlockedDate configuration
@@ -461,7 +622,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(e => new { e.CoworkingId, e.BlockedDateValue });
                 entity.Property(e => e.Reason).HasMaxLength(200);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // Service configuration
@@ -472,7 +634,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Description).HasMaxLength(1000);
                 entity.Property(e => e.Route).IsRequired().HasMaxLength(500);
                 entity.Property(e => e.ImageUrl).HasMaxLength(500);
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // PartnerService configuration
@@ -489,7 +652,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(e => new { e.CoworkingId, e.ServiceId }).IsUnique();
                 entity.Property(e => e.Percentage).HasColumnType("DECIMAL(5,2)").IsRequired();
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // SefazConfiguration configuration (uma configuração por estado)
@@ -507,7 +671,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.TaxRegime).HasMaxLength(100);
                 entity.Property(e => e.ISSMunicipality).HasMaxLength(200);
                 entity.Property(e => e.ISSAliquot).HasColumnType("DECIMAL(5,2)");
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             // FiscalNote configuration
@@ -544,7 +709,27 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.ServiceAmount).HasColumnType("DECIMAL(10,2)");
                 entity.HasIndex(e => e.AccessKey);
                 entity.HasIndex(e => new { e.Type, e.ReservationId, e.ContractId });
-                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // PaymentHistory configuration
+            modelBuilder.Entity<PaymentHistory>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Payment)
+                    .WithMany()
+                    .HasForeignKey(e => e.PaymentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.ActionByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ActionBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Action).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.RejectionReason).HasMaxLength(1000);
+                // Remover valor padrão do banco - vamos definir explicitamente no código
+                // entity.Property(e => e.ActionAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.HasIndex(e => e.PaymentId);
             });
         }
     }

@@ -12,6 +12,7 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
+using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
 using ClientCredit = KlyonHubPlatform.Domain.Entities.ClientCredit;
 using CreditPlan = KlyonHubPlatform.Domain.Entities.CreditPlan;
@@ -114,14 +115,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     !service.Route.Contains("/Home/Marketplace"))
                 {
                     service.Route = marketplaceRoute;
-                    service.UpdatedAt = DateTime.UtcNow;
+                    service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                     needsUpdate = true;
                 }
                 // Corrigir rotas que apontam para /marketplace (sem /Home/)
                 else if (service.Route == "/marketplace" || service.Route.Contains("/marketplace") && !service.Route.Contains("/Home/Marketplace"))
                 {
                     service.Route = marketplaceRoute;
-                    service.UpdatedAt = DateTime.UtcNow;
+                    service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                     needsUpdate = true;
                 }
             }
@@ -148,7 +149,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         DisplayOrder = 1,
                         IsActive = true,
                         ImageUrl = "/images/services/endereco-fiscal.svg",
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
                     },
                     new Domain.Entities.Service
                     {
@@ -158,7 +159,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         DisplayOrder = 2,
                         IsActive = true,
                         ImageUrl = "/images/services/sala-compartilhada.svg",
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
                     }
                 };
 
@@ -450,7 +451,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         await Logo.CopyToAsync(stream);
                         var fileBytes = stream.ToArray();
                         
-                        var fileName = $"logo_{existingClient.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{fileExtension}";
+                        var fileName = $"logo_{existingClient.Id}_{DateTimeHelper.GetBrazilianTime():yyyyMMddHHmmss}{fileExtension}";
                         var folder = $"clients/{existingClient.Id}";
                         var filePath = await storageService.SaveFileAsync(fileBytes, fileName, folder);
                         
@@ -463,7 +464,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
                 
-                existingClient.UpdatedAt = DateTime.UtcNow;
+                existingClient.UpdatedAt = DateTimeHelper.GetBrazilianTime();
 
                 await _context.SaveChangesAsync();
 
@@ -1036,9 +1037,9 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Atualizar contrato com solicitação de cancelamento
                 contract.Status = ContractStatus.PendingCancellation;
-                contract.CancellationRequestedAt = DateTime.UtcNow;
+                contract.CancellationRequestedAt = DateTimeHelper.GetBrazilianTime();
                 contract.CancellationRequestReason = reason;
-                contract.UpdatedAt = DateTime.UtcNow;
+                contract.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 _context.Contracts.Update(contract);
                 await _context.SaveChangesAsync();
 
@@ -1267,6 +1268,14 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.FinalAmount = finalAmount;
             ViewBag.FeePercentage = feePercentage;
 
+            // Buscar histórico do pagamento
+            var paymentHistory = await _context.PaymentHistories
+                .Include(h => h.ActionByUser)
+                .Where(h => h.PaymentId == payment.Id)
+                .OrderByDescending(h => h.ActionAt)
+                .ToListAsync();
+            ViewBag.PaymentHistory = paymentHistory;
+
             return View(payment);
         }
 
@@ -1450,13 +1459,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 using var stream = new MemoryStream();
                 await receiptFile.CopyToAsync(stream);
                 var fileBytes = stream.ToArray();
-                var fileName = $"receipt_{paymentId}_{DateTime.UtcNow:yyyyMMddHHmmss}{fileExtension}";
+                var fileName = $"receipt_{paymentId}_{DateTimeHelper.GetBrazilianTime():yyyyMMddHHmmss}{fileExtension}";
                 var receiptPath = await storageService.SaveFileAsync(fileBytes, fileName, $"payments/{paymentId}/receipts");
 
                 // Atualizar pagamento para aguardando validação
                 payment.Status = PaymentStatus.AwaitingValidation;
                 payment.ReceiptFilePath = receiptPath;
-                payment.UpdatedAt = DateTime.UtcNow;
+                payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Comprovante enviado com sucesso! O pagamento está aguardando validação pelo coworking.";
@@ -1507,7 +1516,15 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var fileName = Path.GetFileName(payment.ReceiptFilePath);
-            var contentType = fileName.EndsWith(".pdf") ? "application/pdf" : "image/jpeg";
+            var fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
+            var contentType = fileExtension switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
             
             return File(fileBytes, contentType, fileName);
         }
@@ -1656,7 +1673,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Filtro por status
             if (!string.IsNullOrEmpty(status))
             {
-                var now = DateTime.UtcNow;
+                var now = DateTimeHelper.GetBrazilianTime();
                 switch (status.ToLower())
                 {
                     case "valid":
@@ -2133,10 +2150,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (status == "PAID")
                     {
                         purchase.Status = "Paid";
-                        purchase.PaidAt = charge.PaidAt ?? DateTime.UtcNow;
+                        purchase.PaidAt = charge.PaidAt ?? DateTimeHelper.GetBrazilianTime();
                         
                         // Adicionar créditos ao cliente
-                        var expiresAt = DateTime.UtcNow.AddMonths(purchase.CreditPlan.ValidityMonths);
+                        var expiresAt = DateTimeHelper.GetBrazilianTime().AddMonths(purchase.CreditPlan.ValidityMonths);
                         var clientCredit = new ClientCredit
                         {
                             ClientId = client.Id,
@@ -2158,7 +2175,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                 _context.PlatformCreditBalances.Add(plat);
                             }
                             plat.TotalCredits += total;
-                            plat.UpdatedAt = DateTime.UtcNow;
+                            plat.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                         }
                         catch (Exception)
                         {
@@ -2231,7 +2248,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var availableCredits = await _context.ClientCredits
-                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTimeHelper.GetBrazilianTime())
                 .SumAsync(c => c.Credits);
 
             ViewBag.Address = address;
@@ -2337,7 +2354,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var availableCredits = await _context.ClientCredits
-                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow)
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTimeHelper.GetBrazilianTime())
                 .SumAsync(c => c.Credits);
             if (availableCredits < totalCredits)
             {
@@ -2402,14 +2419,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     RoomType = RoomType,
                     TotalValue = totalValue,
                     Status = "Confirmed",
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTimeHelper.GetBrazilianTime()
                 };
                 _context.Reservations.Add(reservation);
             }
 
             var creditsToDeduct = totalCredits;
             var credits = await _context.ClientCredits
-                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTime.UtcNow && c.Credits > 0)
+                .Where(c => c.ClientId == client.Id && c.ExpiresAt > DateTimeHelper.GetBrazilianTime() && c.Credits > 0)
                 .OrderBy(c => c.ExpiresAt)
                 .ToListAsync();
             foreach (var credit in credits)
@@ -2552,8 +2569,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (r.ClientConfirmedAt == null)
             {
-                r.ClientConfirmedAt = DateTime.UtcNow;
-                r.UpdatedAt = DateTime.UtcNow;
+                r.ClientConfirmedAt = DateTimeHelper.GetBrazilianTime();
+                r.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 await _context.SaveChangesAsync();
             }
             await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);

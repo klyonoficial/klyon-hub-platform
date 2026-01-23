@@ -596,7 +596,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir este sócio?')">
+                                            <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="event.preventDefault(); handleDeletePartner(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="partnerId" value="@partner.Id" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -918,7 +918,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                             }
                                         </td>
                                         <td>
-                                            <form method="post" action="@Url.Action("DeleteBlockedDate", "Parceiro")" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este bloqueio?');">
+                                            <form method="post" action="@Url.Action("DeleteBlockedDate", "Parceiro")" class="d-inline" onsubmit="event.preventDefault(); handleDeleteBlockedDate(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@blockedDate.Id" />
                                                 <button type="submit" class="btn btn-sm btn-danger">
@@ -1122,8 +1122,14 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
         }
 
         // Definir foto como principal
-        function setMainPhoto(photoId) {
-            if (!confirm('Deseja definir esta foto como foto de capa?\n\nEsta foto será exibida para os clientes na página de endereços disponíveis.')) {
+        async function setMainPhoto(photoId) {
+            const confirmed = await showConfirm(
+                'Deseja definir esta foto como foto de capa?\n\nEsta foto será exibida para os clientes na página de endereços disponíveis.',
+                'Definir Foto de Capa',
+                'info'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
@@ -1155,8 +1161,14 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
         }
 
         // Deletar foto
-        function deletePhoto(photoId) {
-            if (!confirm('Tem certeza que deseja excluir esta foto?')) {
+        async function deletePhoto(photoId) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja excluir esta foto?',
+                'Confirmar Exclusão',
+                'danger'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
@@ -1247,11 +1259,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     if (city) city.value = data.localidade || '';
                     if (state) state.value = data.uf || '';
                 } else {
-                    alert('CEP não encontrado. Preencha os dados manualmente.');
+                    showToast('CEP não encontrado. Preencha os dados manualmente.', 'warning');
                 }
             } catch (err) {
                 console.error('Erro ao buscar CEP:', err);
-                alert('Erro ao buscar CEP. Preencha os dados manualmente.');
+                showToast('Erro ao buscar CEP. Preencha os dados manualmente.', 'error');
             }
         }
 
@@ -1267,7 +1279,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 d = JSON.parse(raw); 
             } catch (e) { 
                 console.error('editPartnerFromData: JSON inválido', e, 'Raw:', raw); 
-                alert('Erro ao carregar dados do sócio. Por favor, recarregue a página.');
+                showToast('Erro ao carregar dados do sócio. Por favor, recarregue a página.', 'error');
                 return; 
             }
             var pid = document.getElementById('partnerId');
@@ -1338,7 +1350,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                     setTimeout(function() { window.KlyonLoading.hide(); }, 0);
                 }
-                alert('A foto não pode exceder ' + maxPhotoMb + 'MB.');
+                showToast('A foto não pode exceder ' + maxPhotoMb + 'MB.', 'warning');
                 return false;
             }
         });
@@ -1383,7 +1395,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     const file = fileInput.files[0];
                     if (file.size > 10 * 1024 * 1024) { // 10MB
                         e.preventDefault();
-                        alert('O arquivo excede o tamanho máximo de 10MB.');
+                        showToast('O arquivo excede o tamanho máximo de 10MB.', 'warning');
                         return false;
                     }
                 }
@@ -1408,14 +1420,14 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 if (maxFilesToAdd <= 0) {
                     e.preventDefault();
                     setTimeout(hideUploadLoading, 0);
-                    alert(`Você já atingiu o limite máximo de ${maxTotalPhotos} fotos. Remova uma foto antes de adicionar outra.`);
+                    showToast(`Você já atingiu o limite máximo de ${maxTotalPhotos} fotos. Remova uma foto antes de adicionar outra.`, 'warning');
                     return false;
                 }
                 
                 if (fileInput.files.length > maxFilesToAdd) {
                     e.preventDefault();
                     setTimeout(hideUploadLoading, 0);
-                    alert(`Você pode adicionar no máximo ${maxFilesToAdd} foto(s). Você já possui ${existingPhotosCount} foto(s) de um total de ${maxTotalPhotos} permitidas.`);
+                    showToast(`Você pode adicionar no máximo ${maxFilesToAdd} foto(s). Você já possui ${existingPhotosCount} foto(s) de um total de ${maxTotalPhotos} permitidas.`, 'warning');
                     return false;
                 }
 
@@ -1423,7 +1435,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     if (fileInput.files[i].size > maxSize) {
                         e.preventDefault();
                         setTimeout(hideUploadLoading, 0);
-                        alert(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: ${maxPhotoMb}MB`);
+                        showToast(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: ${maxPhotoMb}MB`, 'warning');
                         return false;
                     }
                 }
@@ -1601,6 +1613,31 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             document.querySelectorAll('input[type="time"]').forEach(function(input) {
                 input.disabled = false;
             });
+        }
+        // Função para excluir sócio com confirmação elegante
+        async function handleDeletePartner(form) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja excluir este sócio?',
+                'Confirmar Exclusão',
+                'danger'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
+
+        // Função para excluir bloqueio com confirmação elegante
+        async function handleDeleteBlockedDate(form) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja remover este bloqueio?',
+                'Confirmar Remoção',
+                'warning'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
         }
     </script>
 }

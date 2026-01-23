@@ -55,10 +55,11 @@ namespace KlyonHubPlatform.Domain.Entities
         
         // Status
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         
         // Observações
         public string? Notes { get; set; }
     }
 }
+

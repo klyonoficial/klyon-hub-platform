@@ -113,7 +113,7 @@
                 {
                     <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = Model.Id })" class="mt-2">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-success w-100" onclick="return confirm('Deseja verificar o email deste usuário?')">
+                        <button type="submit" class="btn btn-success w-100" onclick="event.preventDefault(); handleVerifyEmail(this);">
                             <i class="bi bi-envelope-check"></i> Verificar Email
                         </button>
                     </form>
@@ -147,16 +147,40 @@
                         var confirmPassword = document.getElementById('confirmNewPassword').value;
                         
                         if (password !== confirmPassword) {
-                            alert('As senhas não coincidem!');
+                            showToast('As senhas não coincidem!', 'warning');
                             return false;
                         }
                         
                         if (password.length < 6) {
-                            alert('A senha deve ter no mínimo 6 caracteres!');
+                            showToast('A senha deve ter no mínimo 6 caracteres!', 'warning');
                             return false;
                         }
                         
-                        return confirm('Deseja realmente resetar a senha deste usuário? Esta ação não pode ser desfeita.');
+                        return handleResetPassword();
+                    }
+                    
+                    async function handleResetPassword() {
+                        const confirmed = await showConfirm(
+                            'Deseja realmente resetar a senha deste usuário? Esta ação não pode ser desfeita.',
+                            'Confirmar Reset de Senha',
+                            'warning'
+                        );
+                        return confirmed;
+                    }
+                    
+                    async function handleVerifyEmail(button) {
+                        const confirmed = await showConfirm(
+                            'Deseja verificar o email deste usuário?',
+                            'Verificar Email',
+                            'info'
+                        );
+                        
+                        if (confirmed) {
+                            const form = button.closest('form');
+                            if (form) {
+                                form.submit();
+                            }
+                        }
                     }
                 </script>
             </div>

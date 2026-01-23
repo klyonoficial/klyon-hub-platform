@@ -97,7 +97,7 @@
                                 <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-warning btn-lg" 
-                                            onclick="return confirm('⚠️ ATENÇÃO: Você está prestes a executar @pendingMigrations.Count migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?');">
+                                            onclick="event.preventDefault(); handleExecuteMigrations(this);">
                                         <i class="bi bi-play-circle-fill"></i> Executar @pendingMigrations.Count Migration(s) Pendente(s)
                                     </button>
                                 </form>
@@ -176,7 +176,7 @@
                         </button>
                     </form>
                     <form method="post" action="@Url.Action("CreateCoworkingOperatingHoursTable", "Admin")" class="d-inline"
-                          onsubmit="return confirm('Criar a tabela CoworkingOperatingHours se ela não existir?');">
+                          onsubmit="event.preventDefault(); handleCreateTable(this, 'Criar a tabela CoworkingOperatingHours se ela não existir?'); return false;">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-info">
                             <i class="bi bi-plus-circle"></i> Criar tabela (se não existir)
@@ -209,7 +209,7 @@
                     Use o botão abaixo para adicioná-la manualmente.
                 </p>
                 <form method="post" action="@Url.Action("AddD4SignDocumentUuidColumn", "Admin")" class="d-inline"
-                      onsubmit="return confirm('Adicionar a coluna D4SignDocumentUuid na tabela Documents (se não existir)?');">
+                      onsubmit="event.preventDefault(); handleAddColumn(this, 'Adicionar a coluna D4SignDocumentUuid na tabela Documents (se não existir)?'); return false;">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-secondary">
                         <i class="bi bi-plus-circle"></i> Adicionar coluna D4SignDocumentUuid
@@ -241,7 +241,7 @@
                 <form method="post" action="@Url.Action("ClearDatabase", "Admin")" class="d-inline">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-danger btn-lg" 
-                            onclick="return confirm('⚠️ ATENÇÃO: Você está prestes a APAGAR TODOS OS DADOS DE TESTE do banco de dados.\n\nIsso irá:\n- Apagar todos os contratos, reservas e pagamentos\n- Apagar todos os clientes e coworkings\n- Apagar todos os usuários (exceto admin)\n- Limpar comissões, transferências e notas fiscais\n\nDados preservados:\n- Roles e permissões\n- Configurações do sistema\n- Localidades e Serviços\n- Usuário administrador\n\nTem CERTEZA ABSOLUTA que deseja continuar?');">
+                            onclick="event.preventDefault(); handleClearDatabase(this);">
                         <i class="bi bi-trash-fill"></i> Limpar Base
                     </button>
                 </form>
@@ -275,7 +275,7 @@
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="submit" class="btn btn-primary" onclick="return confirm('Tem certeza que deseja executar esta query?');">
+                        <button type="submit" class="btn btn-primary" onclick="event.preventDefault(); handleExecuteQuery(this);">
                             <i class="bi bi-play-circle"></i> Executar Query
                         </button>
                         <button type="button" class="btn btn-secondary" onclick="document.querySelector('textarea[name=\'sqlQuery\']').value = '';">
@@ -478,6 +478,75 @@
             const textarea = document.querySelector('textarea[name="sqlQuery"]');
             textarea.value = text;
             textarea.focus();
+        }
+        // Funções para confirmações elegantes
+        async function handleExecuteMigrations(button) {
+            const confirmed = await showConfirm(
+                '⚠️ ATENÇÃO: Você está prestes a executar @pendingMigrations.Count migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?',
+                'Confirmar Execução de Migrations',
+                'warning'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+
+        async function handleCreateTable(form, message) {
+            const confirmed = await showConfirm(
+                message,
+                'Confirmar Criação de Tabela',
+                'info'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
+
+        async function handleAddColumn(form, message) {
+            const confirmed = await showConfirm(
+                message,
+                'Confirmar Adição de Coluna',
+                'info'
+            );
+            
+            if (confirmed) {
+                form.submit();
+            }
+        }
+
+        async function handleClearDatabase(button) {
+            const confirmed = await showConfirm(
+                '⚠️ ATENÇÃO: Você está prestes a APAGAR TODOS OS DADOS DE TESTE do banco de dados.\n\nIsso irá:\n- Apagar todos os contratos, reservas e pagamentos\n- Apagar todos os clientes e coworkings\n- Apagar todos os usuários (exceto admin)\n- Limpar comissões, transferências e notas fiscais\n\nDados preservados:\n- Roles e permissões\n- Configurações do sistema\n- Localidades e Serviços\n- Usuário administrador\n\nTem CERTEZA ABSOLUTA que deseja continuar?',
+                '⚠️ Confirmar Limpeza de Base',
+                'danger'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+
+        async function handleExecuteQuery(button) {
+            const confirmed = await showConfirm(
+                'Tem certeza que deseja executar esta query?',
+                'Confirmar Execução de Query',
+                'warning'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
         }
     </script>
 }

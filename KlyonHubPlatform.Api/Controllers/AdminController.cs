@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -8,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Globalization;
 using System.Security.Claims;
+using System.IO;
+using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -199,7 +202,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 user.Email = email;
                 user.Phone = phone;
                 user.IsActive = !string.IsNullOrEmpty(isActive) && isActive.ToLower() == "true";
-                user.UpdatedAt = DateTime.UtcNow;
+                user.UpdatedAt = DateTimeHelper.GetBrazilianTime();
 
                 await _userService.UpdateAsync(user);
 
@@ -377,12 +380,12 @@ namespace KlyonHubPlatform.Api.Controllers
             if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
             var oldStatus = coworking.ApprovalStatus;
             coworking.ApprovalStatus = CoworkingApprovalStatus.Approved;
-            coworking.ApprovedAt = DateTime.UtcNow;
+            coworking.ApprovedAt = DateTimeHelper.GetBrazilianTime();
             coworking.ApprovedBy = userId;
             coworking.RejectionReason = null;
             coworking.RejectedAt = null;
             coworking.RejectedBy = null;
-            coworking.UpdatedAt = DateTime.UtcNow;
+            coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"Approved\"}");
             TempData["Success"] = $"Cadastro de '{coworking.Name}' aprovado. O espaço já está disponível no marketplace.";
@@ -402,9 +405,9 @@ namespace KlyonHubPlatform.Api.Controllers
             var oldStatus = coworking.ApprovalStatus;
             coworking.ApprovalStatus = CoworkingApprovalStatus.AwaitingAdjustment;
             coworking.RejectionReason = rejectionReason.Trim();
-            coworking.RejectedAt = DateTime.UtcNow;
+            coworking.RejectedAt = DateTimeHelper.GetBrazilianTime();
             coworking.RejectedBy = userId;
-            coworking.UpdatedAt = DateTime.UtcNow;
+            coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"AwaitingAdjustment\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(coworking.RejectionReason) + "}");
             TempData["Success"] = "Cadastro reprovado. O coworking foi notificado e poderá reenviar após os ajustes.";
@@ -457,7 +460,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 coworking.IsActive = !coworking.IsActive;
-                coworking.UpdatedAt = DateTime.UtcNow;
+                coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 await _context.SaveChangesAsync();
 
                 var statusText = coworking.IsActive ? "ativado" : "inativado";
@@ -674,8 +677,8 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, int page = 1, int pageSize = 15)
         {
-            var start = startDate?.Date ?? DateTime.UtcNow.AddMonths(-1).Date;
-            var end = endDate?.Date ?? DateTime.UtcNow.Date;
+            var start = startDate?.Date ?? DateTimeHelper.GetBrazilianTime().AddMonths(-1).Date;
+            var end = endDate?.Date ?? DateTimeHelper.GetBrazilianTime().Date;
             if (end < start) end = start;
 
             var report = await _reportService.GetFinancialReportAsync(start, end, product);
@@ -1015,7 +1018,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (storageProvider != null)
                 {
                     storageProvider.Value = "FTP";
-                    storageProvider.UpdatedAt = DateTime.UtcNow;
+                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 }
                 else
                 {
@@ -1027,7 +1030,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
                     });
                 }
 
@@ -1050,7 +1053,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (existing != null)
                     {
                         existing.Value = config.Value;
-                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                     }
                     else
                     {
@@ -1071,7 +1074,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             Category = "Storage",
                             IsSensitive = config.Key == "FTP.Password",
                             IsEncrypted = false,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = DateTimeHelper.GetBrazilianTime()
                         });
                     }
                 }
@@ -1198,7 +1201,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (existing != null)
                     {
                         existing.Value = config.Value;
-                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                         existing.UpdatedBy = User.Identity?.Name;
                     }
                     else
@@ -1216,7 +1219,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             Category = "Payment",
                             IsSensitive = config.Key == "PagBank.AccessToken",
                             IsEncrypted = false,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = DateTimeHelper.GetBrazilianTime()
                         });
                     }
                 }
@@ -1242,7 +1245,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Tentar fazer uma requisição simples para testar a conexão
                 // Vamos tentar criar um pedido de teste muito pequeno (R$ 0,01)
                 var testOrder = await _pagBankService.CreateOrderAsync(
-                    referenceId: $"TEST-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                    referenceId: $"TEST-{DateTimeHelper.GetBrazilianTime():yyyyMMddHHmmss}",
                     amount: 0.01m,
                     method: PaymentMethod.PIX,
                     clientName: "Teste Conexão",
@@ -1317,19 +1320,149 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfirmPayment(int paymentId)
+        public async Task<IActionResult> ApprovePayment(int paymentId)
         {
             try
             {
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("Payments");
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+                // Registrar histórico
+                var history = new PaymentHistory
+                {
+                    PaymentId = paymentId,
+                    Action = "Approved",
+                    ActionBy = userId,
+                    ActionAt = DateTimeHelper.GetBrazilianTime()
+                };
+                _context.PaymentHistories.Add(history);
+
+                // Confirmar pagamento
                 await _paymentService.ConfirmPaymentAsync(paymentId, Guid.NewGuid().ToString());
-                TempData["Success"] = "Pagamento confirmado com sucesso!";
+
+                TempData["Success"] = "Pagamento aprovado com sucesso!";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao confirmar pagamento: {ex.Message}";
+                TempData["Error"] = $"Erro ao aprovar pagamento: {ex.Message}";
             }
 
             return RedirectToAction("Payments");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectPayment(int paymentId, string rejectionReason)
+        {
+            try
+            {
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("Payments");
+                }
+
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    TempData["Error"] = "É necessário informar o motivo da reprovação.";
+                    return RedirectToAction("Payments");
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+                // Registrar histórico
+                var history = new PaymentHistory
+                {
+                    PaymentId = paymentId,
+                    Action = "Rejected",
+                    RejectionReason = rejectionReason,
+                    ActionBy = userId,
+                    ActionAt = DateTimeHelper.GetBrazilianTime()
+                };
+                _context.PaymentHistories.Add(history);
+
+                // Voltar status para Pending
+                payment.Status = PaymentStatus.Pending;
+                payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                payment.ReceiptFilePath = null; // Limpar comprovante para permitir novo envio
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao reprovar pagamento: {ex.Message}";
+            }
+
+            return RedirectToAction("Payments");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPaymentHistory(int paymentId)
+        {
+            var history = await _context.PaymentHistories
+                .Include(h => h.ActionByUser)
+                .Where(h => h.PaymentId == paymentId)
+                .OrderByDescending(h => h.ActionAt)
+                .ToListAsync();
+
+            return Json(history.Select(h => new
+            {
+                id = h.Id,
+                action = h.Action,
+                rejectionReason = h.RejectionReason,
+                actionBy = h.ActionByUser?.FullName ?? "Sistema",
+                actionAt = h.ActionAt.ToString("dd/MM/yyyy HH:mm")
+            }));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewReceipt(int paymentId)
+        {
+            var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+            if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
+            {
+                return NotFound();
+            }
+
+            var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
+            var storageService = await storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(payment.ReceiptFilePath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var fileName = Path.GetFileName(payment.ReceiptFilePath);
+            var fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
+            var contentType = fileExtension switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
+
+            // Retornar o arquivo com headers apropriados para visualização inline
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            return File(fileBytes, contentType);
         }
 
         [HttpGet]
@@ -2530,7 +2663,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
                     existing.ServiceId = ServiceId;
                     existing.Percentage = percentage;
-                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 }
                 else
                 {
@@ -2550,7 +2683,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         CoworkingId = CoworkingId,
                         ServiceId = ServiceId,
                         Percentage = percentage,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
                     };
 
                     _context.PartnerServices.Add(partnerService);
@@ -2680,13 +2813,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         existing.TimeoutSeconds = config.TimeoutSeconds;
                         existing.IsActive = config.IsActive;
                         existing.Notes = config.Notes;
-                        existing.UpdatedAt = DateTime.UtcNow;
+                        existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                     }
                 }
                 else
                 {
                     // Criar novo
-                    config.CreatedAt = DateTime.UtcNow;
+                    config.CreatedAt = DateTimeHelper.GetBrazilianTime();
                     _context.SefazConfigurations.Add(config);
                 }
 
@@ -2797,9 +2930,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                 Amount = commissionAmount,
                                 CommissionAmount = commissionAmount,
                                 ServiceAmount = reservation.TotalValue,
-                                IssueDate = DateTime.UtcNow,
+                                IssueDate = DateTimeHelper.GetBrazilianTime(),
                                 Status = "Pendente",
-                                CreatedAt = DateTime.UtcNow
+                                CreatedAt = DateTimeHelper.GetBrazilianTime()
                             };
 
                             _context.FiscalNotes.Add(fiscalNote);
@@ -2887,9 +3020,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                 Amount = commissionAmount,
                                 CommissionAmount = commissionAmount,
                                 ServiceAmount = contract.MonthlyValue,
-                                IssueDate = DateTime.UtcNow,
+                                IssueDate = DateTimeHelper.GetBrazilianTime(),
                                 Status = "Pendente",
-                                CreatedAt = DateTime.UtcNow
+                                CreatedAt = DateTimeHelper.GetBrazilianTime()
                             };
 
                             _context.FiscalNotes.Add(fiscalNote);
@@ -2969,7 +3102,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         errorMessages.Add($"NF #{note.Id}: {ex.Message}");
                         note.Status = "Erro";
                         note.ErrorMessage = ex.Message;
-                        note.UpdatedAt = DateTime.UtcNow;
+                        note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                         _context.FiscalNotes.Update(note);
                     }
                     catch (Exception ex)
@@ -2978,7 +3111,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         errorMessages.Add($"NF #{note.Id}: {ex.Message}");
                         note.Status = "Erro";
                         note.ErrorMessage = ex.Message;
-                        note.UpdatedAt = DateTime.UtcNow;
+                        note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                         _context.FiscalNotes.Update(note);
                     }
                 }

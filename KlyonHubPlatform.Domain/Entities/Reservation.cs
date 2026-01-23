@@ -17,7 +17,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? ClientConfirmedAt { get; set; }
         /// <summary>Coworking confirmou que o cliente compareceu e utilizou o espaço.</summary>
         public DateTime? CoworkingConfirmedAt { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
 
@@ -27,3 +27,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual CoworkingRoom? CoworkingRoom { get; set; }
     }
 }
+

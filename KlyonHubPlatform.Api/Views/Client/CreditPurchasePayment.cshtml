@@ -387,21 +387,21 @@
             var pixCode = document.getElementById('pixCode');
             pixCode.select();
             document.execCommand('copy');
-            alert('Código PIX copiado!');
+            showToast('Código PIX copiado!', 'success', 3000);
         }
 
         function copyBoletoBarcode() {
             var barcode = document.getElementById('boletoBarcode');
             barcode.select();
             document.execCommand('copy');
-            alert('Código de barras copiado!');
+            showToast('Código de barras copiado!', 'success', 3000);
         }
 
         function copyBoletoCode() {
             var code = document.getElementById('boletoCode');
             code.select();
             document.execCommand('copy');
-            alert('Linha digitável copiada!');
+            showToast('Linha digitável copiada!', 'success', 3000);
         }
 
         // Formatação do número do cartão
@@ -482,13 +482,13 @@
                 var result = await response.json();
                 
                 if (result.success) {
-                    alert(result.message);
+                    showToast(result.message, 'success');
                     window.location.reload();
                 } else {
-                    alert(result.error || 'Falha no pagamento.');
+                    showToast(result.error || 'Falha no pagamento.', 'error');
                 }
             } catch (error) {
-                alert('Erro de conexão: ' + error.message);
+                showToast('Erro de conexão: ' + error.message, 'error');
             }
         });
     </script>

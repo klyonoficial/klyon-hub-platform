@@ -15,7 +15,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime ScheduledDate { get; set; }
         public DateTime? ProcessedAt { get; set; }
         public string? FailureReason { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // Navigation properties
@@ -23,3 +23,4 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Reservation? Reservation { get; set; }
     }
 }
+
