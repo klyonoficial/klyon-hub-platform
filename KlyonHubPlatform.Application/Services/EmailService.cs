@@ -348,5 +348,74 @@ namespace KlyonHubPlatform.Application.Services
 
             return await SendEmailAsync(to, subject, body, true);
         }
+
+        public async Task<bool> SendClientCredentialsEmailAsync(string to, string name, string email, string password, string paymentDetailsUrl)
+        {
+            var subject = "Bem-vindo ao Klyon Endereço Fiscal - Suas Credenciais de Acesso";
+            var body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        .credentials-box {{ background-color: #ffffff; border: 2px solid #1a4d7a; border-radius: 5px; padding: 15px; margin: 20px 0; }}
+        .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }}
+        .info-box {{ background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 15px 0; }}
+        .credential-item {{ margin: 10px 0; }}
+        .credential-label {{ font-weight: bold; color: #1a4d7a; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Klyon Endereço Fiscal</h1>
+        </div>
+        <div class='content'>
+            <h2>Olá, {name}!</h2>
+            <p>Bem-vindo à plataforma Klyon Endereço Fiscal! Sua conta foi criada com sucesso.</p>
+            
+            <div class='credentials-box'>
+                <h3 style='margin-top: 0; color: #1a4d7a;'>📋 Suas Credenciais de Acesso</h3>
+                <div class='credential-item'>
+                    <span class='credential-label'>Email:</span> {email}
+                </div>
+                <div class='credential-item'>
+                    <span class='credential-label'>Senha Temporária:</span> {password}
+                </div>
+            </div>
+
+            <div class='warning'>
+                <strong>⚠️ Importante:</strong> Por segurança, você será solicitado a alterar sua senha no primeiro acesso. A senha padrão são as 4 primeiras letras do seu email.
+            </div>
+
+            <div class='info-box'>
+                <strong>💳 Próximo Passo:</strong> Seu contrato de endereço fiscal foi criado e está aguardando pagamento. Clique no botão abaixo para acessar a página de pagamento e gerar o código PIX.
+            </div>
+
+            <p style='text-align: center;'>
+                <a href='{paymentDetailsUrl}' class='button'>Acessar Página de Pagamento</a>
+            </p>
+
+            <p>Ou copie e cole o link abaixo no seu navegador:</p>
+            <p style='word-break: break-all; color: #1a4d7a;'>{paymentDetailsUrl}</p>
+
+            <p>Atenciosamente,<br>Equipe Klyon</p>
+        </div>
+        <div class='footer'>
+            <p>Este é um email automático, por favor não responda.</p>
+            <p>© {DateTime.Now.Year} Klyon Endereço Fiscal. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+            return await SendEmailAsync(to, subject, body, true);
+        }
     }
 }

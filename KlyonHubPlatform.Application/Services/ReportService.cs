@@ -19,21 +19,42 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<DashboardViewModel> GetDashboardDataAsync()
         {
+            // Calcular receitas baseadas em comissões
+            // Receita Bruta = soma de todos os TotalPaymentAmount das comissões (ou pagamentos pagos)
+            var grossRevenue = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
+            // Receita Parceiro = soma de (TotalPaymentAmount - Amount) de todas as comissões
+            var partnerRevenue = await _context.Commissions
+                .SumAsync(c => (decimal?)(c.TotalPaymentAmount - c.Amount)) ?? 0;
+
+            // Receita Líquida = Receita Bruta - Receita Parceiro (ou soma dos Amount das comissões)
+            var netRevenue = await _context.Commissions
+                .SumAsync(c => (decimal?)c.Amount) ?? 0;
+
+            // Comissões Concluídas = soma das comissões transferidas
+            var completedCommissions = await _context.Commissions
+                .Where(c => c.IsTransferred)
+                .SumAsync(c => (decimal?)(c.TotalPaymentAmount - c.Amount)) ?? 0;
+
             var model = new DashboardViewModel
             {
                 TotalUsers = await _context.Users.CountAsync(),
                 TotalCoworkings = await _context.Coworkings.CountAsync(),
                 ActiveContracts = await _context.Contracts.CountAsync(c => c.Status == ContractStatus.Active),
-                TotalRevenue = await _context.Payments
-                    .Where(p => p.Status == PaymentStatus.Paid)
-                    .SumAsync(p => (decimal?)p.Amount) ?? 0,
+                TotalRevenue = grossRevenue, // Mantido para compatibilidade
+                GrossRevenue = grossRevenue,
+                PartnerRevenue = partnerRevenue,
+                NetRevenue = netRevenue,
                 TotalLocations = await _context.Locations.CountAsync(),
                 PendingPayments = await _context.Payments
                     .Where(p => p.Status == PaymentStatus.Pending)
                     .SumAsync(p => (decimal?)p.Amount) ?? 0,
                 TotalCommissions = await _context.Commissions
                     .Where(c => !c.IsTransferred)
-                    .SumAsync(c => (decimal?)c.Amount) ?? 0,
+                    .SumAsync(c => (decimal?)(c.TotalPaymentAmount - c.Amount)) ?? 0, // Valor creditado pendente
+                CompletedCommissions = completedCommissions,
                 InactiveUsers = await _context.Users.CountAsync(u => !u.IsActive),
                 UnverifiedUsers = await _context.Users.CountAsync(u => !u.EmailVerified)
             };

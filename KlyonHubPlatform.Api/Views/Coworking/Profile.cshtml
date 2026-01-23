@@ -66,7 +66,15 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
 else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
 {
     <div class="alert alert-success mb-4">
-        <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> Seu espaço está no marketplace. Ao alterar qualquer informação, o cadastro voltará para análise.
+        <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
+        @if (showCoworkingMenus)
+        {
+            <text>Seu espaço está no marketplace. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
+        }
+        else
+        {
+            <text>Você já pode cadastrar endereços fiscais e receber clientes. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
+        }
     </div>
 }
 
@@ -590,7 +598,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                         </td>
                                         <td><strong>@partner.Name</strong><br><small class="text-muted">@(partner.Email ?? partner.Phone ?? "-")</small></td>
                                         <td>@(partner.Role ?? "-")</td>
-                                        <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F0}%" : "-")</td>
+                                        <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F2}%".Replace(".", ",") : "-")</td>
                                         <td>@if (partner.IsPrincipal) { <span class="badge bg-success"><i class="bi bi-star-fill"></i> Principal</span> } else { <span class="text-muted">-</span> }</td>
                                         <td class="text-end">
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
@@ -1047,7 +1055,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="partnerShare" class="form-label">Participação (%)</label>
-                                <input type="number" class="form-control" id="partnerShare" name="SharePercentage" min="0" max="100" step="0.01" placeholder="0.00" oninput="this.value = Math.max(0, Math.min(100, this.value))">
+                                <input type="text" class="form-control" id="partnerShare" name="SharePercentage" placeholder="0,00" pattern="[0-9]+([,\.][0-9]{1,2})?" inputmode="decimal">
+                                <small class="form-text text-muted">Digite um valor entre 0 e 100 (ex: 12,50)</small>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -1731,7 +1740,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             document.getElementById('partnerEmail').value = d.Email || '';
             document.getElementById('partnerPhone').value = applyPhoneMask(d.Phone || '');
             var share = d.SharePercentage != null && d.SharePercentage !== '' ? parseFloat(d.SharePercentage) : '';
-            if (share !== '' && !isNaN(share)) { share = Math.max(0, Math.min(100, share)); share = parseFloat(share.toFixed(2)); }
+            if (share !== '' && !isNaN(share)) { 
+                share = Math.max(0, Math.min(100, share)); 
+                share = share.toFixed(2).replace('.', ','); // Formatar com vírgula (formato brasileiro)
+            }
             document.getElementById('partnerShare').value = share;
             document.getElementById('partnerIsPrincipal').checked = !!d.IsPrincipal;
             // Cargo/Função: select
@@ -1845,6 +1857,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             
             // Se passou na validação, enviar via AJAX
             var form = this;
+            // Converter vírgula para ponto no campo de participação antes de criar FormData
+            let shareInput = document.getElementById('partnerShare');
+            if (shareInput && shareInput.value) {
+                shareInput.value = shareInput.value.replace(',', '.');
+            }
+            
             var formData = new FormData(form);
             var actionUrl = form.action;
             var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
@@ -1914,15 +1932,46 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             });
         });
 
-        // Validação de participação (não permitir negativo)
+        // Validação de participação (aceita decimais com vírgula ou ponto, até 2 casas decimais)
         document.getElementById('partnerShare')?.addEventListener('input', function(e) {
-            let value = parseFloat(e.target.value);
-            if (isNaN(value) || value < 0) {
-                e.target.value = '';
-            } else if (value > 100) {
-                e.target.value = '100';
+            let input = e.target.value;
+            // Substituir vírgula por ponto para validação
+            let normalized = input.replace(',', '.');
+            let value = parseFloat(normalized);
+            
+            // Permitir apenas números, vírgula ou ponto, e no máximo 2 casas decimais
+            let regex = /^[0-9]+([,\.][0-9]{0,2})?$/;
+            if (input && !regex.test(input)) {
+                // Remover caracteres inválidos
+                e.target.value = input.replace(/[^0-9,\.]/g, '');
+                return;
+            }
+            
+            // Validar range (0 a 100)
+            if (input && !isNaN(value)) {
+                if (value < 0) {
+                    e.target.value = '0';
+                } else if (value > 100) {
+                    e.target.value = '100';
+                } else {
+                    // Manter o formato original (vírgula ou ponto)
+                    if (input.includes(',')) {
+                        // Limitar a 2 casas decimais
+                        let parts = input.split(',');
+                        if (parts[1] && parts[1].length > 2) {
+                            e.target.value = parts[0] + ',' + parts[1].substring(0, 2);
+                        }
+                    } else if (input.includes('.')) {
+                        // Limitar a 2 casas decimais
+                        let parts = input.split('.');
+                        if (parts[1] && parts[1].length > 2) {
+                            e.target.value = parts[0] + '.' + parts[1].substring(0, 2);
+                        }
+                    }
+                }
             }
         });
+        
 
         // Resetar modal ao fechar
         document.getElementById('addPartnerModal')?.addEventListener('hidden.bs.modal', function() {

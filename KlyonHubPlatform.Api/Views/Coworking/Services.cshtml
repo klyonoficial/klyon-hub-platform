@@ -5,10 +5,13 @@
 
 @model List<KlyonHubPlatform.Domain.Entities.Service>
 
+@using KlyonHubPlatform.Domain.Core.Enums
+
 @{
     var partnerServices = ViewBag.PartnerServices as List<KlyonHubPlatform.Domain.Entities.PartnerService> ?? new List<KlyonHubPlatform.Domain.Entities.PartnerService>();
     var partnerServiceIds = ViewBag.PartnerServiceIds as HashSet<int> ?? new HashSet<int>();
     var coworkingId = ViewBag.CoworkingId as int? ?? 0;
+    var hasActiveContracts = ViewBag.HasActiveContracts as bool? ?? false;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -86,14 +89,41 @@
                                     <small>@ps.CreatedAt.ToString("dd/MM/yyyy")</small>
                                 </td>
                                 <td class="text-center">
-                                    <form method="post" action="@Url.Action("RemoveService", "Coworking")" class="d-inline" 
-                                          onsubmit="event.preventDefault(); handleRemoveService(this, '@ps.Service.Name'); return false;">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="partnerServiceId" value="@ps.Id" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i> Remover
-                                        </button>
-                                    </form>
+                                    @if (ps.RemovalRequestStatus == RemovalRequestStatus.Pending)
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-clock-history"></i> Aguardando aprovação do administrador
+                                        </span>
+                                    }
+                                    else if (ps.RemovalRequestStatus == RemovalRequestStatus.Approved)
+                                    {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Remoção aprovada
+                                        </span>
+                                    }
+                                    else if (ps.RemovalRequestStatus == RemovalRequestStatus.Rejected)
+                                    {
+                                        <span class="badge bg-danger" title="@ps.RemovalRejectionReason">
+                                            <i class="bi bi-x-circle"></i> Remoção rejeitada
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <form method="post" action="@Url.Action("RemoveService", "Coworking")" class="d-inline" 
+                                              onsubmit="event.preventDefault(); handleRemoveService(this, '@ps.Service.Name', @hasActiveContracts.ToString().ToLower()); return false;">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="partnerServiceId" value="@ps.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" @(hasActiveContracts ? "disabled" : "")>
+                                                <i class="bi bi-trash"></i> Remover
+                                            </button>
+                                        </form>
+                                        @if (hasActiveContracts)
+                                        {
+                                            <small class="d-block text-muted mt-1" style="font-size: 0.75rem;">
+                                                <i class="bi bi-info-circle"></i> Contrato ativo
+                                            </small>
+                                        }
+                                    }
                                 </td>
                             </tr>
                         }
@@ -106,10 +136,15 @@
 
 @section Scripts {
     <script>
-        async function handleRemoveService(form, serviceName) {
+        async function handleRemoveService(form, serviceName, hasActiveContracts) {
+            if (hasActiveContracts) {
+                showToast('Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.', 'warning');
+                return;
+            }
+            
             const confirmed = await showConfirm(
-                'Tem certeza que deseja remover o serviço \'' + serviceName + '\'?',
-                'Confirmar Remoção',
+                'Tem certeza que deseja solicitar a remoção do serviço \'' + serviceName + '\'? A solicitação será enviada para aprovação do administrador.',
+                'Confirmar Solicitação de Remoção',
                 'warning'
             );
             

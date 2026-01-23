@@ -736,12 +736,16 @@ namespace KlyonHubPlatform.Api.Controllers
             var allLocations = await query.ToListAsync();
             var locationIds = allLocations.Select(l => l.Id).ToList();
             
-            // Contar endereços disponíveis por localidade (IsAvailable, CurrentContracts < MaxContracts)
-            var availableAddressesCount = await _context.CoworkingAddresses
-                .Where(a => a.IsAvailable && a.CurrentContracts < a.MaxContracts && locationIds.Contains(a.LocationId))
+            // Buscar endereços disponíveis usando o serviço (que já aplica todas as validações)
+            var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
+            var availableAddressesInLocations = availableAddresses
+                .Where(a => locationIds.Contains(a.LocationId))
+                .ToList();
+            
+            // Contar endereços disponíveis por localidade
+            var availableAddressesCount = availableAddressesInLocations
                 .GroupBy(a => a.LocationId)
-                .Select(g => new { LocationId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.LocationId, x => x.Count);
+                .ToDictionary(g => g.Key, g => g.Count());
             
             // Mostrar somente localidades que tenham pelo menos um endereço cadastrado
             var locationsWithAddresses = allLocations
@@ -1011,6 +1015,83 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
+            // Sincronizar status dos contratos baseado nos pagamentos
+            // Verificar se há pagamentos pagos para cada contrato e atualizar status se necessário
+            var pendingPaymentContracts = contracts.Where(c => c.Status == ContractStatus.PendingPayment).ToList();
+            
+            if (pendingPaymentContracts.Any())
+            {
+                var contractIds = pendingPaymentContracts.Select(c => c.Id).ToList();
+                
+                // Buscar todas as subscriptions dos contratos pendentes em uma única query
+                var subscriptions = await _context.Subscriptions
+                    .Where(s => contractIds.Contains(s.ContractId))
+                    .ToListAsync();
+                
+                var subscriptionIds = subscriptions.Select(s => s.Id).ToList();
+                
+                if (subscriptionIds.Any())
+                {
+                    // Buscar todos os pagamentos pagos para essas subscriptions em uma única query
+                    var paidPayments = await _context.Payments
+                        .Where(p => subscriptionIds.Contains(p.SubscriptionId ?? 0) && p.Status == PaymentStatus.Paid)
+                        .GroupBy(p => p.SubscriptionId)
+                        .Select(g => new { 
+                            SubscriptionId = g.Key, 
+                            FirstPaidAt = g.Min(p => p.PaidAt ?? p.CreatedAt) 
+                        })
+                        .ToListAsync();
+                    
+                    // Criar dicionários para busca rápida
+                    var subscriptionToContract = subscriptions.ToDictionary(s => s.Id, s => s.ContractId);
+                    var subscriptionToFirstPaidDate = paidPayments
+                        .Where(p => p.SubscriptionId.HasValue)
+                        .ToDictionary(p => p.SubscriptionId.Value, p => p.FirstPaidAt);
+                    
+                    var contractsToUpdate = new List<Contract>();
+                    
+                    foreach (var subscription in subscriptions)
+                    {
+                        if (subscriptionToFirstPaidDate.ContainsKey(subscription.Id))
+                        {
+                            var contract = pendingPaymentContracts.FirstOrDefault(c => c.Id == subscription.ContractId);
+                            if (contract != null)
+                            {
+                                // Atualizar status do contrato para Active
+                                contract.Status = ContractStatus.Active;
+                                
+                                // Se não tiver ExpiryDate, definir baseado na data do primeiro pagamento
+                                if (!contract.ExpiryDate.HasValue)
+                                {
+                                    var firstPaidDate = subscriptionToFirstPaidDate[subscription.Id];
+                                    contract.ExpiryDate = firstPaidDate.AddYears(1);
+                                }
+                                
+                                contract.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                                contractsToUpdate.Add(contract);
+                            }
+                        }
+                    }
+                    
+                    // Salvar todas as alterações de uma vez
+                    if (contractsToUpdate.Any())
+                    {
+                        // Marcar explicitamente como modificado para garantir que o EF detecte as mudanças
+                        foreach (var contract in contractsToUpdate)
+                        {
+                            _context.Entry(contract).Property(c => c.Status).IsModified = true;
+                            _context.Entry(contract).Property(c => c.UpdatedAt).IsModified = true;
+                            if (contract.ExpiryDate.HasValue)
+                            {
+                                _context.Entry(contract).Property(c => c.ExpiryDate).IsModified = true;
+                            }
+                        }
+                        
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+
             ViewBag.Search = search;
             ViewBag.Status = status;
             ViewBag.CurrentPage = page;
@@ -1127,6 +1208,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.CoworkingAddress)
+                            .ThenInclude(a => a.Coworking)
                 .Include(p => p.Reservation)
                     .ThenInclude(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Coworking)
@@ -1188,6 +1270,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             .Include(p => p.Subscription)
                                 .ThenInclude(s => s.Contract)
                                     .ThenInclude(c => c.CoworkingAddress)
+                                        .ThenInclude(a => a.Coworking)
                             .Include(p => p.Reservation)
                                 .ThenInclude(r => r.CoworkingAddress)
                                     .ThenInclude(a => a.Coworking)
@@ -1201,6 +1284,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             .Include(p => p.Subscription)
                                 .ThenInclude(s => s.Contract)
                                     .ThenInclude(c => c.CoworkingAddress)
+                                        .ThenInclude(a => a.Coworking)
                             .Include(p => p.Reservation)
                                 .ThenInclude(r => r.CoworkingAddress)
                                     .ThenInclude(a => a.Coworking)
@@ -1279,13 +1363,32 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.FinalAmount = finalAmount;
             ViewBag.FeePercentage = feePercentage;
 
-            // Buscar histórico do pagamento
+            // Buscar histórico do pagamento com paginação
+            int historyPage = 1;
+            int.TryParse(Request.Query["historyPage"], out historyPage);
+            if (historyPage < 1) historyPage = 1;
+            
+            int historyPageSize = 5; // 5 itens por página
+            
+            var totalHistoryItems = await _context.PaymentHistories
+                .Where(h => h.PaymentId == payment.Id)
+                .CountAsync();
+            
+            var totalHistoryPages = (int)Math.Ceiling(totalHistoryItems / (double)historyPageSize);
+            if (historyPage > totalHistoryPages && totalHistoryPages > 0) historyPage = totalHistoryPages;
+            
             var paymentHistory = await _context.PaymentHistories
                 .Include(h => h.ActionByUser)
                 .Where(h => h.PaymentId == payment.Id)
-                .OrderByDescending(h => h.ActionAt)
+                .OrderByDescending(h => h.ActionAt) // Sempre ordenar por última interação (mais recente primeiro)
+                .Skip((historyPage - 1) * historyPageSize)
+                .Take(historyPageSize)
                 .ToListAsync();
+            
             ViewBag.PaymentHistory = paymentHistory;
+            ViewBag.HistoryCurrentPage = historyPage;
+            ViewBag.HistoryTotalPages = totalHistoryPages;
+            ViewBag.HistoryTotalItems = totalHistoryItems;
 
             return View(payment);
         }
@@ -1632,7 +1735,9 @@ namespace KlyonHubPlatform.Api.Controllers
             int? contractId = null,
             string? status = null,
             DateTime? dateFrom = null,
-            DateTime? dateTo = null)
+            DateTime? dateTo = null,
+            int page = 1,
+            int pageSize = 10)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -1741,7 +1846,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 contractsToDisplay = allContracts.Where(c => c.Id == contractId.Value).ToList();
             }
 
-            ViewBag.Contracts = contractsToDisplay;
+            // Paginação dos contratos
+            var totalContracts = contractsToDisplay.Count;
+            var totalPages = totalContracts > 0 ? (int)Math.Ceiling(totalContracts / (double)pageSize) : 1;
+            page = Math.Max(1, Math.Min(page, totalPages));
+            
+            var pagedContracts = contractsToDisplay
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            ViewBag.Contracts = pagedContracts;
             ViewBag.AllContracts = allContracts; // Para o dropdown de filtros
             ViewBag.DeclarationsByContract = declarationsByContract;
             ViewBag.Search = search;
@@ -1749,6 +1864,11 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.Status = status;
             ViewBag.DateFrom = dateFrom;
             ViewBag.DateTo = dateTo;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalContracts;
+            ViewBag.PageSize = pageSize;
+            ViewBag.HasMultipleContracts = allContracts.Count > 1; // Para determinar se deve usar accordion
 
             return View();
         }

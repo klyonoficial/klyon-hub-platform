@@ -168,10 +168,11 @@
                                     }
                                 </td>
                                 <td>
-                                    <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" 
-                                       class="btn btn-sm btn-info" title="Ver Detalhes">
+                                    <button type="button" class="btn btn-sm btn-info" 
+                                            onclick="showContractDetails(@contract.Id)" 
+                                            title="Ver Detalhes">
                                         <i class="bi bi-eye"></i>
-                                    </a>
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -218,3 +219,9 @@
         }
     </div>
 </div>
+
+<script>
+function showContractDetails(contractId) {
+    window.location.href = '@Url.Action("ContractDetails", "Coworking")?id=' + contractId;
+}
+</script>

@@ -9,6 +9,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? Phone { get; set; }
         public bool IsActive { get; set; } = true;
         public bool EmailVerified { get; set; } = false;
+        public bool MustChangePassword { get; set; } = false;
         public string? EmailVerificationToken { get; set; }
         public string? PasswordResetToken { get; set; }
         public DateTime? PasswordResetExpires { get; set; }

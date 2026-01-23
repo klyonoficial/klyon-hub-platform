@@ -155,7 +155,7 @@
                                             data-coworking="@coworkingName" 
                                             data-vacancies="@vacancies"
                                             data-base-price="@addr.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
-                                        @coworkingName - @addr.Address, @addr.Number (@locationLabel)
+                                        @coworkingName - @addr.Address, @addr.Number (@locationLabel) - R$ @addr.BasePrice.ToString("F2")
                                         @if (vacancies <= 2)
                                         {
                                             <text> - Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")</text>
@@ -168,20 +168,19 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="monthlyValue" class="form-label">Valor Mensal (R$) <span class="text-danger">*</span></label>
+                        <label for="monthlyValue" class="form-label">Valor Anual (R$) <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">R$</span>
                             <input type="number" class="form-control" id="monthlyValue" name="monthlyValue" 
                                    step="0.01" min="0.01" required placeholder="0,00" readonly>
                         </div>
-                        <small class="form-text text-muted">Valor definido automaticamente pelo endereço selecionado.</small>
+                        <small class="form-text text-muted">Valor anual definido automaticamente pelo endereço selecionado.</small>
                     </div>
 
                     <div class="mb-3">
                         <label for="paymentMethod" class="form-label">Forma de Pagamento <span class="text-danger">*</span></label>
                         <select class="form-select" id="paymentMethod" name="paymentMethod" required>
                             <option value="PIX" selected>PIX</option>
-                            <option value="BankTransfer">Boleto</option>
                         </select>
                         <small class="form-text text-muted">O código PIX será gerado automaticamente após o cadastro.</small>
                     </div>
@@ -200,9 +199,11 @@
             <div class="card-body">
                 <ul class="small mb-0">
                     <li>O sistema criará automaticamente um usuário se o email não existir.</li>
-                    <li>Uma senha temporária será gerada (Temp@123).</li>
+                    <li>A senha padrão será as 4 primeiras letras do email (ex: email@exemplo.com = "emai").</li>
+                    <li>O cliente será solicitado a alterar a senha no primeiro login.</li>
                     <li>O contrato será criado com status "Aguardando Pagamento".</li>
-                    <li>O cliente receberá acesso ao sistema com o email informado.</li>
+                    <li>O código PIX será gerado automaticamente.</li>
+                    <li>O cliente receberá um email com credenciais e link direto para pagamento.</li>
                 </ul>
             </div>
         </div>
@@ -248,7 +249,7 @@
             }
         });
 
-        // Atualizar informações do endereço selecionado e preencher valor mensal automaticamente
+        // Atualizar informações do endereço selecionado e preencher valor anual automaticamente
         document.getElementById('coworkingAddressId')?.addEventListener('change', function(e) {
             const option = e.target.options[e.target.selectedIndex];
             const info = document.getElementById('addressInfo');
@@ -264,7 +265,7 @@
                 info.textContent = `${coworking} - ${location} (${vacancies} ${vacancies == 1 ? 'vaga disponível' : 'vagas disponíveis'})`;
                 info.className = 'form-text text-muted';
                 
-                // Preencher valor mensal automaticamente com o preço base
+                // Preencher valor anual automaticamente com o preço base
                 if (basePrice && monthlyValueInput) {
                     monthlyValueInput.value = parseFloat(basePrice).toFixed(2);
                 }

@@ -11,6 +11,22 @@
     <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
 </div>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @Html.Raw(TempData["Error"])
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
 @if (ViewBag.Coworking == null)
 {
     <div class="alert alert-info">
@@ -48,7 +64,15 @@ else
     else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
     {
         <div class="alert alert-success mb-4">
-            <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> Seu espaço está disponível no marketplace para que clientes possam alugar.
+            <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
+            @if (showCoworkingMenus)
+            {
+                <text>Seu espaço está disponível no marketplace para que clientes possam alugar.</text>
+            }
+            else
+            {
+                <text>Você já pode cadastrar endereços fiscais e receber clientes.</text>
+            }
         </div>
     }
 
@@ -92,11 +116,11 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-3">
             <div class="card text-white bg-success">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-cash-coin"></i> Comissões</h5>
-                    <h2 class="display-4">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
+                    <h5 class="card-title"><i class="bi bi-trophy-fill"></i> Ganhos Pendentes</h5>
+                    <h2 class="mb-0" style="font-size: 2.2rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
                 </div>
             </div>
         </div>
@@ -112,7 +136,7 @@ else
 
     <div class="card">
         <div class="card-header">
-            <h5><i class="bi bi-cash-coin"></i> Comissões Pendentes</h5>
+            <h5><i class="bi bi-trophy-fill"></i> Ganhos Pendentes</h5>
         </div>
         <div class="card-body">
             @if (ViewBag.Commissions != null && ((List<KlyonHubPlatform.Domain.Entities.Commission>)ViewBag.Commissions).Any())
@@ -122,25 +146,28 @@ else
                         <thead>
                             <tr>
                                 <th>Data</th>
-                                <th>Valor do Pagamento</th>
-                                <th>Comissão (%)</th>
-                                <th>Valor da Comissão</th>
+                                <th>Valor Recebido pelo Cliente</th>
+                                <th>Valor Creditado para Você</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var commission in (List<KlyonHubPlatform.Domain.Entities.Commission>)ViewBag.Commissions)
                             {
+                                var valorCreditado = commission.TotalPaymentAmount - commission.Amount;
                                 <tr>
                                     <td>@commission.CreatedAt.ToString("dd/MM/yyyy")</td>
-                                    <td>R$ @commission.TotalPaymentAmount.ToString("F2")</td>
-                                    <td>@commission.Percentage.ToString("F2")%</td>
-                                    <td><strong>R$ @commission.Amount.ToString("F2")</strong></td>
+                                    <td>
+                                        <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString("F2")</span>
+                                        <br><small class="text-muted">(@commission.Percentage.ToString("F2")% de comissão da plataforma)</small>
+                                    </td>
+                                    <td><strong class="text-success" style="font-size: 1.1em;">R$ @valorCreditado.ToString("F2")</strong></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
                 <form method="post" action="@Url.Action("RequestTransfer", "Coworking")">
+                    @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-success">
                         <i class="bi bi-arrow-left-right"></i> Solicitar Repasse
                     </button>
@@ -149,7 +176,7 @@ else
             else
             {
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Não há comissões pendentes no momento.
+                    <i class="bi bi-info-circle"></i> Não há ganhos pendentes no momento.
                 </div>
             }
         </div>

@@ -1,0 +1,212 @@
+@{
+    ViewData["Title"] = "Solicitações de Remoção de Serviços";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@using KlyonHubPlatform.Domain.Core.Enums
+@model List<KlyonHubPlatform.Domain.Entities.PartnerService>
+
+@{
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var totalPages = ViewBag.TotalPages as int? ?? 1;
+    var totalItems = ViewBag.TotalItems as int? ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção de Serviços</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Nenhuma solicitação de remoção pendente no momento.
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Parceiro/Coworking</th>
+                            <th>Serviço</th>
+                            <th>Percentagem</th>
+                            <th>Data da Solicitação</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ps in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@(ps.Coworking?.Name ?? "N/A")</strong><br>
+                                    <small class="text-muted">@(ps.Coworking?.User?.Email ?? "-")</small>
+                                </td>
+                                <td>
+                                    <strong>@(ps.Service?.Name ?? "N/A")</strong><br>
+                                    <small class="text-muted">@(ps.Service?.Description ?? "-")</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">@ps.Percentage.ToString("F2")%</span>
+                                </td>
+                                <td>
+                                    @if (ps.RemovalRequestedAt.HasValue)
+                                    {
+                                        <small>@ps.RemovalRequestedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-success" 
+                                            onclick="approveRemoval(@ps.Id, '@(ps.Service?.Name ?? "serviço")', '@(ps.Coworking?.Name ?? "parceiro")')">
+                                        <i class="bi bi-check-circle"></i> Aprovar
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            onclick="rejectRemoval(@ps.Id, '@(ps.Service?.Name ?? "serviço")', '@(ps.Coworking?.Name ?? "parceiro")')">
+                                        <i class="bi bi-x-circle"></i> Rejeitar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Paginação">
+            <ul class="pagination justify-content-center mt-4">
+                @if (currentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = currentPage - 1 })">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                }
+
+                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = i })">
+                            @i
+                        </a>
+                    </li>
+                }
+
+                @if (currentPage < totalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = currentPage + 1 })">
+                            Próxima <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+        
+        <div class="text-center text-muted small mt-2">
+            Mostrando <strong>@((currentPage - 1) * 15 + 1)</strong> a <strong>@(Math.Min(currentPage * 15, totalItems))</strong> de <strong>@totalItems</strong> solicitação(ões)
+        </div>
+    }
+}
+
+<!-- Modal para Rejeitar -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="rejectForm" method="post" action="@Url.Action("RejectServiceRemoval", "Admin")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="partnerServiceId" id="rejectPartnerServiceId" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rejectModalLabel">Rejeitar Solicitação de Remoção</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Informe o motivo da rejeição da solicitação de remoção do serviço <strong id="rejectServiceName"></strong> do parceiro <strong id="rejectCoworkingName"></strong>:</p>
+                    <div class="mb-3">
+                        <label for="rejectionReason" class="form-label">Motivo da Rejeição <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="rejectionReason" name="rejectionReason" rows="4" required 
+                                  placeholder="Ex: O serviço ainda está em uso por contratos ativos..." minlength="10"></textarea>
+                        <small class="form-text text-muted">Mínimo de 10 caracteres</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Rejeitar Solicitação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        async function approveRemoval(partnerServiceId, serviceName, coworkingName) {
+            const confirmed = await showConfirm(
+                `Tem certeza que deseja aprovar a remoção do serviço '${serviceName}' do parceiro '${coworkingName}'? O serviço será removido permanentemente.`,
+                'Confirmar Aprovação',
+                'success'
+            );
+            
+            if (confirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '@Url.Action("ApproveServiceRemoval", "Admin")';
+                
+                const token = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (token) {
+                    const tokenInput = document.createElement('input');
+                    tokenInput.type = 'hidden';
+                    tokenInput.name = '__RequestVerificationToken';
+                    tokenInput.value = token.value;
+                    form.appendChild(tokenInput);
+                }
+                
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'partnerServiceId';
+                idInput.value = partnerServiceId;
+                form.appendChild(idInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        function rejectRemoval(partnerServiceId, serviceName, coworkingName) {
+            document.getElementById('rejectPartnerServiceId').value = partnerServiceId;
+            document.getElementById('rejectServiceName').textContent = serviceName;
+            document.getElementById('rejectCoworkingName').textContent = coworkingName;
+            document.getElementById('rejectionReason').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+            modal.show();
+        }
+    </script>
+}

@@ -26,7 +26,7 @@
 else
 {
     var client = ViewBag.Client as KlyonHubPlatform.Domain.Entities.Client;
-    var activeContracts = client?.Contracts?.Where(c => c.Status == ContractStatus.Active).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Contract>();
+    var activeContracts = client?.Contracts?.Where(c => c.Status == ContractStatus.Active || c.Status == ContractStatus.PendingPayment).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Contract>();
 
     <div class="row mb-4">
         <div class="col-md-3">
@@ -95,6 +95,7 @@ else
     <div class="card">
         <div class="card-header">
             <h5><i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal</h5>
+            <small class="text-muted">Exibindo contratos ativos e pendentes de pagamento</small>
         </div>
         <div class="card-body">
             @if (activeContracts.Any())
@@ -123,14 +124,24 @@ else
                                             {
                                                 ContractStatus.Active => "Ativo",
                                                 ContractStatus.Suspended => "Suspenso",
-                                                ContractStatus.PendingPayment => "Aguardando Pagamento",
+                                                ContractStatus.PendingPayment => "Pendente",
                                                 ContractStatus.PendingCancellation => "Cancelamento Pendente",
                                                 ContractStatus.Cancelled => "Cancelado",
                                                 ContractStatus.Expired => "Expirado",
                                                 _ => contract.Status.ToString()
                                             };
+                                            var statusBadgeClass = contract.Status switch
+                                            {
+                                                ContractStatus.Active => "bg-success",
+                                                ContractStatus.PendingPayment => "bg-warning",
+                                                ContractStatus.Suspended => "bg-secondary",
+                                                ContractStatus.PendingCancellation => "bg-info",
+                                                ContractStatus.Cancelled => "bg-danger",
+                                                ContractStatus.Expired => "bg-dark",
+                                                _ => "bg-secondary"
+                                            };
                                         }
-                                        <span class="badge bg-success">@statusText</span>
+                                        <span class="badge @statusBadgeClass">@statusText</span>
                                     </td>
                                     <td>
                                         <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" class="btn btn-sm btn-primary">

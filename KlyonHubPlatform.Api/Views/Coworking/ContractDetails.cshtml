@@ -1,0 +1,424 @@
+@using KlyonHubPlatform.Domain.Core.Enums
+@{
+    ViewData["Title"] = "Detalhes do Contrato";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.Contract
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-text"></i> Detalhes do Contrato @Model.ContractNumber</h2>
+    <a href="@Url.Action("ActiveContracts", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+    <!-- Informações do Contrato -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-file-earmark-text"></i> Informações do Contrato</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th width="40%">Número:</th>
+                        <td><strong>@Model.ContractNumber</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            @switch (Model.Status)
+                            {
+                                case ContractStatus.Active:
+                                    <span class="badge bg-success">Ativo</span>
+                                    break;
+                                case ContractStatus.Suspended:
+                                    <span class="badge bg-warning">Suspenso</span>
+                                    break;
+                                case ContractStatus.PendingPayment:
+                                    <span class="badge bg-info">Aguardando Pagamento</span>
+                                    break;
+                                case ContractStatus.PendingCancellation:
+                                    <span class="badge bg-warning">Cancelamento Pendente</span>
+                                    break;
+                                case ContractStatus.Cancelled:
+                                    <span class="badge bg-danger">Cancelado</span>
+                                    break;
+                                case ContractStatus.Expired:
+                                    <span class="badge bg-secondary">Expirado</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-secondary">@Model.Status</span>
+                                    break;
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Data de Início:</th>
+                        <td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
+                    </tr>
+                    @if (Model.ExpiryDate.HasValue)
+                    {
+                        <tr>
+                            <th>Data de Expiração:</th>
+                            <td>@Model.ExpiryDate.Value.ToString("dd/MM/yyyy")</td>
+                        </tr>
+                    }
+                    <tr>
+                        <th>Valor Mensal:</th>
+                        <td><strong class="text-success">R$ @Model.MonthlyValue.ToString("N2")</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Data de Criação:</th>
+                        <td>@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                    </tr>
+                    @if (Model.UpdatedAt.HasValue)
+                    {
+                        <tr>
+                            <th>Última Atualização:</th>
+                            <td>@Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Informações do Cliente -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5><i class="bi bi-person"></i> Informações do Cliente</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th width="40%">Razão Social:</th>
+                        <td><strong>@(Model.Client?.RazaoSocial ?? "N/A")</strong></td>
+                    </tr>
+                    @if (!string.IsNullOrEmpty(Model.Client?.NomeFantasia))
+                    {
+                        <tr>
+                            <th>Nome Fantasia:</th>
+                            <td>@Model.Client.NomeFantasia</td>
+                        </tr>
+                    }
+                    <tr>
+                        <th>Nome de Contato:</th>
+                        <td>@(Model.Client?.ContactName ?? "N/A")</td>
+                    </tr>
+                    @if (!string.IsNullOrEmpty(Model.Client?.CNPJ))
+                    {
+                        <tr>
+                            <th>CNPJ:</th>
+                            <td>@Model.Client.CNPJ</td>
+                        </tr>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Client?.CPF))
+                    {
+                        <tr>
+                            <th>CPF:</th>
+                            <td>@Model.Client.CPF</td>
+                        </tr>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Client?.ContactEmail))
+                    {
+                        <tr>
+                            <th>Email:</th>
+                            <td>@Model.Client.ContactEmail</td>
+                        </tr>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Client?.ContactPhone))
+                    {
+                        <tr>
+                            <th>Telefone:</th>
+                            <td>@Model.Client.ContactPhone</td>
+                        </tr>
+                    }
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Endereço Fiscal -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>@Model.CoworkingAddress?.Address</strong>, @Model.CoworkingAddress?.Number<br>
+                    @if (!string.IsNullOrEmpty(Model.CoworkingAddress?.Complement))
+                    {
+                        <text>@Model.CoworkingAddress.Complement<br></text>
+                    }
+                    @Model.CoworkingAddress?.Neighborhood<br>
+                    @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
+                    CEP: @Model.CoworkingAddress?.ZipCode
+                </p>
+                @if (Model.CoworkingAddress?.Location != null)
+                {
+                    <p class="text-muted mb-0">
+                        <small>Localidade: @Model.CoworkingAddress.Location.City/@Model.CoworkingAddress.Location.State</small>
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Assinatura e Documentos -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5><i class="bi bi-file-earmark-pdf"></i> Documentos</h5>
+            </div>
+            <div class="card-body">
+                @if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
+                {
+                    <h6 class="mb-3">Declarações de Endereço:</h6>
+                    <ul class="list-group mb-3">
+                        @foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>@declaration.DeclarationNumber</strong><br>
+                                    <small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                </div>
+                                @if (declaration.IsValid)
+                                {
+                                    <span class="badge bg-success">Válida</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inválida</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted">Nenhuma declaração gerada ainda.</p>
+                }
+
+                @if (Model.Documents != null && Model.Documents.Any())
+                {
+                    <h6 class="mb-3">Outros Documentos:</h6>
+                    <ul class="list-group">
+                        @foreach (var doc in Model.Documents)
+                        {
+                            var documentTypeText = doc.Type switch
+                            {
+                                DocumentType.Contract => "Contrato",
+                                DocumentType.Receipt => "Recibo",
+                                DocumentType.TaxDeclaration => "Declaração Fiscal",
+                                DocumentType.TermsOfUse => "Termos de Uso",
+                                _ => doc.Type.ToString()
+                            };
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>@documentTypeText</span>
+                                <small class="text-muted">@doc.GeneratedAt.ToString("dd/MM/yyyy")</small>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Histórico de Pagamentos -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5><i class="bi bi-cash-coin"></i> Histórico de Pagamentos</h5>
+            </div>
+            <div class="card-body">
+                @if (ViewBag.Payments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments).Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Método</th>
+                                    <th>Status</th>
+                                    <th>Data Pagamento</th>
+                                    <th>Validação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)
+                                {
+                                    <tr>
+                                        <td>@payment.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td><strong>R$ @payment.Amount.ToString("N2")</strong></td>
+                                        <td>
+                                            @switch (payment.Method)
+                                            {
+                                                case PaymentMethod.PIX:
+                                                    <span class="badge bg-primary">PIX</span>
+                                                    break;
+                                                case PaymentMethod.CreditCard:
+                                                    <span class="badge bg-info">Cartão</span>
+                                                    break;
+                                                case PaymentMethod.BankTransfer:
+                                                    <span class="badge bg-secondary">Boleto</span>
+                                                    break;
+                                                default:
+                                                    <span class="badge bg-secondary">@payment.Method</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td>
+                                            @switch (payment.Status)
+                                            {
+                                                case PaymentStatus.Pending:
+                                                    <span class="badge bg-warning">Aguardando</span>
+                                                    break;
+                                                case PaymentStatus.Processing:
+                                                    <span class="badge bg-info">Processando</span>
+                                                    break;
+                                                case PaymentStatus.AwaitingValidation:
+                                                    <span class="badge bg-info">Aguardando Validação</span>
+                                                    break;
+                                                case PaymentStatus.Paid:
+                                                    <span class="badge bg-success">Pago</span>
+                                                    break;
+                                                case PaymentStatus.Failed:
+                                                    <span class="badge bg-danger">Falhou</span>
+                                                    break;
+                                                case PaymentStatus.Refunded:
+                                                    <span class="badge bg-secondary">Reembolsado</span>
+                                                    break;
+                                                case PaymentStatus.Cancelled:
+                                                    <span class="badge bg-dark">Cancelado</span>
+                                                    break;
+                                                default:
+                                                    <span class="badge bg-secondary">@payment.Status</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (payment.PaidAt.HasValue)
+                                            {
+                                                <text>@payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @{
+                                                var histories = ViewBag.PaymentHistories as Dictionary<int, List<KlyonHubPlatform.Domain.Entities.PaymentHistory>>;
+                                                if (histories != null && histories.ContainsKey(payment.Id) && histories[payment.Id].Any())
+                                                {
+                                                    var lastHistory = histories[payment.Id].OrderByDescending(h => h.ActionAt).First();
+                                                    if (lastHistory.Action == "Approved")
+                                                    {
+                                                        <span class="badge bg-success">
+                                                            <i class="bi bi-check-circle"></i> Aprovado por @(lastHistory.ActionByUser?.FullName ?? "Admin")
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">
+                                                            <i class="bi bi-x-circle"></i> Rejeitado
+                                                        </span>
+                                                    }
+                                                }
+                                                else if (payment.Status == PaymentStatus.AwaitingValidation)
+                                                {
+                                                    <span class="badge bg-warning">Aguardando Validação</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum pagamento registrado ainda.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Timeline do Fluxo -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5><i class="bi bi-clock-history"></i> Timeline do Contrato</h5>
+            </div>
+            <div class="card-body">
+                @if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())
+                {
+                    <div class="timeline">
+                        @foreach (var item in (List<object>)ViewBag.Timeline)
+                        {
+                            var timelineItem = (dynamic)item;
+                            <div class="timeline-item mb-4">
+                                <div class="d-flex">
+                                    <div class="timeline-marker me-3">
+                                        <i class="bi @timelineItem.Icon text-@timelineItem.Color" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="card border-@timelineItem.Color">
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="mb-0">@timelineItem.Title</h6>
+                                                    <small class="text-muted">@timelineItem.Date.ToString("dd/MM/yyyy HH:mm")</small>
+                                                </div>
+                                                <p class="mb-0 text-muted">@timelineItem.Description</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Nenhum evento registrado ainda.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline-item {
+        position: relative;
+    }
+    .timeline-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 0.75rem;
+        top: 2.5rem;
+        width: 2px;
+        height: calc(100% + 1rem);
+        background-color: #dee2e6;
+    }
+</style>

@@ -75,10 +75,39 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
 
         public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null)
         {
+            // Buscar o ID do serviço "Contratar Endereço Fiscal"
+            var fiscalAddressService = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+
+            if (fiscalAddressService == null)
+            {
+                // Se o serviço não existir, retornar lista vazia
+                return new List<CoworkingAddress>();
+            }
+
+            // Buscar os IDs dos coworkings que têm o serviço com percentagem > 0
+            var coworkingIdsWithService = await _context.PartnerServices
+                .Where(ps => ps.ServiceId == fiscalAddressService.Id && ps.Percentage > 0)
+                .Select(ps => ps.CoworkingId)
+                .Distinct()
+                .ToListAsync();
+
+            // Se não houver coworkings com o serviço configurado, retornar lista vazia
+            if (!coworkingIdsWithService.Any())
+            {
+                return new List<CoworkingAddress>();
+            }
+
+            // Filtrar endereços apenas dos coworkings que atendem todos os critérios
             var query = _context.CoworkingAddresses
                 .Include(a => a.Coworking)
                 .Include(a => a.Location)
-                .Where(a => a.IsAvailable && a.CurrentContracts < a.MaxContracts);
+                .Where(a => a.IsAvailable 
+                    && a.CurrentContracts < a.MaxContracts
+                    && a.Coworking.IsActive 
+                    && a.Coworking.IsPartner
+                    && a.Coworking.ApprovalStatus == Domain.Core.Enums.CoworkingApprovalStatus.Approved
+                    && coworkingIdsWithService.Contains(a.CoworkingId));
 
             if (locationId.HasValue)
             {

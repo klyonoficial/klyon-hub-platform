@@ -482,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="card bg-light">
                                 <div class="card-body">
                                     <h6 class="text-muted mb-2">Status</h6>
-                                    <p class="mb-0"><span class="badge bg-${data.status === 'Paid' ? 'success' : data.status === 'Pending' ? 'warning' : 'secondary'}">${data.status}</span></p>
+                                    <p class="mb-0"><span class="badge bg-${getStatusBadgeClass(data.status)}">${data.status}</span></p>
                                 </div>
                             </div>
                         </div>
@@ -745,6 +745,24 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             content.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar detalhes: ${error.message}</div>`;
         }
+    }
+
+    function getStatusBadgeClass(status) {
+        const statusLower = status.toLowerCase();
+        if (statusLower.includes('pago') || statusLower === 'paid') {
+            return 'success';
+        } else if (statusLower.includes('aguardando pagamento') || statusLower === 'pending') {
+            return 'warning';
+        } else if (statusLower.includes('aguardando validação') || statusLower.includes('awaiting validation')) {
+            return 'info';
+        } else if (statusLower.includes('processando') || statusLower === 'processing') {
+            return 'primary';
+        } else if (statusLower.includes('falhou') || statusLower === 'failed' || statusLower.includes('cancelado') || statusLower === 'cancelled') {
+            return 'danger';
+        } else if (statusLower.includes('reembolsado') || statusLower === 'refunded') {
+            return 'secondary';
+        }
+        return 'secondary';
     }
 </script>
 

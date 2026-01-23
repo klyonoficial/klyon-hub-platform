@@ -121,9 +121,13 @@ namespace KlyonHubPlatform.Application.Interfaces
         public int TotalCoworkings { get; set; }
         public int ActiveContracts { get; set; }
         public decimal TotalRevenue { get; set; }
+        public decimal GrossRevenue { get; set; }
+        public decimal PartnerRevenue { get; set; }
+        public decimal NetRevenue { get; set; }
         public int TotalLocations { get; set; }
         public decimal PendingPayments { get; set; }
         public decimal TotalCommissions { get; set; }
+        public decimal CompletedCommissions { get; set; }
         public int InactiveUsers { get; set; }
         public int UnverifiedUsers { get; set; }
         public List<MonthlyRevenueDto> MonthlyRevenue { get; set; } = new();

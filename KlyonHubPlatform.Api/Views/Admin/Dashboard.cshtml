@@ -1,7 +1,11 @@
 @using KlyonHubPlatform.Domain.Core.Enums
+@inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
     ViewData["Title"] = "Dashboard Administrativo";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    // Verificar se os menus de coworking estão habilitados
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 }
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -57,9 +61,10 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-people"></i> Total de Usuários</h6>
-                        <h2 class="mb-0">@ViewBag.TotalUsers</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('users')" title="Clique para ver todos os usuários">@ViewBag.TotalUsers</h2>
                         <small class="text-white-50">
-                            @ViewBag.InactiveUsers inativos | @ViewBag.UnverifiedUsers não verificados
+                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'inactive')" title="Clique para ver usuários inativos">@ViewBag.InactiveUsers inativos</span> | 
+                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'unverified')" title="Clique para ver usuários não verificados">@ViewBag.UnverifiedUsers não verificados</span>
                         </small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -75,7 +80,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-building"></i> Coworkings</h6>
-                        <h2 class="mb-0">@ViewBag.TotalCoworkings</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('coworkings')" title="Clique para ver todos os coworkings">@ViewBag.TotalCoworkings</h2>
                         <small class="text-white-50">Parceiros cadastrados</small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -91,7 +96,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal Ativos</h6>
-                        <h2 class="mb-0">@ViewBag.ActiveContracts</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('contracts', 'Active')" title="Clique para ver todos os contratos ativos">@ViewBag.ActiveContracts</h2>
                         <small class="text-white-50">Em andamento</small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -104,15 +109,18 @@
     <div class="col-md-3 mb-3">
         <div class="card text-white" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-title mb-1"><i class="bi bi-cash-coin"></i> Receita Total</h6>
-                        <h4 class="mb-0">R$ @(((decimal)ViewBag.TotalRevenue).ToString("N2"))</h4>
-                        <small class="text-white-50">R$ @(((decimal)ViewBag.PendingPayments).ToString("N2")) pendentes</small>
-                    </div>
-                    <div class="display-1 opacity-25">
-                        <i class="bi bi-cash-coin"></i>
-                    </div>
+                <h6 class="card-title mb-3"><i class="bi bi-cash-coin"></i> Receitas</h6>
+                <div class="mb-2">
+                    <small class="text-white-50 d-block">Receita Bruta</small>
+                    <h5 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString("N2"))</h5>
+                </div>
+                <div class="mb-2">
+                    <small class="text-white-50 d-block">Receita Parceiro</small>
+                    <h5 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString("N2"))</h5>
+                </div>
+                <div>
+                    <small class="text-white-50 d-block">Receita Líquida</small>
+                    <h4 class="mb-0">R$ @(((decimal)ViewBag.NetRevenue).ToString("N2"))</h4>
                 </div>
             </div>
         </div>
@@ -125,7 +133,7 @@
         <div class="card border-primary">
             <div class="card-body">
                 <h6 class="card-title text-primary"><i class="bi bi-geo-alt"></i> Localidades</h6>
-                <h3 class="mb-0">@ViewBag.TotalLocations</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('locations')" title="Clique para ver todas as localidades">@ViewBag.TotalLocations</h3>
             </div>
         </div>
     </div>
@@ -133,7 +141,7 @@
         <div class="card border-warning">
             <div class="card-body">
                 <h6 class="card-title text-warning"><i class="bi bi-hourglass-split"></i> Pagamentos Pendentes</h6>
-                <h3 class="mb-0">R$ @(((decimal)ViewBag.PendingPayments).ToString("N2"))</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('payments', 'Pending')" title="Clique para ver todos os pagamentos pendentes">R$ @(((decimal)ViewBag.PendingPayments).ToString("N2"))</h3>
             </div>
         </div>
     </div>
@@ -146,24 +154,52 @@
         </div>
     </div>
     <div class="col-md-3 mb-3">
-        <div class="card border-danger">
+        <div class="card border-success">
             <div class="card-body">
-                <h6 class="card-title text-danger"><i class="bi bi-exclamation-triangle"></i> Usuários Inativos</h6>
-                <h3 class="mb-0">@ViewBag.InactiveUsers</h3>
+                <h6 class="card-title text-success"><i class="bi bi-check-circle"></i> Comissões Concluídas</h6>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.CompletedCommissions).ToString("N2"))</h3>
             </div>
         </div>
     </div>
     <div class="col-md-3 mb-3">
-        <div class="card border-info">
+        <div class="card border-primary">
             <div class="card-body">
-                <h6 class="card-title text-info"><i class="bi bi-calendar-check"></i> Total de Reservas</h6>
-                <h3 class="mb-0">@(ViewBag.TotalReservations ?? 0)</h3>
+                <h6 class="card-title text-primary"><i class="bi bi-cash-stack"></i> Receita Bruta</h6>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString("N2"))</h3>
             </div>
         </div>
     </div>
+    <div class="col-md-3 mb-3">
+        <div class="card border-secondary">
+            <div class="card-body">
+                <h6 class="card-title text-secondary"><i class="bi bi-handshake"></i> Receita Parceiro</h6>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString("N2"))</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h6 class="card-title text-danger"><i class="bi bi-exclamation-triangle"></i> Usuários Inativos</h6>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'inactive')" title="Clique para ver todos os usuários inativos">@ViewBag.InactiveUsers</h3>
+            </div>
+        </div>
+    </div>
+    @if (showCoworkingMenus)
+    {
+        <div class="col-md-3 mb-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h6 class="card-title text-info"><i class="bi bi-calendar-check"></i> Total de Reservas</h6>
+                    <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('reservations')" title="Clique para ver todas as reservas">@(ViewBag.TotalReservations ?? 0)</h3>
+                </div>
+            </div>
+        </div>
+    }
     @{
         var partnersWithoutPercentage = ViewBag.PartnersWithoutPercentage as int? ?? 0;
         var servicesAwaitingPercentage = ViewBag.ServicesAwaitingPercentage as int? ?? 0;
+        var pendingRemovalRequests = ViewBag.PendingRemovalRequests as int? ?? 0;
     }
     @if (partnersWithoutPercentage > 0 || servicesAwaitingPercentage > 0)
     {
@@ -178,6 +214,25 @@
                     <div class="mt-3">
                         <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-warning btn-sm w-100">
                             <i class="bi bi-percent"></i> Definir Percentagens
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (pendingRemovalRequests > 0)
+    {
+        <div class="col-md-3 mb-3">
+            <div class="card border-danger shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title text-danger">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Solicitações de Remoção
+                    </h6>
+                    <h3 class="mb-2">@pendingRemovalRequests</h3>
+                    <small class="text-muted">Aguardando aprovação</small>
+                    <div class="mt-3">
+                        <a href="@Url.Action("ServiceRemovalRequests", "Admin")" class="btn btn-danger btn-sm w-100">
+                            <i class="bi bi-list-check"></i> Ver Solicitações
                         </a>
                     </div>
                 </div>
@@ -245,16 +300,19 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6 mb-3">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="reservationsByStatusChart"></canvas>
+    @if (showCoworkingMenus)
+    {
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="reservationsByStatusChart"></canvas>
+                </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 <!-- Tabelas -->
@@ -613,51 +671,208 @@ if (productsByType && productsByType.length > 0) {
     document.getElementById('productsChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum produto cadastrado ainda.</p>';
 }
 
-// Gráfico de Reservas por Status
-const reservationsStatusCtx = document.getElementById('reservationsByStatusChart');
-const reservationsByStatus = @Html.Raw(Json.Serialize(ViewBag.ReservationsByStatus ?? new List<dynamic>()));
+// Gráfico de Reservas por Status (apenas se EnableCoworkingMenus estiver habilitado)
+@if (showCoworkingMenus)
+{
+    <text>
+    const reservationsStatusCtx = document.getElementById('reservationsByStatusChart');
+    const reservationsByStatus = @Html.Raw(Json.Serialize(ViewBag.ReservationsByStatus ?? new List<dynamic>()));
 
-if (reservationsByStatus && reservationsByStatus.length > 0) {
-    const resvStatusMap = { 'Confirmed': 'Confirmadas', 'Cancelled': 'Canceladas', 'Completed': 'Concluídas', 'Pending': 'Pendentes' };
-    const statusLabels = reservationsByStatus.map(r => resvStatusMap[r.status] || r.status);
-    const statusData = reservationsByStatus.map(r => r.count || 0);
+    if (reservationsStatusCtx && reservationsByStatus && reservationsByStatus.length > 0) {
+        const resvStatusMap = { 'Confirmed': 'Confirmadas', 'Cancelled': 'Canceladas', 'Completed': 'Concluídas', 'Pending': 'Pendentes' };
+        const statusLabels = reservationsByStatus.map(r => resvStatusMap[r.status] || r.status);
+        const statusData = reservationsByStatus.map(r => r.count || 0);
 
-    new Chart(reservationsStatusCtx, {
-        type: 'bar',
-        data: {
-            labels: statusLabels,
-            datasets: [{
-                label: 'Quantidade',
-                data: statusData,
-                backgroundColor: [
-                    'rgba(255, 206, 86, 0.6)',
-                    'rgba(54, 162, 235, 0.6)',
-                    'rgba(75, 192, 192, 0.6)',
-                    'rgba(255, 99, 132, 0.6)'
-                ],
-                borderColor: [
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 99, 132, 1)'
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
+        new Chart(reservationsStatusCtx, {
+            type: 'bar',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    label: 'Quantidade',
+                    data: statusData,
+                    backgroundColor: [
+                        'rgba(255, 206, 86, 0.6)',
+                        'rgba(54, 162, 235, 0.6)',
+                        'rgba(75, 192, 192, 0.6)',
+                        'rgba(255, 99, 132, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(255, 99, 132, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
                     }
                 }
             }
-        }
-    });
-} else {
-    document.getElementById('reservationsByStatusChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhuma reserva cadastrada ainda.</p>';
+        });
+    } else if (reservationsStatusCtx) {
+        document.getElementById('reservationsByStatusChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhuma reserva cadastrada ainda.</p>';
+    }
+    </text>
 }
+
+// URLs base para ações (definidas uma vez)
+const baseUrls = {
+    viewUser: '@Url.Action("ViewUser", "Admin")',
+    viewCoworking: '@Url.Action("ViewCoworking", "Admin")',
+    contractDetails: '@Url.Action("ContractDetails", "Client")',
+    editLocation: '@Url.Action("EditLocation", "Admin")',
+    payments: '@Url.Action("Payments", "Admin")',
+    reservationDetail: '@Url.Action("ReservationFinancialDetail", "Admin")'
+};
+
+// Função para exibir listas do dashboard
+async function showDashboardList(type, filter = null) {
+    const modal = new bootstrap.Modal(document.getElementById('dashboardListModal'));
+    const modalTitle = document.getElementById('dashboardListModalTitle');
+    const modalBody = document.getElementById('dashboardListModalBody');
+    
+    // Definir título do modal
+    const titles = {
+        'users': filter === 'inactive' ? 'Usuários Inativos' : filter === 'unverified' ? 'Usuários Não Verificados' : 'Todos os Usuários',
+        'coworkings': 'Todos os Coworkings',
+        'contracts': filter === 'Active' ? 'Contratos Ativos' : 'Todos os Contratos',
+        'locations': 'Todas as Localidades',
+        'payments': filter === 'Pending' ? 'Pagamentos Pendentes' : 'Todos os Pagamentos',
+        'reservations': 'Todas as Reservas'
+    };
+    
+    modalTitle.innerHTML = `<i class="bi bi-list-ul"></i> ${titles[type] || 'Lista'}`;
+    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+    modal.show();
+    
+    try {
+        const url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + filter : ''}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (!result.success) {
+            modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${result.message}</div>`;
+            return;
+        }
+        
+        let html = '';
+        if (result.data && result.data.length > 0) {
+            html = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr>';
+            
+            // Cabeçalhos dinâmicos baseados no tipo
+            if (type === 'users') {
+                html += '<th>Nome</th><th>Email</th><th>Status</th><th>Verificado</th><th>Ações</th>';
+            } else if (type === 'coworkings') {
+                html += '<th>Nome</th><th>CNPJ</th><th>Status</th><th>Aprovação</th><th>Ações</th>';
+            } else if (type === 'contracts') {
+                html += '<th>Número</th><th>Cliente</th><th>Localidade</th><th>Status</th><th>Ações</th>';
+            } else if (type === 'locations') {
+                html += '<th>Cidade</th><th>Estado</th><th>Região</th><th>Status</th><th>Ações</th>';
+            } else if (type === 'payments') {
+                html += '<th>ID</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Data</th><th>Ações</th>';
+            } else if (type === 'reservations') {
+                html += '<th>ID</th><th>Cliente</th><th>Coworking</th><th>Data</th><th>Status</th><th>Ações</th>';
+            }
+            
+            html += '</tr></thead><tbody>';
+            
+            result.data.forEach(item => {
+                html += '<tr>';
+                if (type === 'users') {
+                    html += `<td>${item.fullName || 'N/A'}</td>`;
+                    html += `<td>${item.email || 'N/A'}</td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.emailVerified ? 'success' : 'warning'}">${item.emailVerified ? 'Sim' : 'Não'}</span></td>`;
+                    html += `<td><a href="${baseUrls.viewUser}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
+                } else if (type === 'coworkings') {
+                    html += `<td>${item.name || 'N/A'}</td>`;
+                    html += `<td>${item.cnpj || 'N/A'}</td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.approvalStatus === 'Approved' ? 'success' : item.approvalStatus === 'UnderReview' ? 'warning' : 'danger'}">${item.approvalStatusDisplay || item.approvalStatus}</span></td>`;
+                    html += `<td><a href="${baseUrls.viewCoworking}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
+                } else if (type === 'contracts') {
+                    html += `<td>${item.contractNumber || 'N/A'}</td>`;
+                    html += `<td>${item.clientName || 'N/A'}</td>`;
+                    html += `<td>${item.location || 'N/A'}</td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Active' ? 'success' : item.status === 'PendingPayment' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><a href="${baseUrls.contractDetails}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
+                } else if (type === 'locations') {
+                    html += `<td>${item.city || 'N/A'}</td>`;
+                    html += `<td>${item.state || 'N/A'}</td>`;
+                    html += `<td>${item.region || 'N/A'}</td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativa' : 'Inativa'}</span></td>`;
+                    html += `<td><a href="${baseUrls.editLocation}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Editar</a></td>`;
+                } else if (type === 'payments') {
+                    html += `<td>#${item.id || 'N/A'}</td>`;
+                    html += `<td>${item.clientName || 'N/A'}</td>`;
+                    html += `<td>R$ ${(item.amount || 0).toFixed(2).replace('.', ',')}</td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Paid' ? 'success' : item.status === 'Pending' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td>${item.createdAt || 'N/A'}</td>`;
+                    html += `<td><a href="${baseUrls.payments}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
+                } else if (type === 'reservations') {
+                    html += `<td>#${item.id || 'N/A'}</td>`;
+                    html += `<td>${item.clientName || 'N/A'}</td>`;
+                    html += `<td>${item.coworkingName || 'N/A'}</td>`;
+                    html += `<td>${item.reservationDate || 'N/A'}</td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Confirmed' ? 'success' : item.status === 'Pending' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><a href="${baseUrls.reservationDetail}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
+                }
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            html += `<div class="mt-3 text-end"><a href="${result.viewAllUrl || '#'}" class="btn btn-primary">Ver Todos</a></div>`;
+        } else {
+            html = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum item encontrado.</div>';
+        }
+        
+        modalBody.innerHTML = html;
+    } catch (error) {
+        modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados: ${error.message}</div>`;
+    }
+}
+</script>
+
+<!-- Modal para exibir listas do dashboard -->
+<div class="modal fade" id="dashboardListModal" tabindex="-1" aria-labelledby="dashboardListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dashboardListModalTitle">
+                    <i class="bi bi-list-ul"></i> Lista
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="dashboardListModalBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.clickable-number {
+    transition: transform 0.2s, opacity 0.2s;
+}
+.clickable-number:hover {
+    transform: scale(1.1);
+    opacity: 0.8;
+}
+</style>
 </script>

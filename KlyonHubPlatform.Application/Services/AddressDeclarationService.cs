@@ -201,32 +201,62 @@ namespace KlyonHubPlatform.Application.Services
             dataLocal.SpacingAfter = 40;
             pdfDocument.Add(dataLocal);
 
-            // Assinatura
-            var mainPartner = coworking.Partners?.FirstOrDefault(p => p.Role?.ToLower().Contains("diretor") == true || p.Role?.ToLower().Contains("sócio") == true)
-                ?? coworking.Partners?.FirstOrDefault()
-                ?? null;
+            // Assinaturas de todos os sócios
+            var partners = coworking.Partners?.Where(p => 
+                p.Role != null && (
+                    p.Role.ToLower().Contains("sócio") || 
+                    p.Role.ToLower().Contains("diretor") ||
+                    p.Role.ToLower().Contains("socio")
+                )
+            ).ToList() ?? new List<CoworkingPartner>();
 
-            var assinaturaNome = mainPartner?.Name ?? coworking.Name;
-            var assinaturaCargo = mainPartner?.Role ?? "Representante Legal";
-            var assinaturaCpf = mainPartner?.CPF ?? "Não informado";
+            // Se não houver sócios cadastrados, usar o nome do coworking como fallback
+            if (!partners.Any())
+            {
+                // Linha de assinatura (usando uma linha horizontal)
+                var linha = new Paragraph(new Chunk(new iTextSharp.text.pdf.draw.LineSeparator()));
+                linha.SpacingAfter = 10;
+                pdfDocument.Add(linha);
 
-            // Linha de assinatura (usando uma linha horizontal)
-            var linha = new Paragraph(new Chunk(new iTextSharp.text.pdf.draw.LineSeparator()));
-            linha.SpacingAfter = 10;
-            pdfDocument.Add(linha);
+                var assinaturaInfo = new Paragraph();
+                assinaturaInfo.Add(new Chunk(coworking.Name, boldFont));
+                assinaturaInfo.Add(new Chunk("\nCNPJ: ", normalFont));
+                assinaturaInfo.Add(new Chunk(coworking.CNPJ, normalFont));
+                assinaturaInfo.SpacingAfter = 20;
+                pdfDocument.Add(assinaturaInfo);
+            }
+            else
+            {
+                // Adicionar assinatura de cada sócio
+                for (int i = 0; i < partners.Count; i++)
+                {
+                    var partner = partners[i];
+                    
+                    // Linha de assinatura (usando uma linha horizontal)
+                    var linha = new Paragraph(new Chunk(new iTextSharp.text.pdf.draw.LineSeparator()));
+                    linha.SpacingAfter = 10;
+                    pdfDocument.Add(linha);
 
-            var assinaturaInfo = new Paragraph();
-            assinaturaInfo.Add(new Chunk(assinaturaNome, boldFont));
-            assinaturaInfo.Add(new Chunk("\nCargo: ", normalFont));
-            assinaturaInfo.Add(new Chunk(assinaturaCargo, normalFont));
-            assinaturaInfo.Add(new Chunk("\nCPF: ", normalFont));
-            assinaturaInfo.Add(new Chunk(assinaturaCpf, normalFont));
-            assinaturaInfo.Add(new Chunk("\n\n", normalFont));
-            assinaturaInfo.Add(new Chunk(coworking.Name, boldFont));
-            assinaturaInfo.Add(new Chunk("\nCNPJ: ", normalFont));
-            assinaturaInfo.Add(new Chunk(coworking.CNPJ, normalFont));
-            assinaturaInfo.SpacingAfter = 20;
-            pdfDocument.Add(assinaturaInfo);
+                    var assinaturaInfo = new Paragraph();
+                    assinaturaInfo.Add(new Chunk(partner.Name, boldFont));
+                    assinaturaInfo.Add(new Chunk("\nCargo: ", normalFont));
+                    assinaturaInfo.Add(new Chunk(partner.Role ?? "Sócio", normalFont));
+                    assinaturaInfo.Add(new Chunk("\nCPF: ", normalFont));
+                    assinaturaInfo.Add(new Chunk(partner.CPF ?? "Não informado", normalFont));
+                    
+                    // Adicionar informações da empresa apenas na última assinatura
+                    if (i == partners.Count - 1)
+                    {
+                        assinaturaInfo.Add(new Chunk("\n\n", normalFont));
+                        assinaturaInfo.Add(new Chunk(coworking.Name, boldFont));
+                        assinaturaInfo.Add(new Chunk("\nCNPJ: ", normalFont));
+                        assinaturaInfo.Add(new Chunk(coworking.CNPJ, normalFont));
+                    }
+                    
+                    assinaturaInfo.SpacingAfter = i == partners.Count - 1 ? 20 : 15;
+                    pdfDocument.Add(assinaturaInfo);
+                }
+            }
 
             // Rodapé com número da declaração e assinatura digital
             var rodape = new Paragraph($"Declaração Nº: {declarationNumber}\nAssinatura Digital: {GenerateDigitalSignature(declarationNumber).Substring(0, 16)}...", smallFont);

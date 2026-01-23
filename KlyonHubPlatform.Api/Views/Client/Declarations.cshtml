@@ -16,6 +16,10 @@
     var status = ViewBag.Status as string ?? "";
     var dateFrom = ViewBag.DateFrom as DateTime?;
     var dateTo = ViewBag.DateTo as DateTime?;
+    var hasMultipleContracts = ViewBag.HasMultipleContracts as bool? ?? false;
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var totalPages = ViewBag.TotalPages as int? ?? 1;
+    var totalItems = ViewBag.TotalItems as int? ?? 0;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -99,6 +103,7 @@
             </div>
             <div class="row">
                 <div class="col-12">
+                    <input type="hidden" name="page" value="1" />
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> Pesquisar
                     </button>
@@ -151,48 +156,63 @@ else
         </div>
     }
 
-    @foreach (var contract in contracts)
+    @if (hasMultipleContracts)
     {
-        var declarations = declarationsByContract.ContainsKey(contract.Id) ? declarationsByContract[contract.Id] : new List<AddressDeclaration>();
-        var hasValidDeclaration = declarations.Any(d => d.IsValid && d.EndDate >= DateTime.UtcNow);
-        
-        // Se houver filtros e não houver declarações para este contrato, não exibir o card
-        if ((contractId.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || dateFrom.HasValue || dateTo.HasValue) && !declarations.Any())
-        {
-            continue;
-        }
-        
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-1">
-                        <i class="bi bi-building"></i> @(contract.CoworkingAddress?.Coworking?.Name ?? "Coworking")
-                    </h5>
-                    <small class="text-white-50">
-                        <i class="bi bi-file-earmark-text"></i> Contrato: @contract.ContractNumber
-                    </small>
-                </div>
-                <div>
-                    @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
-                    {
-                        <form method="post" action="@Url.Action("GenerateDeclaration", "Client")" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="contractId" value="@contract.Id">
-                            <button type="submit" class="btn btn-light btn-sm" 
-                                    onclick="event.preventDefault(); handleGenerateDeclaration(this);">
-                                <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
-                            </button>
-                        </form>
-                    }
-                    else if (contract.Status == ContractStatus.Active && !contractsWithPaidPayments.Contains(contract.Id))
-                    {
-                        <span class="badge bg-warning text-dark">
-                            <i class="bi bi-clock-history"></i> Aguardando Pagamento
-                        </span>
-                    }
-                </div>
-            </div>
-            <div class="card-body">
+        <div class="accordion" id="contractsAccordion">
+            @{
+                var contractIndex = 0;
+            }
+            @foreach (var contract in contracts)
+            {
+                var declarations = declarationsByContract.ContainsKey(contract.Id) ? declarationsByContract[contract.Id] : new List<AddressDeclaration>();
+                var hasValidDeclaration = declarations.Any(d => d.IsValid && d.EndDate >= DateTime.UtcNow);
+                
+                // Se houver filtros e não houver declarações para este contrato, não exibir o card
+                if ((contractId.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || dateFrom.HasValue || dateTo.HasValue) && !declarations.Any())
+                {
+                    continue;
+                }
+                
+                var accordionId = $"contract_{contract.Id}";
+                var collapseId = $"collapse_{contract.Id}";
+                contractIndex++;
+                
+                <div class="accordion-item mb-3">
+                    <h2 class="accordion-header" id="@accordionId">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId">
+                            <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                <div>
+                                    <h5 class="mb-1">
+                                        <i class="bi bi-building"></i> @(contract.CoworkingAddress?.Coworking?.Name ?? "Coworking")
+                                    </h5>
+                                    <small class="text-muted">
+                                        <i class="bi bi-file-earmark-text"></i> Contrato: @contract.ContractNumber
+                                    </small>
+                                </div>
+                                <div>
+                                    @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
+                                    {
+                                        <form method="post" action="@Url.Action("GenerateDeclaration", "Client")" class="d-inline" onclick="event.stopPropagation();">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="contractId" value="@contract.Id">
+                                            <button type="submit" class="btn btn-primary btn-sm" 
+                                                    onclick="event.preventDefault(); handleGenerateDeclaration(this);">
+                                                <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
+                                            </button>
+                                        </form>
+                                    }
+                                    else if (contract.Status == ContractStatus.Active && !contractsWithPaidPayments.Contains(contract.Id))
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-clock-history"></i> Aguardando Pagamento
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@accordionId" data-bs-parent="#contractsAccordion">
+                        <div class="accordion-body">
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <h6 class="text-primary mb-3">
@@ -320,7 +340,248 @@ else
                         <i class="bi bi-exclamation-triangle"></i> Nenhuma declaração gerada para este contrato.
                     </div>
                 }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        @foreach (var contract in contracts)
+        {
+            var declarations = declarationsByContract.ContainsKey(contract.Id) ? declarationsByContract[contract.Id] : new List<AddressDeclaration>();
+            var hasValidDeclaration = declarations.Any(d => d.IsValid && d.EndDate >= DateTime.UtcNow);
+            
+            // Se houver filtros e não houver declarações para este contrato, não exibir o card
+            if ((contractId.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || dateFrom.HasValue || dateTo.HasValue) && !declarations.Any())
+            {
+                continue;
+            }
+            
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">
+                            <i class="bi bi-building"></i> @(contract.CoworkingAddress?.Coworking?.Name ?? "Coworking")
+                        </h5>
+                        <small class="text-white-50">
+                            <i class="bi bi-file-earmark-text"></i> Contrato: @contract.ContractNumber
+                        </small>
+                    </div>
+                    <div>
+                        @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
+                        {
+                            <form method="post" action="@Url.Action("GenerateDeclaration", "Client")" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="contractId" value="@contract.Id">
+                                <button type="submit" class="btn btn-light btn-sm" 
+                                        onclick="event.preventDefault(); handleGenerateDeclaration(this);">
+                                    <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
+                                </button>
+                            </form>
+                        }
+                        else if (contract.Status == ContractStatus.Active && !contractsWithPaidPayments.Contains(contract.Id))
+                        {
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-clock-history"></i> Aguardando Pagamento
+                            </span>
+                        }
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-geo-alt"></i> Endereço Fiscal
+                            </h6>
+                            <p class="mb-2">
+                                <strong>Endereço:</strong><br>
+                                @contract.CoworkingAddress.Address, @contract.CoworkingAddress.Number
+                                @if (!string.IsNullOrEmpty(contract.CoworkingAddress.Complement))
+                                {
+                                    <text>, @contract.CoworkingAddress.Complement</text>
+                                }
+                            </p>
+                            <p class="mb-2">
+                                <strong>Bairro:</strong> @contract.CoworkingAddress.Neighborhood
+                            </p>
+                            <p class="mb-2">
+                                <strong>Cidade/Estado:</strong> @contract.CoworkingAddress.City/@contract.CoworkingAddress.State
+                            </p>
+                            <p class="mb-0">
+                                <strong>CEP:</strong> @contract.CoworkingAddress.ZipCode
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-calendar"></i> Período de Vigência
+                            </h6>
+                            <p class="mb-2">
+                                <strong>Data Inicial:</strong><br>
+                                <span class="badge bg-info">@contract.StartDate.ToString("dd/MM/yyyy")</span>
+                            </p>
+                            <p class="mb-2">
+                                <strong>Data Final:</strong><br>
+                                @if (contract.ExpiryDate.HasValue)
+                                {
+                                    <span class="badge bg-success">@contract.ExpiryDate.Value.ToString("dd/MM/yyyy")</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Não definida</span>
+                                }
+                            </p>
+                            @if (contract.ExpiryDate.HasValue)
+                            {
+                                var daysRemaining = (contract.ExpiryDate.Value - DateTime.UtcNow).Days;
+                                <p class="mb-0">
+                                    <strong>Dias Restantes:</strong><br>
+                                    @if (daysRemaining > 0)
+                                    {
+                                        <span class="badge bg-@(daysRemaining <= 30 ? "warning" : "info")">@daysRemaining dia(s)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Expirado</span>
+                                    }
+                                </p>
+                            }
+                        </div>
+                    </div>
+
+                    @if (declarations.Any())
+                    {
+                        <h6 class="mt-3 mb-2">Declarações Geradas (@declarations.Count):</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Número</th>
+                                        <th>Versão</th>
+                                        <th>Data Inicial</th>
+                                        <th>Data Final</th>
+                                        <th>Status</th>
+                                        <th>Data de Geração</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var declaration in declarations.OrderByDescending(d => d.Version))
+                                    {
+                                        var isExpired = declaration.EndDate < DateTime.UtcNow;
+                                        var isValid = declaration.IsValid && !isExpired;
+                                        
+                                        <tr class="@(isValid ? "" : "table-secondary")">
+                                            <td>@declaration.DeclarationNumber</td>
+                                            <td>v@(declaration.Version)</td>
+                                            <td>@declaration.StartDate.ToString("dd/MM/yyyy")</td>
+                                            <td>@declaration.EndDate.ToString("dd/MM/yyyy")</td>
+                                            <td>
+                                                @if (isValid)
+                                                {
+                                                    <span class="badge bg-success">Válida</span>
+                                                }
+                                                else if (isExpired)
+                                                {
+                                                    <span class="badge bg-danger">Expirada</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">Inválida</span>
+                                                }
+                                            </td>
+                                            <td>@declaration.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>
+                                                @if (isValid)
+                                                {
+                                                    <a href="@Url.Action("DownloadDeclaration", "Client", new { declarationId = declaration.Id })" 
+                                                       class="btn btn-sm btn-primary" target="_blank">
+                                                        <i class="bi bi-download"></i> Baixar PDF
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Indisponível</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else if (!contractId.HasValue && string.IsNullOrEmpty(search) && string.IsNullOrEmpty(status) && !dateFrom.HasValue && !dateTo.HasValue)
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Nenhuma declaração gerada para este contrato.
+                        </div>
+                    }
+                </div>
             </div>
+        }
+    }
+
+    <!-- Paginação -->
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Paginação de contratos">
+            <ul class="pagination justify-content-center mt-4">
+                @if (currentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                            search = search, 
+                            contractId = contractId, 
+                            status = status, 
+                            dateFrom = dateFrom?.ToString("yyyy-MM-dd"), 
+                            dateTo = dateTo?.ToString("yyyy-MM-dd"),
+                            page = currentPage - 1 
+                        })">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                }
+
+                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                            search = search, 
+                            contractId = contractId, 
+                            status = status, 
+                            dateFrom = dateFrom?.ToString("yyyy-MM-dd"), 
+                            dateTo = dateTo?.ToString("yyyy-MM-dd"),
+                            page = i 
+                        })">
+                            @i
+                        </a>
+                    </li>
+                }
+
+                @if (currentPage < totalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                            search = search, 
+                            contractId = contractId, 
+                            status = status, 
+                            dateFrom = dateFrom?.ToString("yyyy-MM-dd"), 
+                            dateTo = dateTo?.ToString("yyyy-MM-dd"),
+                            page = currentPage + 1 
+                        })">
+                            Próxima <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+        
+        @{
+            var pageSize = ViewBag.PageSize as int? ?? 10;
+        }
+        <div class="text-center text-muted small mt-2">
+            Mostrando <strong>@((currentPage - 1) * pageSize + 1)</strong> a <strong>@(Math.Min(currentPage * pageSize, totalItems))</strong> de <strong>@totalItems</strong> contrato(s)
         </div>
     }
 }

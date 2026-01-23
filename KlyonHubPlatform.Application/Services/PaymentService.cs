@@ -108,7 +108,7 @@ namespace KlyonHubPlatform.Application.Services
                     .Include(c => c.CoworkingAddress)
                     .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
 
-                if (contract != null && contract.Status == ContractStatus.Suspended)
+                if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                 {
                     // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
                     var previousPaidPayments = await _context.Payments
@@ -119,13 +119,17 @@ namespace KlyonHubPlatform.Application.Services
 
                     if (previousPaidPayments == 0)
                     {
+                        // Guardar o status original antes de alterar
+                        var originalStatus = contract.Status;
+                        
                         // Primeiro pagamento - ativar contrato e definir validade de 1 ano
                         contract.Status = ContractStatus.Active;
                         contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
                         await _contractRepository.UpdateAsync(contract);
 
-                        // Atualizar contador de contratos do endereço
-                        if (contract.CoworkingAddress != null)
+                        // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
+                        // (contratos suspensos já foram contados anteriormente)
+                        if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
                         {
                             contract.CoworkingAddress.CurrentContracts++;
                             if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
@@ -552,7 +556,7 @@ namespace KlyonHubPlatform.Application.Services
                     .Include(c => c.CoworkingAddress)
                     .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
 
-                if (contract != null && contract.Status == ContractStatus.Suspended)
+                if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                 {
                     // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
                     var previousPaidPayments = await _context.Payments
@@ -563,13 +567,17 @@ namespace KlyonHubPlatform.Application.Services
 
                     if (previousPaidPayments == 0)
                     {
+                        // Guardar o status original antes de alterar
+                        var originalStatus = contract.Status;
+                        
                         // Primeiro pagamento - ativar contrato e definir validade de 1 ano
                         contract.Status = ContractStatus.Active;
                         contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
                         await _contractRepository.UpdateAsync(contract);
 
-                        // Atualizar contador de contratos do endereço
-                        if (contract.CoworkingAddress != null)
+                        // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
+                        // (contratos suspensos já foram contados anteriormente)
+                        if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
                         {
                             contract.CoworkingAddress.CurrentContracts++;
                             if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)

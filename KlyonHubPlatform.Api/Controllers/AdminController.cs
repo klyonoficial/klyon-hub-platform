@@ -30,6 +30,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IContractService _contractService;
         private readonly ICoworkingService _coworkingService;
         private readonly IAuthService _authService;
+        private readonly IEmailService _emailService;
 
         public AdminController(
             IUserService userService,
@@ -44,7 +45,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ISefazService sefazService,
             IContractService contractService,
             ICoworkingService coworkingService,
-            IAuthService authService)
+            IAuthService authService,
+            IEmailService emailService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -59,6 +61,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _contractService = contractService;
             _coworkingService = coworkingService;
             _authService = authService;
+            _emailService = emailService;
         }
 
         public async Task<IActionResult> Dashboard()
@@ -69,9 +72,13 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalCoworkings = dashboardData.TotalCoworkings;
             ViewBag.ActiveContracts = dashboardData.ActiveContracts;
             ViewBag.TotalRevenue = dashboardData.TotalRevenue;
+            ViewBag.GrossRevenue = dashboardData.GrossRevenue;
+            ViewBag.PartnerRevenue = dashboardData.PartnerRevenue;
+            ViewBag.NetRevenue = dashboardData.NetRevenue;
             ViewBag.TotalLocations = dashboardData.TotalLocations;
             ViewBag.PendingPayments = dashboardData.PendingPayments;
             ViewBag.TotalCommissions = dashboardData.TotalCommissions;
+            ViewBag.CompletedCommissions = dashboardData.CompletedCommissions;
             ViewBag.InactiveUsers = dashboardData.InactiveUsers;
             ViewBag.UnverifiedUsers = dashboardData.UnverifiedUsers;
             ViewBag.MonthlyRevenue = dashboardData.MonthlyRevenue;
@@ -103,14 +110,26 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ToListAsync();
                 ViewBag.ProductsByType = productsStats;
                 
-                var totalReservations = await _context.Reservations.CountAsync();
-                ViewBag.TotalReservations = totalReservations;
+                // Estatísticas de reservas (apenas se EnableCoworkingMenus estiver habilitado)
+                var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
                 
-                var reservationsByStatus = await _context.Reservations
-                    .GroupBy(r => r.Status)
-                    .Select(g => new { status = g.Key, count = g.Count() })
-                    .ToListAsync();
-                ViewBag.ReservationsByStatus = reservationsByStatus;
+                if (showCoworkingMenus)
+                {
+                    var totalReservations = await _context.Reservations.CountAsync();
+                    ViewBag.TotalReservations = totalReservations;
+                    
+                    var reservationsByStatus = await _context.Reservations
+                        .GroupBy(r => r.Status)
+                        .Select(g => new { status = g.Key, count = g.Count() })
+                        .ToListAsync();
+                    ViewBag.ReservationsByStatus = reservationsByStatus;
+                }
+                else
+                {
+                    ViewBag.TotalReservations = 0;
+                    ViewBag.ReservationsByStatus = new List<dynamic>();
+                }
             }
             catch
             {
@@ -143,7 +162,222 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.ServicesAwaitingPercentage = 0;
             }
 
+            // Contar solicitações de remoção pendentes
+            try
+            {
+                var pendingRemovalRequests = await _context.PartnerServices
+                    .Where(ps => ps.RemovalRequestStatus == RemovalRequestStatus.Pending)
+                    .CountAsync();
+                
+                ViewBag.PendingRemovalRequests = pendingRemovalRequests;
+            }
+            catch
+            {
+                ViewBag.PendingRemovalRequests = 0;
+            }
+            {
+                ViewBag.PartnersWithoutPercentage = 0;
+                ViewBag.ServicesAwaitingPercentage = 0;
+            }
+
             return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetDashboardList(string type, string? filter = null)
+        {
+            try
+            {
+                var data = new List<object>();
+                string viewAllUrl = "#";
+
+                switch (type.ToLower())
+                {
+                    case "users":
+                        var usersQuery = _context.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).AsQueryable();
+                        
+                        if (filter == "inactive")
+                        {
+                            usersQuery = usersQuery.Where(u => !u.IsActive);
+                            viewAllUrl = Url.Action("Users", "Admin", new { status = "inactive" });
+                        }
+                        else if (filter == "unverified")
+                        {
+                            usersQuery = usersQuery.Where(u => !u.EmailVerified);
+                            viewAllUrl = Url.Action("Users", "Admin", new { emailVerified = "false" });
+                        }
+                        else
+                        {
+                            viewAllUrl = Url.Action("Users", "Admin");
+                        }
+
+                        var users = await usersQuery
+                            .OrderByDescending(u => u.CreatedAt)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = users.Select(u => new
+                        {
+                            id = u.Id,
+                            fullName = u.FullName,
+                            email = u.Email,
+                            isActive = u.IsActive,
+                            emailVerified = u.EmailVerified
+                        }).Cast<object>().ToList();
+                        break;
+
+                    case "coworkings":
+                        var coworkingsQuery = _context.Coworkings.Include(c => c.User).AsQueryable();
+                        var coworkings = await coworkingsQuery
+                            .OrderByDescending(c => c.CreatedAt)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = coworkings.Select(c => new
+                        {
+                            id = c.Id,
+                            name = c.Name,
+                            cnpj = c.CNPJ,
+                            isActive = c.IsActive,
+                            approvalStatus = c.ApprovalStatus.ToString(),
+                            approvalStatusDisplay = c.ApprovalStatus == CoworkingApprovalStatus.Approved ? "Aprovado" :
+                                                    c.ApprovalStatus == CoworkingApprovalStatus.UnderReview ? "Aguardando Aprovação" :
+                                                    c.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment ? "Aguardando Ajustes" : "Desconhecido"
+                        }).Cast<object>().ToList();
+                        viewAllUrl = Url.Action("Coworkings", "Admin");
+                        break;
+
+                    case "contracts":
+                        var contractsQuery = _context.Contracts
+                            .Include(c => c.Client)
+                            .Include(c => c.CoworkingAddress)
+                                .ThenInclude(a => a.Location)
+                            .AsQueryable();
+
+                        if (filter == "Active")
+                        {
+                            contractsQuery = contractsQuery.Where(c => c.Status == ContractStatus.Active);
+                            viewAllUrl = Url.Action("Contracts", "Admin", new { status = "Active" });
+                        }
+                        else
+                        {
+                            viewAllUrl = Url.Action("Contracts", "Admin");
+                        }
+
+                        var contracts = await contractsQuery
+                            .OrderByDescending(c => c.CreatedAt)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = contracts.Select(c => new
+                        {
+                            id = c.Id,
+                            contractNumber = c.ContractNumber,
+                            clientName = c.Client?.RazaoSocial ?? c.Client?.NomeFantasia ?? c.Client?.ContactName ?? "N/A",
+                            location = c.CoworkingAddress?.Location != null 
+                                ? $"{c.CoworkingAddress.Location.City}/{c.CoworkingAddress.Location.State}" 
+                                : "N/A",
+                            status = c.Status.ToString(),
+                            statusDisplay = c.Status == ContractStatus.Active ? "Ativo" :
+                                           c.Status == ContractStatus.PendingPayment ? "Aguardando Pagamento" :
+                                           c.Status == ContractStatus.Suspended ? "Suspenso" :
+                                           c.Status == ContractStatus.Cancelled ? "Cancelado" : c.Status.ToString()
+                        }).Cast<object>().ToList();
+                        break;
+
+                    case "locations":
+                        var locations = await _context.Locations
+                            .OrderBy(l => l.State)
+                            .ThenBy(l => l.City)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = locations.Select(l => new
+                        {
+                            id = l.Id,
+                            city = l.City,
+                            state = l.State,
+                            region = l.Region,
+                            isActive = l.IsActive
+                        }).Cast<object>().ToList();
+                        viewAllUrl = Url.Action("Locations", "Admin");
+                        break;
+
+                    case "payments":
+                        var paymentsQuery = _context.Payments
+                            .Include(p => p.Subscription)
+                                .ThenInclude(s => s.Contract)
+                                    .ThenInclude(c => c.Client)
+                            .AsQueryable();
+
+                        if (filter == "Pending")
+                        {
+                            paymentsQuery = paymentsQuery.Where(p => p.Status == PaymentStatus.Pending);
+                            viewAllUrl = Url.Action("Payments", "Admin", new { status = "Pending" });
+                        }
+                        else
+                        {
+                            viewAllUrl = Url.Action("Payments", "Admin");
+                        }
+
+                        var payments = await paymentsQuery
+                            .OrderByDescending(p => p.CreatedAt)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = payments.Select(p => new
+                        {
+                            id = p.Id,
+                            clientName = p.Subscription?.Contract?.Client?.RazaoSocial ?? 
+                                       p.Subscription?.Contract?.Client?.NomeFantasia ?? 
+                                       p.Subscription?.Contract?.Client?.ContactName ?? "N/A",
+                            amount = p.Amount,
+                            status = p.Status.ToString(),
+                            statusDisplay = p.Status == PaymentStatus.Paid ? "Pago" :
+                                          p.Status == PaymentStatus.Pending ? "Pendente" :
+                                          p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" :
+                                          p.Status == PaymentStatus.Processing ? "Processando" :
+                                          p.Status == PaymentStatus.Failed ? "Falhou" :
+                                          p.Status == PaymentStatus.Cancelled ? "Cancelado" :
+                                          p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status.ToString(),
+                            createdAt = p.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                        }).Cast<object>().ToList();
+                        break;
+
+                    case "reservations":
+                        var reservations = await _context.Reservations
+                            .Include(r => r.Client)
+                            .Include(r => r.CoworkingAddress)
+                                .ThenInclude(a => a.Coworking)
+                            .OrderByDescending(r => r.CreatedAt)
+                            .Take(50)
+                            .ToListAsync();
+
+                        data = reservations.Select(r => new
+                        {
+                            id = r.Id,
+                            clientName = r.Client?.RazaoSocial ?? r.Client?.NomeFantasia ?? r.Client?.ContactName ?? "N/A",
+                            coworkingName = r.CoworkingAddress?.Coworking?.Name ?? "N/A",
+                            reservationDate = r.ReservationDate.ToString("dd/MM/yyyy"),
+                            status = r.Status,
+                            statusDisplay = r.Status == "Confirmed" ? "Confirmada" :
+                                          r.Status == "Pending" ? "Pendente" :
+                                          r.Status == "Cancelled" ? "Cancelada" :
+                                          r.Status == "Completed" ? "Concluída" : r.Status
+                        }).Cast<object>().ToList();
+                        viewAllUrl = Url.Action("ReportCoworkingRevenue", "Admin");
+                        break;
+
+                    default:
+                        return Json(new { success = false, message = "Tipo inválido" });
+                }
+
+                return Json(new { success = true, data = data, viewAllUrl = viewAllUrl });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Erro ao carregar dados: {ex.Message}" });
+            }
         }
 
         [HttpGet]
@@ -326,12 +560,16 @@ namespace KlyonHubPlatform.Api.Controllers
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
             
             // Carregar contagem de serviços para cada coworking
-            var coworkingIds = coworkings.Select(c => c.Id).ToList();
-            var servicesCount = await _context.PartnerServices
-                .Where(ps => coworkingIds.Contains(ps.CoworkingId))
-                .GroupBy(ps => ps.CoworkingId)
-                .Select(g => new { CoworkingId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.CoworkingId, x => x.Count);
+            Dictionary<int, int> servicesCount = new Dictionary<int, int>();
+            if (coworkings != null && coworkings.Any())
+            {
+                var coworkingIds = coworkings.Select(c => c.Id).ToList();
+                servicesCount = await _context.PartnerServices
+                    .Where(ps => coworkingIds.Contains(ps.CoworkingId))
+                    .GroupBy(ps => ps.CoworkingId)
+                    .Select(g => new { CoworkingId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.CoworkingId, x => x.Count);
+            }
             
             ViewBag.ServicesCount = servicesCount;
             ViewBag.Search = search;
@@ -387,6 +625,24 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _context.Coworkings.FindAsync(id);
             if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
+            
+            // Verificar se tem percentagem configurada antes de aprovar
+            var fiscalAddressService = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+
+            if (fiscalAddressService != null)
+            {
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id 
+                        && ps.ServiceId == fiscalAddressService.Id 
+                        && ps.Percentage > 0);
+
+                if (partnerService == null)
+                {
+                    TempData["Warning"] = $"Atenção: O coworking '{coworking.Name}' foi aprovado, mas não possui percentagem configurada para o serviço 'Contratar Endereço Fiscal'. Configure a percentagem para que os endereços fiquem disponíveis para compra.";
+                }
+            }
+            
             var oldStatus = coworking.ApprovalStatus;
             coworking.ApprovalStatus = CoworkingApprovalStatus.Approved;
             coworking.ApprovedAt = DateTimeHelper.GetBrazilianTime();
@@ -466,6 +722,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["Error"] = "Coworking não encontrado.";
                     return RedirectToAction("Coworkings");
+                }
+
+                // Se estiver tentando ativar, verificar se tem percentagem informada
+                if (!coworking.IsActive)
+                {
+                    // Buscar o serviço "Contratar Endereço Fiscal"
+                    var fiscalAddressService = await _context.Services
+                        .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+
+                    if (fiscalAddressService != null)
+                    {
+                        // Verificar se existe PartnerService com percentagem > 0
+                        var partnerService = await _context.PartnerServices
+                            .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id 
+                                && ps.ServiceId == fiscalAddressService.Id 
+                                && ps.Percentage > 0);
+
+                        if (partnerService == null)
+                        {
+                            TempData["Error"] = $"Não é possível ativar o coworking '{coworking.Name}' porque não possui percentagem informada para o serviço 'Contratar Endereço Fiscal'. Configure a percentagem antes de ativar.";
+                            return RedirectToAction("Coworkings", new { 
+                                search = Request.Query["search"],
+                                status = Request.Query["status"],
+                                isPartner = Request.Query["isPartner"],
+                                approvalStatus = Request.Query["approvalStatus"],
+                                page = Request.Query["page"]
+                            });
+                        }
+                    }
                 }
 
                 coworking.IsActive = !coworking.IsActive;
@@ -762,12 +1047,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (payment == null)
                     return Json(new { success = false, message = "Pagamento não encontrado" });
 
+                // Traduzir status para português
+                string statusText = payment.Status switch
+                {
+                    PaymentStatus.Pending => "Aguardando Pagamento",
+                    PaymentStatus.Processing => "Processando",
+                    PaymentStatus.AwaitingValidation => "Aguardando Validação",
+                    PaymentStatus.Paid => "Pago",
+                    PaymentStatus.Failed => "Falhou",
+                    PaymentStatus.Refunded => "Reembolsado",
+                    PaymentStatus.Cancelled => "Cancelado",
+                    _ => payment.Status.ToString()
+                };
+
                 var paymentData = new
                 {
                     type = "Pagamento",
                     id = payment.Id,
                     amount = payment.Amount,
-                    status = payment.Status.ToString(),
+                    status = statusText,
                     method = payment.Method.ToString(),
                     dueDate = payment.DueDate.ToString("dd/MM/yyyy"),
                     paidAt = payment.PaidAt?.ToString("dd/MM/yyyy HH:mm"),
@@ -1279,6 +1577,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.Client)
+                            .ThenInclude(cl => cl.User)
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.CoworkingAddress)
@@ -1292,7 +1591,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     (p.TransactionId != null && p.TransactionId.Contains(search)) ||
                     p.Subscription.Contract.ContractNumber.Contains(search) ||
                     (p.Subscription.Contract.Client.RazaoSocial != null && p.Subscription.Contract.Client.RazaoSocial.Contains(search)) ||
-                    (p.Subscription.Contract.Client.NomeFantasia != null && p.Subscription.Contract.Client.NomeFantasia.Contains(search)));
+                    (p.Subscription.Contract.Client.NomeFantasia != null && p.Subscription.Contract.Client.NomeFantasia.Contains(search)) ||
+                    (p.Subscription.Contract.Client.ContactName != null && p.Subscription.Contract.Client.ContactName.Contains(search)) ||
+                    (p.Subscription.Contract.Client.User != null && p.Subscription.Contract.Client.User.FullName.Contains(search)));
             }
 
             // Filtro por status
@@ -1422,22 +1723,39 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetPaymentHistory(int paymentId)
+        public async Task<IActionResult> GetPaymentHistory(int paymentId, int page = 1, int pageSize = 10)
         {
-            var history = await _context.PaymentHistories
+            var query = _context.PaymentHistories
                 .Include(h => h.ActionByUser)
                 .Where(h => h.PaymentId == paymentId)
-                .OrderByDescending(h => h.ActionAt)
+                .OrderByDescending(h => h.ActionAt);
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+            var history = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return Json(history.Select(h => new
+            return Json(new
             {
-                id = h.Id,
-                action = h.Action,
-                rejectionReason = h.RejectionReason,
-                actionBy = h.ActionByUser?.FullName ?? "Sistema",
-                actionAt = h.ActionAt.ToString("dd/MM/yyyy HH:mm")
-            }));
+                items = history.Select(h => new
+                {
+                    id = h.Id,
+                    action = h.Action,
+                    rejectionReason = h.RejectionReason,
+                    actionBy = h.ActionByUser?.FullName ?? "Sistema",
+                    actionAt = h.ActionAt.ToString("dd/MM/yyyy HH:mm")
+                }),
+                pagination = new
+                {
+                    currentPage = page,
+                    totalPages = totalPages,
+                    totalItems = totalItems,
+                    pageSize = pageSize
+                }
+            });
         }
 
         [HttpGet]
@@ -1723,6 +2041,161 @@ namespace KlyonHubPlatform.Api.Controllers
                 var msg = ex.Message;
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData["Error"] = "Erro ao adicionar coluna D4SignDocumentUuid: " + msg;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Limpa dados de teste das tabelas relacionadas a Payments, Contracts, Declarations e Commissions.
+        /// Permite fazer testes ponta a ponta limpando apenas os dados de negócio, preservando estrutura e configurações.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ClearTestData()
+        {
+            try
+            {
+                // Desabilitar foreign keys temporariamente
+                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
+
+                // Tabelas relacionadas às telas mencionadas (na ordem correta - dependentes primeiro)
+                var tablesToClear = new[]
+                {
+                    "PaymentHistories",      // Histórico de pagamentos
+                    "ReservationCommissions", // Comissões de reservas
+                    "Commissions",           // Comissões (Dashboard Coworking, Parceiro/Commissions)
+                    "Transfers",            // Transferências (relacionado a Commissions)
+                    "Payments",              // Pagamentos (MyPayments)
+                    "Documents",             // Documentos (relacionado a Contracts)
+                    "AddressDeclarations",   // Declarações (Declarations)
+                    "Subscriptions",         // Assinaturas (relacionado a Contracts)
+                    "Contracts"              // Contratos (MyContracts)
+                };
+
+                var clearedTables = new List<string>();
+                var errors = new List<string>();
+
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+
+                try
+                {
+                    foreach (var tableName in tablesToClear)
+                    {
+                        try
+                        {
+                            // Verificar se a tabela existe
+                            using var checkCmd = connection.CreateCommand();
+                            checkCmd.CommandText = $@"
+                                SELECT COUNT(*) 
+                                FROM information_schema.tables 
+                                WHERE table_schema = DATABASE() 
+                                AND table_name = '{tableName}'";
+                            
+                            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                            
+                            if (exists)
+                            {
+                                // Contar registros antes de limpar
+                                using var countCmd = connection.CreateCommand();
+                                countCmd.CommandText = $"SELECT COUNT(*) FROM `{tableName}`;";
+                                var countBefore = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+                                // Limpar dados da tabela usando DELETE
+                                using var deleteCmd = connection.CreateCommand();
+                                deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
+                                var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
+                                
+                                clearedTables.Add($"{tableName} ({rowsDeleted} registro(s) removido(s))");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.Add($"{tableName}: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    // Reabilitar foreign keys
+                    await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+                    if (!wasOpen) await connection.CloseAsync();
+                }
+
+                if (errors.Any())
+                {
+                    TempData["Error"] = $"Alguns erros ocorreram ao limpar dados: {string.Join("; ", errors)}";
+                }
+
+                if (clearedTables.Any())
+                {
+                    var message = $"Dados de teste limpos com sucesso!<br><br><strong>Tabelas limpas:</strong><ul>";
+                    foreach (var table in clearedTables)
+                    {
+                        message += $"<li>{table}</li>";
+                    }
+                    message += "</ul>";
+                    TempData["Success"] = message;
+                }
+                else
+                {
+                    TempData["Info"] = "Nenhuma tabela foi limpa. Verifique se as tabelas existem no banco de dados.";
+                }
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = $"Erro ao limpar dados de teste: {msg}";
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Adiciona a coluna MustChangePassword na tabela Users se não existir.
+        /// Corrige o erro "Unknown column 'u.MustChangePassword' in 'field list'" no login.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddMustChangePasswordColumn()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+
+                var columnExists = false;
+                try
+                {
+                    await using var checkCmd = connection.CreateCommand();
+                    checkCmd.CommandText = @"
+                        SELECT COUNT(*) FROM information_schema.columns 
+                        WHERE table_schema = DATABASE() AND table_name = 'Users' AND column_name = 'MustChangePassword'";
+                    columnExists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                }
+                catch { columnExists = false; }
+                finally { if (!wasOpen) await connection.CloseAsync(); }
+
+                if (columnExists)
+                {
+                    TempData["Info"] = "A coluna Users.MustChangePassword já existe. Nenhuma alteração feita.";
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                const string alterSql = @"ALTER TABLE Users ADD COLUMN MustChangePassword tinyint(1) NOT NULL DEFAULT 0;";
+                await _context.Database.ExecuteSqlRawAsync(alterSql);
+
+                TempData["Success"] = "Coluna Users.MustChangePassword criada com sucesso. O erro no login deve estar resolvido.";
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = "Erro ao adicionar coluna MustChangePassword: " + msg;
             }
 
             return RedirectToAction("DatabaseManager");
@@ -2749,6 +3222,136 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
+        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 15)
+        {
+            var query = _context.PartnerServices
+                .Include(ps => ps.Coworking)
+                    .ThenInclude(c => c.User)
+                .Include(ps => ps.Service)
+                .Where(ps => ps.RemovalRequestStatus == RemovalRequestStatus.Pending)
+                .OrderByDescending(ps => ps.RemovalRequestedAt);
+
+            var totalItems = await query.CountAsync();
+            var totalPages = totalItems > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
+            page = Math.Max(1, Math.Min(page, totalPages));
+
+            var requests = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            return View(requests);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveServiceRemoval(int partnerServiceId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var partnerService = await _context.PartnerServices
+                    .Include(ps => ps.Service)
+                    .Include(ps => ps.Coworking)
+                    .FirstOrDefaultAsync(ps => ps.Id == partnerServiceId);
+
+                if (partnerService == null)
+                {
+                    TempData["Error"] = "Solicitação não encontrada.";
+                    return RedirectToAction("ServiceRemovalRequests");
+                }
+
+                if (partnerService.RemovalRequestStatus != RemovalRequestStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ServiceRemovalRequests");
+                }
+
+                var serviceName = partnerService.Service.Name;
+                var coworkingName = partnerService.Coworking.Name;
+
+                // Remover o serviço
+                _context.PartnerServices.Remove(partnerService);
+                await _context.SaveChangesAsync();
+
+                // Registrar no audit log
+                await _auditService.LogActionAsync(userId, "ServiceRemovalApproved", "PartnerService", partnerServiceId, 
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}", 
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Approved\",\"Removed\":true}}");
+
+                TempData["Success"] = $"Remoção do serviço '{serviceName}' do parceiro '{coworkingName}' aprovada e executada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar remoção: {ex.Message}";
+            }
+
+            return RedirectToAction("ServiceRemovalRequests");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectServiceRemoval(int partnerServiceId, string rejectionReason)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var partnerService = await _context.PartnerServices
+                    .Include(ps => ps.Service)
+                    .Include(ps => ps.Coworking)
+                    .FirstOrDefaultAsync(ps => ps.Id == partnerServiceId);
+
+                if (partnerService == null)
+                {
+                    TempData["Error"] = "Solicitação não encontrada.";
+                    return RedirectToAction("ServiceRemovalRequests");
+                }
+
+                if (partnerService.RemovalRequestStatus != RemovalRequestStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ServiceRemovalRequests");
+                }
+
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    TempData["Error"] = "É necessário informar o motivo da rejeição.";
+                    return RedirectToAction("ServiceRemovalRequests");
+                }
+
+                var serviceName = partnerService.Service.Name;
+                var coworkingName = partnerService.Coworking.Name;
+
+                // Rejeitar a solicitação
+                partnerService.RemovalRequestStatus = RemovalRequestStatus.Rejected;
+                partnerService.RemovalReviewedAt = DateTimeHelper.GetBrazilianTime();
+                partnerService.RemovalReviewedBy = userId;
+                partnerService.RemovalRejectionReason = rejectionReason.Trim();
+                partnerService.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                // Registrar no audit log
+                await _auditService.LogActionAsync(userId, "ServiceRemovalRejected", "PartnerService", partnerServiceId, 
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}", 
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Rejected\",\"Reason\":\"{rejectionReason}\"}}");
+
+                TempData["Success"] = $"Solicitação de remoção do serviço '{serviceName}' do parceiro '{coworkingName}' rejeitada.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao rejeitar remoção: {ex.Message}";
+            }
+
+            return RedirectToAction("ServiceRemovalRequests");
+        }
+
+        [HttpGet]
         public async Task<IActionResult> SefazConfiguration(string? state = null)
         {
             // Lista de estados brasileiros
@@ -3285,7 +3888,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
                 if (monthlyValue <= 0)
                 {
-                    TempData["Error"] = "O valor mensal deve ser maior que zero.";
+                    TempData["Error"] = "O valor anual deve ser maior que zero.";
                     return RedirectToAction("QuickClientRegistration");
                 }
 
@@ -3318,15 +3921,21 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 else
                 {
+                    // Gerar senha com 4 primeiras letras do email
+                    var defaultPassword = contactEmail.Length >= 4 
+                        ? contactEmail.Substring(0, 4).ToLower() 
+                        : contactEmail.ToLower();
+                    
                     // Criar novo usuário
-                    var passwordHash = BCrypt.Net.BCrypt.HashPassword("Temp@123"); // Senha temporária
+                    var passwordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword);
                     user = new User
                     {
                         Email = contactEmail,
                         PasswordHash = passwordHash,
                         FullName = contactName,
                         IsActive = true,
-                        EmailVerified = false // Admin pode verificar depois
+                        EmailVerified = false,
+                        MustChangePassword = true // Forçar alteração de senha no primeiro login
                     };
                     _context.Users.Add(user);
                     await _context.SaveChangesAsync();
@@ -3411,16 +4020,20 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 _context.Clients.Add(client);
                 await _context.SaveChangesAsync();
 
+                // Converter valor anual para mensal (o monthlyValue recebido é anual, precisa dividir por 12)
+                var monthlyValueForContract = monthlyValue / 12;
+
                 // Criar contrato
-                var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValue);
+                var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValueForContract);
 
                 // Buscar o pagamento criado para gerar o código PIX
                 var subscription = await _context.Subscriptions
                     .FirstOrDefaultAsync(s => s.ContractId == contract.Id);
                 
+                Payment? payment = null;
                 if (subscription != null)
                 {
-                    var payment = await _context.Payments
+                    payment = await _context.Payments
                         .Where(p => p.SubscriptionId == subscription.Id && p.Status == PaymentStatus.Pending)
                         .OrderByDescending(p => p.CreatedAt)
                         .FirstOrDefaultAsync();
@@ -3433,20 +4046,53 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             var pixCode = await _paymentService.GeneratePixCodeAsync(payment.Id);
                             TempData["PixCode"] = pixCode;
                             TempData["PaymentId"] = payment.Id;
-                            TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
-                            return RedirectToAction("QuickClientRegistrationSuccess", "Admin", new { paymentId = payment.Id });
                         }
                         catch (Exception pixEx)
                         {
                             // Se falhar ao gerar PIX, ainda mostra sucesso mas avisa que o PIX será gerado depois
                             TempData["Warning"] = $"Contrato criado, mas o código PIX não pôde ser gerado automaticamente: {pixEx.Message}. O código será gerado quando o cliente acessar a página de pagamento.";
-                            TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
-                            return RedirectToAction("Contracts", "Admin");
                         }
                     }
                 }
 
+                // Enviar email com credenciais e link para PaymentDetails
+                if (payment != null && existingUser == null) // Só envia email se for novo usuário
+                {
+                    try
+                    {
+                        var baseUrl = await _systemConfigurationService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+                        var defaultPassword = contactEmail.Length >= 4 
+                            ? contactEmail.Substring(0, 4).ToLower() 
+                            : contactEmail.ToLower();
+                        
+                        // Criar token de autenticação automática usando PasswordResetToken
+                        var authToken = Guid.NewGuid().ToString();
+                        user.PasswordResetToken = authToken;
+                        user.PasswordResetExpires = DateTimeHelper.GetBrazilianTime().AddDays(7); // Token válido por 7 dias
+                        await _context.SaveChangesAsync();
+                        
+                        var paymentDetailsUrl = $"{baseUrl}/Auth/AutoLogin?token={authToken}&redirect=/Client/PaymentDetails/{payment.Id}";
+                        
+                        await _emailService.SendClientCredentialsEmailAsync(
+                            contactEmail,
+                            contactName,
+                            contactEmail,
+                            defaultPassword,
+                            paymentDetailsUrl
+                        );
+                    }
+                    catch (Exception emailEx)
+                    {
+                        // Log do erro mas não falha o cadastro
+                        TempData["Warning"] = $"Cliente cadastrado com sucesso, mas houve um erro ao enviar o email: {emailEx.Message}";
+                    }
+                }
+
                 TempData["Success"] = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
+                if (payment != null)
+                {
+                    return RedirectToAction("QuickClientRegistrationSuccess", "Admin", new { paymentId = payment.Id });
+                }
                 return RedirectToAction("Contracts", "Admin");
             }
             catch (Exception ex)

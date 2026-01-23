@@ -88,7 +88,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
 
             var commissions = await _commissionService.GetPendingCommissionsAsync(coworkingEntity.Id);
-            var totalPending = commissions.Sum(c => c.Amount);
+            // Calcular valor creditado (TotalPaymentAmount - Amount da comissão)
+            var totalPending = commissions.Sum(c => c.TotalPaymentAmount - c.Amount);
 
             // Contar pagamentos aguardando validação
             var pendingPaymentsCount = await _context.Payments
@@ -272,14 +273,20 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
-                // Validar se há horários de funcionamento configurados
-                var operatingHours = await _context.CoworkingOperatingHours
-                    .Where(h => h.CoworkingId == createdCoworking.Id && h.IsActive)
-                    .CountAsync();
+                // Validar se há horários de funcionamento configurados (apenas se EnableCoworkingMenus estiver habilitado)
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-                if (operatingHours == 0)
+                if (showCoworkingMenus)
                 {
-                    TempData["Warning"] = "Coworking cadastrado, mas é necessário configurar os horários de funcionamento no perfil para ativar reservas.";
+                    var operatingHours = await _context.CoworkingOperatingHours
+                        .Where(h => h.CoworkingId == createdCoworking.Id && h.IsActive)
+                        .CountAsync();
+
+                    if (operatingHours == 0)
+                    {
+                        TempData["Warning"] = "Coworking cadastrado, mas é necessário configurar os horários de funcionamento no perfil para ativar reservas.";
+                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -688,6 +695,173 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.Locations = locations;
 
             return View(contracts);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ContractDetails(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                TempData["Error"] = "Coworking não encontrado.";
+                return RedirectToAction("Dashboard");
+            }
+
+            // Buscar contrato com todos os relacionamentos
+            var contract = await _context.Contracts
+                .Include(c => c.Client)
+                    .ThenInclude(cl => cl.User)
+                .Include(c => c.CoworkingAddress)
+                    .ThenInclude(a => a.Location)
+                .Include(c => c.CoworkingAddress)
+                    .ThenInclude(a => a.Coworking)
+                .Include(c => c.Subscription)
+                .Include(c => c.Documents)
+                .FirstOrDefaultAsync(c => c.Id == id && c.CoworkingAddress.CoworkingId == coworkingEntity.Id);
+
+            if (contract == null)
+            {
+                TempData["Error"] = "Contrato não encontrado ou você não tem permissão para visualizá-lo.";
+                return RedirectToAction("ActiveContracts");
+            }
+
+            // Buscar AddressDeclarations
+            var declarations = await _context.AddressDeclarations
+                .Where(d => d.ContractId == contract.Id)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+
+            // Buscar histórico de pagamentos ordenado
+            var payments = new List<Payment>();
+            var historiesByPaymentId = new Dictionary<int, List<PaymentHistory>>();
+            
+            if (contract.Subscription != null)
+            {
+                payments = await _context.Payments
+                    .Where(p => p.SubscriptionId == contract.Subscription.Id)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+
+                // Buscar histórico de validação dos pagamentos
+                var paymentIds = payments.Select(p => p.Id).ToList();
+                if (paymentIds.Any())
+                {
+                    var paymentHistories = await _context.PaymentHistories
+                        .Where(ph => paymentIds.Contains(ph.PaymentId))
+                        .Include(ph => ph.ActionByUser)
+                        .ToListAsync();
+
+                    // Agrupar históricos por PaymentId
+                    historiesByPaymentId = paymentHistories
+                        .GroupBy(ph => ph.PaymentId)
+                        .ToDictionary(g => g.Key, g => g.ToList());
+                }
+            }
+
+            // Criar timeline do fluxo
+            var timeline = new List<object>();
+
+            // Adicionar criação do contrato
+            timeline.Add(new
+            {
+                Date = contract.CreatedAt,
+                Type = "Criação",
+                Title = "Contrato Criado",
+                Description = $"Contrato {contract.ContractNumber} foi criado",
+                Icon = "bi-file-earmark-plus",
+                Color = "primary"
+            });
+
+            // Adicionar mudanças de status
+            if (contract.UpdatedAt.HasValue && contract.UpdatedAt != contract.CreatedAt)
+            {
+                timeline.Add(new
+                {
+                    Date = contract.UpdatedAt.Value,
+                    Type = "Status",
+                    Title = $"Status: {contract.Status}",
+                    Description = $"Status do contrato alterado para {contract.Status}",
+                    Icon = "bi-arrow-repeat",
+                    Color = "info"
+                });
+            }
+
+            // Adicionar pagamentos
+            foreach (var payment in payments)
+            {
+                timeline.Add(new
+                {
+                    Date = payment.CreatedAt,
+                    Type = "Pagamento",
+                    Title = $"Pagamento de R$ {payment.Amount:N2}",
+                    Description = $"Status: {payment.Status} - Método: {payment.Method}",
+                    Icon = "bi-cash-coin",
+                    Color = payment.Status == PaymentStatus.Paid ? "success" : "warning",
+                    Payment = payment
+                });
+
+                if (payment.PaidAt.HasValue)
+                {
+                    timeline.Add(new
+                    {
+                        Date = payment.PaidAt.Value,
+                        Type = "Pagamento",
+                        Title = "Pagamento Confirmado",
+                        Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
+                        Icon = "bi-check-circle",
+                        Color = "success",
+                        Payment = payment
+                    });
+                }
+
+                // Adicionar histórico de validação
+                if (historiesByPaymentId.ContainsKey(payment.Id))
+                {
+                    foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
+                    {
+                        timeline.Add(new
+                        {
+                            Date = history.ActionAt,
+                            Type = "Validação",
+                            Title = history.Action == "Approved" ? "Pagamento Aprovado" : "Pagamento Rejeitado",
+                            Description = history.Action == "Approved" 
+                                ? $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}"
+                                : $"Rejeitado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}",
+                            Icon = history.Action == "Approved" ? "bi-check-circle" : "bi-x-circle",
+                            Color = history.Action == "Approved" ? "success" : "danger",
+                            History = history
+                        });
+                    }
+                }
+            }
+
+            // Adicionar declarações
+            foreach (var declaration in declarations)
+            {
+                timeline.Add(new
+                {
+                    Date = declaration.CreatedAt,
+                    Type = "Documento",
+                    Title = $"Declaração {declaration.DeclarationNumber}",
+                    Description = $"Versão {declaration.Version} gerada",
+                    Icon = "bi-file-earmark-pdf",
+                    Color = "info",
+                    Declaration = declaration
+                });
+            }
+
+            // Ordenar timeline por data
+            timeline = timeline.OrderBy(t => ((dynamic)t).Date).ToList();
+
+            ViewBag.Timeline = timeline;
+            ViewBag.Declarations = declarations;
+            ViewBag.Payments = payments;
+            ViewBag.PaymentHistories = historiesByPaymentId;
+
+            return View(contract);
         }
 
         [HttpGet]
@@ -1131,26 +1305,6 @@ namespace KlyonHubPlatform.Api.Controllers
             return View(commissions);
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Transfers()
-        {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
-            var coworkingEntity = coworking.FirstOrDefault();
-
-            if (coworkingEntity == null)
-            {
-                return RedirectToAction("Register");
-            }
-
-            var transfers = await _context.Transfers
-                .Where(t => t.CoworkingId == coworkingEntity.Id)
-                .OrderByDescending(t => t.CreatedAt)
-                .ToListAsync();
-
-            return View(transfers);
-        }
-
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RequestTransfer()
@@ -1164,6 +1318,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
+            // Validar se os dados bancários estão cadastrados
+            var hasBankData = !string.IsNullOrWhiteSpace(coworkingEntity.BankName) &&
+                             !string.IsNullOrWhiteSpace(coworkingEntity.BankAgency) &&
+                             (!string.IsNullOrWhiteSpace(coworkingEntity.BankAccount) || 
+                              !string.IsNullOrWhiteSpace(coworkingEntity.BankPixKey));
+
+            if (!hasBankData)
+            {
+                TempData["Error"] = "Para solicitar repasse, é necessário cadastrar os dados bancários (Banco, Agência e Conta ou Chave PIX). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
+                return RedirectToAction("Dashboard");
+            }
+
             var pendingCommissions = await _commissionService.GetPendingCommissionsAsync(coworkingEntity.Id);
             if (pendingCommissions.Count == 0)
             {
@@ -1171,11 +1337,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Commissions");
             }
 
-            var commissionIds = pendingCommissions.Select(c => c.Id).ToList();
-            await _commissionService.CreateTransferAsync(coworkingEntity.Id, commissionIds);
+            try
+            {
+                var commissionIds = pendingCommissions.Select(c => c.Id).ToList();
+                await _commissionService.CreateTransferAsync(coworkingEntity.Id, commissionIds);
 
-            TempData["Success"] = $"Repasse de R$ {pendingCommissions.Sum(c => c.Amount):N2} solicitado com sucesso!";
-            return RedirectToAction("Transfers");
+                var totalCreditado = pendingCommissions.Sum(c => c.TotalPaymentAmount - c.Amount);
+                TempData["Success"] = $"Repasse de R$ {totalCreditado:N2} solicitado com sucesso! O status do repasse pode ser acompanhado na tela de Meus Ganhos.";
+                return RedirectToAction("Commissions");
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Dashboard");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
+                return RedirectToAction("Dashboard");
+            }
         }
 
         [HttpGet]
@@ -1387,15 +1567,21 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _coworkingService.UpdateAsync(coworkingEntity);
 
-                // Validar se há horários de funcionamento configurados (obrigatório)
-                var operatingHoursCount = await _context.CoworkingOperatingHours
-                    .Where(h => h.CoworkingId == coworkingEntity.Id && h.IsActive)
-                    .CountAsync();
+                // Validar se há horários de funcionamento configurados (obrigatório apenas se EnableCoworkingMenus estiver habilitado)
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-                if (operatingHoursCount == 0)
+                if (showCoworkingMenus)
                 {
-                    TempData["Warning"] = "É obrigatório configurar os horários de funcionamento. Configure na aba 'Horários de Funcionamento'.";
-                    TempData["ActiveTab"] = "hours";
+                    var operatingHoursCount = await _context.CoworkingOperatingHours
+                        .Where(h => h.CoworkingId == coworkingEntity.Id && h.IsActive)
+                        .CountAsync();
+
+                    if (operatingHoursCount == 0)
+                    {
+                        TempData["Warning"] = "É obrigatório configurar os horários de funcionamento. Configure na aba 'Horários de Funcionamento'.";
+                        TempData["ActiveTab"] = "hours";
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(activeTab))
@@ -1838,20 +2024,27 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var isFirstPayment = previousPaidPayments == 0;
 
-                // Ativar contrato
-                contract.Status = ContractStatus.Active;
-                contract.UpdatedAt = DateTime.UtcNow;
+                // Guardar o status original antes de alterar
+                var originalStatus = contract.Status;
                 
-                // Se for o primeiro pagamento, definir validade de 1 ano a partir do pagamento
-                if (isFirstPayment && contract.ExpiryDate == null)
+                // Ativar contrato se estiver aguardando pagamento ou suspenso
+                if (contract.Status == ContractStatus.PendingPayment || contract.Status == ContractStatus.Suspended)
                 {
-                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    contract.Status = ContractStatus.Active;
+                    contract.UpdatedAt = DateTime.UtcNow;
+                    
+                    // Se for o primeiro pagamento, definir validade de 1 ano a partir do pagamento
+                    if (isFirstPayment && contract.ExpiryDate == null)
+                    {
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    }
                 }
                 
                 await _context.SaveChangesAsync();
 
-                // Atualizar contador de contratos do endereço
-                if (contract.CoworkingAddress != null)
+                // Atualizar contador de contratos do endereço apenas se for o primeiro pagamento
+                // e o contrato estava aguardando pagamento (não suspenso, pois suspenso já foi contado)
+                if (isFirstPayment && contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
                 {
                     contract.CoworkingAddress.CurrentContracts++;
                     if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
@@ -2275,6 +2468,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 partner.CoworkingId = coworkingEntity.Id;
                 partner.CreatedAt = DateTime.UtcNow;
                 partner.IsPrincipal = IsPrincipal;
+                
+                // Converter SharePercentage de string (pode vir com vírgula) para decimal
+                if (Request.Form.ContainsKey("SharePercentage") && !string.IsNullOrWhiteSpace(Request.Form["SharePercentage"]))
+                {
+                    var sharePercentageStr = Request.Form["SharePercentage"].ToString().Trim().Replace(",", ".");
+                    if (decimal.TryParse(sharePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var sharePercentage))
+                    {
+                        // Validar range (0 a 100)
+                        if (sharePercentage < 0) sharePercentage = 0;
+                        if (sharePercentage > 100) sharePercentage = 100;
+                        partner.SharePercentage = sharePercentage;
+                    }
+                }
 
                 if (IsPrincipal)
                 {
@@ -2340,9 +2546,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingPartner.Email = partner.Email;
                 existingPartner.Phone = partner.Phone;
                 existingPartner.Role = partner.Role;
-                existingPartner.SharePercentage = partner.SharePercentage;
                 existingPartner.IsPrincipal = IsPrincipal;
                 existingPartner.UpdatedAt = DateTime.UtcNow;
+                
+                // Converter SharePercentage de string (pode vir com vírgula) para decimal
+                if (Request.Form.ContainsKey("SharePercentage") && !string.IsNullOrWhiteSpace(Request.Form["SharePercentage"]))
+                {
+                    var sharePercentageStr = Request.Form["SharePercentage"].ToString().Trim().Replace(",", ".");
+                    if (decimal.TryParse(sharePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var sharePercentage))
+                    {
+                        // Validar range (0 a 100)
+                        if (sharePercentage < 0) sharePercentage = 0;
+                        if (sharePercentage > 100) sharePercentage = 100;
+                        existingPartner.SharePercentage = sharePercentage;
+                    }
+                }
+                else
+                {
+                    existingPartner.SharePercentage = partner.SharePercentage;
+                }
 
                 if (IsPrincipal)
                 {
@@ -2840,24 +3062,64 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
+            // Verificar se os menus de coworking estão habilitados
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+            // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
+            var coworkingServiceNames = new[] 
+            { 
+                "Aluguel de Auditório", 
+                "Aluguel de Sala Compartilhada", 
+                "Aluguel de Sala Particular", 
+                "Reservar Sala" 
+            };
+
             // Buscar todos os serviços disponíveis
-            var allServices = await _context.Services
-                .Where(s => s.IsActive)
+            var allServicesQuery = _context.Services
+                .Where(s => s.IsActive);
+
+            // Se a flag de coworking não estiver habilitada, filtrar os serviços de coworking
+            if (!showCoworkingMenus)
+            {
+                allServicesQuery = allServicesQuery.Where(s => !coworkingServiceNames.Contains(s.Name));
+            }
+
+            var allServices = await allServicesQuery
                 .OrderBy(s => s.DisplayOrder)
                 .ThenBy(s => s.Name)
                 .ToListAsync();
 
             // Buscar serviços já cadastrados pelo parceiro
-            var partnerServices = await _context.PartnerServices
+            var partnerServicesQuery = _context.PartnerServices
                 .Include(ps => ps.Service)
-                .Where(ps => ps.CoworkingId == coworkingEntity.Id)
-                .ToListAsync();
+                .Where(ps => ps.CoworkingId == coworkingEntity.Id);
+
+            // Se a flag de coworking não estiver habilitada, filtrar os serviços de coworking
+            if (!showCoworkingMenus)
+            {
+                partnerServicesQuery = partnerServicesQuery.Where(ps => !coworkingServiceNames.Contains(ps.Service.Name));
+            }
+
+            var partnerServices = await partnerServicesQuery.ToListAsync();
 
             var partnerServiceIds = partnerServices.Select(ps => ps.ServiceId).ToHashSet();
+
+            // Verificar se há contratos ativos para desabilitar botão de remoção
+            var coworkingAddresses = await _context.CoworkingAddresses
+                .Where(a => a.CoworkingId == coworkingEntity.Id)
+                .Select(a => a.Id)
+                .ToListAsync();
+
+            var hasActiveContracts = await _context.Contracts
+                .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId) 
+                    && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
 
             ViewBag.PartnerServices = partnerServices;
             ViewBag.PartnerServiceIds = partnerServiceIds;
             ViewBag.CoworkingId = coworkingEntity.Id;
+            ViewBag.ShowCoworkingMenus = showCoworkingMenus;
+            ViewBag.HasActiveContracts = hasActiveContracts;
 
             return View(allServices);
         }
@@ -2878,6 +3140,19 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Services");
                 }
 
+                // Verificar se os menus de coworking estão habilitados
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+                // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
+                var coworkingServiceNames = new[] 
+                { 
+                    "Aluguel de Auditório", 
+                    "Aluguel de Sala Compartilhada", 
+                    "Aluguel de Sala Particular", 
+                    "Reservar Sala" 
+                };
+
                 // Verificar se o serviço existe e está ativo
                 var service = await _context.Services
                     .FirstOrDefaultAsync(s => s.Id == serviceId && s.IsActive);
@@ -2885,6 +3160,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (service == null)
                 {
                     TempData["Error"] = "Serviço não encontrado ou inativo.";
+                    return RedirectToAction("Services");
+                }
+
+                // Se a flag de coworking não estiver habilitada, não permitir adicionar serviços de coworking
+                if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
+                {
+                    TempData["Error"] = "Este serviço não está disponível no momento.";
                     return RedirectToAction("Services");
                 }
 
@@ -2948,17 +3230,53 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Services");
                 }
 
+                // Verificar se já existe uma solicitação pendente
+                if (partnerService.RemovalRequestStatus == Domain.Core.Enums.RemovalRequestStatus.Pending)
+                {
+                    TempData["Info"] = "Já existe uma solicitação de remoção pendente para este serviço. Aguarde a aprovação do administrador.";
+                    return RedirectToAction("Services");
+                }
+
+                // Verificar se há contratos ativos relacionados a este serviço
+                // Buscar endereços do coworking que usam este serviço
+                var coworkingAddresses = await _context.CoworkingAddresses
+                    .Where(a => a.CoworkingId == coworkingEntity.Id)
+                    .Select(a => a.Id)
+                    .ToListAsync();
+
+                // Verificar se há contratos ativos para esses endereços
+                var hasActiveContracts = await _context.Contracts
+                    .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId) 
+                        && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
+
+                if (hasActiveContracts)
+                {
+                    TempData["Error"] = "Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.";
+                    return RedirectToAction("Services");
+                }
+
                 var serviceName = partnerService.Service.Name;
 
-                _context.PartnerServices.Remove(partnerService);
+                // Criar solicitação de remoção ao invés de remover diretamente
+                partnerService.RemovalRequestStatus = Domain.Core.Enums.RemovalRequestStatus.Pending;
+                partnerService.RemovalRequestedAt = DateTimeHelper.GetBrazilianTime();
+                partnerService.RemovalRejectionReason = null;
+                partnerService.RemovalReviewedAt = null;
+                partnerService.RemovalReviewedBy = null;
+                partnerService.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = $"Serviço '{serviceName}' removido com sucesso!";
+                // Registrar no audit log
+                await _auditService.LogActionAsync(userId, "ServiceRemovalRequested", "PartnerService", partnerService.Id, 
+                    null, $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}");
+
+                TempData["Success"] = $"Solicitação de remoção do serviço '{serviceName}' enviada com sucesso! Aguardando aprovação do administrador.";
                 return RedirectToAction("Services");
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao remover serviço: {ex.Message}";
+                TempData["Error"] = $"Erro ao solicitar remoção do serviço: {ex.Message}";
                 return RedirectToAction("Services");
             }
         }

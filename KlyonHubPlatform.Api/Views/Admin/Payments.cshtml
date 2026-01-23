@@ -87,8 +87,17 @@
                             <tr>
                                 <td><code>@payment.ExternalPaymentId.Substring(0, Math.Min(8, payment.ExternalPaymentId.Length))</code></td>
                                 <td>
-                                    <strong>@(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")</strong><br>
-                                    <small class="text-muted">@payment.Subscription?.Contract?.Client?.ContactEmail</small>
+                                    @{
+                                        var client = payment.Subscription?.Contract?.Client;
+                                        var clientName = client?.NomeFantasia 
+                                            ?? client?.RazaoSocial 
+                                            ?? client?.ContactName 
+                                            ?? client?.User?.FullName 
+                                            ?? (!string.IsNullOrEmpty(client?.ContactEmail) ? client.ContactEmail.Split('@')[0] : null)
+                                            ?? "N/A";
+                                    }
+                                    <strong>@clientName</strong><br>
+                                    <small class="text-muted">@(client?.ContactEmail ?? client?.User?.Email ?? "-")</small>
                                 </td>
                                 <td>
                                     <strong>@payment.Subscription?.Contract?.ContractNumber</strong><br>
@@ -223,8 +232,17 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <strong>Cliente:</strong> @(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")<br>
-                            <strong>Email:</strong> @payment.Subscription?.Contract?.Client?.ContactEmail<br>
+                            @{
+                                var clientModal = payment.Subscription?.Contract?.Client;
+                                var clientNameModal = clientModal?.NomeFantasia 
+                                    ?? clientModal?.RazaoSocial 
+                                    ?? clientModal?.ContactName 
+                                    ?? clientModal?.User?.FullName 
+                                    ?? (!string.IsNullOrEmpty(clientModal?.ContactEmail) ? clientModal.ContactEmail.Split('@')[0] : null)
+                                    ?? "N/A";
+                            }
+                            <strong>Cliente:</strong> @clientNameModal<br>
+                            <strong>Email:</strong> @(clientModal?.ContactEmail ?? clientModal?.User?.Email ?? "-")<br>
                             <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
                             <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")
                         </div>
@@ -333,10 +351,19 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <strong>Cliente:</strong> @(payment.Subscription?.Contract?.Client?.NomeFantasia ?? payment.Subscription?.Contract?.Client?.RazaoSocial ?? "N/A")<br>
-                        <strong>Email:</strong> @payment.Subscription?.Contract?.Client?.ContactEmail<br>
-                        <strong>Telefone:</strong> @payment.Subscription?.Contract?.Client?.ContactPhone<br>
-                        <strong>CNPJ/CPF:</strong> @(payment.Subscription?.Contract?.Client?.CNPJ ?? payment.Subscription?.Contract?.Client?.CPF ?? "N/A")<br>
+                        @{
+                            var clientHistory = payment.Subscription?.Contract?.Client;
+                            var clientNameHistory = clientHistory?.NomeFantasia 
+                                ?? clientHistory?.RazaoSocial 
+                                ?? clientHistory?.ContactName 
+                                ?? clientHistory?.User?.FullName 
+                                ?? (!string.IsNullOrEmpty(clientHistory?.ContactEmail) ? clientHistory.ContactEmail.Split('@')[0] : null)
+                                ?? "N/A";
+                        }
+                        <strong>Cliente:</strong> @clientNameHistory<br>
+                        <strong>Email:</strong> @(clientHistory?.ContactEmail ?? clientHistory?.User?.Email ?? "-")<br>
+                        <strong>Telefone:</strong> @(clientHistory?.ContactPhone ?? "-")<br>
+                        <strong>CNPJ/CPF:</strong> @(clientHistory?.CNPJ ?? clientHistory?.CPF ?? "N/A")<br>
                         <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
                         <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")<br>
                         <strong>Status Atual:</strong> 
@@ -375,7 +402,7 @@
                         }
                     </div>
                     <hr>
-                    <div id="historyContent_@payment.Id">
+                    <div id="historyContent_@payment.Id" style="max-height: 500px; overflow-y: auto;">
                         <div class="text-center">
                             <div class="spinner-border" role="status">
                                 <span class="visually-hidden">Carregando...</span>
@@ -401,16 +428,18 @@
             });
         });
 
-        function loadPaymentHistory(paymentId) {
+        function loadPaymentHistory(paymentId, page = 1) {
             const contentDiv = document.getElementById('historyContent_' + paymentId);
-            fetch('@Url.Action("GetPaymentHistory", "Admin")?paymentId=' + paymentId)
+            contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+            
+            fetch('@Url.Action("GetPaymentHistory", "Admin")?paymentId=' + paymentId + '&page=' + page + '&pageSize=10')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.length === 0) {
+                    if (!data.items || data.items.length === 0) {
                         contentDiv.innerHTML = '<p class="text-muted text-center">Nenhum histórico encontrado.</p>';
                     } else {
-                        let html = '<div class="list-group">';
-                        data.forEach(item => {
+                        let html = '<div class="list-group mb-3">';
+                        data.items.forEach(item => {
                             html += '<div class="list-group-item">';
                             html += '<div class="d-flex w-100 justify-content-between">';
                             html += '<h6 class="mb-1">';
@@ -435,10 +464,70 @@
                             html += '</div>';
                         });
                         html += '</div>';
+                        
+                        // Adicionar controles de paginação
+                        if (data.pagination && data.pagination.totalPages > 1) {
+                            html += '<nav aria-label="Paginação do histórico">';
+                            html += '<ul class="pagination justify-content-center">';
+                            
+                            // Botão Anterior
+                            if (data.pagination.currentPage > 1) {
+                                html += '<li class="page-item">';
+                                html += '<a class="page-link" href="#" onclick="event.preventDefault(); loadPaymentHistory(' + paymentId + ', ' + (data.pagination.currentPage - 1) + '); return false;">';
+                                html += '<i class="bi bi-chevron-left"></i> Anterior';
+                                html += '</a>';
+                                html += '</li>';
+                            }
+                            
+                            // Números das páginas
+                            const startPage = Math.max(1, data.pagination.currentPage - 2);
+                            const endPage = Math.min(data.pagination.totalPages, data.pagination.currentPage + 2);
+                            
+                            if (startPage > 1) {
+                                html += '<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault(); loadPaymentHistory(' + paymentId + ', 1); return false;">1</a></li>';
+                                if (startPage > 2) {
+                                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                                }
+                            }
+                            
+                            for (let i = startPage; i <= endPage; i++) {
+                                html += '<li class="page-item ' + (i === data.pagination.currentPage ? 'active' : '') + '">';
+                                html += '<a class="page-link" href="#" onclick="event.preventDefault(); loadPaymentHistory(' + paymentId + ', ' + i + '); return false;">' + i + '</a>';
+                                html += '</li>';
+                            }
+                            
+                            if (endPage < data.pagination.totalPages) {
+                                if (endPage < data.pagination.totalPages - 1) {
+                                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                                }
+                                html += '<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault(); loadPaymentHistory(' + paymentId + ', ' + data.pagination.totalPages + '); return false;">' + data.pagination.totalPages + '</a></li>';
+                            }
+                            
+                            // Botão Próximo
+                            if (data.pagination.currentPage < data.pagination.totalPages) {
+                                html += '<li class="page-item">';
+                                html += '<a class="page-link" href="#" onclick="event.preventDefault(); loadPaymentHistory(' + paymentId + ', ' + (data.pagination.currentPage + 1) + '); return false;">';
+                                html += 'Próxima <i class="bi bi-chevron-right"></i>';
+                                html += '</a>';
+                                html += '</li>';
+                            }
+                            
+                            html += '</ul>';
+                            html += '</nav>';
+                            
+                            // Informação de paginação
+                            html += '<div class="text-center text-muted small mt-2">';
+                            html += 'Mostrando ' + ((data.pagination.currentPage - 1) * data.pagination.pageSize + 1) + ' a ';
+                            html += Math.min(data.pagination.currentPage * data.pagination.pageSize, data.pagination.totalItems) + ' de ';
+                            html += data.pagination.totalItems + ' registro(s)';
+                            html += '</div>';
+                        }
+                        
                         contentDiv.innerHTML = html;
                     }
                 })
                 .catch(error => {
+                    console.error('Erro ao carregar histórico:', error);
                     contentDiv.innerHTML = '<p class="text-danger text-center">Erro ao carregar histórico.</p>';
                 });
         }

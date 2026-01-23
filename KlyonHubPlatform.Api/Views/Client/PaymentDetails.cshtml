@@ -54,6 +54,14 @@
                         <dt class="col-sm-4">Número do Contrato:</dt>
                         <dd class="col-sm-8"><strong>@contract.ContractNumber</strong></dd>
 
+                        @if (contract.CoworkingAddress?.Coworking != null)
+                        {
+                            <dt class="col-sm-4">Parceiro/Coworking:</dt>
+                            <dd class="col-sm-8">
+                                <strong>@contract.CoworkingAddress.Coworking.Name</strong>
+                            </dd>
+                        }
+
                         <dt class="col-sm-4">Endereço:</dt>
                         <dd class="col-sm-8">
                             @{
@@ -507,7 +515,7 @@
 
                 <hr>
 
-                <a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-secondary w-100">
+                <a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-secondary w-100" id="viewPaymentsLink">
                     <i class="bi bi-list"></i> Ver Cobranças de Endereço Fiscal
                 </a>
             </div>
@@ -537,7 +545,16 @@
                                         }
                                         else if (history.Action == "ReceiptUploaded")
                                         {
-                                            <span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>
+                                            @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
+                                            {
+                                                <button type="button" class="btn btn-sm btn-info me-2" onclick="viewReceipt(@Model.Id, '@history.ActionAt.ToString("dd/MM/yyyy HH:mm")')">
+                                                    <i class="bi bi-upload"></i> Comprovante Enviado
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>
+                                            }
                                         }
                                         else if (history.Action == "ContractCreated")
                                         {
@@ -558,6 +575,42 @@
                             </div>
                         }
                     </div>
+                    
+                    @* Paginação do Histórico *@
+                    @if (ViewBag.HistoryTotalPages != null && (int)ViewBag.HistoryTotalPages > 1)
+                    {
+                        <nav aria-label="Paginação do histórico" class="mt-3">
+                            <ul class="pagination pagination-sm justify-content-center mb-0">
+                                @{
+                                    int currentPage = ViewBag.HistoryCurrentPage ?? 1;
+                                    int totalPages = ViewBag.HistoryTotalPages ?? 1;
+                                    int totalItems = ViewBag.HistoryTotalItems ?? 0;
+                                }
+                                
+                                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                    <a class="page-link" href="@Url.Action("PaymentDetails", "Client", new { id = Model.Id, historyPage = currentPage - 1 })" aria-label="Anterior">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                                
+                                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                                {
+                                    <li class="page-item @(i == currentPage ? "active" : "")">
+                                        <a class="page-link" href="@Url.Action("PaymentDetails", "Client", new { id = Model.Id, historyPage = i })">@i</a>
+                                    </li>
+                                }
+                                
+                                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                    <a class="page-link" href="@Url.Action("PaymentDetails", "Client", new { id = Model.Id, historyPage = currentPage + 1 })" aria-label="Próximo">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            </ul>
+                            <p class="text-center text-muted small mt-2 mb-0">
+                                Mostrando @((currentPage - 1) * 10 + 1) - @(Math.Min(currentPage * 10, totalItems)) de @totalItems itens
+                            </p>
+                        </nav>
+                    }
                 }
                 else
                 {
@@ -1105,6 +1158,8 @@
                         var currentActionsCard = document.querySelector('.col-md-4 .card .card-body');
                         if (newActionsCard && currentActionsCard) {
                             currentActionsCard.innerHTML = newActionsCard.innerHTML;
+                            // Reatachar o event listener do link após atualização
+                            reattachViewPaymentsLink();
                         }
                     })
                     .catch(error => {
@@ -1129,5 +1184,116 @@
                 console.error('Erro:', error);
             });
         });
+
+        // Função para visualizar comprovante
+        function viewReceipt(paymentId, uploadDate) {
+            const receiptUrl = '@Url.Action("DownloadReceipt", "Client")?paymentId=' + paymentId;
+            
+            // Criar modal para visualizar o comprovante
+            const modalHtml = `
+                <div class="modal fade" id="viewReceiptModal" tabindex="-1" aria-labelledby="viewReceiptModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-xl modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="viewReceiptModalLabel">
+                                    <i class="bi bi-file-earmark-image"></i> Comprovante Enviado
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <p class="text-muted mb-3">
+                                    <i class="bi bi-calendar"></i> Enviado em: ${uploadDate}
+                                </p>
+                                <div id="receiptContainer" style="min-height: 500px; max-height: 70vh; overflow: auto;">
+                                    <div class="d-flex justify-content-center align-items-center" style="min-height: 500px;">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <a href="${receiptUrl}" class="btn btn-primary" target="_blank" download>
+                                        <i class="bi bi-download"></i> Baixar Comprovante
+                                    </a>
+                                    <a href="${receiptUrl}" class="btn btn-outline-primary" target="_blank">
+                                        <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remover modal anterior se existir
+            const existingModal = document.getElementById('viewReceiptModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar novo modal ao body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('viewReceiptModal'));
+            modal.show();
+            
+            // Carregar o comprovante após o modal ser exibido
+            const receiptContainer = document.getElementById('receiptContainer');
+            const iframe = document.createElement('iframe');
+            iframe.src = receiptUrl;
+            iframe.style.width = '100%';
+            iframe.style.height = '70vh';
+            iframe.style.border = '1px solid #dee2e6';
+            iframe.style.borderRadius = '4px';
+            iframe.onload = function() {
+                receiptContainer.innerHTML = '';
+                receiptContainer.appendChild(iframe);
+            };
+            iframe.onerror = function() {
+                receiptContainer.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Não foi possível carregar o comprovante. 
+                        <a href="${receiptUrl}" target="_blank" class="alert-link">Clique aqui para tentar abrir diretamente</a>.
+                    </div>
+                `;
+            };
+            
+            // Limpar modal quando fechar
+            document.getElementById('viewReceiptModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+        }
+
+        // Garantir que o link "Ver Cobranças" funcione corretamente
+        document.addEventListener('DOMContentLoaded', function() {
+            const viewPaymentsLink = document.getElementById('viewPaymentsLink');
+            if (viewPaymentsLink) {
+                viewPaymentsLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.location.href = '@Url.Action("MyPayments", "Client")';
+                });
+            }
+        });
+
+        // Reatachar o event listener após atualizações dinâmicas
+        function reattachViewPaymentsLink() {
+            const viewPaymentsLink = document.getElementById('viewPaymentsLink');
+            if (viewPaymentsLink) {
+                // Remover listeners antigos
+                const newLink = viewPaymentsLink.cloneNode(true);
+                viewPaymentsLink.parentNode.replaceChild(newLink, viewPaymentsLink);
+                
+                // Adicionar novo listener
+                newLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.location.href = '@Url.Action("MyPayments", "Client")';
+                });
+            }
+        }
     </script>
 }

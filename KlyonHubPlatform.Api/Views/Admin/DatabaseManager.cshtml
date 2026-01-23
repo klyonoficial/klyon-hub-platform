@@ -156,9 +156,40 @@
 
 <div class="row mt-4">
     <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Limpar Dados de Teste (Teste Ponta a Ponta)</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Limpeza Seletiva</h6>
+                    <p class="mb-2">Esta ação limpa apenas os dados relacionados às seguintes telas para permitir testes ponta a ponta:</p>
+                    <ul class="mb-2">
+                        <li><strong>MyPayments</strong> - Pagamentos e Histórico de Pagamentos</li>
+                        <li><strong>MyContracts</strong> - Contratos, Assinaturas e Documentos</li>
+                        <li><strong>Declarations</strong> - Declarações de Endereço Fiscal</li>
+                        <li><strong>Dashboard Coworking</strong> - Comissões e Transferências</li>
+                        <li><strong>Parceiro/Commissions</strong> - Comissões e Transferências</li>
+                    </ul>
+                    <p class="mb-0"><strong>Serão preservados:</strong> Usuários, Clientes, Coworkings, Endereços, Configurações, Roles, Localidades, Serviços e toda a estrutura do sistema.</p>
+                </div>
+                <form method="post" action="@Url.Action("ClearTestData", "Admin")" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-warning btn-lg" 
+                            onclick="event.preventDefault(); handleClearTestData(this);">
+                        <i class="bi bi-arrow-repeat"></i> Limpar Dados de Teste
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
         <div class="card border-danger">
             <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Limpar Base de Dados (Testes)</h5>
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Limpar Base de Dados Completa (Testes)</h5>
             </div>
             <div class="card-body">
                 <div class="alert alert-warning mb-3">
@@ -176,7 +207,7 @@
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-danger btn-lg" 
                             onclick="event.preventDefault(); handleClearDatabase(this);">
-                        <i class="bi bi-trash-fill"></i> Limpar Base
+                        <i class="bi bi-trash-fill"></i> Limpar Base Completa
                     </button>
                 </form>
             </div>
@@ -450,6 +481,21 @@
             
             if (confirmed) {
                 form.submit();
+            }
+        }
+
+        async function handleClearTestData(button) {
+            const confirmed = await showConfirm(
+                'Você está prestes a limpar dados de teste relacionados a:\n\n- Pagamentos e Histórico de Pagamentos (MyPayments)\n- Contratos, Assinaturas e Documentos (MyContracts)\n- Declarações de Endereço Fiscal (Declarations)\n- Comissões e Transferências (Dashboard Coworking, Parceiro/Commissions)\n\nDados preservados:\n- Usuários e Clientes\n- Coworkings e Endereços\n- Configurações do Sistema\n- Roles, Localidades e Serviços\n\nTem certeza que deseja continuar?',
+                'Confirmar Limpeza de Dados de Teste',
+                'warning'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
             }
         }
 

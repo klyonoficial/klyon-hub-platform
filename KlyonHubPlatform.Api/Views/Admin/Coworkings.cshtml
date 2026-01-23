@@ -156,9 +156,11 @@
                                 </td>
                                 <td>@coworking.CreatedAt.ToString("dd/MM/yyyy")</td>
                                 <td>
-                                    <button class="btn btn-sm btn-info" onclick="viewCoworking(@coworking.Id)" title="Visualizar">
+                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })" 
+                                       class="btn btn-sm btn-info" 
+                                       title="Visualizar">
                                         <i class="bi bi-eye-fill"></i>
-                                    </button>
+                                    </a>
                                     <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
                                        class="btn btn-sm btn-primary" 
                                        title="Gerenciar Serviços e Percentagens">
@@ -300,10 +302,6 @@ function abrirReprovar(coworkingId) {
     if (ta) ta.value = '';
     var modal = new bootstrap.Modal(document.getElementById('modalReprovarLista'));
     modal.show();
-}
-
-function viewCoworking(coworkingId) {
-    window.location.href = '@Url.Action("ViewCoworking", "Admin")?id=' + coworkingId;
 }
 
 function editCoworking(coworkingId) {

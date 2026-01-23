@@ -90,27 +90,38 @@
                                 </a>
                             }
                         </li>
-                        <li class="nav-item dropdown" id="userMenuDropdown">
-                            <span class="nav-link dropdown-toggle" id="userNameLink" style="cursor: pointer;" 
-                                  onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
-                                @User.Identity.Name
-                            </span>
-                            <ul class="dropdown-menu" id="userMenu" style="display: none; margin-top: 0;" 
-                                onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
-                                @if (isClient)
-                                {
-                                    <li><a class="dropdown-item" href="@Url.Action("Profile", "Client")">
-                                        <i class="bi bi-person-badge"></i> Meu Perfil
-                                    </a></li>
-                                }
-                                else if (isCoworking)
-                                {
-                                    <li><a class="dropdown-item" href="@Url.Action("Profile", "Parceiro")">
-                                        <i class="bi bi-person-badge"></i> Meu Perfil
-                                    </a></li>
-                                }
-                            </ul>
-                        </li>
+                        @if (isAdmin)
+                        {
+                            <li class="nav-item">
+                                <span class="nav-link">
+                                    @User.Identity.Name
+                                </span>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item dropdown" id="userMenuDropdown">
+                                <span class="nav-link dropdown-toggle" id="userNameLink" style="cursor: pointer;" 
+                                      onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                    @User.Identity.Name
+                                </span>
+                                <ul class="dropdown-menu" id="userMenu" style="display: none; margin-top: 0;" 
+                                    onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                    @if (isClient)
+                                    {
+                                        <li><a class="dropdown-item" href="@Url.Action("Profile", "Client")">
+                                            <i class="bi bi-person-badge"></i> Meu Perfil
+                                        </a></li>
+                                    }
+                                    else if (isCoworking)
+                                    {
+                                        <li><a class="dropdown-item" href="@Url.Action("Profile", "Parceiro")">
+                                            <i class="bi bi-person-badge"></i> Meu Perfil
+                                        </a></li>
+                                    }
+                                </ul>
+                            </li>
+                        }
                         <li class="nav-item">
                             <form method="post" action="@Url.Action("Logout", "Auth")" class="d-inline">
                                 <button type="submit" class="btn btn-link nav-link text-white">
@@ -153,6 +164,9 @@
                             </a>
                             <a class="nav-link" href="@Url.Action("Coworkings", "Admin")">
                                 <i class="bi bi-building"></i> Coworkings Parceiros
+                            </a>
+                            <a class="nav-link" href="@Url.Action("ServiceRemovalRequests", "Admin")">
+                                <i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção
                             </a>
                             <a class="nav-link" href="@Url.Action("Contracts", "Admin")">
                                 <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
@@ -246,12 +260,7 @@
                                 <ul class="sidebar-submenu" id="financeiroParceiroMenu">
                                     <li>
                                         <a class="nav-link" href="@Url.Action("Commissions", "Parceiro")">
-                                            <i class="bi bi-cash-coin"></i> Comissões
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("Transfers", "Parceiro")">
-                                            <i class="bi bi-arrow-left-right"></i> Repasses
+                                            <i class="bi bi-trophy-fill"></i> Meus Ganhos
                                         </a>
                                     </li>
                                 </ul>

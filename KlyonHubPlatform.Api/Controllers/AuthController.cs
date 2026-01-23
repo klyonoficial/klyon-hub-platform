@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Infra.Data.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -10,11 +13,13 @@ namespace KlyonHubPlatform.Api.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
+        private readonly ApplicationDbContext _context;
 
-        public AuthController(IAuthService authService, IEmailService emailService)
+        public AuthController(IAuthService authService, IEmailService emailService, ApplicationDbContext context)
         {
             _authService = authService;
             _emailService = emailService;
+            _context = context;
         }
 
         [HttpGet]
@@ -96,6 +101,21 @@ namespace KlyonHubPlatform.Api.Controllers
             HttpContext.Session.SetString("UserId", user.Id.ToString());
             HttpContext.Session.SetString("UserEmail", user.Email);
             HttpContext.Session.SetString("UserName", user.FullName);
+
+            // Verificar se precisa alterar senha
+            if (user.MustChangePassword)
+            {
+                // Criar token temporário para redirecionar após alteração de senha
+                var tempToken = Guid.NewGuid().ToString();
+                user.PasswordResetToken = tempToken;
+                user.PasswordResetExpires = DateTime.UtcNow.AddHours(1);
+                await _authService.UpdateUserAsync(user);
+                
+                HttpContext.Session.SetString("MustChangePassword", "true");
+                HttpContext.Session.SetString("ChangePasswordReturnUrl", returnUrl ?? "/Client/Dashboard");
+                
+                return RedirectToAction("ChangePasswordRequired");
+            }
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
@@ -368,6 +388,148 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> AutoLogin(string token, string? redirect = null)
+        {
+            if (string.IsNullOrEmpty(token))
+            {
+                TempData["Error"] = "Token inválido ou expirado.";
+                return RedirectToAction("Login");
+            }
+
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => 
+                    u.PasswordResetToken == token && 
+                    u.PasswordResetExpires.HasValue && 
+                    u.PasswordResetExpires.Value > DateTime.UtcNow);
+
+            if (user == null || !user.IsActive)
+            {
+                TempData["Error"] = "Token inválido ou expirado.";
+                return RedirectToAction("Login");
+            }
+
+            var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
+            var jwtToken = await _authService.GenerateTokenAsync(user, roles);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Name, user.FullName),
+                new Claim("Token", jwtToken)
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+
+            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+
+            HttpContext.Session.SetString("UserId", user.Id.ToString());
+            HttpContext.Session.SetString("UserEmail", user.Email);
+            HttpContext.Session.SetString("UserName", user.FullName);
+
+            // Verificar se precisa alterar senha
+            if (user.MustChangePassword)
+            {
+                HttpContext.Session.SetString("MustChangePassword", "true");
+                if (!string.IsNullOrEmpty(redirect) && Url.IsLocalUrl(redirect))
+                {
+                    HttpContext.Session.SetString("ChangePasswordReturnUrl", redirect);
+                }
+                return RedirectToAction("ChangePasswordRequired");
+            }
+
+            // Limpar token após uso
+            user.PasswordResetToken = null;
+            user.PasswordResetExpires = null;
+            await _context.SaveChangesAsync();
+
+            if (!string.IsNullOrEmpty(redirect) && Url.IsLocalUrl(redirect))
+            {
+                return Redirect(redirect);
+            }
+
+            return RedirectToAction("Services", "Client");
+        }
+
+        [HttpGet]
+        [Authorize]
+        public IActionResult ChangePasswordRequired()
+        {
+            if (HttpContext.Session.GetString("MustChangePassword") != "true")
+            {
+                return RedirectToAction("Services", "Client");
+            }
+            return View();
+        }
+
+        [HttpPost]
+        [Authorize]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePasswordRequired(string currentPassword, string newPassword, string confirmPassword)
+        {
+            if (HttpContext.Session.GetString("MustChangePassword") != "true")
+            {
+                return RedirectToAction("Services", "Client");
+            }
+
+            if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
+            {
+                ViewData["Error"] = "Todos os campos são obrigatórios.";
+                return View();
+            }
+
+            if (newPassword != confirmPassword)
+            {
+                ViewData["Error"] = "As senhas não coincidem.";
+                return View();
+            }
+
+            if (newPassword.Length < 6)
+            {
+                ViewData["Error"] = "A senha deve ter no mínimo 6 caracteres.";
+                return View();
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            
+            if (user == null)
+            {
+                ViewData["Error"] = "Usuário não encontrado.";
+                return View();
+            }
+
+            // Verificar senha atual
+            if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+            {
+                ViewData["Error"] = "Senha atual incorreta.";
+                return View();
+            }
+
+            // Atualizar senha
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            user.MustChangePassword = false;
+            user.PasswordResetToken = null;
+            user.PasswordResetExpires = null;
+            await _context.SaveChangesAsync();
+
+            HttpContext.Session.Remove("MustChangePassword");
+            var returnUrl = HttpContext.Session.GetString("ChangePasswordReturnUrl") ?? "/Client/Services";
+            HttpContext.Session.Remove("ChangePasswordReturnUrl");
+
+            TempData["Success"] = "Senha alterada com sucesso!";
+            return Redirect(returnUrl);
         }
     }
 }
