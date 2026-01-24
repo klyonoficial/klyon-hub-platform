@@ -282,6 +282,50 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Log error silently
             }
             
+            try
+            {
+                // 4. Coworkings com alterações recentes aguardando análise
+                var recentUpdateThreshold = DateTime.UtcNow.AddHours(-24); // Últimas 24 horas
+                
+                var coworkingsWithRecentUpdates = await _context.Coworkings
+                    .Include(c => c.User)
+                    .Where(c => c.ApprovalStatus == CoworkingApprovalStatus.UnderReview &&
+                               c.SubmittedAt.HasValue &&
+                               c.SubmittedAt.Value >= recentUpdateThreshold)
+                    .OrderByDescending(c => c.SubmittedAt)
+                    .ToListAsync();
+                
+                if (coworkingsWithRecentUpdates.Any())
+                {
+                    var coworkingNames = coworkingsWithRecentUpdates
+                        .Take(3)
+                        .Select(c => c.Name)
+                        .ToList();
+                    
+                    var moreCount = coworkingsWithRecentUpdates.Count - coworkingNames.Count;
+                    var message = $"{coworkingsWithRecentUpdates.Count} parceiro(s) fizeram alterações recentes e estão aguardando análise: {string.Join(", ", coworkingNames)}";
+                    if (moreCount > 0)
+                    {
+                        message += $" e mais {moreCount} outro(s)";
+                    }
+                    
+                    alerts.Add(new
+                    {
+                        Type = "warning",
+                        Icon = "bi-bell-fill",
+                        Title = "Alterações de Parceiros Aguardando Análise",
+                        Message = message,
+                        Count = coworkingsWithRecentUpdates.Count,
+                        ActionUrl = Url.Action("Coworkings", "Admin", new { approvalStatus = "UnderReview" }),
+                        ActionText = "Ver Parceiros em Análise"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error silently
+            }
+            
             ViewBag.AdminAlerts = alerts;
 
             return View();
@@ -722,7 +766,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ViewCoworking(int id)
+        public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 4)
         {
             var coworking = await _context.Coworkings
                 .Include(c => c.User)
@@ -769,6 +813,24 @@ namespace KlyonHubPlatform.Api.Controllers
             var partnerServices = await partnerServicesQuery.ToListAsync();
             ViewBag.PartnerServices = partnerServices;
             ViewBag.ShowCoworkingMenus = showCoworkingMenus;
+
+            // Configurar paginação para documentos obrigatórios
+            var requiredDocTypes = new[]
+            {
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+            };
+
+            var totalDocuments = requiredDocTypes.Length;
+            var totalPages = (int)Math.Ceiling(totalDocuments / (double)pageSize);
+            page = Math.Max(1, Math.Min(page, totalPages));
+
+            ViewBag.DocumentsPage = page;
+            ViewBag.DocumentsTotalPages = totalPages;
+            ViewBag.DocumentsPageSize = pageSize;
+            ViewBag.DocumentsTotalItems = totalDocuments;
 
             return View(coworking);
         }
@@ -838,7 +900,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveDocument(int documentId)
+        public async Task<IActionResult> ApproveDocument(int documentId, int? page = null, int? pageSize = null)
         {
             var doc = await _context.CoworkingDocuments.FindAsync(documentId);
             if (doc == null) { TempData["Error"] = "Documento não encontrado."; return RedirectToAction("Coworkings"); }
@@ -849,14 +911,17 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             await _auditService.LogActionAsync(userId, "DocumentApproved", "CoworkingDocument", documentId, "{\"Status\":\"Pending\"}", "{\"Status\":\"Approved\"}");
             TempData["Success"] = "Documento aprovado.";
-            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
+            var redirectParams = new { id = doc.CoworkingId };
+            if (page.HasValue) redirectParams = new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 };
+            return RedirectToAction("ViewCoworking", redirectParams);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectDocument(int documentId, string rejectionReason)
+        public async Task<IActionResult> RejectDocument(int documentId, string rejectionReason, int? page = null, int? pageSize = null)
         {
-            if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe o motivo da rejeição."; return RedirectToAction("ViewCoworking", new { id = (await _context.CoworkingDocuments.FindAsync(documentId))?.CoworkingId ?? 0 }); }
+            var docForId = await _context.CoworkingDocuments.FindAsync(documentId);
+            if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe o motivo da rejeição."; return RedirectToAction("ViewCoworking", new { id = docForId?.CoworkingId ?? 0, page = page ?? 1, pageSize = pageSize ?? 4 }); }
             var doc = await _context.CoworkingDocuments.FindAsync(documentId);
             if (doc == null) { TempData["Error"] = "Documento não encontrado."; return RedirectToAction("Coworkings"); }
             var oldStatus = doc.Status.ToString();
@@ -867,7 +932,9 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             await _auditService.LogActionAsync(userId, "DocumentRejected", "CoworkingDocument", documentId, "{\"Status\":\"" + oldStatus + "\"}", "{\"Status\":\"Rejected\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(doc.RejectionReason) + "}");
             TempData["Success"] = "Documento rejeitado. O coworking verá o motivo no perfil.";
-            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
+            var redirectParams = new { id = doc.CoworkingId };
+            if (page.HasValue) redirectParams = new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 };
+            return RedirectToAction("ViewCoworking", redirectParams);
         }
 
         [HttpPost]
@@ -1485,6 +1552,15 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> ReportCoworkingRevenueDetail(int id, DateTime? dateFrom, DateTime? dateTo)
         {
             var dto = await _reportService.GetCoworkingRevenueDetailAsync(id, dateFrom, dateTo);
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            return View(dto);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportCoworkingProductDetail(int id, string productType, DateTime? dateFrom, DateTime? dateTo)
+        {
+            var dto = await _reportService.GetCoworkingProductDetailAsync(id, productType, dateFrom, dateTo);
             ViewBag.DateFrom = dateFrom;
             ViewBag.DateTo = dateTo;
             return View(dto);
@@ -4299,10 +4375,61 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         /// <summary>
+        /// Endpoint AJAX para buscar clientes com autocomplete e paginação
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SearchClients(string term = "", int page = 1, int pageSize = 10)
+        {
+            var query = _context.Clients
+                .Include(c => c.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                var termLower = term.ToLower();
+                query = query.Where(c =>
+                    (c.RazaoSocial != null && c.RazaoSocial.ToLower().Contains(termLower)) ||
+                    (c.NomeFantasia != null && c.NomeFantasia.ToLower().Contains(termLower)) ||
+                    (c.ContactName != null && c.ContactName.ToLower().Contains(termLower)) ||
+                    (c.CNPJ != null && c.CNPJ.Contains(term)) ||
+                    (c.CPF != null && c.CPF.Contains(term)) ||
+                    (c.ContactEmail != null && c.ContactEmail.ToLower().Contains(termLower))
+                );
+            }
+
+            var totalItems = await query.CountAsync();
+            var clients = await query
+                .OrderBy(c => c.RazaoSocial ?? c.NomeFantasia ?? c.ContactName ?? "")
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var results = clients.Select(c => new
+            {
+                id = c.Id,
+                text = $"{c.RazaoSocial ?? c.NomeFantasia ?? c.ContactName ?? "Sem nome"} - {c.CNPJ ?? c.CPF ?? "Sem documento"}",
+                razaoSocial = c.RazaoSocial,
+                nomeFantasia = c.NomeFantasia,
+                contactName = c.ContactName,
+                cnpj = c.CNPJ,
+                cpf = c.CPF
+            }).ToList();
+
+            return Json(new
+            {
+                results = results,
+                pagination = new
+                {
+                    more = (page * pageSize) < totalItems
+                }
+            });
+        }
+
+        /// <summary>
         /// Lista comissões pendentes de emissão de NF de comissão
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20, int? coworkingId = null)
+        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, int? clientId = null)
         {
             var query = _context.Commissions
                 .Include(c => c.Payment)
@@ -4311,9 +4438,16 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             .ThenInclude(ct => ct.CoworkingAddress)
                                 .ThenInclude(ca => ca.Location)
                 .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.Client)
+                .Include(c => c.Payment)
                     .ThenInclude(p => p.Reservation)
                         .ThenInclude(r => r.CoworkingAddress)
                             .ThenInclude(ca => ca.Location)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
                 .Include(c => c.Coworking)
                 .Where(c => !_context.FiscalNotes.Any(fn => 
                     (fn.PaymentId == c.PaymentId && fn.Type == "Intermediacao") ||
@@ -4324,6 +4458,14 @@ CREATE TABLE IF NOT EXISTS Reservations (
             if (coworkingId.HasValue)
             {
                 query = query.Where(c => c.CoworkingId == coworkingId.Value);
+            }
+
+            if (clientId.HasValue)
+            {
+                query = query.Where(c => 
+                    (c.Payment.Subscription != null && c.Payment.Subscription.Contract != null && c.Payment.Subscription.Contract.ClientId == clientId.Value) ||
+                    (c.Payment.Reservation != null && c.Payment.Reservation.ClientId == clientId.Value)
+                );
             }
 
             var totalItems = await query.CountAsync();
@@ -4338,11 +4480,21 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 .ToListAsync();
 
             ViewBag.CoworkingId = coworkingId;
+            ViewBag.ClientId = clientId;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+
+            // Carregar cliente selecionado para exibir no autocomplete
+            if (clientId.HasValue)
+            {
+                var selectedClient = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == clientId.Value);
+                ViewBag.SelectedClient = selectedClient;
+            }
 
             return View(commissions);
         }

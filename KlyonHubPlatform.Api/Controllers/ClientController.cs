@@ -2742,23 +2742,24 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("RegisterClient");
             }
 
+            // Clientes visualizam apenas notas fiscais de tipo "Intermediação" (serviços que pagaram)
             var query = _context.FiscalNotes
                 .Include(fn => fn.Client)
                     .ThenInclude(c => c.User)
                 .Include(fn => fn.Coworking)
                 .Include(fn => fn.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
                 .Include(fn => fn.Contract)
-                .Where(fn => fn.ClientId == client.Id)
+                    .ThenInclude(c => c.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(fn => fn.Payment)
+                .Where(fn => fn.ClientId == client.Id && fn.Type == "Intermediacao")
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(status))
             {
                 query = query.Where(fn => fn.Status == status);
-            }
-
-            if (!string.IsNullOrEmpty(type))
-            {
-                query = query.Where(fn => fn.Type == type);
             }
 
             var totalItems = await query.CountAsync();
@@ -2785,49 +2786,9 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-            if (client == null)
-            {
-                return RedirectToAction("RegisterClient");
-            }
-
-            var query = _context.Commissions
-                .Include(c => c.Payment)
-                    .ThenInclude(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(ct => ct.CoworkingAddress)
-                                .ThenInclude(ca => ca.Location)
-                .Include(c => c.Payment)
-                    .ThenInclude(p => p.Reservation)
-                        .ThenInclude(r => r.CoworkingAddress)
-                            .ThenInclude(ca => ca.Location)
-                .Include(c => c.Coworking)
-                .Where(c => (c.Payment.Subscription != null && c.Payment.Subscription.Contract.ClientId == client.Id) ||
-                           (c.Payment.Reservation != null && c.Payment.Reservation.ClientId == client.Id))
-                .Where(c => !_context.FiscalNotes.Any(fn => 
-                    (fn.PaymentId == c.PaymentId && fn.Type == "Intermediacao") ||
-                    (fn.CommissionAmount == c.Amount && fn.CoworkingId == c.CoworkingId && fn.Type == "Intermediacao")
-                ))
-                .AsQueryable();
-
-            var totalItems = await query.CountAsync();
-            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            if (totalPages == 0) totalPages = 1;
-            if (page > totalPages) page = totalPages;
-
-            var commissions = await query
-                .OrderByDescending(c => c.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            ViewBag.CurrentPage = page;
-            ViewBag.TotalPages = totalPages;
-            ViewBag.TotalItems = totalItems;
-            ViewBag.PageSize = pageSize;
-
-            return View(commissions);
+            // Clientes não emitem notas fiscais de comissão, apenas visualizam as notas dos serviços que pagaram
+            // Redirecionar para a página de visualização de notas fiscais
+            return RedirectToAction("FiscalNotes");
         }
 
         [HttpGet]

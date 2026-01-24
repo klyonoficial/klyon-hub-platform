@@ -44,6 +44,19 @@
                     }
                 </select>
             </div>
+            <div class="col-md-4">
+                <label for="clientId" class="form-label">Cliente</label>
+                <select class="form-select" id="clientId" name="clientId" style="width: 100%;">
+                    <option value="">Todos</option>
+                    @if (ViewBag.SelectedClient != null)
+                    {
+                        var selectedClient = ViewBag.SelectedClient as KlyonHubPlatform.Domain.Entities.Client;
+                        <option value="@selectedClient.Id" selected>
+                            @(selectedClient.RazaoSocial ?? selectedClient.NomeFantasia ?? selectedClient.ContactName ?? "Sem nome") - @(selectedClient.CNPJ ?? selectedClient.CPF ?? "Sem documento")
+                        </option>
+                    }
+                </select>
+            </div>
             <div class="col-md-4 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> Filtrar
@@ -164,7 +177,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId })">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
                                     Anterior
                                 </a>
                             </li>
@@ -173,7 +186,7 @@
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId })">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
                                     @i
                                 </a>
                             </li>
@@ -182,7 +195,7 @@
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId })">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
                                     Próximo
                                 </a>
                             </li>
@@ -199,3 +212,51 @@
         }
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Inicializar Select2 com AJAX para busca de clientes
+            $('#clientId').select2({
+                theme: 'bootstrap-5',
+                language: {
+                    noResults: function() {
+                        return "Nenhum cliente encontrado";
+                    },
+                    searching: function() {
+                        return "Buscando...";
+                    },
+                    loadingMore: function() {
+                        return "Carregando mais resultados...";
+                    }
+                },
+                placeholder: 'Digite para buscar um cliente...',
+                allowClear: true,
+                ajax: {
+                    url: '@Url.Action("SearchClients", "Admin")',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            term: params.term || '',
+                            page: params.page || 1,
+                            pageSize: 10
+                        };
+                    },
+                    processResults: function(data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.results,
+                            pagination: {
+                                more: data.pagination.more
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 0,
+                width: '100%'
+            });
+        });
+    </script>
+}

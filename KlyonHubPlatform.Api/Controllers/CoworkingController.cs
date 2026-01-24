@@ -1727,6 +1727,20 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 coworkingEntity.UpdatedAt = DateTime.UtcNow;
 
+                // Determinar qual seção foi alterada para a mensagem de notificação
+                string changeReason = activeTab switch
+                {
+                    "basic" => "Dados básicos atualizados",
+                    "contact" => "Dados de contato atualizados",
+                    "address" => "Endereço atualizado",
+                    "bank" => "Dados bancários atualizados",
+                    "social" => "Redes sociais atualizadas",
+                    _ => "Perfil atualizado"
+                };
+
+                // Retornar para análise se o cadastro estava aprovado
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, changeReason);
+
                 await _coworkingService.UpdateAsync(coworkingEntity);
 
                 // Validar se há horários de funcionamento configurados (obrigatório apenas se EnableCoworkingMenus estiver habilitado)
@@ -3505,11 +3519,20 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
+            // Buscar comissões para calcular valor líquido
+            var paymentIds = payments.Select(p => p.Id).ToList();
+            var commissions = await _context.Commissions
+                .Where(c => paymentIds.Contains(c.PaymentId))
+                .ToListAsync();
+
+            var commissionDict = commissions.ToDictionary(c => c.PaymentId, c => c);
+
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             ViewBag.CoworkingId = coworkingEntity.Id;
+            ViewBag.CommissionDict = commissionDict;
 
             return View(payments);
         }
@@ -3600,7 +3623,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("ServiceFiscalNotes");
                 }
 
-                // Criar registro de NF
+                // Calcular valor líquido (valor total - comissão)
+                var commission = await _context.Commissions
+                    .FirstOrDefaultAsync(c => c.PaymentId == payment.Id);
+                
+                decimal netAmount = payment.Amount;
+                if (commission != null)
+                {
+                    netAmount = payment.Amount - commission.Amount;
+                }
+
+                // Criar registro de NF com valor líquido
                 var fiscalNote = new FiscalNote
                 {
                     Type = "Servico",
@@ -3609,8 +3642,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
                     ContractId = payment.Subscription?.ContractId,
                     ReservationId = payment.ReservationId,
-                    Amount = payment.Amount,
-                    ServiceAmount = payment.Amount,
+                    Amount = netAmount, // Valor líquido (sem comissão)
+                    ServiceAmount = netAmount,
                     IssueDate = DateTime.UtcNow,
                     Status = "Pendente",
                     CreatedAt = DateTime.UtcNow
@@ -3627,6 +3660,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _context.SaveChangesAsync();
 
                     TempData["Success"] = $"NF de serviço emitida com sucesso! Chave de acesso: {emittedNote.AccessKey}";
+                    return RedirectToAction("ListServiceFiscalNotes");
                 }
                 catch (Exception ex)
                 {
@@ -3642,6 +3676,61 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData["Error"] = $"Erro ao processar emissão de NF: {ex.Message}";
                 return RedirectToAction("ServiceFiscalNotes");
             }
+        }
+
+        /// <summary>
+        /// Lista notas fiscais de serviço emitidas pelo parceiro
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            // Buscar notas fiscais de serviço emitidas por este coworking
+            var query = _context.FiscalNotes
+                .Include(fn => fn.Payment)
+                .Include(fn => fn.Client)
+                    .ThenInclude(c => c.User)
+                .Include(fn => fn.Contract)
+                    .ThenInclude(c => c.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(fn => fn.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico")
+                .AsQueryable();
+
+            // Aplicar filtros
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(fn => fn.Status == status);
+            }
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var fiscalNotes = await query
+                .OrderByDescending(fn => fn.IssueDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Status = status;
+
+            return View(fiscalNotes);
         }
 
         /// <summary>

@@ -11,6 +11,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<ClientCreditStatementDto> GetClientCreditStatementAsync(int clientId, DateTime? dateFrom = null, DateTime? dateTo = null);
         Task<List<CoworkingRevenueReportDto>> GetCoworkingRevenueReportAsync();
         Task<CoworkingRevenueDetailDto> GetCoworkingRevenueDetailAsync(int coworkingId, DateTime? dateFrom = null, DateTime? dateTo = null);
+        Task<CoworkingProductDetailDto> GetCoworkingProductDetailAsync(int coworkingId, string productType, DateTime? dateFrom = null, DateTime? dateTo = null);
     }
 
     /// <summary>Extrato de créditos do cliente: compras (entrada) e reservas (saída) em ordem cronológica.</summary>
@@ -97,13 +98,22 @@ namespace KlyonHubPlatform.Application.Interfaces
         public decimal TotalValue { get; set; }
     }
 
-    /// <summary>Relatório de receita por coworking (reservas de salas).</summary>
+    /// <summary>Relatório de receita por coworking com produtos.</summary>
     public class CoworkingRevenueReportDto
     {
         public int CoworkingId { get; set; }
         public string CoworkingName { get; set; } = string.Empty;
         public decimal TotalRevenue { get; set; }
-        public int ReservationCount { get; set; }
+        public List<CoworkingProductRevenueDto> Products { get; set; } = new();
+    }
+
+    /// <summary>Receita por produto dentro de um coworking.</summary>
+    public class CoworkingProductRevenueDto
+    {
+        public string ProductType { get; set; } = string.Empty; // "EnderecoFiscal", "AluguelSalas", "CertificadoDigitais"
+        public string ProductDisplayName { get; set; } = string.Empty; // "Endereço Fiscal", "Aluguel de Salas", etc.
+        public decimal TotalRevenue { get; set; }
+        public int TransactionCount { get; set; }
         public decimal CommissionPercentage { get; set; }
     }
 
@@ -114,6 +124,33 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string CoworkingName { get; set; } = string.Empty;
         public List<CoworkingReservationDetailRowDto> Reservations { get; set; } = new();
         public decimal TotalRevenue { get; set; }
+    }
+
+    /// <summary>Detalhe de receita por produto dentro de um coworking.</summary>
+    public class CoworkingProductDetailDto
+    {
+        public int CoworkingId { get; set; }
+        public string CoworkingName { get; set; } = string.Empty;
+        public string ProductType { get; set; } = string.Empty;
+        public string ProductDisplayName { get; set; } = string.Empty;
+        public decimal TotalRevenue { get; set; }
+        public decimal CommissionPercentage { get; set; }
+        public List<ProductTransactionDetailDto> Transactions { get; set; } = new();
+    }
+
+    /// <summary>Detalhe de uma transação de produto (pagamento individual).</summary>
+    public class ProductTransactionDetailDto
+    {
+        public int PaymentId { get; set; }
+        public DateTime Date { get; set; }
+        public decimal Amount { get; set; }
+        public string ClientName { get; set; } = string.Empty;
+        public int? ClientId { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? AdditionalInfo { get; set; } // Ex: tipo de sala, localização, etc.
+        public int? ReservationId { get; set; }
+        public int? ContractId { get; set; }
     }
 
     public class CoworkingReservationDetailRowDto

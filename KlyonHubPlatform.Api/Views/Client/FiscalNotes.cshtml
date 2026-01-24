@@ -6,7 +6,10 @@
 @model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-receipt-cutoff"></i> Notas Fiscais</h2>
+    <div>
+        <h2><i class="bi bi-receipt-cutoff"></i> Notas Fiscais</h2>
+        <p class="text-muted mb-0">Visualize as notas fiscais dos serviços que você pagou</p>
+    </div>
 </div>
 
 @if (TempData["Success"] != null)
@@ -39,14 +42,6 @@
                     <option value="Erro" selected="@(ViewBag.Status == "Erro")">Erro</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Tipo</label>
-                <select class="form-select" name="type" onchange="this.form.submit()">
-                    <option value="">Todos</option>
-                    <option value="Intermediacao" selected="@(ViewBag.Type == "Intermediacao")">Intermediação</option>
-                    <option value="Servico" selected="@(ViewBag.Type == "Servico")">Serviço</option>
-                </select>
-            </div>
             <div class="col-md-6 d-flex align-items-end">
                 <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-outline-secondary">
                     <i class="bi bi-x-circle"></i> Limpar Filtros
@@ -72,10 +67,9 @@
                     <thead class="table-light">
                         <tr>
                             <th>Número</th>
-                            <th>Tipo</th>
+                            <th>Serviço</th>
                             <th>Parceiro</th>
-                            <th>Valor (R$)</th>
-                            <th>Comissão (R$)</th>
+                            <th>Valor Pago (R$)</th>
                             <th>Data Emissão</th>
                             <th>Status</th>
                             <th>Ações</th>
@@ -84,6 +78,20 @@
                     <tbody>
                         @foreach (var note in Model)
                         {
+                            var serviceName = "Serviço";
+                            var location = "";
+                            
+                            if (note.Contract != null && note.Contract.CoworkingAddress != null && note.Contract.CoworkingAddress.Location != null)
+                            {
+                                serviceName = "Endereço Fiscal";
+                                location = $"{note.Contract.CoworkingAddress.Location.City}/{note.Contract.CoworkingAddress.Location.State}";
+                            }
+                            else if (note.Reservation != null && note.Reservation.CoworkingAddress != null && note.Reservation.CoworkingAddress.Location != null)
+                            {
+                                serviceName = "Reserva de Sala";
+                                location = $"{note.Reservation.CoworkingAddress.Location.City}/{note.Reservation.CoworkingAddress.Location.State}";
+                            }
+                            
                             <tr>
                                 <td>
                                     @if (!string.IsNullOrEmpty(note.Number))
@@ -96,9 +104,11 @@
                                     }
                                 </td>
                                 <td>
-                                    <span class="badge bg-@(note.Type == "Intermediacao" ? "primary" : "info")">
-                                        @(note.Type == "Intermediacao" ? "Intermediação" : "Serviço")
-                                    </span>
+                                    <strong>@serviceName</strong>
+                                    @if (!string.IsNullOrEmpty(location))
+                                    {
+                                        <br><small class="text-muted">@location</small>
+                                    }
                                 </td>
                                 <td>
                                     @if (note.Coworking != null)
@@ -110,16 +120,8 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td>R$ @note.Amount.ToString("F2")</td>
                                 <td>
-                                    @if (note.CommissionAmount.HasValue)
-                                    {
-                                        <text>R$ @note.CommissionAmount.Value.ToString("F2")</text>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
+                                    <strong>R$ @note.Amount.ToString("F2")</strong>
                                 </td>
                                 <td>@note.IssueDate.ToString("dd/MM/yyyy")</td>
                                 <td>
@@ -171,7 +173,7 @@
                         @if (currentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage - 1, pageSize, status = ViewBag.Status, type = ViewBag.Type })">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage - 1, pageSize, status = ViewBag.Status })">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
                             </li>
@@ -180,14 +182,14 @@
                         @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                         {
                             <li class="page-item @(i == currentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = i, pageSize, status = ViewBag.Status, type = ViewBag.Type })">@i</a>
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = i, pageSize, status = ViewBag.Status })">@i</a>
                             </li>
                         }
 
                         @if (currentPage < totalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage + 1, pageSize, status = ViewBag.Status, type = ViewBag.Type })">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage + 1, pageSize, status = ViewBag.Status })">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
                             </li>

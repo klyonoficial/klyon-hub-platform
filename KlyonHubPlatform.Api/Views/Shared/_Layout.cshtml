@@ -168,15 +168,32 @@
                             <a class="nav-link" href="@Url.Action("ServiceRemovalRequests", "Admin")">
                                 <i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção
                             </a>
-                            <a class="nav-link" href="@Url.Action("Contracts", "Admin")">
-                                <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
-                            </a>
-                            <a class="nav-link" href="@Url.Action("QuickClientRegistration", "Admin")">
-                                <i class="bi bi-person-plus-fill"></i> Cadastro Rápido de Cliente
-                            </a>
-                            <a class="nav-link" href="@Url.Action("Locations", "Admin")">
-                                <i class="bi bi-geo-alt"></i> Localidades Disponíveis
-                            </a>
+                            @* Menu Endereço Fiscal com submenu *@
+                            <div class="sidebar-dropdown" id="enderecoFiscalAdminDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="enderecoFiscalAdminLink" 
+                                   onclick="toggleSidebarMenu('enderecoFiscalAdmin'); return false;" 
+                                   href="#">
+                                    <i class="bi bi-geo-alt-fill"></i> Endereço Fiscal
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="enderecoFiscalAdminMenu">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Contracts", "Admin")">
+                                            <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("QuickClientRegistration", "Admin")">
+                                            <i class="bi bi-person-plus-fill"></i> Cadastro Rápido de Cliente
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Locations", "Admin")">
+                                            <i class="bi bi-geo-alt"></i> Localidades Disponíveis
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                             <a class="nav-link" href="@Url.Action("Reports", "Admin")">
                                 <i class="bi bi-graph-up"></i> Relatórios Financeiros
                             </a>
@@ -189,12 +206,27 @@
                             <a class="nav-link" href="@Url.Action("SefazConfiguration", "Admin")">
                                 <i class="bi bi-receipt"></i> Configuração SEFAZ
                             </a>
-                            <a class="nav-link" href="@Url.Action("FiscalNotes", "Admin")">
-                                <i class="bi bi-file-earmark-text"></i> Notas Fiscais
-                            </a>
-                            <a class="nav-link" href="@Url.Action("CommissionFiscalNotes", "Admin")">
-                                <i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão
-                            </a>
+                            @* Menu Nota Fiscal com submenu (estilo cliente) *@
+                            <div class="sidebar-dropdown" id="notaFiscalAdminDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="notaFiscalAdminLink" 
+                                   onclick="toggleSidebarMenu('notaFiscalAdmin'); return false;" 
+                                   href="#">
+                                    <i class="bi bi-file-earmark-text"></i> Nota Fiscal
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="notaFiscalAdminMenu">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("FiscalNotes", "Admin")">
+                                            <i class="bi bi-file-earmark-text"></i> Notas Fiscais
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("CommissionFiscalNotes", "Admin")">
+                                            <i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                             <a class="nav-link" href="@Url.Action("DatabaseManager", "Admin")">
                                 <i class="bi bi-database"></i> Gerenciador de BD
                             </a>
@@ -270,6 +302,11 @@
                                         </a>
                                     </li>
                                     <li>
+                                        <a class="nav-link" href="@Url.Action("ListServiceFiscalNotes", "Coworking")">
+                                            <i class="bi bi-file-earmark-text"></i> Notas Fiscais
+                                        </a>
+                                    </li>
+                                    <li>
                                         <a class="nav-link" href="@Url.Action("ServiceFiscalNotes", "Coworking")">
                                             <i class="bi bi-receipt-cutoff"></i> Emitir NF de Serviço
                                         </a>
@@ -300,11 +337,6 @@
                                     <li>
                                         <a class="nav-link" href="@Url.Action("FiscalNotes", "Client")">
                                             <i class="bi bi-file-earmark-text"></i> Notas Fiscais
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("CommissionFiscalNotes", "Client")">
-                                            <i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão
                                         </a>
                                     </li>
                                 </ul>
@@ -518,7 +550,7 @@
             }
             
             // Lista de todos os menus dropdown
-            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'parceiros', 'financeiro'];
+            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'parceiros', 'financeiro'];
             
             menuIds.forEach(function(menuId) {
                 const menu = document.getElementById(menuId + 'Menu');
@@ -858,10 +890,7 @@
         const originalConfirm = window.confirm;
         window.confirm = function(message) {
             console.warn('⚠️ window.confirm() foi chamado. Use showConfirm() para uma experiência melhor e consistente com o sistema.');
-            console.warn('Exemplo: const confirmed = await showConfirm("' + message + '", "Confirmar", "info");');
-            // Retornar false por padrão para evitar comportamentos inesperados
-            // Desenvolvedores devem usar showConfirm() diretamente
-            return false;
+            return originalConfirm(message);
         };
     </script>
     
