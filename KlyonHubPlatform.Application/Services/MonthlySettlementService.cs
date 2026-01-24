@@ -17,7 +17,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ApplicationDbContext _context;
         private readonly ILogger<MonthlySettlementService> _logger;
         private readonly IConfiguration _configuration;
-        private readonly IStorageService _storageService;
+        private readonly StorageServiceFactory _storageServiceFactory;
         private readonly IPagBankService _pagBankService;
         private readonly IFocusNFeService? _focusNFeService;
         private readonly IAuditService? _auditService;
@@ -39,7 +39,7 @@ namespace KlyonHubPlatform.Application.Services
             ApplicationDbContext context,
             ILogger<MonthlySettlementService> logger,
             IConfiguration configuration,
-            IStorageService storageService,
+            StorageServiceFactory storageServiceFactory,
             IPagBankService pagBankService,
             IFocusNFeService? focusNFeService = null,
             IAuditService? auditService = null)
@@ -47,7 +47,7 @@ namespace KlyonHubPlatform.Application.Services
             _context = context;
             _logger = logger;
             _configuration = configuration;
-            _storageService = storageService;
+            _storageServiceFactory = storageServiceFactory;
             _pagBankService = pagBankService;
             _focusNFeService = focusNFeService;
             _auditService = auditService;
@@ -301,10 +301,13 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Este fechamento não está aguardando nota fiscal");
             }
 
+            // Obter o serviço de storage adequado (AWS ou FTP)
+            var storageService = await _storageServiceFactory.GetStorageServiceAsync();
+
             // Upload do PDF
             using var pdfMemoryStream = new MemoryStream();
             await pdfStream.CopyToAsync(pdfMemoryStream);
-            var pdfPath = await _storageService.SaveFileAsync(pdfMemoryStream.ToArray(), pdfFileName, 
+            var pdfPath = await storageService.SaveFileAsync(pdfMemoryStream.ToArray(), pdfFileName, 
                 $"partner-invoices/{coworkingId}/{settlement.ReferenceYear}/{settlement.ReferenceMonth}");
 
             // Upload do XML se fornecido
@@ -314,7 +317,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 using var xmlMemoryStream = new MemoryStream();
                 await xmlStream.CopyToAsync(xmlMemoryStream);
-                xmlPath = await _storageService.SaveFileAsync(xmlMemoryStream.ToArray(), xmlFileName, 
+                xmlPath = await storageService.SaveFileAsync(xmlMemoryStream.ToArray(), xmlFileName, 
                     $"partner-invoices/{coworkingId}/{settlement.ReferenceYear}/{settlement.ReferenceMonth}");
                 
                 // Ler conteúdo do XML para validação
