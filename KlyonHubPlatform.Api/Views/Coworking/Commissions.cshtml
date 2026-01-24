@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Meus Ganhos";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Commission>
@@ -76,7 +77,6 @@
                                 </td>
                                 <td>
                                     @{
-                                        var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
                                         var transfer = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
                                         
                                         if (transfer != null)
@@ -117,8 +117,7 @@
                                 </td>
                                 <td>
                                     @{
-                                        var transferMap2 = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
-                                        var transfer2 = transferMap2 != null && transferMap2.ContainsKey(commission.Id) ? transferMap2[commission.Id] : null;
+                                        var transfer2 = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
                                         
                                         if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer2.ProcessedAt.HasValue)
                                         {
@@ -145,28 +144,25 @@
                 </table>
             </div>
 
-            @{
-                var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
-                var hasEligibleCommission = Model.Any(c =>
+            var hasEligibleCommission = Model.Any(c =>
+            {
+                if (transferMap != null && transferMap.ContainsKey(c.Id) && transferMap[c.Id] != null)
                 {
-                    if (transferMap != null && transferMap.ContainsKey(c.Id) && transferMap[c.Id] != null)
-                    {
-                        var transfer = transferMap[c.Id];
-                        var status = transfer.Status;
-                        // Verifica se o status é diferente de Pendente e Repasse Realizado
-                        return status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
-                               status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed;
-                    }
-                    else if (!c.IsTransferred)
-                    {
-                        // Se não tem transferência associada e não está transferido, está aguardando repasse
-                        return true;
-                    }
-                    return false;
-                });
-            }
-            
-            @if (hasEligibleCommission)
+                    var transfer = transferMap[c.Id];
+                    var status = transfer.Status;
+                    // Verifica se o status é diferente de Pendente e Repasse Realizado
+                    return status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
+                           status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed;
+                }
+                else if (!c.IsTransferred)
+                {
+                    // Se não tem transferência associada e não está transferido, está aguardando repasse
+                    return true;
+                }
+                return false;
+            });
+
+            if (hasEligibleCommission)
             {
                 var totalPendente = Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount);
                 <div class="mt-4 p-3 bg-light rounded">
