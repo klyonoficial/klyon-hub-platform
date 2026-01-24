@@ -144,41 +144,55 @@
                 </table>
             </div>
 
-            var hasEligibleCommission = Model.Any(c =>
             {
-                if (transferMap != null && transferMap.ContainsKey(c.Id) && transferMap[c.Id] != null)
-                {
-                    var transfer = transferMap[c.Id];
-                    var status = transfer.Status;
-                    // Verifica se o status é diferente de Pendente e Repasse Realizado
-                    return status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
-                           status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed;
-                }
-                else if (!c.IsTransferred)
-                {
-                    // Se não tem transferência associada e não está transferido, está aguardando repasse
-                    return true;
-                }
-                return false;
-            });
+                var hasEligibleCommission = false;
 
-            if (hasEligibleCommission)
-            {
-                var totalPendente = Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount);
-                <div class="mt-4 p-3 bg-light rounded">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-1"><i class="bi bi-info-circle text-primary"></i> Você tem ganhos disponíveis para repasse!</h6>
-                            <p class="mb-0 text-muted">Total disponível: <strong class="text-success">R$ @totalPendente.ToString("N2")</strong></p>
+                foreach (var c in Model)
+                {
+                    Transfer? transfer = null;
+
+                    if (transferMap != null && transferMap.ContainsKey(c.Id))
+                    {
+                        transfer = transferMap[c.Id];
+                    }
+
+                    if (transfer != null)
+                    {
+                        var status = transfer.Status;
+                        // Verifica se o status é diferente de Pendente e Repasse Realizado
+                        if (status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
+                            status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed)
+                        {
+                            hasEligibleCommission = true;
+                            break;
+                        }
+                    }
+                    else if (!c.IsTransferred)
+                    {
+                        // Se não tem transferência associada e não está transferido, está aguardando repasse
+                        hasEligibleCommission = true;
+                        break;
+                    }
+                }
+
+                if (hasEligibleCommission)
+                {
+                    var totalPendente = Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount);
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1"><i class="bi bi-info-circle text-primary"></i> Você tem ganhos disponíveis para repasse!</h6>
+                                <p class="mb-0 text-muted">Total disponível: <strong class="text-success">R$ @totalPendente.ToString("N2")</strong></p>
+                            </div>
+                            <form method="post" action="@Url.Action("RequestTransfer", "Coworking")" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-success btn-lg" onclick="event.preventDefault(); handleRequestTransfer(this);">
+                                    <i class="bi bi-arrow-down-circle"></i> Solicitar Repasse Agora
+                                </button>
+                            </form>
                         </div>
-                        <form method="post" action="@Url.Action("RequestTransfer", "Coworking")" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn btn-success btn-lg" onclick="event.preventDefault(); handleRequestTransfer(this);">
-                                <i class="bi bi-arrow-down-circle"></i> Solicitar Repasse Agora
-                            </button>
-                        </form>
                     </div>
-                </div>
+                }
             }
         }
         else

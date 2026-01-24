@@ -269,7 +269,7 @@
             }
         });
 
-        function submitForms() {
+        async function submitForms() {
             const clientForm = document.getElementById('clientForm');
             const contractForm = document.getElementById('contractForm');
             
@@ -285,40 +285,64 @@
                 return;
             }
 
-            // Criar FormData combinando ambos os formulários
-            const formData = new FormData(clientForm);
-            const contractData = new FormData(contractForm);
-            
-            for (let [key, value] of contractData.entries()) {
-                formData.append(key, value);
-            }
+            // Desabilitar botão durante o envio
+            const submitBtn = document.querySelector('button[onclick="submitForms()"]');
+            const originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cadastrando...';
 
-            // Criar um formulário temporário e submeter
-            const tempForm = document.createElement('form');
-            tempForm.method = 'POST';
-            tempForm.action = clientForm.action;
-            
-            // Adicionar token anti-forgery
-            const token = document.querySelector('input[name="__RequestVerificationToken"]');
-            if (token) {
-                const tokenInput = document.createElement('input');
-                tokenInput.type = 'hidden';
-                tokenInput.name = '__RequestVerificationToken';
-                tokenInput.value = token.value;
-                tempForm.appendChild(tokenInput);
-            }
+            try {
+                // Montar objeto de request para a API
+                const requestData = {
+                    contactEmail: document.getElementById('contactEmail').value,
+                    contactName: document.getElementById('contactName').value,
+                    razaoSocial: document.getElementById('razaoSocial').value || null,
+                    nomeFantasia: document.getElementById('nomeFantasia').value || null,
+                    cnpj: document.getElementById('cnpj').value || null,
+                    cpf: document.getElementById('cpf').value || null,
+                    contactPhone: document.getElementById('contactPhone').value || null,
+                    address: document.getElementById('address').value || null,
+                    city: document.getElementById('city').value || null,
+                    state: document.getElementById('state').value || null,
+                    zipCode: document.getElementById('zipCode').value || null,
+                    coworkingAddressId: parseInt(document.getElementById('coworkingAddressId').value),
+                    monthlyValue: parseFloat(document.getElementById('monthlyValue').value),
+                    paymentMethod: document.getElementById('paymentMethod').value
+                };
 
-            // Adicionar todos os campos
-            for (let [key, value] of formData.entries()) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = value;
-                tempForm.appendChild(input);
-            }
+                // Chamar a nova API
+                const response = await fetch('/api/QuickClientApi/Register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value
+                    },
+                    body: JSON.stringify(requestData)
+                });
 
-            document.body.appendChild(tempForm);
-            tempForm.submit();
+                const result = await response.json();
+
+                if (result.success) {
+                    // Redirecionar para página de sucesso com os dados do pagamento
+                    if (result.paymentId) {
+                        window.location.href = `/Admin/QuickClientRegistrationSuccess?paymentId=${result.paymentId}`;
+                    } else {
+                        // Se não houver pagamento, redirecionar para contratos
+                        alert(result.message);
+                        window.location.href = '/Admin/Contracts';
+                    }
+                } else {
+                    // Exibir erro
+                    alert('Erro: ' + result.message);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            } catch (error) {
+                console.error('Erro ao cadastrar cliente:', error);
+                alert('Erro ao cadastrar cliente. Por favor, tente novamente.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
         }
     </script>
 }

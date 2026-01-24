@@ -276,55 +276,82 @@
     }
 </div>
 
-<!-- Gráficos -->
+<!-- Gráficos Principais -->
 <div class="row mb-4">
     <div class="col-md-8 mb-3">
         <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-graph-up"></i> Receita Mensal (Últimos 6 Meses)</h5>
+                <h5><i class="bi bi-graph-up"></i> Receita Mensal - Bruta vs Líquida (Últimos 6 Meses)</h5>
             </div>
             <div class="card-body">
-                <canvas id="revenueChart" height="100"></canvas>
+                <canvas id="revenueBreakdownChart" height="100"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-4 mb-3">
         <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-pie-chart"></i> Usuários por Perfil</h5>
+                <h5><i class="bi bi-building"></i> Top 5 Coworkings por Receita</h5>
             </div>
             <div class="card-body">
-                <canvas id="usersByRoleChart"></canvas>
+                <canvas id="topCoworkingsChart"></canvas>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Gráficos de Crescimento -->
 <div class="row mb-4">
     <div class="col-md-6 mb-3">
         <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-bar-chart"></i> Contratos de Endereço Fiscal por Status</h5>
+            <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#monthlyContractsBody" aria-expanded="false" aria-controls="monthlyContractsBody">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> Novos Contratos por Mês <i class="bi bi-chevron-down ms-2"></i></h5>
+                <small class="text-muted">Últimos 6 meses</small>
             </div>
-            <div class="card-body">
-                <canvas id="contractsByStatusChart"></canvas>
+            <div class="card-body collapse" id="monthlyContractsBody">
+                <canvas id="monthlyContractsChart"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-6 mb-3">
         <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-trophy"></i> Top 5 Localidades por Receita</h5>
+            <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#monthlyClientsBody" aria-expanded="false" aria-controls="monthlyClientsBody">
+                <h5 class="mb-0"><i class="bi bi-person-plus"></i> Novos Clientes por Mês <i class="bi bi-chevron-down ms-2"></i></h5>
+                <small class="text-muted">Últimos 6 meses</small>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="monthlyClientsBody">
+                <canvas id="monthlyClientsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos de Distribuição -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#paymentsByMethodBody" aria-expanded="false" aria-controls="paymentsByMethodBody">
+                <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamentos por Método <i class="bi bi-chevron-down float-end"></i></h5>
+            </div>
+            <div class="card-body collapse" id="paymentsByMethodBody">
+                <canvas id="paymentsByMethodChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos Adicionais -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#topLocationsBody" aria-expanded="false" aria-controls="topLocationsBody">
+                <h5 class="mb-0"><i class="bi bi-trophy"></i> Top 5 Localidades por Receita <i class="bi bi-chevron-down float-end"></i></h5>
+            </div>
+            <div class="card-body collapse" id="topLocationsBody">
                 <canvas id="topLocationsChart"></canvas>
             </div>
         </div>
     </div>
-</div>
-
-<!-- Gráficos de Produtos e Reservas -->
-<div class="row mb-4">
     @{
         var productsByType = ViewBag.ProductsByType as List<dynamic> ?? new List<dynamic>();
         var hasProducts = productsByType != null && productsByType.Count > 0;
@@ -342,9 +369,13 @@
             </div>
         </div>
     }
-    @if (showCoworkingMenus)
-    {
-        <div class="@(hasProducts ? "col-md-6" : "col-md-12") mb-3">
+</div>
+
+<!-- Gráfico de Reservas (se habilitado) -->
+@if (showCoworkingMenus)
+{
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
             <div class="card">
                 <div class="card-header">
                     <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
@@ -354,21 +385,27 @@
                 </div>
             </div>
         </div>
-    }
-</div>
+    </div>
+}
 
 <!-- Tabelas -->
 <div class="row">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-clock-history"></i> Pagamentos Recentes (Últimos 30 dias)</h5>
+            <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#recentPaymentsBody" aria-expanded="false" aria-controls="recentPaymentsBody">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Pagamentos Recentes (Últimos 30 dias) <i class="bi bi-chevron-down ms-2"></i></h5>
+                @if (ViewBag.RecentPayments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments).Any())
+                {
+                    <small class="text-muted">
+                        Total: @(((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments).Count) pagamentos
+                    </small>
+                }
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="recentPaymentsBody">
                 @if (ViewBag.RecentPayments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments).Any())
                 {
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-hover" id="recentPaymentsTable">
                             <thead>
                                 <tr>
                                     <th>Data</th>
@@ -377,10 +414,15 @@
                                     <th>Status</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="recentPaymentsTableBody">
+                                @{ 
+                                    var paymentIndex = 0;
+                                    var totalPayments = ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments).Count;
+                                    var totalPages = (int)Math.Ceiling(totalPayments / 5.0);
+                                }
                                 @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments)
                                 {
-                                    <tr>
+                                    <tr class="payment-row" data-index="@paymentIndex" style="@(paymentIndex >= 5 ? "display: none;" : "")">
                                         <td>@(payment.CreatedAt.ToString("dd/MM/yyyy HH:mm"))</td>
                                         <td>@(payment.Subscription?.Contract?.Client?.RazaoSocial ?? payment.Subscription?.Contract?.Client?.ContactName ?? "N/A")</td>
                                         <td>R$ @(payment.Amount.ToString("N2"))</td>
@@ -414,10 +456,39 @@
                                             }
                                         </td>
                                     </tr>
+                                    paymentIndex++;
                                 }
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Paginação -->
+                    @if (totalPages > 1)
+                    {
+                        <nav aria-label="Paginação de pagamentos recentes" class="mt-3">
+                            <ul class="pagination pagination-sm justify-content-center mb-0" id="recentPaymentsPagination">
+                                <li class="page-item disabled" id="prevPaymentPageBtn">
+                                    <a class="page-link" href="#" onclick="changePaymentPage('prev'); return false;" tabindex="-1">
+                                        <i class="bi bi-chevron-left"></i> Anterior
+                                    </a>
+                                </li>
+                                @for (var i = 1; i <= totalPages; i++)
+                                {
+                                    <li class="page-item @(i == 1 ? "active" : "")" data-page="@i">
+                                        <a class="page-link" href="#" onclick="changePaymentPage(@i); return false;">@i</a>
+                                    </li>
+                                }
+                                <li class="page-item @(totalPages <= 1 ? "disabled" : "")" id="nextPaymentPageBtn">
+                                    <a class="page-link" href="#" onclick="changePaymentPage('next'); return false;">
+                                        Próximo <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                        <div class="text-center mt-2">
+                            <small class="text-muted" id="paymentPageInfo">Página 1 de @totalPages</small>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -434,10 +505,10 @@
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-lightning"></i> Ações Rápidas</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#quickActionsBody" aria-expanded="false" aria-controls="quickActionsBody">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Ações Rápidas <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="quickActionsBody">
                 <div class="row">
                     <div class="col-md-2 mb-2">
                         <a href="@Url.Action("Users", "Admin")" class="btn btn-outline-primary w-100">
@@ -488,212 +559,350 @@
 </div>
 
 <script>
-// Gráfico de Receita Mensal
-const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-const monthlyRevenue = @Html.Raw(Json.Serialize(ViewBag.MonthlyRevenue));
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const revenueLabels = monthlyRevenue.map(r => `${monthNames[r.month - 1]}/${r.year}`);
-const revenueData = monthlyRevenue.map(r => parseFloat(r.revenue));
+// 1. Gráfico de Receita Bruta vs Líquida (substituindo o gráfico simples de receita)
+const revenueBreakdownCtx = document.getElementById('revenueBreakdownChart').getContext('2d');
+const monthlyRevenueBreakdown = @Html.Raw(Json.Serialize(ViewBag.MonthlyRevenueBreakdown ?? new List<dynamic>()));
 
-new Chart(revenueCtx, {
-    type: 'line',
-    data: {
-        labels: revenueLabels,
-        datasets: [{
-            label: 'Receita (R$)',
-            data: revenueData,
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.4,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-            legend: { display: true },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return 'R$ ' + context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+if (monthlyRevenueBreakdown && monthlyRevenueBreakdown.length > 0) {
+    const breakdownLabels = monthlyRevenueBreakdown.map(r => `${monthNames[r.month - 1]}/${r.year}`);
+    
+    new Chart(revenueBreakdownCtx, {
+        type: 'bar',
+        data: {
+            labels: breakdownLabels,
+            datasets: [
+                {
+                    label: 'Receita Bruta',
+                    data: monthlyRevenueBreakdown.map(r => parseFloat(r.grossRevenue)),
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Receita Parceiro',
+                    data: monthlyRevenueBreakdown.map(r => parseFloat(r.partnerRevenue)),
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Receita Líquida (Plataforma)',
+                    data: monthlyRevenueBreakdown.map(r => parseFloat(r.netRevenue)),
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': R$ ' + context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                        }
                     }
                 }
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return 'R$ ' + value.toLocaleString('pt-BR');
-                    }
-                }
-            }
-        },
-        onClick: (evt, items) => {
-            if (items && items.length && monthlyRevenue[items[0].index]) {
-                const r = monthlyRevenue[items[0].index];
-                const lastDay = new Date(r.year, r.month, 0).getDate();
-                const start = r.year + '-' + String(r.month).padStart(2,'0') + '-01';
-                const end = r.year + '-' + String(r.month).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
-                window.location = '/Admin/Reports?startDate=' + start + '&endDate=' + end;
-            }
-        }
-    }
-});
-
-// Gráfico de Usuários por Perfil
-const usersByRoleCtx = document.getElementById('usersByRoleChart').getContext('2d');
-const usersByRole = @Html.Raw(Json.Serialize(ViewBag.UsersByRole));
-
-const roleMap = { 
-    'Administrator': 'Administrador', 
-    'Client': 'Cliente', 
-    'CoworkingPartner': 'Parceiro Coworking' 
-};
-const roleLabels = usersByRole.map(r => roleMap[r.role] || r.role);
-const roleData = usersByRole.map(r => r.count);
-const roleColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
-new Chart(usersByRoleCtx, {
-    type: 'doughnut',
-    data: {
-        labels: roleLabels,
-        datasets: [{
-            data: roleData,
-            backgroundColor: roleColors.slice(0, roleData.length)
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-            legend: {
-                position: 'bottom'
             },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        const label = context.label || '';
-                        const value = context.parsed || 0;
-                        return label + ': ' + value;
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
+                        }
                     }
                 }
             }
         }
-    }
-});
+    });
+} else {
+    document.getElementById('revenueBreakdownChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum dado de receita disponível.</p>';
+}
 
-// Gráfico de Contratos por Status (labels em português; clique navega para Contracts filtrado por status)
-const contractsByStatusCtx = document.getElementById('contractsByStatusChart').getContext('2d');
-const contractsByStatus = @Html.Raw(Json.Serialize(ViewBag.ContractsByStatus));
+// 2. Gráfico de Pagamentos por Método (lazy load - inicializa quando a seção for aberta)
+const paymentsByMethod = @Html.Raw(Json.Serialize(ViewBag.PaymentsByMethod ?? new List<dynamic>()));
+let paymentsByMethodChartInitialized = false;
 
-const contractStatusMap = { 'Active': 'Ativo', 'PendingPayment': 'Pendente de Pagamento', 'Suspended': 'Suspenso', 'Cancelled': 'Cancelado' };
-const statusLabels = contractsByStatus.map(s => contractStatusMap[s.status] || s.status);
-const statusData = contractsByStatus.map(s => s.count);
-
-new Chart(contractsByStatusCtx, {
-    type: 'bar',
-    data: {
-        labels: statusLabels,
-        datasets: [{
-            label: 'Quantidade',
-            data: statusData,
-            backgroundColor: [
-                'rgba(54, 162, 235, 0.6)',
-                'rgba(255, 99, 132, 0.6)',
-                'rgba(255, 206, 86, 0.6)',
-                'rgba(75, 192, 192, 0.6)'
-            ],
-            borderColor: [
-                'rgba(54, 162, 235, 1)',
-                'rgba(255, 99, 132, 1)',
-                'rgba(255, 206, 86, 1)',
-                'rgba(75, 192, 192, 1)'
-            ],
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: { stepSize: 1 }
+function initPaymentsByMethodChart() {
+    if (paymentsByMethodChartInitialized) return;
+    paymentsByMethodChartInitialized = true;
+    
+    const paymentsByMethodCtx = document.getElementById('paymentsByMethodChart');
+    if (!paymentsByMethodCtx) return;
+    
+    if (paymentsByMethod && paymentsByMethod.length > 0) {
+        const methodColors = ['#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56', '#9966FF'];
+        
+        new Chart(paymentsByMethodCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: paymentsByMethod.map(p => p.methodDisplay),
+                datasets: [{
+                    data: paymentsByMethod.map(p => p.totalAmount),
+                    backgroundColor: methodColors.slice(0, paymentsByMethod.length)
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const method = context.label || '';
+                                const value = context.parsed || 0;
+                                const count = paymentsByMethod[context.dataIndex]?.count || 0;
+                                return [
+                                    method + ': R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2}),
+                                    count + ' pagamento(s)'
+                                ];
+                            }
+                        }
+                    }
+                }
             }
+        });
+    } else {
+        paymentsByMethodCtx.parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum pagamento registrado.</p>';
+    }
+}
+
+// Inicializar quando a seção for aberta
+document.getElementById('paymentsByMethodBody')?.addEventListener('shown.bs.collapse', initPaymentsByMethodChart);
+
+// 3. Gráfico de Novos Contratos por Mês (lazy load)
+const monthlyContracts = @Html.Raw(Json.Serialize(ViewBag.MonthlyContracts ?? new List<dynamic>()));
+let monthlyContractsChartInitialized = false;
+
+function initMonthlyContractsChart() {
+    if (monthlyContractsChartInitialized) return;
+    monthlyContractsChartInitialized = true;
+    
+    const monthlyContractsCtx = document.getElementById('monthlyContractsChart');
+    if (!monthlyContractsCtx) return;
+    
+    if (monthlyContracts && monthlyContracts.length > 0) {
+        const contractLabels = monthlyContracts.map(c => `${monthNames[c.month - 1]}/${c.year}`);
+        
+        new Chart(monthlyContractsCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: contractLabels,
+                datasets: [{
+                    label: 'Novos Contratos',
+                    data: monthlyContracts.map(c => c.newContracts),
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 }
+                    }
+                }
+            }
+        });
+    } else {
+        monthlyContractsCtx.parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum contrato registrado.</p>';
+    }
+}
+
+document.getElementById('monthlyContractsBody')?.addEventListener('shown.bs.collapse', initMonthlyContractsChart);
+
+// 4. Gráfico de Novos Clientes por Mês (lazy load)
+const monthlyNewClients = @Html.Raw(Json.Serialize(ViewBag.MonthlyNewClients ?? new List<dynamic>()));
+let monthlyClientsChartInitialized = false;
+
+function initMonthlyClientsChart() {
+    if (monthlyClientsChartInitialized) return;
+    monthlyClientsChartInitialized = true;
+    
+    const monthlyClientsCtx = document.getElementById('monthlyClientsChart');
+    if (!monthlyClientsCtx) return;
+    
+    if (monthlyNewClients && monthlyNewClients.length > 0) {
+        const clientLabels = monthlyNewClients.map(c => `${monthNames[c.month - 1]}/${c.year}`);
+        
+        new Chart(monthlyClientsCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: clientLabels,
+                datasets: [{
+                    label: 'Novos Clientes',
+                    data: monthlyNewClients.map(c => c.newClients),
+                    borderColor: 'rgb(153, 102, 255)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 }
+                    }
+                }
+            }
+        });
+    } else {
+        monthlyClientsCtx.parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum cliente registrado.</p>';
+    }
+}
+
+document.getElementById('monthlyClientsBody')?.addEventListener('shown.bs.collapse', initMonthlyClientsChart);
+
+// 5. Gráfico de Top 5 Coworkings por Receita
+const topCoworkingsCtx = document.getElementById('topCoworkingsChart').getContext('2d');
+const topCoworkingsByRevenue = @Html.Raw(Json.Serialize(ViewBag.TopCoworkingsByRevenue ?? new List<dynamic>()));
+
+if (topCoworkingsByRevenue && topCoworkingsByRevenue.length > 0) {
+    new Chart(topCoworkingsCtx, {
+        type: 'bar',
+        data: {
+            labels: topCoworkingsByRevenue.map(c => c.coworkingName),
+            datasets: [{
+                label: 'Receita (R$)',
+                data: topCoworkingsByRevenue.map(c => parseFloat(c.revenue)),
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
         },
-        onClick: (evt, items) => {
-            if (items && items.length) {
-                const idx = items[0].index;
-                const status = contractsByStatus[idx]?.status;
-                if (status) window.location = '/Admin/Contracts?status=' + encodeURIComponent(status);
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const coworking = topCoworkingsByRevenue[context.dataIndex];
+                            return [
+                                'Receita: R$ ' + context.parsed.x.toLocaleString('pt-BR', {minimumFractionDigits: 2}),
+                                'Contratos: ' + (coworking?.contractsCount || 0)
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR');
+                        }
+                    }
+                }
+            },
+            onClick: (evt, items) => {
+                if (items && items.length) {
+                    const idx = items[0].index;
+                    const coworking = topCoworkingsByRevenue[idx];
+                    if (coworking?.coworkingId) window.location = '/Admin/ViewCoworking?id=' + coworking.coworkingId;
+                }
             }
         }
-    }
-});
+    });
+} else {
+    document.getElementById('topCoworkingsChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum coworking com receita registrada.</p>';
+}
 
-// Gráfico Top Localidades (clique navega para Relatórios)
-const topLocationsCtx = document.getElementById('topLocationsChart').getContext('2d');
+// 6. Gráfico Top Localidades (lazy load - clique navega para Relatórios)
 const topLocations = @Html.Raw(Json.Serialize(ViewBag.TopLocations));
+let topLocationsChartInitialized = false;
 
-const locationLabels = topLocations.map(l => l.city);
-const locationData = topLocations.map(l => parseFloat(l.revenue));
+function initTopLocationsChart() {
+    if (topLocationsChartInitialized) return;
+    topLocationsChartInitialized = true;
+    
+    const topLocationsCtx = document.getElementById('topLocationsChart');
+    if (!topLocationsCtx) return;
+    
+    if (topLocations && topLocations.length > 0) {
+        const locationLabels = topLocations.map(l => l.city);
+        const locationData = topLocations.map(l => parseFloat(l.revenue));
 
-new Chart(topLocationsCtx, {
-    type: 'bar',
-    data: {
-        labels: locationLabels,
-        datasets: [{
-            label: 'Receita (R$)',
-            data: locationData,
-            backgroundColor: 'rgba(153, 102, 255, 0.6)',
-            borderColor: 'rgba(153, 102, 255, 1)',
-            borderWidth: 1
-        }]
-    },
-    options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return 'R$ ' + context.parsed.x.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+        new Chart(topLocationsCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: locationLabels,
+                datasets: [{
+                    label: 'Receita (R$)',
+                    data: locationData,
+                    backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'R$ ' + context.parsed.x.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR');
+                            }
+                        }
+                    }
+                },
+                onClick: (evt, items) => {
+                    if (items && items.length) {
+                        const idx = items[0].index;
+                        const loc = topLocations[idx];
+                        if (loc?.city) window.location = '/Admin/Reports?product=Todos';
                     }
                 }
             }
-        },
-        scales: {
-            x: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return 'R$ ' + value.toLocaleString('pt-BR');
-                    }
-                }
-            }
-        },
-        onClick: (evt, items) => {
-            if (items && items.length) {
-                const idx = items[0].index;
-                const loc = topLocations[idx];
-                if (loc?.city) window.location = '/Admin/Reports?product=Todos';
-            }
-        }
+        });
+    } else {
+        topLocationsCtx.parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhuma localidade com receita registrada.</p>';
     }
-});
+}
 
-// Gráfico de Produtos Oferecidos
+document.getElementById('topLocationsBody')?.addEventListener('shown.bs.collapse', initTopLocationsChart);
+
+// 8. Gráfico de Produtos Oferecidos
 const productsCtx = document.getElementById('productsChart');
-const productsByType = @Html.Raw(Json.Serialize(ViewBag.ProductsByType ?? new List<dynamic>()));
+const productsByTypeData = @Html.Raw(Json.Serialize(ViewBag.ProductsByType ?? new List<dynamic>()));
 
-if (productsCtx && productsByType && productsByType.length > 0) {
-    const productLabels = productsByType.map(p => {
+if (productsCtx && productsByTypeData && productsByTypeData.length > 0) {
+    const productLabels = productsByTypeData.map(p => {
         const productType = p.productType;
         switch(productType) {
             case "FiscalAddress": return "Endereço Fiscal";
@@ -702,7 +911,7 @@ if (productsCtx && productsByType && productsByType.length > 0) {
             default: return productType;
         }
     });
-    const productData = productsByType.map(p => p.count || 0);
+    const productData = productsByTypeData.map(p => p.count || 0);
 
     new Chart(productsCtx, {
         type: 'doughnut',
@@ -710,7 +919,7 @@ if (productsCtx && productsByType && productsByType.length > 0) {
             labels: productLabels,
             datasets: [{
                 data: productData,
-                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+                backgroundColor: ['#4BC0C0', '#36A2EB', '#FFCE56', '#FF6384']
             }]
         },
         options: {
@@ -719,13 +928,22 @@ if (productsCtx && productsByType && productsByType.length > 0) {
             plugins: {
                 legend: {
                     position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return label + ': ' + value + ' coworking(s)';
+                        }
+                    }
                 }
             }
         }
     });
 }
 
-// Gráfico de Reservas por Status (apenas se EnableCoworkingMenus estiver habilitado)
+// 9. Gráfico de Reservas por Status (apenas se EnableCoworkingMenus estiver habilitado)
 @if (showCoworkingMenus)
 {
     <text>
@@ -734,40 +952,41 @@ if (productsCtx && productsByType && productsByType.length > 0) {
 
     if (reservationsStatusCtx && reservationsByStatus && reservationsByStatus.length > 0) {
         const resvStatusMap = { 'Confirmed': 'Confirmadas', 'Cancelled': 'Canceladas', 'Completed': 'Concluídas', 'Pending': 'Pendentes' };
-        const statusLabels = reservationsByStatus.map(r => resvStatusMap[r.status] || r.status);
-        const statusData = reservationsByStatus.map(r => r.count || 0);
+        const resvStatusColors = {
+            'Confirmed': 'rgba(54, 162, 235, 0.7)',
+            'Cancelled': 'rgba(255, 99, 132, 0.7)',
+            'Completed': 'rgba(75, 192, 192, 0.7)',
+            'Pending': 'rgba(255, 206, 86, 0.7)'
+        };
+        const resvStatusBorderColors = {
+            'Confirmed': 'rgba(54, 162, 235, 1)',
+            'Cancelled': 'rgba(255, 99, 132, 1)',
+            'Completed': 'rgba(75, 192, 192, 1)',
+            'Pending': 'rgba(255, 206, 86, 1)'
+        };
 
         new Chart(reservationsStatusCtx, {
             type: 'bar',
             data: {
-                labels: statusLabels,
+                labels: reservationsByStatus.map(r => resvStatusMap[r.status] || r.status),
                 datasets: [{
                     label: 'Quantidade',
-                    data: statusData,
-                    backgroundColor: [
-                        'rgba(255, 206, 86, 0.6)',
-                        'rgba(54, 162, 235, 0.6)',
-                        'rgba(75, 192, 192, 0.6)',
-                        'rgba(255, 99, 132, 0.6)'
-                    ],
-                    borderColor: [
-                        'rgba(255, 206, 86, 1)',
-                        'rgba(54, 162, 235, 1)',
-                        'rgba(75, 192, 192, 1)',
-                        'rgba(255, 99, 132, 1)'
-                    ],
+                    data: reservationsByStatus.map(r => r.count || 0),
+                    backgroundColor: reservationsByStatus.map(r => resvStatusColors[r.status] || 'rgba(128, 128, 128, 0.6)'),
+                    borderColor: reservationsByStatus.map(r => resvStatusBorderColors[r.status] || 'rgba(128, 128, 128, 1)'),
                     borderWidth: 1
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
+                        ticks: { stepSize: 1 }
                     }
                 }
             }
@@ -787,6 +1006,62 @@ const baseUrls = {
     payments: '@Url.Action("Payments", "Admin")',
     reservationDetail: '@Url.Action("ReservationFinancialDetail", "Admin")'
 };
+
+// Paginação de Pagamentos Recentes
+let currentPaymentPage = 1;
+const paymentsPerPage = 5;
+
+function changePaymentPage(page) {
+    const rows = document.querySelectorAll('.payment-row');
+    const totalRows = rows.length;
+    const totalPages = Math.ceil(totalRows / paymentsPerPage);
+    
+    if (page === 'prev') {
+        if (currentPaymentPage > 1) currentPaymentPage--;
+    } else if (page === 'next') {
+        if (currentPaymentPage < totalPages) currentPaymentPage++;
+    } else {
+        currentPaymentPage = parseInt(page);
+    }
+    
+    // Esconder todas as linhas
+    rows.forEach(row => row.style.display = 'none');
+    
+    // Mostrar apenas as linhas da página atual
+    const startIndex = (currentPaymentPage - 1) * paymentsPerPage;
+    const endIndex = startIndex + paymentsPerPage;
+    
+    for (let i = startIndex; i < endIndex && i < totalRows; i++) {
+        rows[i].style.display = '';
+    }
+    
+    // Atualizar estado dos botões de paginação
+    const pagination = document.getElementById('recentPaymentsPagination');
+    if (pagination) {
+        const pageItems = pagination.querySelectorAll('li[data-page]');
+        pageItems.forEach(item => {
+            const itemPage = parseInt(item.getAttribute('data-page'));
+            item.classList.toggle('active', itemPage === currentPaymentPage);
+        });
+        
+        // Atualizar botões anterior/próximo
+        const prevBtn = document.getElementById('prevPaymentPageBtn');
+        const nextBtn = document.getElementById('nextPaymentPageBtn');
+        
+        if (prevBtn) {
+            prevBtn.classList.toggle('disabled', currentPaymentPage === 1);
+        }
+        if (nextBtn) {
+            nextBtn.classList.toggle('disabled', currentPaymentPage === totalPages);
+        }
+    }
+    
+    // Atualizar info da página
+    const pageInfo = document.getElementById('paymentPageInfo');
+    if (pageInfo) {
+        pageInfo.textContent = `Página ${currentPaymentPage} de ${totalPages}`;
+    }
+}
 
 // Função para exibir listas do dashboard
 async function showDashboardList(type, filter = null) {
@@ -920,6 +1195,31 @@ async function showDashboardList(type, filter = null) {
     </div>
 </div>
 
+<script>
+// Rotacionar ícones de chevron ao expandir/colapsar seções
+document.addEventListener('DOMContentLoaded', function() {
+    const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]');
+    
+    collapseElements.forEach(function(element) {
+        const targetId = element.getAttribute('data-bs-target');
+        const targetElement = document.querySelector(targetId);
+        const chevron = element.querySelector('.bi-chevron-down, .bi-chevron-up');
+        
+        if (targetElement && chevron) {
+            targetElement.addEventListener('shown.bs.collapse', function() {
+                chevron.classList.remove('bi-chevron-down');
+                chevron.classList.add('bi-chevron-up');
+            });
+            
+            targetElement.addEventListener('hidden.bs.collapse', function() {
+                chevron.classList.remove('bi-chevron-up');
+                chevron.classList.add('bi-chevron-down');
+            });
+        }
+    });
+});
+</script>
+
 <style>
 .clickable-number {
     transition: transform 0.2s, opacity 0.2s;
@@ -928,5 +1228,7 @@ async function showDashboardList(type, filter = null) {
     transform: scale(1.1);
     opacity: 0.8;
 }
+.card-header[data-bs-toggle="collapse"]:hover {
+    background-color: rgba(0,0,0,0.03);
+}
 </style>
-</script>

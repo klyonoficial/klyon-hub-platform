@@ -95,6 +95,15 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TopLocations = dashboardData.TopLocations;
             ViewBag.RecentPayments = dashboardData.RecentPayments;
 
+            // Novos dados para gráficos melhorados
+            ViewBag.MonthlyContracts = dashboardData.MonthlyContracts;
+            ViewBag.TopCoworkingsByRevenue = dashboardData.TopCoworkingsByRevenue;
+            ViewBag.PaymentsByMethod = dashboardData.PaymentsByMethod;
+            ViewBag.MonthlyNewClients = dashboardData.MonthlyNewClients;
+            ViewBag.MonthlyRevenueBreakdown = dashboardData.MonthlyRevenueBreakdown;
+            ViewBag.CancelledContractsLast6Months = dashboardData.CancelledContractsLast6Months;
+            ViewBag.NewContractsLast6Months = dashboardData.NewContractsLast6Months;
+
             // Verificar migrations pendentes
             try
             {
@@ -5291,5 +5300,205 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 || msg.Contains("IX_FiscalNotes_IdempotencyKey", StringComparison.OrdinalIgnoreCase)
                 || msg.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase);
         }
+
+        #region Endpoints AJAX para Modal de Percentagem
+
+        /// <summary>
+        /// Retorna os serviços de um coworking específico (para modal de percentagem)
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetCoworkingServicesJson(int coworkingId)
+        {
+            try
+            {
+                var coworking = await _context.Coworkings.FindAsync(coworkingId);
+                if (coworking == null)
+                    return Json(new { success = false, message = "Coworking não encontrado." });
+
+                // Verificar se os menus de coworking estão habilitados
+                var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+                var coworkingServiceNames = new[]
+                {
+                    "Aluguel de Auditório",
+                    "Aluguel de Sala Compartilhada",
+                    "Aluguel de Sala Particular",
+                    "Reservar Sala"
+                };
+
+                // Carregar serviços do parceiro
+                var partnerServicesQuery = _context.PartnerServices
+                    .Include(ps => ps.Service)
+                    .Where(ps => ps.CoworkingId == coworkingId && ps.Service != null && ps.Service.IsActive);
+
+                if (!showCoworkingMenus)
+                    partnerServicesQuery = partnerServicesQuery.Where(ps => ps.Service != null && !coworkingServiceNames.Contains(ps.Service.Name));
+
+                var partnerServices = await partnerServicesQuery
+                    .OrderBy(ps => ps.Service.DisplayOrder)
+                    .Select(ps => new
+                    {
+                        id = ps.Id,
+                        serviceId = ps.ServiceId,
+                        serviceName = ps.Service.Name,
+                        serviceDescription = ps.Service.Description,
+                        percentage = ps.Percentage,
+                        createdAt = ps.CreatedAt.ToString("dd/MM/yyyy")
+                    })
+                    .ToListAsync();
+
+                // Carregar serviços disponíveis para adicionar
+                IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive);
+                if (!showCoworkingMenus)
+                    servicesQuery = servicesQuery.Where(s => !coworkingServiceNames.Contains(s.Name));
+
+                var existingServiceIds = partnerServices.Select(ps => ps.serviceId).ToList();
+                var availableServices = await servicesQuery
+                    .Where(s => !existingServiceIds.Contains(s.Id))
+                    .OrderBy(s => s.DisplayOrder)
+                    .Select(s => new
+                    {
+                        id = s.Id,
+                        name = s.Name,
+                        description = s.Description
+                    })
+                    .ToListAsync();
+
+                return Json(new
+                {
+                    success = true,
+                    coworkingName = coworking.Name,
+                    partnerServices,
+                    availableServices
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Erro ao carregar serviços: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Salva ou atualiza a percentagem de um serviço via AJAX
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePartnerServiceJson([FromBody] SavePartnerServiceRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    return Json(new { success = false, message = "Dados inválidos." });
+
+                // Validar se o coworking existe
+                var coworking = await _context.Coworkings.FindAsync(request.CoworkingId);
+                if (coworking == null)
+                    return Json(new { success = false, message = "Coworking não encontrado." });
+
+                // Validar se o serviço existe
+                var service = await _context.Services.FindAsync(request.ServiceId);
+                if (service == null)
+                    return Json(new { success = false, message = "Serviço não encontrado." });
+
+                // Verificar se os menus de coworking estão habilitados
+                var coworkingServiceNames = new[]
+                {
+                    "Aluguel de Auditório",
+                    "Aluguel de Sala Compartilhada",
+                    "Aluguel de Sala Particular",
+                    "Reservar Sala"
+                };
+                var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
+                    return Json(new { success = false, message = "Este serviço não está disponível quando os menus de coworking estão desabilitados." });
+
+                // Validar percentagem
+                if (request.Percentage < 0 || request.Percentage > 100)
+                    return Json(new { success = false, message = "A percentagem deve estar entre 0 e 100." });
+
+                if (request.Id > 0)
+                {
+                    // Editar existente
+                    var existing = await _context.PartnerServices.FindAsync(request.Id);
+                    if (existing == null || existing.CoworkingId != request.CoworkingId)
+                        return Json(new { success = false, message = "Serviço do parceiro não encontrado." });
+
+                    existing.ServiceId = request.ServiceId;
+                    existing.Percentage = request.Percentage;
+                    existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                }
+                else
+                {
+                    // Verificar se já existe este serviço para este parceiro
+                    var existing = await _context.PartnerServices
+                        .FirstOrDefaultAsync(ps => ps.CoworkingId == request.CoworkingId && ps.ServiceId == request.ServiceId);
+
+                    if (existing != null)
+                        return Json(new { success = false, message = "Este serviço já está cadastrado para este parceiro." });
+
+                    // Criar novo
+                    var partnerService = new PartnerService
+                    {
+                        CoworkingId = request.CoworkingId,
+                        ServiceId = request.ServiceId,
+                        Percentage = request.Percentage,
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
+                    };
+
+                    _context.PartnerServices.Add(partnerService);
+                }
+
+                await _context.SaveChangesAsync();
+                return Json(new { success = true, message = "Serviço salvo com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Erro ao salvar serviço: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Remove um serviço do parceiro via AJAX
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePartnerServiceJson([FromBody] DeletePartnerServiceRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    return Json(new { success = false, message = "Dados inválidos." });
+
+                var partnerService = await _context.PartnerServices.FindAsync(request.Id);
+                if (partnerService == null)
+                    return Json(new { success = false, message = "Serviço do parceiro não encontrado." });
+
+                _context.PartnerServices.Remove(partnerService);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, message = "Serviço removido com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Erro ao remover serviço: {ex.Message}" });
+            }
+        }
+
+        public class SavePartnerServiceRequest
+        {
+            public int Id { get; set; }
+            public int CoworkingId { get; set; }
+            public int ServiceId { get; set; }
+            public decimal Percentage { get; set; }
+        }
+
+        public class DeletePartnerServiceRequest
+        {
+            public int Id { get; set; }
+        }
+
+        #endregion
     }
 }
