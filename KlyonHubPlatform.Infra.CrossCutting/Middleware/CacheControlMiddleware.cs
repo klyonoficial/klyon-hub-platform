@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using System.Linq;
 
 namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
@@ -10,10 +11,12 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
     public class CacheControlMiddleware
     {
         private readonly RequestDelegate _next;
+        private readonly IHostEnvironment _environment;
 
-        public CacheControlMiddleware(RequestDelegate next)
+        public CacheControlMiddleware(RequestDelegate next, IHostEnvironment environment)
         {
             _next = next;
+            _environment = environment;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -24,9 +27,16 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             string? pragmaValue = null;
             string? expiresValue = null;
 
+            // Em desenvolvimento, desabilitar cache para refletir mudanças imediatamente
+            if (_environment.IsDevelopment())
+            {
+                cacheControlValue = "no-store, no-cache, must-revalidate, private";
+                pragmaValue = "no-cache";
+                expiresValue = "0";
+            }
             // Rotas sensíveis que NÃO devem ser cacheadas
             // (financeiras, administrativas, contratuais, dados pessoais)
-            if (IsSensitiveRoute(path))
+            else if (IsSensitiveRoute(path))
             {
                 // Dados sensíveis: não armazenar em cache
                 cacheControlValue = "no-store, no-cache, must-revalidate, private";
