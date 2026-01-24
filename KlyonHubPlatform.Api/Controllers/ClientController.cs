@@ -846,12 +846,25 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var addressEntity = await _context.CoworkingAddresses
                     .Include(a => a.Location)
+                    .Include(a => a.Coworking)
                     .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
 
                 if (addressEntity == null)
                 {
                     TempData["Error"] = "Endereço não encontrado.";
                     return RedirectToAction("ChooseLocation");
+                }
+
+                if (!addressEntity.Coworking.IsActive)
+                {
+                    TempData["Error"] = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
+                    return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
+                }
+
+                if (addressEntity.AddressStatus != AddressStatus.Active)
+                {
+                    TempData["Error"] = "Este endereço não está ativo para novas vendas no momento.";
+                    return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
                 if (!addressEntity.IsAvailable)
@@ -2720,82 +2733,135 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CreditSpendingReport(int? month = null, int? year = null)
+        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
         {
-            try
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-
-                if (client == null)
-                {
-                    TempData["Error"] = "Cliente não encontrado.";
-                    return RedirectToAction("Dashboard");
-                }
-
-                // Buscar todas as reservas do cliente (gastos de créditos)
-                var allReservations = await _context.Reservations
-                    .Include(r => r.CoworkingAddress)
-                        .ThenInclude(a => a.Coworking)
-                    .Include(r => r.CoworkingAddress)
-                        .ThenInclude(a => a.Location)
-                    .Where(r => r.ClientId == client.Id)
-                    .OrderByDescending(r => r.ReservationDate)
-                    .ThenByDescending(r => r.CreatedAt)
-                    .ToListAsync();
-
-                // Aplicar filtro por mês/ano se fornecido
-                var reservations = allReservations;
-                if (month.HasValue && year.HasValue)
-                {
-                    reservations = allReservations
-                        .Where(r => r.ReservationDate.Year == year.Value && r.ReservationDate.Month == month.Value)
-                        .ToList();
-                }
-
-                // Calcular totais (sempre baseado em todas as reservas para os cards de resumo)
-                var totalValueSpent = allReservations.Sum(r => r.TotalValue);
-                var totalReservations = allReservations.Count;
-                var confirmedReservations = allReservations.Count(r => r.Status == "Confirmed");
-                var cancelledReservations = allReservations.Count(r => r.Status == "Cancelled");
-                var completedReservations = allReservations.Count(r => r.Status == "Completed");
-
-                // Calcular totais filtrados (para exibição na tabela quando filtrado)
-                var filteredValueSpent = reservations.Sum(r => r.TotalValue);
-                var filteredReservations = reservations.Count;
-
-                // Agrupar por mês (sempre de todas as reservas para a tabela de meses)
-                var monthlySpending = allReservations
-                    .GroupBy(r => new { r.ReservationDate.Year, r.ReservationDate.Month })
-                    .Select(g => new
-                    {
-                        Year = g.Key.Year,
-                        Month = g.Key.Month,
-                        Value = g.Sum(r => r.TotalValue),
-                        Count = g.Count()
-                    })
-                    .OrderByDescending(x => x.Year)
-                    .ThenByDescending(x => x.Month)
-                    .ToList();
-
-                ViewBag.TotalValueSpent = totalValueSpent;
-                ViewBag.TotalReservations = totalReservations;
-                ViewBag.ConfirmedReservations = confirmedReservations;
-                ViewBag.CancelledReservations = cancelledReservations;
-                ViewBag.CompletedReservations = completedReservations;
-                ViewBag.MonthlySpending = monthlySpending;
-                ViewBag.FilteredValueSpent = filteredValueSpent;
-                ViewBag.FilteredReservations = filteredReservations;
-                ViewBag.SelectedMonth = month;
-                ViewBag.SelectedYear = year;
-
-                return View(reservations);
+                return RedirectToAction("RegisterClient");
             }
-            catch (Exception ex)
+
+            // Clientes visualizam apenas notas fiscais de tipo "Intermediação" (serviços que pagaram)
+            var query = _context.FiscalNotes
+                .Include(fn => fn.Client)
+                    .ThenInclude(c => c.User)
+                .Include(fn => fn.Coworking)
+                .Include(fn => fn.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(fn => fn.Contract)
+                    .ThenInclude(c => c.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(fn => fn.Payment)
+                .Where(fn => fn.ClientId == client.Id && fn.Type == "Intermediacao")
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(status))
             {
-                TempData["Error"] = $"Erro ao carregar relatório: {ex.Message}";
-                return RedirectToAction("Dashboard");
+                query = query.Where(fn => fn.Status == status);
             }
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var fiscalNotes = await query
+                .OrderByDescending(fn => fn.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.Status = status;
+            ViewBag.Type = type;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            return View(fiscalNotes);
         }
+
+        [HttpGet]
+        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20)
+        {
+            // Clientes não emitem notas fiscais de comissão, apenas visualizam as notas dos serviços que pagaram
+            // Redirecionar para a página de visualização de notas fiscais
+            return RedirectToAction("FiscalNotes");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Coworkings(int page = 1, int pageSize = 20)
+        {
+            var query = _context.Coworkings
+                .Where(c => c.IsActive && c.IsPartner)
+                .Include(c => c.Addresses)
+                .Include(c => c.User)
+                .AsQueryable();
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var coworkings = await query
+                .OrderBy(c => c.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            return View(coworkings);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 20)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                return RedirectToAction("RegisterClient");
+            }
+
+            // Buscar os CoworkingIds dos contratos do cliente
+            var clientCoworkingIds = await _context.Contracts
+                .Where(c => c.ClientId == client.Id)
+                .Include(c => c.CoworkingAddress)
+                .Select(c => c.CoworkingAddress.CoworkingId)
+                .Distinct()
+                .ToListAsync();
+
+            var query = _context.PartnerServices
+                .Include(ps => ps.Service)
+                .Include(ps => ps.Coworking)
+                .Where(ps => ps.RemovalRequestStatus != RemovalRequestStatus.None && 
+                           clientCoworkingIds.Contains(ps.CoworkingId))
+                .AsQueryable();
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var removalRequests = await query
+                .OrderByDescending(ps => ps.RemovalRequestedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+
+            return View(removalRequests);
+        }
+
     }
 }

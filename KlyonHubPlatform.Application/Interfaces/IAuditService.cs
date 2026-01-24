@@ -4,7 +4,7 @@ namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IAuditService
     {
-        Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null);
+        Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null, string? ipAddress = null, string? userAgent = null);
         Task<List<AuditLog>> GetLogsByEntityAsync(string entityType, int entityId);
         Task<List<AuditLog>> GetLogsByUserIdAsync(int userId);
         Task<List<AuditLog>> GetRecentLogsAsync(int count = 100);

@@ -6,6 +6,9 @@ using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using BCrypt.Net;
 using KlyonHubPlatform.Domain.Interfaces;
+using Microsoft.AspNetCore.Http;
+using System.Text.Json;
+using System.Security.Claims;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -13,11 +16,46 @@ namespace KlyonHubPlatform.Application.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IUserService _userService;
+        private readonly IAuditService? _auditService;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
-        public AdminService(ApplicationDbContext context, IUserService userService)
+        public AdminService(ApplicationDbContext context, IUserService userService, IAuditService? auditService = null, IHttpContextAccessor? httpContextAccessor = null)
         {
             _context = context;
             _userService = userService;
+            _auditService = auditService;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
+        {
+            if (_auditService == null) return;
+
+            string? ipAddress = null;
+            string? userAgent = null;
+            if (_httpContextAccessor?.HttpContext != null)
+            {
+                ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+            }
+
+            string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;
+            string? newValuesJson = newValues != null ? JsonSerializer.Serialize(newValues) : null;
+
+            await _auditService.LogActionAsync(userId, action, entityType, entityId, oldValuesJson, newValuesJson, ipAddress, userAgent);
+        }
+
+        private int? GetCurrentUserId()
+        {
+            if (_httpContextAccessor?.HttpContext?.User != null)
+            {
+                var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return userId;
+                }
+            }
+            return null;
         }
 
         public async Task ResetUserPasswordAsync(int userId, string newPassword, string confirmNewPassword)
@@ -38,12 +76,25 @@ namespace KlyonHubPlatform.Application.Services
                 throw new KeyNotFoundException("Usuário não encontrado.");
             }
 
+            // Capturar valores antigos para auditoria
+            var oldPasswordHash = user.PasswordHash;
+
             // Gerar novo hash da senha usando BCrypt
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 11);
             
             // Atualizar diretamente no contexto para garantir que o hash seja salvo corretamente
             _context.Entry(user).Property(u => u.PasswordHash).IsModified = true;
             await _context.SaveChangesAsync();
+
+            // Log de auditoria: reset de senha administrativo
+            await LogAuditAsync(
+                GetCurrentUserId(),
+                "Senha resetada (ação administrativa)",
+                "User",
+                userId,
+                new { PasswordHashChanged = true },
+                new { PasswordHashChanged = true, UserEmail = user.Email, UserFullName = user.FullName }
+            );
         }
 
         public async Task VerifyUserEmailAsync(int userId)
@@ -54,9 +105,22 @@ namespace KlyonHubPlatform.Application.Services
                 throw new KeyNotFoundException("Usuário não encontrado.");
             }
 
+            // Capturar valores antigos para auditoria
+            var oldEmailVerified = user.EmailVerified;
+
             user.EmailVerified = true;
             user.EmailVerificationToken = null;
             await _userService.UpdateAsync(user);
+
+            // Log de auditoria: verificação de email administrativa
+            await LogAuditAsync(
+                GetCurrentUserId(),
+                "Email verificado (ação administrativa)",
+                "User",
+                userId,
+                new { EmailVerified = oldEmailVerified },
+                new { EmailVerified = user.EmailVerified, UserEmail = user.Email, UserFullName = user.FullName }
+            );
         }
 
         public async Task<List<User>> GetUsersFilteredAsync(string? search = null, string? role = null, string? status = null, string? emailVerified = null, int page = 1, int pageSize = 15)

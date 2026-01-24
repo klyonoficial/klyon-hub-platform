@@ -3,6 +3,9 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
+using System.Text.Json;
+using System.Security.Claims;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -14,14 +17,49 @@ namespace KlyonHubPlatform.Application.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<SefazService> _logger;
+        private readonly IAuditService? _auditService;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
         // Estados com integração implementada
         private static readonly HashSet<string> SupportedStates = new HashSet<string> { "ES" };
 
-        public SefazService(ApplicationDbContext context, ILogger<SefazService> logger)
+        public SefazService(ApplicationDbContext context, ILogger<SefazService> logger, IAuditService? auditService = null, IHttpContextAccessor? httpContextAccessor = null)
         {
             _context = context;
             _logger = logger;
+            _auditService = auditService;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
+        {
+            if (_auditService == null) return;
+
+            string? ipAddress = null;
+            string? userAgent = null;
+            if (_httpContextAccessor?.HttpContext != null)
+            {
+                ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+            }
+
+            string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;
+            string? newValuesJson = newValues != null ? JsonSerializer.Serialize(newValues) : null;
+
+            await _auditService.LogActionAsync(userId, action, entityType, entityId, oldValuesJson, newValuesJson, ipAddress, userAgent);
+        }
+
+        private int? GetCurrentUserId()
+        {
+            if (_httpContextAccessor?.HttpContext?.User != null)
+            {
+                var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return userId;
+                }
+            }
+            return null;
         }
 
         /// <summary>
@@ -36,7 +74,7 @@ namespace KlyonHubPlatform.Application.Services
         }
 
         /// <summary>
-        /// Obtém a configuração SEFAZ para um estado específico
+        /// Obtém a configuração SEFAZ da plataforma para um estado específico
         /// </summary>
         public async Task<SefazConfiguration?> GetConfigurationByStateAsync(string state, string environment = "Producao")
         {
@@ -47,6 +85,22 @@ namespace KlyonHubPlatform.Application.Services
             
             return await _context.SefazConfigurations
                 .Where(c => c.State == stateUpper && c.Environment == environment && c.IsActive)
+                .OrderByDescending(c => c.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        /// <summary>
+        /// Obtém a configuração SEFAZ do parceiro para um estado específico
+        /// </summary>
+        public async Task<CoworkingSefazConfiguration?> GetCoworkingConfigurationAsync(int coworkingId, string state, string environment = "Producao")
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return null;
+
+            var stateUpper = state.Trim().ToUpper();
+            
+            return await _context.CoworkingSefazConfigurations
+                .Where(c => c.CoworkingId == coworkingId && c.State == stateUpper && c.Environment == environment && c.IsActive)
                 .OrderByDescending(c => c.CreatedAt)
                 .FirstOrDefaultAsync();
         }
@@ -124,6 +178,26 @@ namespace KlyonHubPlatform.Application.Services
 
                 _logger.LogInformation($"NF de intermediação emitida com sucesso: {fiscalNote.AccessKey}");
 
+                // Log de auditoria: execução de NF de intermediação
+                await LogAuditAsync(
+                    GetCurrentUserId(),
+                    "NF de intermediação emitida (SEFAZ)",
+                    "FiscalNote",
+                    fiscalNote.Id,
+                    null,
+                    new { 
+                        AccessKey = fiscalNote.AccessKey,
+                        Number = fiscalNote.Number,
+                        Status = fiscalNote.Status,
+                        Amount = fiscalNote.Amount,
+                        CommissionAmount = fiscalNote.CommissionAmount,
+                        State = config.State,
+                        Environment = config.Environment,
+                        ReservationId = fiscalNote.ReservationId,
+                        ContractId = fiscalNote.ContractId
+                    }
+                );
+
                 return fiscalNote;
             }
             catch (Exception ex)
@@ -158,11 +232,129 @@ namespace KlyonHubPlatform.Application.Services
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+
+                // Log de auditoria: cancelamento de NF
+                await LogAuditAsync(
+                    GetCurrentUserId(),
+                    "NF cancelada (SEFAZ)",
+                    "FiscalNote",
+                    fiscalNoteId,
+                    new { Status = "Emitida", AccessKey = fiscalNote.AccessKey },
+                    new { Status = fiscalNote.Status, CancelledAt = fiscalNote.CancelledAt, CancellationReason = cancellationReason }
+                );
+
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Erro ao cancelar NF: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Emite uma nota fiscal de serviço via SEFAZ do estado
+        /// O parceiro emite NF de serviço sobre o valor total do serviço prestado
+        /// </summary>
+        public async Task<FiscalNote> IssueServiceNoteAsync(FiscalNote fiscalNote, CoworkingSefazConfiguration config)
+        {
+            try
+            {
+                // Verificar se o estado tem integração implementada
+                if (!IsStateSupported(config.State))
+                {
+                    throw new NotSupportedException($"Integração SEFAZ ainda não implementada para o estado {config.State}. Estados suportados: {string.Join(", ", SupportedStates)}");
+                }
+
+                _logger.LogInformation($"Iniciando emissão de NF de serviço para Reserva #{fiscalNote.ReservationId} ou Contrato #{fiscalNote.ContractId} no estado {config.State}");
+
+                // Validar configuração
+                if (!config.IsActive)
+                {
+                    throw new InvalidOperationException("Configuração da SEFAZ do parceiro não está ativa.");
+                }
+
+                if (string.IsNullOrEmpty(config.PartnerCNPJ))
+                {
+                    throw new InvalidOperationException("CNPJ do parceiro não configurado.");
+                }
+
+                // Determinar URL baseada no ambiente
+                var baseUrl = config.Environment == "Producao" 
+                    ? config.ProductionUrl 
+                    : config.HomologationUrl;
+
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    throw new InvalidOperationException($"URL da SEFAZ não configurada para ambiente {config.Environment}.");
+                }
+
+                // Buscar dados do cliente e parceiro
+                var client = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == fiscalNote.ClientId);
+
+                var coworking = await _context.Coworkings
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == fiscalNote.CoworkingId);
+
+                if (client == null || coworking == null)
+                {
+                    throw new InvalidOperationException("Cliente ou parceiro não encontrado.");
+                }
+
+                // Preparar dados para emissão da NF de serviço
+                // NOTA: Esta é uma implementação básica. A integração real com SEFAZ ES requer:
+                // 1. Certificado digital A1 ou A3
+                // 2. Biblioteca específica da SEFAZ ES (ex: NFe.ES)
+                // 3. Geração do XML da NF-e conforme layout da SEFAZ
+                // 4. Assinatura digital do XML
+                // 5. Envio via webservice da SEFAZ
+                // 6. Processamento da resposta e atualização do registro
+
+                // Simulação de emissão (substituir por integração real)
+                fiscalNote.Number = GenerateFiscalNoteNumber();
+                fiscalNote.AccessKey = GenerateAccessKeyForPartner(config.PartnerCNPJ, config.State);
+                fiscalNote.VerificationCode = GenerateVerificationCode();
+                fiscalNote.Status = "Emitida";
+                fiscalNote.AuthorizedAt = DateTime.UtcNow;
+                fiscalNote.AuthorizationProtocol = $"PROT-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                fiscalNote.XmlContent = GenerateMockXmlForService(fiscalNote, client, coworking, config);
+                fiscalNote.ViewUrl = $"{baseUrl}/nfe/view/{fiscalNote.AccessKey}";
+                fiscalNote.PdfUrl = $"{baseUrl}/nfe/pdf/{fiscalNote.AccessKey}";
+                fiscalNote.UpdatedAt = DateTime.UtcNow;
+
+                _logger.LogInformation($"NF de serviço emitida com sucesso: {fiscalNote.AccessKey}");
+
+                // Log de auditoria: execução de NF de serviço
+                await LogAuditAsync(
+                    GetCurrentUserId(),
+                    "NF de serviço emitida (SEFAZ)",
+                    "FiscalNote",
+                    fiscalNote.Id,
+                    null,
+                    new { 
+                        AccessKey = fiscalNote.AccessKey,
+                        Number = fiscalNote.Number,
+                        Status = fiscalNote.Status,
+                        Amount = fiscalNote.Amount,
+                        ServiceAmount = fiscalNote.ServiceAmount,
+                        State = config.State,
+                        Environment = config.Environment,
+                        ReservationId = fiscalNote.ReservationId,
+                        ContractId = fiscalNote.ContractId,
+                        CoworkingId = fiscalNote.CoworkingId
+                    }
+                );
+
+                return fiscalNote;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao emitir NF de serviço: {ex.Message}");
+                fiscalNote.Status = "Erro";
+                fiscalNote.ErrorMessage = ex.Message;
+                fiscalNote.UpdatedAt = DateTime.UtcNow;
                 throw;
             }
         }
@@ -207,6 +399,41 @@ namespace KlyonHubPlatform.Application.Services
             return $"{uf}{aamm}{cnpj}{modelo}{serie}{numero}{tipoEmissao}{codigoNumerico}{dv}";
         }
 
+        private string GenerateAccessKeyForPartner(string cnpj, string state)
+        {
+            // Chave de acesso NFe: 44 dígitos para parceiro
+            // Formato: UF (2) + AAMM (4) + CNPJ (14) + Modelo (2) + Série (3) + Número (9) + Tipo Emissão (1) + Código Numérico (8) + DV (1)
+            var random = new Random();
+            var uf = GetStateCode(state);
+            var aamm = DateTime.UtcNow.ToString("yyMM");
+            var cnpjClean = cnpj.Replace(".", "").Replace("/", "").Replace("-", "").PadLeft(14, '0');
+            var modelo = "55"; // NFe
+            var serie = "001";
+            var numero = GenerateFiscalNoteNumber();
+            var tipoEmissao = "1";
+            var codigoNumerico = random.Next(10000000, 99999999).ToString();
+            var dv = random.Next(0, 9).ToString();
+
+            return $"{uf}{aamm}{cnpjClean}{modelo}{serie}{numero}{tipoEmissao}{codigoNumerico}{dv}";
+        }
+
+        private string GetStateCode(string state)
+        {
+            // Mapeamento de UF para código numérico
+            var stateCodes = new Dictionary<string, string>
+            {
+                { "AC", "12" }, { "AL", "27" }, { "AP", "16" }, { "AM", "13" },
+                { "BA", "29" }, { "CE", "23" }, { "DF", "53" }, { "ES", "32" },
+                { "GO", "52" }, { "MA", "21" }, { "MT", "51" }, { "MS", "50" },
+                { "MG", "31" }, { "PA", "15" }, { "PB", "25" }, { "PR", "41" },
+                { "PE", "26" }, { "PI", "22" }, { "RJ", "33" }, { "RN", "24" },
+                { "RS", "43" }, { "RO", "11" }, { "RR", "14" }, { "SC", "42" },
+                { "SP", "35" }, { "SE", "28" }, { "TO", "17" }
+            };
+
+            return stateCodes.TryGetValue(state.ToUpper(), out var code) ? code : "32"; // Default ES
+        }
+
         private string GenerateVerificationCode()
         {
             // Código de verificação: 8 dígitos
@@ -217,11 +444,12 @@ namespace KlyonHubPlatform.Application.Services
         private string GenerateMockXml(FiscalNote fiscalNote, Client client, Coworking coworking, SefazConfiguration config)
         {
             // XML mockado - substituir por geração real conforme layout da SEFAZ ES
+            // NF de intermediação (comissão) - emitida pela plataforma
             return $@"<?xml version=""1.0"" encoding=""UTF-8""?>
 <NFe>
     <infNFe>
         <ide>
-            <cUF>32</cUF>
+            <cUF>{GetStateCode(config.State)}</cUF>
             <natOp>Intermediação de serviços</natOp>
             <mod>55</mod>
             <serie>001</serie>
@@ -236,13 +464,13 @@ namespace KlyonHubPlatform.Application.Services
             <tpAmb>{(config.Environment == "Producao" ? "1" : "2")}</tpAmb>
         </ide>
         <emit>
-            <CNPJ>{config.PlatformCNPJ}</CNPJ>
+            <CNPJ>{config.PlatformCNPJ.Replace(".", "").Replace("/", "").Replace("-", "")}</CNPJ>
             <xNome>Klyon Hub Platform</xNome>
             <IE>{config.PlatformMunicipalRegistration}</IE>
             <CRT>1</CRT>
         </emit>
         <dest>
-            <CNPJ>{coworking.CNPJ}</CNPJ>
+            <CNPJ>{coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "")}</CNPJ>
             <xNome>{coworking.Name}</xNome>
         </dest>
         <det>
@@ -273,6 +501,72 @@ namespace KlyonHubPlatform.Application.Services
         <total>
             <ICMSTot>
                 <vNF>{(fiscalNote.CommissionAmount ?? 0m):F2}</vNF>
+            </ICMSTot>
+        </total>
+    </infNFe>
+</NFe>";
+        }
+
+        private string GenerateMockXmlForService(FiscalNote fiscalNote, Client client, Coworking coworking, CoworkingSefazConfiguration config)
+        {
+            // XML mockado - substituir por geração real conforme layout da SEFAZ ES
+            // NF de serviço - emitida pelo parceiro
+            return $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<NFe>
+    <infNFe>
+        <ide>
+            <cUF>{GetStateCode(config.State)}</cUF>
+            <natOp>Prestação de serviços</natOp>
+            <mod>55</mod>
+            <serie>001</serie>
+            <nNF>{fiscalNote.Number}</nNF>
+            <dhEmi>{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss}</dhEmi>
+            <tpNF>1</tpNF>
+            <idDest>1</idDest>
+            <cMunFG>3205309</cMunFG>
+            <tpImp>1</tpImp>
+            <tpEmis>1</tpEmis>
+            <cDV>1</cDV>
+            <tpAmb>{(config.Environment == "Producao" ? "1" : "2")}</tpAmb>
+        </ide>
+        <emit>
+            <CNPJ>{config.PartnerCNPJ.Replace(".", "").Replace("/", "").Replace("-", "")}</CNPJ>
+            <xNome>{coworking.Name}</xNome>
+            <IE>{config.PartnerMunicipalRegistration}</IE>
+            <CRT>1</CRT>
+        </emit>
+        <dest>
+            <CNPJ>{client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "") ?? client.CPF?.Replace(".", "").Replace("-", "")}</CNPJ>
+            <xNome>{client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName}</xNome>
+        </dest>
+        <det>
+            <nItem>1</nItem>
+            <prod>
+                <cProd>SERVICO</cProd>
+                <xProd>{config.ServiceDescription}</xProd>
+                <NCM>00000000</NCM>
+                <CFOP>5952</CFOP>
+                <uCom>UN</uCom>
+                <qCom>1.0000</qCom>
+                <vUnCom>{(fiscalNote.ServiceAmount ?? fiscalNote.Amount):F2}</vUnCom>
+                <vProd>{(fiscalNote.ServiceAmount ?? fiscalNote.Amount):F2}</vProd>
+                <cEAN></cEAN>
+                <cEANTrib></cEANTrib>
+            </prod>
+            <imposto>
+                <vTotTrib>0.00</vTotTrib>
+                <ISSQN>
+                    <vBC>{(fiscalNote.ServiceAmount ?? fiscalNote.Amount):F2}</vBC>
+                    <vAliq>{config.ISSAliquot:F2}</vAliq>
+                    <vISSQN>{Math.Round((fiscalNote.ServiceAmount ?? fiscalNote.Amount) * (config.ISSAliquot / 100m), 2):F2}</vISSQN>
+                    <cMunFG>3205309</cMunFG>
+                    <cListServ>{config.ServiceCode}</cListServ>
+                </ISSQN>
+            </imposto>
+        </det>
+        <total>
+            <ICMSTot>
+                <vNF>{(fiscalNote.ServiceAmount ?? fiscalNote.Amount):F2}</vNF>
             </ICMSTot>
         </total>
     </infNFe>

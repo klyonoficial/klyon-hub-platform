@@ -308,12 +308,39 @@
                         <input type="date" class="form-control" name="endDate" 
                                value="@DateTime.Now.ToString("yyyy-MM-dd")" required>
                     </div>
-                    <button type="submit" class="btn btn-warning w-100" onclick="event.preventDefault(); handleExecuteNfScript(this);">
+                    <button type="submit" class="btn btn-warning w-100" id="btnExecuteScript" onclick="event.preventDefault(); handleExecuteNfScript(this);">
                         <i class="bi bi-play-fill"></i> Executar Script
                     </button>
                 </form>
             </div>
         </div>
+
+        <!-- Últimas execuções do script (data, usuário, quantidade de NFs) -->
+        @{
+            var lastExecutions = ViewBag.LastExecutions as List<KlyonHubPlatform.Domain.Entities.FiscalNoteScriptExecution> ?? new List<KlyonHubPlatform.Domain.Entities.FiscalNoteScriptExecution>();
+        }
+        @if (lastExecutions.Any())
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Últimas execuções</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var ex in lastExecutions.Take(5))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted">@ex.ExecutedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                    <br><span class="small">@ex.ExecutedByUserName</span>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">@ex.NotesEmitted NF</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
 
         <!-- Informações -->
         <div class="card">
@@ -376,15 +403,24 @@
     });
 
     async function handleExecuteNfScript(button) {
-        const confirmed = await showConfirm(
+        const confirmed1 = await showConfirm(
             'Tem certeza que deseja executar o script de emissão de notas fiscais? Isso irá criar e emitir as NFs pendentes.',
-            'Confirmar Execução de Script',
+            'Confirmar Execução de Script (1/2)',
             'warning'
         );
-        
-        if (confirmed) {
+        if (!confirmed1) return;
+
+        const confirmed2 = await showConfirm(
+            'Confirma novamente? Esta ação irá executar o script e emitir as notas fiscais pendentes. Reexecutar o script não gera NF duplicada.',
+            'Confirmar Execução de Script (2/2)',
+            'warning'
+        );
+
+        if (confirmed2) {
             const form = button.closest('form');
             if (form) {
+                const btn = document.getElementById('btnExecuteScript');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Executando...'; }
                 form.submit();
             }
         }

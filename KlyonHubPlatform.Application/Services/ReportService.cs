@@ -138,7 +138,7 @@ namespace KlyonHubPlatform.Application.Services
                 .ToListAsync();
         }
 
-        public async Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null)
+        public async Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null, string? assistedSaleFilter = null)
         {
             var result = new ReportFinancialResult();
             var rows = new List<ReportFinancialRowDto>();
@@ -146,6 +146,7 @@ namespace KlyonHubPlatform.Application.Services
             var pending = 0m;
 
             var productNorm = string.IsNullOrWhiteSpace(product) ? ReportProductFilter.Todos : product.Trim();
+            var assistedNorm = string.IsNullOrWhiteSpace(assistedSaleFilter) ? ReportAssistedSaleFilter.All : assistedSaleFilter.Trim();
 
             // Endereço fiscal (Payment -> Subscription -> Contract)
             if (productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.EnderecoFiscal)
@@ -155,39 +156,42 @@ namespace KlyonHubPlatform.Application.Services
 
                 var payments = await _context.Payments
                     .Where(p =>
+                        p.SubscriptionId != null &&
                         ((p.PaidAt != null && p.PaidAt >= dateFromUtc && p.PaidAt < dateToEnd) ||
                          (p.PaidAt == null && p.CreatedAt >= dateFromUtc && p.CreatedAt < dateToEnd))
                     )
                     .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.Client)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.Client)
                                 .ThenInclude(client => client.User)
                     .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.CoworkingAddress)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.CoworkingAddress)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.AssistedSaleAdmin)
                     .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                     .ToListAsync();
 
                 foreach (var p in payments)
                 {
+                    var contract = p.Subscription?.Contract;
+                    if (contract == null) continue;
+
+                    var isAssisted = contract.IsAssistedSale;
+                    if (assistedNorm == ReportAssistedSaleFilter.AssistedOnly && !isAssisted) continue;
+                    if (assistedNorm == ReportAssistedSaleFilter.SelfServiceOnly && isAssisted) continue;
+
                     var isPaid = p.Status == PaymentStatus.Paid;
                     if (isPaid) totalReceived += p.Amount;
                     else if (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation || p.Status == PaymentStatus.Processing)
                         pending += p.Amount;
 
-                    // Obter nome do cliente
-                    var clientName = "N/A";
-                    var client = p.Subscription?.Contract?.Client;
-                    if (client != null)
-                    {
-                        clientName = client.RazaoSocial 
-                            ?? client.NomeFantasia 
-                            ?? client.ContactName 
-                            ?? client.User?.FullName 
-                            ?? "N/A";
-                    }
+                    var client = contract.Client;
+                    var clientName = client != null
+                        ? (client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "N/A")
+                        : "N/A";
 
-                    // Obter método de pagamento
                     var paymentMethod = p.Method switch
                     {
                         PaymentMethod.PIX => "PIX",
@@ -196,18 +200,18 @@ namespace KlyonHubPlatform.Application.Services
                         _ => p.Method.ToString()
                     };
 
-                    // Obter localidade
+                    var address = contract.CoworkingAddress;
                     var location = "N/A";
-                    var address = p.Subscription?.Contract?.CoworkingAddress;
                     if (address != null)
                     {
                         var city = address.City ?? "";
                         var state = address.State ?? "";
                         if (!string.IsNullOrEmpty(city) || !string.IsNullOrEmpty(state))
-                        {
                             location = $"{city}/{state}".Trim('/');
-                        }
                     }
+
+                    var saleOrigin = isAssisted ? "Venda assistida" : "Autoatendimento";
+                    var adminName = isAssisted && contract.AssistedSaleAdmin != null ? contract.AssistedSaleAdmin.FullName : null;
 
                     rows.Add(new ReportFinancialRowDto
                     {
@@ -218,13 +222,16 @@ namespace KlyonHubPlatform.Application.Services
                         Client = clientName,
                         Location = location,
                         Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
+                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        IsAssistedSale = isAssisted,
+                        SaleOrigin = saleOrigin,
+                        AssistedSaleAdminName = adminName
                     });
                 }
             }
 
-            // Aluguel de salas (Reservations -> Payments)
-            if (productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.AluguelSalas)
+            // Aluguel de salas (Reservations -> Payments). Filtro por venda assistida não se aplica.
+            if ((productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.AluguelSalas) && assistedNorm == ReportAssistedSaleFilter.All)
             {
                 var dateFromUtc = dateFrom.Date;
                 var dateToEnd = dateTo.Date.AddDays(1);
@@ -294,7 +301,10 @@ namespace KlyonHubPlatform.Application.Services
                         Client = clientName,
                         Location = location,
                         Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
+                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        IsAssistedSale = false,
+                        SaleOrigin = "",
+                        AssistedSaleAdminName = null
                     });
                 }
             }
@@ -521,42 +531,139 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<List<CoworkingRevenueReportDto>> GetCoworkingRevenueReportAsync()
         {
-            // Buscar o serviço "Reservar Sala" para obter o ServiceId
-            var service = await _context.Services
-                .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
+            var result = new List<CoworkingRevenueReportDto>();
+            
+            // Buscar todos os coworkings que têm receita
+            var coworkingIds = new HashSet<int>();
 
-            var data = await _context.Reservations
-                .Where(r => (r.Status == "Confirmed" || r.Status == "Completed"))
-                .Include(r => r.CoworkingAddress)
-                    .ThenInclude(a => a!.Coworking)
-                .GroupBy(r => new { r.CoworkingAddress!.CoworkingId, r.CoworkingAddress.Coworking!.Name })
-                .Select(g => new CoworkingRevenueReportDto
-                {
-                    CoworkingId = g.Key.CoworkingId,
-                    CoworkingName = g.Key.Name ?? "",
-                    TotalRevenue = g.Sum(r => r.TotalValue),
-                    ReservationCount = g.Count(),
-                    CommissionPercentage = 20m // Será atualizado abaixo
-                })
-                .OrderByDescending(x => x.TotalRevenue)
+            // 1. Buscar coworkings através de reservas (Aluguel de Salas)
+            var reservationCoworkings = await _context.Reservations
+                .Where(r => (r.Status == "Confirmed" || r.Status == "Completed") && r.CoworkingAddress != null)
+                .Select(r => r.CoworkingAddress!.CoworkingId)
+                .Distinct()
                 .ToListAsync();
+            
+            foreach (var id in reservationCoworkings)
+                coworkingIds.Add(id);
 
-            // Buscar porcentagem do PartnerService para cada coworking
-            if (service != null)
+            // 2. Buscar coworkings através de contratos (Endereço Fiscal)
+            var contractCoworkings = await _context.Contracts
+                .Where(c => c.CoworkingAddressId != null && c.Status == ContractStatus.Active)
+                .Select(c => c.CoworkingAddress!.CoworkingId)
+                .Distinct()
+                .ToListAsync();
+            
+            foreach (var id in contractCoworkings)
+                coworkingIds.Add(id);
+
+            // Buscar serviços para obter porcentagens de comissão
+            var reservarSalaService = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
+            
+            var enderecoFiscalService = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Endereço Fiscal" && s.IsActive);
+
+            // Para cada coworking, calcular receita por produto
+            foreach (var coworkingId in coworkingIds)
             {
-                foreach (var item in data)
+                var coworking = await _context.Coworkings.FindAsync(coworkingId);
+                var coworkingName = coworking?.Name ?? $"Coworking #{coworkingId}";
+                
+                var products = new List<CoworkingProductRevenueDto>();
+                decimal totalRevenue = 0m;
+
+                // Produto: Aluguel de Salas
+                var reservations = await _context.Reservations
+                    .Where(r => r.CoworkingAddress != null && 
+                               r.CoworkingAddress.CoworkingId == coworkingId &&
+                               (r.Status == "Confirmed" || r.Status == "Completed"))
+                    .ToListAsync();
+                
+                if (reservations.Any())
                 {
-                    var partnerService = await _context.PartnerServices
-                        .FirstOrDefaultAsync(ps => ps.CoworkingId == item.CoworkingId && ps.ServiceId == service.Id);
+                    var reservationRevenue = reservations.Sum(r => r.TotalValue);
+                    var reservationCount = reservations.Count;
                     
-                    if (partnerService != null && partnerService.Percentage > 0)
+                    // Buscar porcentagem de comissão
+                    decimal commissionPercentage = 20m; // Padrão
+                    if (reservarSalaService != null)
                     {
-                        item.CommissionPercentage = partnerService.Percentage;
+                        var partnerService = await _context.PartnerServices
+                            .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && 
+                                                      ps.ServiceId == reservarSalaService.Id);
+                        if (partnerService != null && partnerService.Percentage > 0)
+                            commissionPercentage = partnerService.Percentage;
                     }
+                    
+                    products.Add(new CoworkingProductRevenueDto
+                    {
+                        ProductType = ReportProductFilter.AluguelSalas,
+                        ProductDisplayName = "Aluguel de Salas",
+                        TotalRevenue = reservationRevenue,
+                        TransactionCount = reservationCount,
+                        CommissionPercentage = commissionPercentage
+                    });
+                    
+                    totalRevenue += reservationRevenue;
+                }
+
+                // Produto: Endereço Fiscal
+                var contracts = await _context.Contracts
+                    .Where(c => c.CoworkingAddress != null &&
+                               c.CoworkingAddress.CoworkingId == coworkingId &&
+                               c.Status == ContractStatus.Active)
+                    .Include(c => c.Subscription)
+                        .ThenInclude(s => s!.Payments)
+                    .ToListAsync();
+                
+                var fiscalPayments = contracts
+                    .Where(c => c.Subscription != null)
+                    .Select(c => c.Subscription!)
+                    .SelectMany(s => s.Payments)
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .ToList();
+                
+                if (fiscalPayments.Any())
+                {
+                    var fiscalRevenue = fiscalPayments.Sum(p => p.Amount);
+                    var fiscalCount = fiscalPayments.Count;
+                    
+                    // Buscar porcentagem de comissão
+                    decimal commissionPercentage = 20m; // Padrão
+                    if (enderecoFiscalService != null)
+                    {
+                        var partnerService = await _context.PartnerServices
+                            .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && 
+                                                      ps.ServiceId == enderecoFiscalService.Id);
+                        if (partnerService != null && partnerService.Percentage > 0)
+                            commissionPercentage = partnerService.Percentage;
+                    }
+                    
+                    products.Add(new CoworkingProductRevenueDto
+                    {
+                        ProductType = ReportProductFilter.EnderecoFiscal,
+                        ProductDisplayName = "Endereço Fiscal",
+                        TotalRevenue = fiscalRevenue,
+                        TransactionCount = fiscalCount,
+                        CommissionPercentage = commissionPercentage
+                    });
+                    
+                    totalRevenue += fiscalRevenue;
+                }
+
+                if (products.Any())
+                {
+                    result.Add(new CoworkingRevenueReportDto
+                    {
+                        CoworkingId = coworkingId,
+                        CoworkingName = coworkingName,
+                        TotalRevenue = totalRevenue,
+                        Products = products
+                    });
                 }
             }
 
-            return data;
+            return result.OrderByDescending(x => x.TotalRevenue).ToList();
         }
 
         public async Task<CoworkingRevenueDetailDto> GetCoworkingRevenueDetailAsync(int coworkingId, DateTime? dateFrom = null, DateTime? dateTo = null)
@@ -615,6 +722,201 @@ namespace KlyonHubPlatform.Application.Services
                 CoworkingName = name,
                 Reservations = res,
                 TotalRevenue = res.Sum(r => r.TotalValue)
+            };
+        }
+
+        public async Task<CoworkingProductDetailDto> GetCoworkingProductDetailAsync(int coworkingId, string productType, DateTime? dateFrom = null, DateTime? dateTo = null)
+        {
+            var coworking = await _context.Coworkings.FindAsync(coworkingId);
+            var coworkingName = coworking?.Name ?? $"Coworking #{coworkingId}";
+            
+            var productDisplayName = productType switch
+            {
+                ReportProductFilter.EnderecoFiscal => "Endereço Fiscal",
+                ReportProductFilter.AluguelSalas => "Aluguel de Salas",
+                ReportProductFilter.CertificadoDigitais => "Certificado Digitais",
+                _ => productType
+            };
+
+            var transactions = new List<ProductTransactionDetailDto>();
+            decimal totalRevenue = 0m;
+            decimal commissionPercentage = 20m;
+
+            // Buscar porcentagem de comissão
+            Service? service = null;
+            if (productType == ReportProductFilter.AluguelSalas)
+            {
+                service = await _context.Services
+                    .FirstOrDefaultAsync(s => s.Name == "Reservar Sala" && s.IsActive);
+            }
+            else if (productType == ReportProductFilter.EnderecoFiscal)
+            {
+                service = await _context.Services
+                    .FirstOrDefaultAsync(s => s.Name == "Endereço Fiscal" && s.IsActive);
+            }
+
+            if (service != null)
+            {
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == service.Id);
+                if (partnerService != null && partnerService.Percentage > 0)
+                    commissionPercentage = partnerService.Percentage;
+            }
+
+            if (productType == ReportProductFilter.AluguelSalas)
+            {
+                // Buscar pagamentos de reservas
+                IQueryable<Payment> paymentQuery = _context.Payments
+                    .Where(p => p.ReservationId != null &&
+                               p.Reservation!.CoworkingAddress != null &&
+                               p.Reservation.CoworkingAddress.CoworkingId == coworkingId &&
+                               p.Status == PaymentStatus.Paid)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r!.Client)
+                            .ThenInclude(c => c.User)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r!.CoworkingAddress);
+
+                if (dateFrom.HasValue)
+                    paymentQuery = paymentQuery.Where(p => (p.PaidAt ?? p.CreatedAt) >= dateFrom.Value.Date);
+                if (dateTo.HasValue)
+                    paymentQuery = paymentQuery.Where(p => (p.PaidAt ?? p.CreatedAt) <= dateTo.Value.Date.AddDays(1));
+
+                var payments = await paymentQuery
+                    .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                    .ToListAsync();
+
+                foreach (var payment in payments)
+                {
+                    var reservation = payment.Reservation;
+                    if (reservation == null) continue;
+
+                    var clientName = "N/A";
+                    if (reservation.Client != null)
+                    {
+                        clientName = reservation.Client.RazaoSocial 
+                            ?? reservation.Client.NomeFantasia 
+                            ?? reservation.Client.ContactName 
+                            ?? reservation.Client.User?.FullName 
+                            ?? "N/A";
+                    }
+
+                    var roomType = reservation.RoomType == "Shared" ? "Sala compartilhada" 
+                        : reservation.RoomType == "Private" ? "Sala privativa" 
+                        : reservation.RoomType == "Auditorium" ? "Auditório" 
+                        : reservation.RoomType;
+
+                    var paymentMethod = payment.Method switch
+                    {
+                        PaymentMethod.PIX => "PIX",
+                        PaymentMethod.CreditCard => "Cartão",
+                        PaymentMethod.BankTransfer => "Boleto",
+                        _ => payment.Method.ToString()
+                    };
+
+                    transactions.Add(new ProductTransactionDetailDto
+                    {
+                        PaymentId = payment.Id,
+                        Date = payment.PaidAt ?? payment.CreatedAt,
+                        Amount = payment.Amount,
+                        ClientName = clientName,
+                        ClientId = reservation.ClientId,
+                        PaymentMethod = paymentMethod,
+                        Status = "Pago",
+                        AdditionalInfo = $"{roomType} - {reservation.ReservationDate:dd/MM/yyyy}",
+                        ReservationId = reservation.Id,
+                        ContractId = null
+                    });
+
+                    totalRevenue += payment.Amount;
+                }
+            }
+            else if (productType == ReportProductFilter.EnderecoFiscal)
+            {
+                // Buscar pagamentos de contratos (endereço fiscal)
+                IQueryable<Payment> paymentQuery = _context.Payments
+                    .Where(p => p.SubscriptionId != null &&
+                               p.Subscription!.Contract != null &&
+                               p.Subscription.Contract.CoworkingAddress != null &&
+                               p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingId &&
+                               p.Status == PaymentStatus.Paid)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.Client)
+                                .ThenInclude(client => client.User)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.CoworkingAddress)
+                                .ThenInclude(a => a!.Location);
+
+                if (dateFrom.HasValue)
+                    paymentQuery = paymentQuery.Where(p => (p.PaidAt ?? p.CreatedAt) >= dateFrom.Value.Date);
+                if (dateTo.HasValue)
+                    paymentQuery = paymentQuery.Where(p => (p.PaidAt ?? p.CreatedAt) <= dateTo.Value.Date.AddDays(1));
+
+                var payments = await paymentQuery
+                    .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                    .ToListAsync();
+
+                foreach (var payment in payments)
+                {
+                    var contract = payment.Subscription?.Contract;
+                    if (contract == null) continue;
+
+                    var clientName = "N/A";
+                    if (contract.Client != null)
+                    {
+                        clientName = contract.Client.RazaoSocial 
+                            ?? contract.Client.NomeFantasia 
+                            ?? contract.Client.ContactName 
+                            ?? contract.Client.User?.FullName 
+                            ?? "N/A";
+                    }
+
+                    var location = "N/A";
+                    if (contract.CoworkingAddress?.Location != null)
+                    {
+                        var city = contract.CoworkingAddress.Location.City ?? "";
+                        var state = contract.CoworkingAddress.Location.State ?? "";
+                        if (!string.IsNullOrEmpty(city) || !string.IsNullOrEmpty(state))
+                            location = $"{city}/{state}".Trim('/');
+                    }
+
+                    var paymentMethod = payment.Method switch
+                    {
+                        PaymentMethod.PIX => "PIX",
+                        PaymentMethod.CreditCard => "Cartão",
+                        PaymentMethod.BankTransfer => "Boleto",
+                        _ => payment.Method.ToString()
+                    };
+
+                    transactions.Add(new ProductTransactionDetailDto
+                    {
+                        PaymentId = payment.Id,
+                        Date = payment.PaidAt ?? payment.CreatedAt,
+                        Amount = payment.Amount,
+                        ClientName = clientName,
+                        ClientId = contract.ClientId,
+                        PaymentMethod = paymentMethod,
+                        Status = "Pago",
+                        AdditionalInfo = location,
+                        ReservationId = null,
+                        ContractId = contract.Id
+                    });
+
+                    totalRevenue += payment.Amount;
+                }
+            }
+
+            return new CoworkingProductDetailDto
+            {
+                CoworkingId = coworkingId,
+                CoworkingName = coworkingName,
+                ProductType = productType,
+                ProductDisplayName = productDisplayName,
+                TotalRevenue = totalRevenue,
+                CommissionPercentage = commissionPercentage,
+                Transactions = transactions
             };
         }
     }

@@ -122,7 +122,11 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (contract.CoworkingAddress != null)
+                                    @if (!string.IsNullOrEmpty(contract.SnapshotAddress))
+                                    {
+                                        <small>@contract.SnapshotAddress</small>
+                                    }
+                                    else if (contract.CoworkingAddress != null)
                                     {
                                         <small>@contract.CoworkingAddress.Address, @contract.CoworkingAddress.Number<br>
                                         @contract.CoworkingAddress.City/@contract.CoworkingAddress.State</small>
@@ -144,7 +148,9 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td><strong>R$ @contract.MonthlyValue.ToString("F2")</strong></td>
+                                <td>
+                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("F2") : contract.MonthlyValue.ToString("F2"))</strong>
+                                </td>
                                 <td>
                                     @{
                                         var statusClass = contract.Status switch

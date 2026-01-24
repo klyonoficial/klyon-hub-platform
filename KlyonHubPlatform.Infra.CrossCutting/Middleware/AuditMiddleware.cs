@@ -32,7 +32,9 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
                     "HTTP",
                     null,
                     null,
-                    $"Status: {context.Response.StatusCode}"
+                    $"Status: {context.Response.StatusCode}",
+                    ipAddress,
+                    userAgent
                 );
             }
         }

@@ -6,11 +6,12 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         Task<DashboardViewModel> GetDashboardDataAsync();
         Task<List<Payment>> GetRecentPaymentsAsync(int days = 30, int take = 10);
-        Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null);
+        Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null, string? assistedSaleFilter = null);
         Task<List<ClientCreditsReportDto>> GetClientCreditsReportAsync();
         Task<ClientCreditStatementDto> GetClientCreditStatementAsync(int clientId, DateTime? dateFrom = null, DateTime? dateTo = null);
         Task<List<CoworkingRevenueReportDto>> GetCoworkingRevenueReportAsync();
         Task<CoworkingRevenueDetailDto> GetCoworkingRevenueDetailAsync(int coworkingId, DateTime? dateFrom = null, DateTime? dateTo = null);
+        Task<CoworkingProductDetailDto> GetCoworkingProductDetailAsync(int coworkingId, string productType, DateTime? dateFrom = null, DateTime? dateTo = null);
     }
 
     /// <summary>Extrato de créditos do cliente: compras (entrada) e reservas (saída) em ordem cronológica.</summary>
@@ -44,6 +45,14 @@ namespace KlyonHubPlatform.Application.Interfaces
         public const string CertificadoDigitais = "CertificadoDigitais";
     }
 
+    /// <summary>Filtro de origem da venda (relatório financeiro): null/"" = Todos, "AssistedOnly", "SelfServiceOnly"</summary>
+    public static class ReportAssistedSaleFilter
+    {
+        public const string All = "";
+        public const string AssistedOnly = "AssistedOnly";
+        public const string SelfServiceOnly = "SelfServiceOnly";
+    }
+
     public class ReportFinancialResult
     {
         public List<ReportFinancialRowDto> Rows { get; set; } = new();
@@ -62,6 +71,12 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string Client { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        /// <summary>Indica se o pagamento é de contrato criado via venda assistida (admin). Apenas para Endereço fiscal.</summary>
+        public bool IsAssistedSale { get; set; }
+        /// <summary>Origem da venda: "Venda assistida" ou "Autoatendimento". Vazio para outros produtos.</summary>
+        public string SaleOrigin { get; set; } = string.Empty;
+        /// <summary>Nome do admin responsável (venda assistida). Vazio quando não se aplica.</summary>
+        public string? AssistedSaleAdminName { get; set; }
     }
 
     /// <summary>Relatório de créditos por cliente: compras, gastos por coworking e saldo.</summary>
@@ -83,13 +98,22 @@ namespace KlyonHubPlatform.Application.Interfaces
         public decimal TotalValue { get; set; }
     }
 
-    /// <summary>Relatório de receita por coworking (reservas de salas).</summary>
+    /// <summary>Relatório de receita por coworking com produtos.</summary>
     public class CoworkingRevenueReportDto
     {
         public int CoworkingId { get; set; }
         public string CoworkingName { get; set; } = string.Empty;
         public decimal TotalRevenue { get; set; }
-        public int ReservationCount { get; set; }
+        public List<CoworkingProductRevenueDto> Products { get; set; } = new();
+    }
+
+    /// <summary>Receita por produto dentro de um coworking.</summary>
+    public class CoworkingProductRevenueDto
+    {
+        public string ProductType { get; set; } = string.Empty; // "EnderecoFiscal", "AluguelSalas", "CertificadoDigitais"
+        public string ProductDisplayName { get; set; } = string.Empty; // "Endereço Fiscal", "Aluguel de Salas", etc.
+        public decimal TotalRevenue { get; set; }
+        public int TransactionCount { get; set; }
         public decimal CommissionPercentage { get; set; }
     }
 
@@ -100,6 +124,33 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string CoworkingName { get; set; } = string.Empty;
         public List<CoworkingReservationDetailRowDto> Reservations { get; set; } = new();
         public decimal TotalRevenue { get; set; }
+    }
+
+    /// <summary>Detalhe de receita por produto dentro de um coworking.</summary>
+    public class CoworkingProductDetailDto
+    {
+        public int CoworkingId { get; set; }
+        public string CoworkingName { get; set; } = string.Empty;
+        public string ProductType { get; set; } = string.Empty;
+        public string ProductDisplayName { get; set; } = string.Empty;
+        public decimal TotalRevenue { get; set; }
+        public decimal CommissionPercentage { get; set; }
+        public List<ProductTransactionDetailDto> Transactions { get; set; } = new();
+    }
+
+    /// <summary>Detalhe de uma transação de produto (pagamento individual).</summary>
+    public class ProductTransactionDetailDto
+    {
+        public int PaymentId { get; set; }
+        public DateTime Date { get; set; }
+        public decimal Amount { get; set; }
+        public string ClientName { get; set; } = string.Empty;
+        public int? ClientId { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? AdditionalInfo { get; set; } // Ex: tipo de sala, localização, etc.
+        public int? ReservationId { get; set; }
+        public int? ContractId { get; set; }
     }
 
     public class CoworkingReservationDetailRowDto

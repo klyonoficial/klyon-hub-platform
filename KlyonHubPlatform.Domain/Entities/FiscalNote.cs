@@ -61,6 +61,9 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Justificativa do cancelamento</summary>
         public string? CancellationReason { get; set; }
         
+        /// <summary>Chave de idempotência: evita NF duplicada para mesmo reserva/contrato + tipo (ex: INTERMEDIACAO-R-123, INTERMEDIACAO-C-456)</summary>
+        public string? IdempotencyKey { get; set; }
+        
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         

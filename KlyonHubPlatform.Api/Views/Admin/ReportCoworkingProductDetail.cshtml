@@ -1,0 +1,213 @@
+@using KlyonHubPlatform.Application.Interfaces
+@model CoworkingProductDetailDto
+@{
+    ViewData["Title"] = "Detalhes do Produto";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var dateFrom = ViewBag.DateFrom as DateTime?;
+    var dateTo = ViewBag.DateTo as DateTime?;
+    
+    var totalCommission = Model?.Transactions?.Sum(t => t.Amount * (Model.CommissionPercentage / 100m)) ?? 0m;
+    var totalNetValue = (Model?.TotalRevenue ?? 0m) - totalCommission;
+    var transactionCount = Model?.Transactions?.Count ?? 0;
+}
+
+<style>
+    .drill-down-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 1.5rem;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .transaction-row {
+        transition: background-color 0.2s;
+    }
+    .transaction-row:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="container mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="bi bi-list-ul text-primary me-2"></i>
+                    Detalhes do Produto: @(Model?.ProductDisplayName ?? "Produto")
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> Coworking: <strong>@(Model?.CoworkingName ?? "N/A")</strong> | 
+                    Drilldown completo: produto, valor pago, quem comprou
+                </p>
+            </div>
+            <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar à lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="container mb-4">
+        <div class="drill-down-card card">
+            <div class="card-body p-4">
+                <form method="get" action="@Url.Action("ReportCoworkingProductDetail", "Admin", new { id = Model?.CoworkingId, productType = Model?.ProductType })">
+                    <input type="hidden" name="id" value="@Model?.CoworkingId" />
+                    <input type="hidden" name="productType" value="@Model?.ProductType" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data inicial</label>
+                            <input type="date" name="dateFrom" class="form-control" value="@(dateFrom?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data final</label>
+                            <input type="date" name="dateTo" class="form-control" value="@(dateTo?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> Filtrar
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <a href="@Url.Action("ReportCoworkingProductDetail", "Admin", new { id = Model?.CoworkingId, productType = Model?.ProductType })" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-x-circle"></i> Limpar
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Financeiro -->
+    <div class="container mb-4">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h6 class="mb-1 opacity-75">Total de Transações</h6>
+                    <h2 class="mb-0">@transactionCount</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h6 class="mb-1 opacity-75">Faturamento Bruto</h6>
+                    <h2 class="mb-0">R$ @(Model?.TotalRevenue.ToString("N2") ?? "0,00")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <h6 class="mb-1 opacity-75">Comissão (@(Model?.CommissionPercentage.ToString("F2") ?? "0,00")%)</h6>
+                    <h2 class="mb-0">R$ @totalCommission.ToString("N2")</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <h6 class="mb-1 opacity-75">Valor Líquido Repassado</h6>
+                    <h2 class="mb-0">R$ @totalNetValue.ToString("N2")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Transações -->
+    <div class="container">
+        <div class="drill-down-card card">
+            <div class="section-header">
+                <h3 class="mb-0">
+                    <i class="bi bi-receipt-cutoff text-primary me-2"></i>
+                    Transações Detalhadas
+                </h3>
+                <p class="text-muted mb-0 mt-2">
+                    <i class="bi bi-info-circle"></i> Último nível do drilldown: cada pagamento individual com cliente e valor
+                </p>
+            </div>
+            <div class="card-body p-0">
+                @if (Model?.Transactions != null && Model.Transactions.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><strong>Data</strong></th>
+                                    <th><strong>Cliente</strong></th>
+                                    <th><strong>Valor Pago (R$)</strong></th>
+                                    <th><strong>Método de Pagamento</strong></th>
+                                    <th><strong>Status</strong></th>
+                                    <th><strong>Informações Adicionais</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var transaction in Model.Transactions)
+                                {
+                                    <tr class="transaction-row">
+                                        <td>
+                                            <strong>@transaction.Date.ToString("dd/MM/yyyy")</strong><br>
+                                            <small class="text-muted">@transaction.Date.ToString("HH:mm")</small>
+                                        </td>
+                                        <td>
+                                            <strong>@transaction.ClientName</strong>
+                                            @if (transaction.ClientId.HasValue)
+                                            {
+                                                <br><small class="text-muted">ID: @transaction.ClientId</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <strong class="text-success">R$ @transaction.Amount.ToString("N2")</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">@transaction.PaymentMethod</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle"></i> @transaction.Status
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(transaction.AdditionalInfo))
+                                            {
+                                                <small class="text-muted">@transaction.AdditionalInfo</small>
+                                            }
+                                            @if (transaction.ReservationId.HasValue)
+                                            {
+                                                <br><small class="text-muted">Reserva #@transaction.ReservationId</small>
+                                            }
+                                            @if (transaction.ContractId.HasValue)
+                                            {
+                                                <br><small class="text-muted">Contrato #@transaction.ContractId</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="2"><strong>TOTAL</strong></td>
+                                    <td><strong>R$ @(Model?.TotalRevenue.ToString("N2") ?? "0,00")</strong></td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <p class="text-muted mt-3 mb-0">Nenhuma transação no período.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

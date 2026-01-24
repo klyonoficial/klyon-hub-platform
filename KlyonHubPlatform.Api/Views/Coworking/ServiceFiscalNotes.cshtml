@@ -1,0 +1,196 @@
+@{
+    ViewData["Title"] = "Emitir NF de Serviço";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Payment>
+
+@{
+    var commissionDict = ViewBag.CommissionDict as Dictionary<int, KlyonHubPlatform.Domain.Entities.Commission> ?? new Dictionary<int, KlyonHubPlatform.Domain.Entities.Commission>();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Serviço</h2>
+    <div>
+        <a href="@Url.Action("ListServiceFiscalNotes", "Coworking")" class="btn btn-outline-info me-2">
+            <i class="bi bi-list-ul"></i> Ver Notas Emitidas
+        </a>
+        <a href="@Url.Action("SefazConfiguration", "Coworking")" class="btn btn-outline-primary me-2">
+            <i class="bi bi-gear"></i> Configurações SEFAZ
+        </a>
+        <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-list-check"></i> Pagamentos Pendentes</h6>
+                <h2 class="mb-0">@ViewBag.TotalItems</h2>
+                <small class="text-white-50">Aguardando emissão de NF</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total para Emitir</h6>
+                <h2 class="mb-0">R$ @(Model.Sum(p => {
+                    var commission = commissionDict.ContainsKey(p.Id) ? commissionDict[p.Id] : null;
+                    return commission != null ? p.Amount - commission.Amount : p.Amount;
+                }).ToString("N2"))</h2>
+                <small class="text-white-50">Valor líquido (após comissão)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Pagamentos -->
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Serviço</th>
+                            <th>Localização</th>
+                            <th>Valor para Emitir (R$)</th>
+                            <th>Data Pagamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in Model)
+                        {
+                            var client = payment.Subscription?.Contract?.Client ?? payment.Reservation?.Client;
+                            var serviceName = payment.Subscription?.Contract != null ? "Endereço Fiscal" : "Reserva de Sala";
+                            var location = payment.Subscription?.Contract?.CoworkingAddress?.Location ?? payment.Reservation?.CoworkingAddress?.Location;
+                            
+                            // Calcular valor líquido (valor total - comissão)
+                            var commission = commissionDict.ContainsKey(payment.Id) ? commissionDict[payment.Id] : null;
+                            var netAmount = commission != null ? payment.Amount - commission.Amount : payment.Amount;
+                            
+                            <tr>
+                                <td>#@payment.Id</td>
+                                <td>
+                                    @if (client != null)
+                                    {
+                                        <strong>@(client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName)</strong><br>
+                                        <small class="text-muted">@(client.CNPJ ?? client.CPF)</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    @serviceName
+                                </td>
+                                <td>
+                                    @if (location != null)
+                                    {
+                                        <strong>@location.City/@location.State</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>R$ @netAmount.ToString("N2")</strong>
+                                    <input type="hidden" class="net-amount" value="@netAmount.ToString("F2")" />
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div>
+                                            @if (payment.PaidAt.HasValue)
+                                            {
+                                                @payment.PaidAt.Value.ToString("dd/MM/yyyy")<br>
+                                                <small class="text-muted">@payment.PaidAt.Value.ToString("HH:mm")</small>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </div>
+                                        <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="paymentId" value="@payment.Id" />
+                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @netAmount.ToString("N2")?');">
+                                                <i class="bi bi-file-earmark-check"></i> Emitir NF
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                    Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = i, pageSize = ViewBag.PageSize })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                    Próximo
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Nenhum pagamento pendente de emissão de NF encontrado.
+            </div>
+        }
+    </div>
+</div>

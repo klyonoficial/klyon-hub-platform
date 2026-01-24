@@ -8,6 +8,8 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
 using System.Linq;
+using Microsoft.AspNetCore.Http;
+using System.Text.Json;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -22,6 +24,8 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ApplicationDbContext _context;
         private readonly IAddressDeclarationService? _addressDeclarationService;
         private readonly ISystemConfigurationService _systemConfigurationService;
+        private readonly IAuditService? _auditService;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
         public PaymentService(
             IPaymentRepository paymentRepository,
@@ -32,7 +36,9 @@ namespace KlyonHubPlatform.Application.Services
             IPagBankService pagBankService,
             ApplicationDbContext context,
             ISystemConfigurationService systemConfigurationService,
-            IAddressDeclarationService? addressDeclarationService = null)
+            IAddressDeclarationService? addressDeclarationService = null,
+            IAuditService? auditService = null,
+            IHttpContextAccessor? httpContextAccessor = null)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
@@ -43,6 +49,26 @@ namespace KlyonHubPlatform.Application.Services
             _context = context;
             _addressDeclarationService = addressDeclarationService;
             _systemConfigurationService = systemConfigurationService;
+            _auditService = auditService;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
+        {
+            if (_auditService == null) return;
+
+            string? ipAddress = null;
+            string? userAgent = null;
+            if (_httpContextAccessor?.HttpContext != null)
+            {
+                ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+            }
+
+            string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;
+            string? newValuesJson = newValues != null ? JsonSerializer.Serialize(newValues) : null;
+
+            await _auditService.LogActionAsync(userId, action, entityType, entityId, oldValuesJson, newValuesJson, ipAddress, userAgent);
         }
 
         public async Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method)
@@ -527,6 +553,11 @@ namespace KlyonHubPlatform.Application.Services
             if (payment.Status == PaymentStatus.Paid)
                 return payment; // Já está pago
 
+            // Capturar valores antigos para auditoria
+            var oldStatus = payment.Status;
+            var oldPaidAt = payment.PaidAt;
+            var oldTransactionId = payment.TransactionId;
+
             // Atualizar status para pago
             payment.Status = PaymentStatus.Paid;
             payment.PaidAt = DateTime.UtcNow;
@@ -535,6 +566,26 @@ namespace KlyonHubPlatform.Application.Services
                 payment.TransactionId = transactionId;
             }
             await _paymentRepository.UpdateAsync(payment);
+
+            // Log de auditoria: aprovação de pagamento
+            int? userId = null;
+            if (_httpContextAccessor?.HttpContext?.User != null)
+            {
+                var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+                {
+                    userId = parsedUserId;
+                }
+            }
+
+            await LogAuditAsync(
+                userId,
+                "Pagamento aprovado",
+                "Payment",
+                payment.Id,
+                new { Status = oldStatus.ToString(), PaidAt = oldPaidAt, TransactionId = oldTransactionId },
+                new { Status = payment.Status.ToString(), PaidAt = payment.PaidAt, TransactionId = payment.TransactionId, Amount = payment.Amount }
+            );
 
             // Atualizar assinatura
             if (payment.SubscriptionId.HasValue)

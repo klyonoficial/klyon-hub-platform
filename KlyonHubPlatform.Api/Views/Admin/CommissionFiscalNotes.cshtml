@@ -1,0 +1,262 @@
+@{
+    ViewData["Title"] = "Emitir NF de Comissão";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Commission>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão</h2>
+    <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Notas Fiscais
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("CommissionFiscalNotes", "Admin")" class="row g-3">
+            <div class="col-md-4">
+                <label for="coworkingId" class="form-label">Parceiro</label>
+                <select class="form-select" id="coworkingId" name="coworkingId">
+                    <option value="">Todos</option>
+                    @foreach (var coworking in ViewBag.Coworkings as List<KlyonHubPlatform.Domain.Entities.Coworking>)
+                    {
+                        <option value="@coworking.Id" selected="@(ViewBag.CoworkingId != null && ViewBag.CoworkingId == coworking.Id)">
+                            @coworking.Name
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="clientId" class="form-label">Cliente</label>
+                <select class="form-select" id="clientId" name="clientId" style="width: 100%;">
+                    <option value="">Todos</option>
+                    @if (ViewBag.SelectedClient != null)
+                    {
+                        var selectedClient = ViewBag.SelectedClient as KlyonHubPlatform.Domain.Entities.Client;
+                        <option value="@selectedClient.Id" selected>
+                            @(selectedClient.RazaoSocial ?? selectedClient.NomeFantasia ?? selectedClient.ContactName ?? "Sem nome") - @(selectedClient.CNPJ ?? selectedClient.CPF ?? "Sem documento")
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("CommissionFiscalNotes", "Admin")" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-list-check"></i> Total de Comissões</h6>
+                <h2 class="mb-0">@ViewBag.TotalItems</h2>
+                <small class="text-white-50">Aguardando emissão de NF</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total</h6>
+                <h2 class="mb-0">R$ @(Model.Sum(c => c.Amount).ToString("N2"))</h2>
+                <small class="text-white-50">Em comissões pendentes</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Comissões -->
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Parceiro</th>
+                            <th>Cliente</th>
+                            <th>Serviço</th>
+                            <th>Valor Total</th>
+                            <th>Comissão</th>
+                            <th>Data</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var commission in Model)
+                        {
+                            var coworking = commission.Coworking;
+                            var payment = commission.Payment;
+                            var client = payment?.Subscription?.Contract?.Client ?? payment?.Reservation?.Client;
+                            var serviceName = payment?.Subscription?.Contract != null ? "Endereço Fiscal" : "Reserva de Sala";
+                            var location = payment?.Subscription?.Contract?.CoworkingAddress?.Location ?? payment?.Reservation?.CoworkingAddress?.Location;
+                            
+                            <tr>
+                                <td>#@commission.Id</td>
+                                <td>
+                                    <strong>@coworking?.Name</strong><br>
+                                    <small class="text-muted">@coworking?.CNPJ</small>
+                                </td>
+                                <td>
+                                    @if (client != null)
+                                    {
+                                        <strong>@(client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName)</strong><br>
+                                        <small class="text-muted">@(client.CNPJ ?? client.CPF)</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    @serviceName<br>
+                                    @if (location != null)
+                                    {
+                                        <small class="text-muted">@location.City/@location.State</small>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>R$ @commission.TotalPaymentAmount.ToString("N2")</strong>
+                                </td>
+                                <td>
+                                    <strong class="text-primary">R$ @commission.Amount.ToString("N2")</strong><br>
+                                    <small class="text-muted">@commission.Percentage.ToString("F2")%</small>
+                                </td>
+                                <td>
+                                    @commission.CreatedAt.ToString("dd/MM/yyyy")<br>
+                                    <small class="text-muted">@commission.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                                <td>
+                                    <form method="post" action="@Url.Action("IssueCommissionFiscalNote", "Admin")" style="display: inline;" class="confirm-required">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="commissionId" value="@commission.Id" />
+                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de comissão para esta comissão?');">
+                                            <i class="bi bi-file-earmark-check"></i> Emitir NF
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
+                                    Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
+                                    Próximo
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Nenhuma comissão pendente de emissão de NF encontrada.
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Inicializar Select2 com AJAX para busca de clientes
+            $('#clientId').select2({
+                theme: 'bootstrap-5',
+                language: {
+                    noResults: function() {
+                        return "Nenhum cliente encontrado";
+                    },
+                    searching: function() {
+                        return "Buscando...";
+                    },
+                    loadingMore: function() {
+                        return "Carregando mais resultados...";
+                    }
+                },
+                placeholder: 'Digite para buscar um cliente...',
+                allowClear: true,
+                ajax: {
+                    url: '@Url.Action("SearchClients", "Admin")',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            term: params.term || '',
+                            page: params.page || 1,
+                            pageSize: 10
+                        };
+                    },
+                    processResults: function(data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.results,
+                            pagination: {
+                                more: data.pagination.more
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 0,
+                width: '100%'
+            });
+        });
+    </script>
+}

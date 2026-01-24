@@ -49,11 +49,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var partnerService in Model.OrderBy(ps => ps.Service.Name))
+                        @foreach (var partnerService in Model.Where(ps => ps.Service != null).OrderBy(ps => ps.Service!.Name))
                         {
                             <tr>
                                 <td>
-                                    <strong>@partnerService.Service.Name</strong>
+                                    <strong>@partnerService.Service!.Name</strong>
                                     @if (!string.IsNullOrEmpty(partnerService.Service.Description))
                                     {
                                         <br><small class="text-muted">@partnerService.Service.Description</small>

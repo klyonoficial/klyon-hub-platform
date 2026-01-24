@@ -6,6 +6,7 @@
     var startDate = ViewBag.StartDate as DateTime? ?? DateTime.UtcNow.AddMonths(-1);
     var endDate = ViewBag.EndDate as DateTime? ?? DateTime.UtcNow;
     var product = ViewBag.Product as string ?? ReportProductFilter.Todos;
+    var assistedSale = ViewBag.AssistedSale as string ?? ReportAssistedSaleFilter.All;
     
     var totalReceived = report?.TotalReceived ?? 0m;
     var totalCommissions = report?.TotalCommissions ?? 0m;
@@ -133,7 +134,7 @@
                             <label class="form-label fw-bold">Data final</label>
                             <input type="date" name="endDate" class="form-control" value="@endDate.ToString("yyyy-MM-dd")">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label fw-bold">Produto</label>
                             <select name="product" class="form-select">
                                 @if (product == ReportProductFilter.Todos) { <option value="" selected>Todos</option> } else { <option value="">Todos</option> }
@@ -143,7 +144,15 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label fw-bold">Itens por página</label>
+                            <label class="form-label fw-bold">Origem da venda</label>
+                            <select name="assistedSale" class="form-select">
+                                @if (assistedSale == ReportAssistedSaleFilter.All) { <option value="" selected>Todos</option> } else { <option value="">Todos</option> }
+                                @if (assistedSale == ReportAssistedSaleFilter.AssistedOnly) { <option value="@ReportAssistedSaleFilter.AssistedOnly" selected>Venda assistida</option> } else { <option value="@ReportAssistedSaleFilter.AssistedOnly">Venda assistida</option> }
+                                @if (assistedSale == ReportAssistedSaleFilter.SelfServiceOnly) { <option value="@ReportAssistedSaleFilter.SelfServiceOnly" selected>Autoatendimento</option> } else { <option value="@ReportAssistedSaleFilter.SelfServiceOnly">Autoatendimento</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label fw-bold">Itens/pág.</label>
                             <select name="pageSize" class="form-select" id="pageSize">
                                 <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
                                 <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
@@ -272,6 +281,7 @@
                                     <th><strong>Método</strong></th>
                                     <th><strong>Cliente</strong></th>
                                     <th><strong>Localidade</strong></th>
+                                    <th><strong>Origem</strong></th>
                                     <th><strong>Status</strong></th>
                                 </tr>
                             </thead>
@@ -287,6 +297,7 @@
                                         data-amount="@row.Amount"
                                         data-product="@row.ProductType"
                                         data-client="@row.Client"
+                                        data-origin="@row.SaleOrigin"
                                         onclick="showPaymentDetails(this)"
                                         title="Clique para ver detalhes">
                                         <td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td>
@@ -324,6 +335,27 @@
                                         </td>
                                         <td>@row.Client</td>
                                         <td>@row.Location</td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(row.SaleOrigin))
+                                            {
+                                                if (row.IsAssistedSale)
+                                                {
+                                                    <span class="badge bg-success" title="@(row.AssistedSaleAdminName != null ? "Admin: " + row.AssistedSaleAdminName : "Venda assistida")">
+                                                        <i class="bi bi-person-badge"></i> @row.SaleOrigin
+                                                        @if (row.AssistedSaleAdminName != null)
+                                                        { <br /><small>@row.AssistedSaleAdminName</small> }
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary"><i class="bi bi-person"></i> @row.SaleOrigin</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
                                         <td>
                                             @if (row.Status == "Pago") 
                                             { 
@@ -373,6 +405,7 @@
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 
+                                                assistedSale = assistedSale,
                                                 page = ViewBag.CurrentPage - 1,
                                                 pageSize = ViewBag.PageSize
                                             })">
@@ -388,6 +421,7 @@
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 
+                                                assistedSale = assistedSale,
                                                 page = i,
                                                 pageSize = ViewBag.PageSize
                                             })">
@@ -403,6 +437,7 @@
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 
+                                                assistedSale = assistedSale,
                                                 page = ViewBag.CurrentPage + 1,
                                                 pageSize = ViewBag.PageSize
                                             })">
@@ -587,6 +622,7 @@ function showPaymentDetails(row) {
     const product = row.dataset.product;
     const client = row.dataset.client;
     const amount = parseFloat(row.dataset.amount);
+    const origin = row.dataset.origin || '';
     const status = row.querySelector('td:last-child').textContent.trim();
     const date = row.querySelector('td:first-child').textContent.trim();
     const method = row.querySelector('td:nth-child(4)').textContent.trim();
@@ -658,6 +694,7 @@ function showPaymentDetails(row) {
                                     </div>
                                 </div>
                             </div>
+                            ${origin ? '<div class="col-md-6"><div class="card bg-light"><div class="card-body"><h6 class="text-muted mb-2">Origem da venda</h6><p class="mb-0"><strong>' + origin + '</strong></p></div></div></div>' : ''}
                         </div>
                         <hr>
                         <h6 class="mb-3"><i class="bi bi-cash-coin"></i> Informações Financeiras</h6>

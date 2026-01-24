@@ -175,10 +175,158 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 ViewBag.PendingRemovalRequests = 0;
             }
+
+            // Alertas administrativos
+            var alerts = new List<dynamic>();
+            
+            try
             {
-                ViewBag.PartnersWithoutPercentage = 0;
-                ViewBag.ServicesAwaitingPercentage = 0;
+                // 1. Comissões pendentes há mais de X dias (padrão: 30 dias)
+                var commissionAlertDays = await _systemConfigurationService.GetValueAsync("Alerts.CommissionPendingDays");
+                var daysThreshold = int.TryParse(commissionAlertDays, out var parsedDays) ? parsedDays : 30;
+                var thresholdDate = DateTime.UtcNow.AddDays(-daysThreshold);
+                
+                var pendingCommissionsCount = await _context.Commissions
+                    .Where(c => !c.IsTransferred && c.CreatedAt < thresholdDate)
+                    .CountAsync();
+                
+                if (pendingCommissionsCount > 0)
+                {
+                    var pendingCommissionsAmount = await _context.Commissions
+                        .Where(c => !c.IsTransferred && c.CreatedAt < thresholdDate)
+                        .SumAsync(c => c.Amount);
+                    
+                    alerts.Add(new
+                    {
+                        Type = "warning",
+                        Icon = "bi-exclamation-triangle-fill",
+                        Title = $"Comissões Pendentes há mais de {daysThreshold} dias",
+                        Message = $"{pendingCommissionsCount} comissão(ões) pendente(s) há mais de {daysThreshold} dias. Valor total: R$ {pendingCommissionsAmount:N2}",
+                        Count = pendingCommissionsCount,
+                        ActionUrl = Url.Action("CommissionFiscalNotes", "Admin"),
+                        ActionText = "Ver Comissões"
+                    });
+                }
             }
+            catch (Exception ex)
+            {
+                // Log error silently
+            }
+            
+            try
+            {
+                // 2. Pagamentos atrasados
+                var overduePayments = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(c => c.Client)
+                    .Where(p => p.Status == PaymentStatus.Pending && p.DueDate < DateTime.UtcNow)
+                    .ToListAsync();
+                
+                if (overduePayments.Any())
+                {
+                    var overdueAmount = overduePayments.Sum(p => p.Amount);
+                    var oldestOverdue = overduePayments.OrderBy(p => p.DueDate).First();
+                    var daysOverdue = (DateTime.UtcNow - oldestOverdue.DueDate).Days;
+                    
+                    alerts.Add(new
+                    {
+                        Type = "danger",
+                        Icon = "bi-exclamation-circle-fill",
+                        Title = "Pagamentos Atrasados",
+                        Message = $"{overduePayments.Count} pagamento(s) atrasado(s). Valor total: R$ {overdueAmount:N2}. Mais antigo há {daysOverdue} dia(s).",
+                        Count = overduePayments.Count,
+                        ActionUrl = Url.Action("Payments", "Admin", new { status = "Pending" }),
+                        ActionText = "Ver Pagamentos Atrasados"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error silently
+            }
+            
+            try
+            {
+                // 3. Capacidade próxima do limite (80% ou mais)
+                var capacityThreshold = 0.8m; // 80% da capacidade
+                
+                var addressesNearCapacity = await _context.CoworkingAddresses
+                    .Include(a => a.Coworking)
+                    .Include(a => a.Location)
+                    .Where(a => a.AddressStatus == AddressStatus.Active && 
+                               ((a.MaxContracts > 0 && (decimal)a.CurrentContracts / a.MaxContracts >= capacityThreshold) ||
+                                (a.ApprovedFiscalCapacity > 0 && (decimal)a.CurrentContracts / a.ApprovedFiscalCapacity >= capacityThreshold)))
+                    .ToListAsync();
+                
+                if (addressesNearCapacity.Any())
+                {
+                    var atCapacityCount = addressesNearCapacity.Count(a => 
+                        (a.MaxContracts > 0 && a.CurrentContracts >= a.MaxContracts) ||
+                        (a.ApprovedFiscalCapacity > 0 && a.CurrentContracts >= a.ApprovedFiscalCapacity));
+                    
+                    alerts.Add(new
+                    {
+                        Type = "info",
+                        Icon = "bi-info-circle-fill",
+                        Title = "Capacidade Próxima do Limite",
+                        Message = $"{addressesNearCapacity.Count} endereço(s) com capacidade próxima ou no limite (≥80%). {atCapacityCount} endereço(s) já atingiram a capacidade máxima.",
+                        Count = addressesNearCapacity.Count,
+                        ActionUrl = Url.Action("Coworkings", "Admin"),
+                        ActionText = "Ver Coworkings"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error silently
+            }
+            
+            try
+            {
+                // 4. Coworkings com alterações recentes aguardando análise
+                var recentUpdateThreshold = DateTime.UtcNow.AddHours(-24); // Últimas 24 horas
+                
+                var coworkingsWithRecentUpdates = await _context.Coworkings
+                    .Include(c => c.User)
+                    .Where(c => c.ApprovalStatus == CoworkingApprovalStatus.UnderReview &&
+                               c.SubmittedAt.HasValue &&
+                               c.SubmittedAt.Value >= recentUpdateThreshold)
+                    .OrderByDescending(c => c.SubmittedAt)
+                    .ToListAsync();
+                
+                if (coworkingsWithRecentUpdates.Any())
+                {
+                    var coworkingNames = coworkingsWithRecentUpdates
+                        .Take(3)
+                        .Select(c => c.Name)
+                        .ToList();
+                    
+                    var moreCount = coworkingsWithRecentUpdates.Count - coworkingNames.Count;
+                    var message = $"{coworkingsWithRecentUpdates.Count} parceiro(s) fizeram alterações recentes e estão aguardando análise: {string.Join(", ", coworkingNames)}";
+                    if (moreCount > 0)
+                    {
+                        message += $" e mais {moreCount} outro(s)";
+                    }
+                    
+                    alerts.Add(new
+                    {
+                        Type = "warning",
+                        Icon = "bi-bell-fill",
+                        Title = "Alterações de Parceiros Aguardando Análise",
+                        Message = message,
+                        Count = coworkingsWithRecentUpdates.Count,
+                        ActionUrl = Url.Action("Coworkings", "Admin", new { approvalStatus = "UnderReview" }),
+                        ActionText = "Ver Parceiros em Análise"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error silently
+            }
+            
+            ViewBag.AdminAlerts = alerts;
 
             return View();
         }
@@ -441,6 +589,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     return NotFound();
                 }
 
+                // Capturar valores antigos para auditoria
+                var oldFullName = user.FullName;
+                var oldEmail = user.Email;
+                var oldPhone = user.Phone;
+                var oldIsActive = user.IsActive;
+                var oldRoles = await _context.UserRoles
+                    .Where(ur => ur.UserId == id)
+                    .Include(ur => ur.Role)
+                    .Select(ur => ur.Role.Name)
+                    .ToListAsync();
+
                 user.FullName = fullName;
                 user.Email = email;
                 user.Phone = phone;
@@ -450,6 +609,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _userService.UpdateAsync(user);
 
                 // Atualizar roles
+                var newRoleNames = new List<string>();
                 if (roleIds != null)
                 {
                     var existingUserRoles = await _context.UserRoles
@@ -460,15 +620,36 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     foreach (var roleId in roleIds)
                     {
-                        _context.UserRoles.Add(new UserRole
+                        var role = await _context.Roles.FindAsync(roleId);
+                        if (role != null)
                         {
-                            UserId = id,
-                            RoleId = roleId
-                        });
+                            _context.UserRoles.Add(new UserRole
+                            {
+                                UserId = id,
+                                RoleId = roleId
+                            });
+                            newRoleNames.Add(role.Name);
+                        }
                     }
                     
                     await _context.SaveChangesAsync();
                 }
+
+                // Log de auditoria: edição de usuário (ação administrativa)
+                var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var userAgent = Request.Headers["User-Agent"].ToString();
+                
+                await _auditService.LogActionAsync(
+                    userId,
+                    "Usuário editado (ação administrativa)",
+                    "User",
+                    id,
+                    System.Text.Json.JsonSerializer.Serialize(new { FullName = oldFullName, Email = oldEmail, Phone = oldPhone, IsActive = oldIsActive, Roles = oldRoles }),
+                    System.Text.Json.JsonSerializer.Serialize(new { FullName = user.FullName, Email = user.Email, Phone = user.Phone, IsActive = user.IsActive, Roles = newRoleNames }),
+                    ipAddress,
+                    userAgent
+                );
 
                 TempData["Success"] = "Usuário atualizado com sucesso!";
                 return RedirectToAction("Users");
@@ -585,7 +766,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ViewCoworking(int id)
+        public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 4)
         {
             var coworking = await _context.Coworkings
                 .Include(c => c.User)
@@ -601,19 +782,55 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Coworkings");
             }
 
+            // Verificar se os menus de coworking estão habilitados
+            var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+            var coworkingServiceNames = new[]
+            {
+                "Aluguel de Auditório",
+                "Aluguel de Sala Compartilhada",
+                "Aluguel de Sala Particular",
+                "Reservar Sala"
+            };
+
             // Carregar serviços disponíveis
-            var services = await _context.Services
-                .Where(s => s.IsActive)
-                .OrderBy(s => s.DisplayOrder)
-                .ToListAsync();
+            IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive);
+            if (!showCoworkingMenus)
+                servicesQuery = servicesQuery.Where(s => !coworkingServiceNames.Contains(s.Name));
+
+            var services = await servicesQuery.OrderBy(s => s.DisplayOrder).ToListAsync();
             ViewBag.Services = services;
 
             // Carregar serviços do parceiro (apenas os que têm serviço ativo)
-            var partnerServices = await _context.PartnerServices
+            var partnerServicesQuery = _context.PartnerServices
                 .Include(ps => ps.Service)
-                .Where(ps => ps.CoworkingId == id && ps.Service != null && ps.Service.IsActive)
-                .ToListAsync();
+                .Where(ps => ps.CoworkingId == id && ps.Service != null && ps.Service.IsActive);
+
+            if (!showCoworkingMenus)
+                partnerServicesQuery = partnerServicesQuery.Where(ps => ps.Service != null && !coworkingServiceNames.Contains(ps.Service.Name));
+
+            var partnerServices = await partnerServicesQuery.ToListAsync();
             ViewBag.PartnerServices = partnerServices;
+            ViewBag.ShowCoworkingMenus = showCoworkingMenus;
+
+            // Configurar paginação para documentos obrigatórios
+            var requiredDocTypes = new[]
+            {
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+            };
+
+            var totalDocuments = requiredDocTypes.Length;
+            var totalPages = (int)Math.Ceiling(totalDocuments / (double)pageSize);
+            page = Math.Max(1, Math.Min(page, totalPages));
+
+            ViewBag.DocumentsPage = page;
+            ViewBag.DocumentsTotalPages = totalPages;
+            ViewBag.DocumentsPageSize = pageSize;
+            ViewBag.DocumentsTotalItems = totalDocuments;
 
             return View(coworking);
         }
@@ -679,6 +896,194 @@ namespace KlyonHubPlatform.Api.Controllers
             if (page.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(isPartner) || !string.IsNullOrEmpty(approvalStatus))
                 return RedirectToAction("Coworkings", new { search, status, isPartner, approvalStatus, page });
             return RedirectToAction("ViewCoworking", new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveDocument(int documentId, int? page = null, int? pageSize = null)
+        {
+            var doc = await _context.CoworkingDocuments.FindAsync(documentId);
+            if (doc == null) { TempData["Error"] = "Documento não encontrado."; return RedirectToAction("Coworkings"); }
+            doc.Status = CoworkingDocumentStatus.Approved;
+            doc.RejectionReason = null;
+            doc.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+            await _context.SaveChangesAsync();
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            await _auditService.LogActionAsync(userId, "DocumentApproved", "CoworkingDocument", documentId, "{\"Status\":\"Pending\"}", "{\"Status\":\"Approved\"}");
+            TempData["Success"] = "Documento aprovado.";
+            if (page.HasValue)
+            {
+                return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 });
+            }
+            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectDocument(int documentId, string rejectionReason, int? page = null, int? pageSize = null)
+        {
+            var docForId = await _context.CoworkingDocuments.FindAsync(documentId);
+            if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe o motivo da rejeição."; return RedirectToAction("ViewCoworking", new { id = docForId?.CoworkingId ?? 0, page = page ?? 1, pageSize = pageSize ?? 4 }); }
+            var doc = await _context.CoworkingDocuments.FindAsync(documentId);
+            if (doc == null) { TempData["Error"] = "Documento não encontrado."; return RedirectToAction("Coworkings"); }
+            var oldStatus = doc.Status.ToString();
+            doc.Status = CoworkingDocumentStatus.Rejected;
+            doc.RejectionReason = rejectionReason.Trim();
+            doc.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+            await _context.SaveChangesAsync();
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            await _auditService.LogActionAsync(userId, "DocumentRejected", "CoworkingDocument", documentId, "{\"Status\":\"" + oldStatus + "\"}", "{\"Status\":\"Rejected\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(doc.RejectionReason) + "}");
+            TempData["Success"] = "Documento rejeitado. O coworking verá o motivo no perfil.";
+            if (page.HasValue)
+            {
+                return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 });
+            }
+            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveCapacityChange(int requestId)
+        {
+            try
+            {
+                var request = await _context.CapacityChangeRequests
+                    .Include(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(r => r.Id == requestId);
+
+                if (request == null)
+                {
+                    TempData["Error"] = "Solicitação de alteração de capacidade não encontrada.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                if (request.Status != CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var address = request.CoworkingAddress;
+
+                // Aprovar a capacidade
+                address.ApprovedFiscalCapacity = request.RequestedCapacity;
+                address.RequestedFiscalCapacity = request.RequestedCapacity;
+                address.CapacityApprovalStatus = CapacityApprovalStatus.Approved;
+                address.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                // Atualizar a solicitação
+                request.Status = CapacityApprovalStatus.Approved;
+                request.ReviewedBy = userId;
+                request.ReviewedAt = DateTimeHelper.GetBrazilianTime();
+                request.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                await _auditService.LogActionAsync(userId, "CapacityChangeApproved", "CapacityChangeRequest", requestId,
+                    $"{{\"PreviousCapacity\":{request.PreviousCapacity},\"RequestedCapacity\":{request.RequestedCapacity},\"Status\":\"Pending\"}}",
+                    $"{{\"ApprovedCapacity\":{request.RequestedCapacity},\"Status\":\"Approved\"}}");
+
+                TempData["Success"] = $"Capacidade fiscal aprovada. Nova capacidade: {request.RequestedCapacity}";
+                return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar alteração de capacidade: {ex.Message}";
+                return RedirectToAction("Dashboard");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectCapacityChange(int requestId, string rejectionReason)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    TempData["Error"] = "Informe o motivo da reprovação.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                var request = await _context.CapacityChangeRequests
+                    .Include(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(r => r.Id == requestId);
+
+                if (request == null)
+                {
+                    TempData["Error"] = "Solicitação de alteração de capacidade não encontrada.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                if (request.Status != CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var address = request.CoworkingAddress;
+
+                // Reprovar a solicitação
+                address.CapacityApprovalStatus = CapacityApprovalStatus.Rejected;
+                address.RequestedFiscalCapacity = request.PreviousCapacity; // Reverter para capacidade anterior
+                address.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                // Atualizar a solicitação
+                request.Status = CapacityApprovalStatus.Rejected;
+                request.RejectionReason = rejectionReason.Trim();
+                request.ReviewedBy = userId;
+                request.ReviewedAt = DateTimeHelper.GetBrazilianTime();
+                request.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                await _auditService.LogActionAsync(userId, "CapacityChangeRejected", "CapacityChangeRequest", requestId,
+                    $"{{\"PreviousCapacity\":{request.PreviousCapacity},\"RequestedCapacity\":{request.RequestedCapacity},\"Status\":\"Pending\"}}",
+                    $"{{\"Status\":\"Rejected\",\"RejectionReason\":{System.Text.Json.JsonSerializer.Serialize(rejectionReason)}}}");
+
+                TempData["Success"] = "Alteração de capacidade reprovada. O parceiro foi notificado.";
+                return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao reprovar alteração de capacidade: {ex.Message}";
+                return RedirectToAction("Dashboard");
+            }
+        }
+
+        /// <summary>
+        /// Altera o status do endereço (Ativo/Suspenso/Removido). Não afeta contratos em andamento.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetAddressStatus(int addressId, int coworkingId, string status)
+        {
+            var address = await _context.CoworkingAddresses
+                .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId);
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado.";
+                return RedirectToAction("ViewCoworking", new { id = coworkingId });
+            }
+            if (!Enum.TryParse<AddressStatus>(status, ignoreCase: true, out var newStatus))
+            {
+                TempData["Error"] = "Status inválido.";
+                return RedirectToAction("ViewCoworking", new { id = coworkingId });
+            }
+            var oldStatus = address.AddressStatus;
+            address.AddressStatus = newStatus;
+            address.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            await _auditService.LogActionAsync(userId, "AddressStatusChanged", "CoworkingAddress", addressId,
+                $"{{\"AddressStatus\":\"{oldStatus}\"}}", $"{{\"AddressStatus\":\"{newStatus}\"}}");
+
+            var label = newStatus == AddressStatus.Active ? "Ativo" : newStatus == AddressStatus.Suspended ? "Suspenso" : "Removido";
+            TempData["Success"] = $"Status do endereço alterado para {label}.";
+            return RedirectToAction("ViewCoworking", new { id = coworkingId });
         }
 
         [HttpGet]
@@ -969,13 +1374,13 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, string? assistedSale, int page = 1, int pageSize = 15)
         {
             var start = startDate?.Date ?? DateTimeHelper.GetBrazilianTime().AddMonths(-1).Date;
             var end = endDate?.Date ?? DateTimeHelper.GetBrazilianTime().Date;
             if (end < start) end = start;
 
-            var report = await _reportService.GetFinancialReportAsync(start, end, product);
+            var report = await _reportService.GetFinancialReportAsync(start, end, product, assistedSale);
 
             // Paginação
             var totalItems = report.Rows.Count;
@@ -1004,6 +1409,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.StartDate = start;
             ViewBag.EndDate = end;
             ViewBag.Product = product ?? ReportProductFilter.Todos;
+            ViewBag.AssistedSale = assistedSale ?? ReportAssistedSaleFilter.All;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
@@ -1150,6 +1556,15 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> ReportCoworkingRevenueDetail(int id, DateTime? dateFrom, DateTime? dateTo)
         {
             var dto = await _reportService.GetCoworkingRevenueDetailAsync(id, dateFrom, dateTo);
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            return View(dto);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReportCoworkingProductDetail(int id, string productType, DateTime? dateFrom, DateTime? dateTo)
+        {
+            var dto = await _reportService.GetCoworkingProductDetailAsync(id, productType, dateFrom, dateTo);
             ViewBag.DateFrom = dateFrom;
             ViewBag.DateTo = dateTo;
             return View(dto);
@@ -1832,8 +2247,26 @@ namespace KlyonHubPlatform.Api.Controllers
                 foreach (var m in new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" })
                     await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
 
-                var pending = await _context.Database.GetPendingMigrationsAsync();
-                var list = pending.ToList();
+                // Verificar se a tabela CreditPlans já existe e marcar a migration como aplicada se necessário
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync("SELECT 1 FROM CreditPlans LIMIT 1");
+                    // Se chegou aqui, a tabela existe
+                    // Verificar se a migration que cria CreditPlans está pendente
+                    var pendingCheck = await _context.Database.GetPendingMigrationsAsync();
+                    if (pendingCheck.Contains("20260124000542_AddCoworkingSefazConfiguration"))
+                    {
+                        // Marcar como aplicada se a tabela já existe
+                        await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124000542_AddCoworkingSefazConfiguration', '8.0.0')");
+                    }
+                }
+                catch
+                {
+                    // Tabela não existe, continuar normalmente
+                }
+
+                var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
+                var list = pendingMigrations.ToList();
                 if (list.Count == 0)
                 {
                     TempData["Info"] = "Não há migrations pendentes. O banco já está atualizado.";
@@ -1846,6 +2279,30 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var msg = ex.Message;
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                
+                // Tratamento específico para erro de tabela já existente
+                if (msg.Contains("already exists") || msg.Contains("Table") && msg.Contains("exists"))
+                {
+                    // Tentar identificar qual migration causou o erro e marcá-la como aplicada
+                    var pending = await _context.Database.GetPendingMigrationsAsync();
+                    var pendingList = pending.ToList();
+                    
+                    // Se o erro menciona CreditPlans, marcar a migration correspondente
+                    if (msg.Contains("creditplans", StringComparison.OrdinalIgnoreCase) || msg.Contains("CreditPlans"))
+                    {
+                        try
+                        {
+                            await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124000542_AddCoworkingSefazConfiguration', '8.0.0')");
+                            TempData["Info"] = "Migration marcada como aplicada (tabela já existia). Tente executar novamente.";
+                            return RedirectToAction("DatabaseManager");
+                        }
+                        catch
+                        {
+                            // Continuar com o erro original
+                        }
+                    }
+                }
+                
                 TempData["Error"] = "Erro ao executar migrations: " + msg;
             }
             return RedirectToAction("DatabaseManager");
@@ -2196,6 +2653,65 @@ namespace KlyonHubPlatform.Api.Controllers
                 var msg = ex.Message;
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData["Error"] = "Erro ao adicionar coluna MustChangePassword: " + msg;
+            }
+
+            return RedirectToAction("DatabaseManager");
+        }
+
+        /// <summary>
+        /// Adiciona Status e RejectionReason na tabela CoworkingDocuments (status por documento: Em análise / Aprovado / Rejeitado).
+        /// Usa apenas ALTER TABLE / ADD COLUMN. Documentos existentes recebem Status = 'Approved' via DEFAULT.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddDocumentStatusColumns()
+        {
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                var wasOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasOpen) await connection.OpenAsync();
+
+                var statusExists = false;
+                var rejectionExists = false;
+                try
+                {
+                    await using (var cmdStatus = connection.CreateCommand())
+                    {
+                        cmdStatus.CommandText = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'CoworkingDocuments' AND column_name = 'Status'";
+                        statusExists = Convert.ToInt32(await cmdStatus.ExecuteScalarAsync()) > 0;
+                    }
+                    await using (var cmdRejection = connection.CreateCommand())
+                    {
+                        cmdRejection.CommandText = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'CoworkingDocuments' AND column_name = 'RejectionReason'";
+                        rejectionExists = Convert.ToInt32(await cmdRejection.ExecuteScalarAsync()) > 0;
+                    }
+                }
+                catch { }
+                finally { if (!wasOpen) await connection.CloseAsync(); }
+
+                if (statusExists && rejectionExists)
+                {
+                    TempData["Info"] = "As colunas CoworkingDocuments.Status e RejectionReason já existem. Nenhuma alteração feita.";
+                    return RedirectToAction("DatabaseManager");
+                }
+
+                if (!statusExists)
+                {
+                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE CoworkingDocuments ADD COLUMN Status VARCHAR(50) NOT NULL DEFAULT 'Approved'");
+                }
+                if (!rejectionExists)
+                {
+                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE CoworkingDocuments ADD COLUMN RejectionReason VARCHAR(2000) NULL");
+                }
+
+                TempData["Success"] = "Colunas Status e RejectionReason adicionadas em CoworkingDocuments. Documentos existentes foram considerados aprovados.";
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message;
+                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                TempData["Error"] = "Erro ao adicionar colunas em CoworkingDocuments: " + msg;
             }
 
             return RedirectToAction("DatabaseManager");
@@ -3139,6 +3655,21 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     return RedirectToAction("ViewCoworking", new { id = CoworkingId });
                 }
 
+                var coworkingServiceNames = new[]
+                {
+                    "Aluguel de Auditório",
+                    "Aluguel de Sala Compartilhada",
+                    "Aluguel de Sala Particular",
+                    "Reservar Sala"
+                };
+                var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
+                {
+                    TempData["Error"] = "Este serviço não está disponível quando os menus de coworking estão desabilitados.";
+                    return RedirectToAction("ViewCoworking", new { id = CoworkingId });
+                }
+
                 // Validar percentagem
                 if (percentage < 0 || percentage > 100)
                 {
@@ -3390,6 +3921,12 @@ CREATE TABLE IF NOT EXISTS Reservations (
             ViewBag.SelectedState = selectedState;
             ViewBag.IsStateSupported = _sefazService.IsStateSupported(selectedState);
 
+            var lastExecutions = await _context.FiscalNoteScriptExecutions
+                .OrderByDescending(e => e.ExecutedAt)
+                .Take(10)
+                .ToListAsync();
+            ViewBag.LastExecutions = lastExecutions;
+
             return View(config);
         }
 
@@ -3463,304 +4000,302 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ExecuteFiscalNoteScript(string noteType, DateTime startDate, DateTime endDate)
         {
+            var executedAt = DateTimeHelper.GetBrazilianTime();
+            var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (int?)null;
+            var userName = User.Identity?.Name ?? "Sistema";
+
             try
             {
-                int notesEmitted = 0;
+                int notesCreated = 0;
                 int errors = 0;
                 int unsupportedStates = 0;
                 var errorMessages = new List<string>();
                 var unsupportedStateMessages = new List<string>();
 
-                if (noteType == "Intermediacao")
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
                 {
-                    // Buscar reservas confirmadas e pagas que ainda não têm NF de intermediação
-                    var reservations = await _context.Reservations
-                        .Include(r => r.Client)
-                        .Include(r => r.CoworkingAddress)
-                            .ThenInclude(a => a.Coworking)
-                        .Where(r => r.Status == "Completed" &&
-                                   r.ReservationDate >= startDate &&
-                                   r.ReservationDate <= endDate &&
-                                   !_context.FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
+                    if (noteType == "Intermediacao")
+                    {
+                        // Buscar reservas confirmadas e pagas que ainda não têm NF de intermediação (idempotência)
+                        var reservations = await _context.Reservations
+                            .Include(r => r.Client)
+                            .Include(r => r.CoworkingAddress)
+                                .ThenInclude(a => a.Coworking)
+                            .Where(r => r.Status == "Completed" &&
+                                       r.ReservationDate >= startDate &&
+                                       r.ReservationDate <= endDate &&
+                                       !_context.FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
+                            .ToListAsync();
+
+                        foreach (var reservation in reservations)
+                        {
+                            try
+                            {
+                                var idempotencyKey = $"INTERMEDIACAO-R-{reservation.Id}";
+                                if (await _context.FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
+                                    continue;
+
+                                var coworkingState = reservation.CoworkingAddress?.State?.Trim().ToUpper();
+                                if (string.IsNullOrWhiteSpace(coworkingState))
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Reserva #{reservation.Id}: Estado do coworking não informado.");
+                                    continue;
+                                }
+                                if (!_sefazService.IsStateSupported(coworkingState))
+                                {
+                                    unsupportedStates++;
+                                    unsupportedStateMessages.Add($"Reserva #{reservation.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
+                                    continue;
+                                }
+                                var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
+                                if (config == null)
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Reserva #{reservation.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
+                                    continue;
+                                }
+                                var partnerService = await _context.PartnerServices
+                                    .Include(ps => ps.Service)
+                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress!.CoworkingId && ps.Service!.Name.Contains("Reservar Sala"))
+                                    ?? await _context.PartnerServices
+                                        .Include(ps => ps.Service)
+                                        .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress!.CoworkingId);
+                                if (partnerService == null)
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Reserva #{reservation.Id}: Percentagem de comissão não configurada para o parceiro.");
+                                    continue;
+                                }
+                                var commissionAmount = Math.Round(reservation.TotalValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
+                                var payment = await _context.Payments
+                                    .FirstOrDefaultAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Paid);
+
+                                var fiscalNote = new FiscalNote
+                                {
+                                    Type = "Intermediacao",
+                                    IdempotencyKey = idempotencyKey,
+                                    ReservationId = reservation.Id,
+                                    PaymentId = payment?.Id,
+                                    CoworkingId = reservation.CoworkingAddress!.CoworkingId,
+                                    ClientId = reservation.ClientId,
+                                    Amount = commissionAmount,
+                                    CommissionAmount = commissionAmount,
+                                    ServiceAmount = reservation.TotalValue,
+                                    IssueDate = executedAt,
+                                    Status = "Pendente",
+                                    CreatedAt = executedAt
+                                };
+                                _context.FiscalNotes.Add(fiscalNote);
+                                notesCreated++;
+                            }
+                            catch (DbUpdateException ex) when (IsDuplicateIdempotencyKeyException(ex))
+                            {
+                                // Duplicata por concorrência: ignorar (idempotência)
+                            }
+                            catch (Exception ex)
+                            {
+                                errors++;
+                                errorMessages.Add($"Reserva #{reservation.Id}: {ex.Message}");
+                            }
+                        }
+
+                        var contracts = await _context.Contracts
+                            .Include(c => c.Client)
+                            .Include(c => c.CoworkingAddress)
+                                .ThenInclude(a => a.Coworking)
+                            .Where(c => c.Status == ContractStatus.Active &&
+                                       c.StartDate >= startDate &&
+                                       c.StartDate <= endDate &&
+                                       !_context.FiscalNotes.Any(fn => fn.ContractId == c.Id && fn.Type == "Intermediacao"))
+                            .ToListAsync();
+
+                        foreach (var contract in contracts)
+                        {
+                            try
+                            {
+                                var idempotencyKey = $"INTERMEDIACAO-C-{contract.Id}";
+                                if (await _context.FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
+                                    continue;
+
+                                var coworkingState = contract.CoworkingAddress?.State?.Trim().ToUpper();
+                                if (string.IsNullOrWhiteSpace(coworkingState))
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Contrato #{contract.Id}: Estado do coworking não informado.");
+                                    continue;
+                                }
+                                if (!_sefazService.IsStateSupported(coworkingState))
+                                {
+                                    unsupportedStates++;
+                                    unsupportedStateMessages.Add($"Contrato #{contract.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
+                                    continue;
+                                }
+                                var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
+                                if (config == null)
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Contrato #{contract.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
+                                    continue;
+                                }
+                                var partnerService = await _context.PartnerServices
+                                    .Include(ps => ps.Service)
+                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress!.CoworkingId && ps.Service!.Name.Contains("Endereço Fiscal"))
+                                    ?? await _context.PartnerServices
+                                        .Include(ps => ps.Service)
+                                        .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress!.CoworkingId);
+                                if (partnerService == null)
+                                {
+                                    errors++;
+                                    errorMessages.Add($"Contrato #{contract.Id}: Percentagem de comissão não configurada.");
+                                    continue;
+                                }
+                                var commissionAmount = Math.Round(contract.MonthlyValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
+
+                                var fiscalNote = new FiscalNote
+                                {
+                                    Type = "Intermediacao",
+                                    IdempotencyKey = idempotencyKey,
+                                    ContractId = contract.Id,
+                                    CoworkingId = contract.CoworkingAddress!.CoworkingId,
+                                    ClientId = contract.ClientId,
+                                    Amount = commissionAmount,
+                                    CommissionAmount = commissionAmount,
+                                    ServiceAmount = contract.MonthlyValue,
+                                    IssueDate = executedAt,
+                                    Status = "Pendente",
+                                    CreatedAt = executedAt
+                                };
+                                _context.FiscalNotes.Add(fiscalNote);
+                                notesCreated++;
+                            }
+                            catch (DbUpdateException ex) when (IsDuplicateIdempotencyKeyException(ex))
+                            {
+                                // Duplicata por concorrência: ignorar (idempotência)
+                            }
+                            catch (Exception ex)
+                            {
+                                errors++;
+                                errorMessages.Add($"Contrato #{contract.Id}: {ex.Message}");
+                            }
+                        }
+                    }
+                    else if (noteType == "Servico")
+                    {
+                        TempData["Info"] = "Notas Fiscais de Serviço devem ser emitidas pelo parceiro diretamente na SEFAZ.";
+                        await transaction.RollbackAsync();
+                        return RedirectToAction("SefazConfiguration");
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    var pendingNotes = await _context.FiscalNotes
+                        .Include(fn => fn.Coworking)
+                            .ThenInclude(c => c.Addresses)
+                        .Where(fn => fn.Status == "Pendente" && fn.Type == "Intermediacao")
                         .ToListAsync();
 
-                    foreach (var reservation in reservations)
+                    int emittedCount = 0;
+                    int emissionErrors = 0;
+
+                    foreach (var note in pendingNotes)
                     {
                         try
                         {
-                            // Obter estado do coworking
-                            var coworkingState = reservation.CoworkingAddress?.State?.Trim().ToUpper();
-                            
+                            string? coworkingState = null;
+                            if (note.ReservationId.HasValue)
+                            {
+                                var reservation = await _context.Reservations
+                                    .Include(r => r.CoworkingAddress)
+                                    .FirstOrDefaultAsync(r => r.Id == note.ReservationId);
+                                coworkingState = reservation?.CoworkingAddress?.State?.Trim().ToUpper();
+                            }
+                            else if (note.ContractId.HasValue)
+                            {
+                                var contract = await _context.Contracts
+                                    .Include(c => c.CoworkingAddress)
+                                    .FirstOrDefaultAsync(c => c.Id == note.ContractId);
+                                coworkingState = contract?.CoworkingAddress?.State?.Trim().ToUpper();
+                            }
                             if (string.IsNullOrWhiteSpace(coworkingState))
                             {
-                                errors++;
-                                errorMessages.Add($"Reserva #{reservation.Id}: Estado do coworking não informado.");
+                                emissionErrors++;
+                                errorMessages.Add($"NF #{note.Id}: Estado do coworking não encontrado.");
                                 continue;
                             }
-
-                            // Verificar se o estado tem integração implementada
-                            if (!_sefazService.IsStateSupported(coworkingState))
-                            {
-                                unsupportedStates++;
-                                unsupportedStateMessages.Add($"Reserva #{reservation.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
-                                continue;
-                            }
-
-                            // Buscar configuração SEFAZ para o estado
                             var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
-                            
                             if (config == null)
                             {
-                                errors++;
-                                errorMessages.Add($"Reserva #{reservation.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
+                                emissionErrors++;
+                                errorMessages.Add($"NF #{note.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}.");
                                 continue;
                             }
-
-                            // Buscar percentagem de comissão do parceiro para este serviço
-                            var partnerService = await _context.PartnerServices
-                                .Include(ps => ps.Service)
-                                .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress.CoworkingId &&
-                                                          ps.Service.Name.Contains("Reservar Sala"));
-
-                            if (partnerService == null)
-                            {
-                                // Usar percentagem padrão se não houver configuração específica
-                                partnerService = await _context.PartnerServices
-                                    .Include(ps => ps.Service)
-                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress.CoworkingId);
-                            }
-
-                            if (partnerService == null)
-                            {
-                                errors++;
-                                errorMessages.Add($"Reserva #{reservation.Id}: Percentagem de comissão não configurada para o parceiro.");
-                                continue;
-                            }
-
-                            // Calcular comissão
-                            var commissionAmount = Math.Round(reservation.TotalValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
-
-                            // Buscar pagamento relacionado à reserva
-                            var payment = await _context.Payments
-                                .FirstOrDefaultAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Paid);
-
-                            // Criar registro de NF (a emissão real será feita pelo serviço SEFAZ)
-                            var fiscalNote = new FiscalNote
-                            {
-                                Type = "Intermediacao",
-                                ReservationId = reservation.Id,
-                                PaymentId = payment?.Id,
-                                CoworkingId = reservation.CoworkingAddress.CoworkingId,
-                                ClientId = reservation.ClientId,
-                                Amount = commissionAmount,
-                                CommissionAmount = commissionAmount,
-                                ServiceAmount = reservation.TotalValue,
-                                IssueDate = DateTimeHelper.GetBrazilianTime(),
-                                Status = "Pendente",
-                                CreatedAt = DateTimeHelper.GetBrazilianTime()
-                            };
-
-                            _context.FiscalNotes.Add(fiscalNote);
-                            notesEmitted++;
+                            var emittedNote = await _sefazService.IssueIntermediationNoteAsync(note, config);
+                            _context.FiscalNotes.Update(emittedNote);
+                            emittedCount++;
+                        }
+                        catch (NotSupportedException ex)
+                        {
+                            emissionErrors++;
+                            errorMessages.Add($"NF #{note.Id}: {ex.Message}");
+                            note.Status = "Erro";
+                            note.ErrorMessage = ex.Message;
+                            note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                            _context.FiscalNotes.Update(note);
                         }
                         catch (Exception ex)
                         {
-                            errors++;
-                            errorMessages.Add($"Reserva #{reservation.Id}: {ex.Message}");
-                        }
-                    }
-
-                    // Buscar contratos ativos que ainda não têm NF de intermediação
-                    var contracts = await _context.Contracts
-                        .Include(c => c.Client)
-                        .Include(c => c.CoworkingAddress)
-                            .ThenInclude(a => a.Coworking)
-                        .Where(c => c.Status == ContractStatus.Active &&
-                                   c.StartDate >= startDate &&
-                                   c.StartDate <= endDate &&
-                                   !_context.FiscalNotes.Any(fn => fn.ContractId == c.Id && fn.Type == "Intermediacao"))
-                        .ToListAsync();
-
-                    foreach (var contract in contracts)
-                    {
-                        try
-                        {
-                            // Obter estado do coworking
-                            var coworkingState = contract.CoworkingAddress?.State?.Trim().ToUpper();
-                            
-                            if (string.IsNullOrWhiteSpace(coworkingState))
-                            {
-                                errors++;
-                                errorMessages.Add($"Contrato #{contract.Id}: Estado do coworking não informado.");
-                                continue;
-                            }
-
-                            // Verificar se o estado tem integração implementada
-                            if (!_sefazService.IsStateSupported(coworkingState))
-                            {
-                                unsupportedStates++;
-                                unsupportedStateMessages.Add($"Contrato #{contract.Id}: Integração SEFAZ ainda não implementada para o estado {coworkingState}.");
-                                continue;
-                            }
-
-                            // Buscar configuração SEFAZ para o estado
-                            var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
-                            
-                            if (config == null)
-                            {
-                                errors++;
-                                errorMessages.Add($"Contrato #{contract.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
-                                continue;
-                            }
-
-                            // Buscar percentagem de comissão do parceiro para endereço fiscal
-                            var partnerService = await _context.PartnerServices
-                                .Include(ps => ps.Service)
-                                .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress.CoworkingId &&
-                                                          ps.Service.Name.Contains("Endereço Fiscal"));
-
-                            if (partnerService == null)
-                            {
-                                partnerService = await _context.PartnerServices
-                                    .Include(ps => ps.Service)
-                                    .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress.CoworkingId);
-                            }
-
-                            if (partnerService == null)
-                            {
-                                errors++;
-                                errorMessages.Add($"Contrato #{contract.Id}: Percentagem de comissão não configurada.");
-                                continue;
-                            }
-
-                            // Calcular comissão mensal
-                            var commissionAmount = Math.Round(contract.MonthlyValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
-
-                            var fiscalNote = new FiscalNote
-                            {
-                                Type = "Intermediacao",
-                                ContractId = contract.Id,
-                                CoworkingId = contract.CoworkingAddress.CoworkingId,
-                                ClientId = contract.ClientId,
-                                Amount = commissionAmount,
-                                CommissionAmount = commissionAmount,
-                                ServiceAmount = contract.MonthlyValue,
-                                IssueDate = DateTimeHelper.GetBrazilianTime(),
-                                Status = "Pendente",
-                                CreatedAt = DateTimeHelper.GetBrazilianTime()
-                            };
-
-                            _context.FiscalNotes.Add(fiscalNote);
-                            notesEmitted++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errors++;
-                            errorMessages.Add($"Contrato #{contract.Id}: {ex.Message}");
-                        }
-                    }
-                }
-                else if (noteType == "Servico")
-                {
-                    // NF de Serviço é emitida pelo parceiro, mas podemos criar registros para rastreamento
-                    TempData["Info"] = "Notas Fiscais de Serviço devem ser emitidas pelo parceiro diretamente na SEFAZ.";
-                }
-
-                await _context.SaveChangesAsync();
-
-                // Emitir as notas fiscais criadas via SEFAZ
-                var pendingNotes = await _context.FiscalNotes
-                    .Include(fn => fn.Coworking)
-                        .ThenInclude(c => c.Addresses)
-                    .Where(fn => fn.Status == "Pendente" && fn.Type == "Intermediacao")
-                    .ToListAsync();
-
-                int emittedCount = 0;
-                int emissionErrors = 0;
-
-                foreach (var note in pendingNotes)
-                {
-                    try
-                    {
-                        // Obter estado do coworking
-                        string? coworkingState = null;
-                        
-                        if (note.ReservationId.HasValue)
-                        {
-                            var reservation = await _context.Reservations
-                                .Include(r => r.CoworkingAddress)
-                                .FirstOrDefaultAsync(r => r.Id == note.ReservationId);
-                            coworkingState = reservation?.CoworkingAddress?.State?.Trim().ToUpper();
-                        }
-                        else if (note.ContractId.HasValue)
-                        {
-                            var contract = await _context.Contracts
-                                .Include(c => c.CoworkingAddress)
-                                .FirstOrDefaultAsync(c => c.Id == note.ContractId);
-                            coworkingState = contract?.CoworkingAddress?.State?.Trim().ToUpper();
-                        }
-
-                        if (string.IsNullOrWhiteSpace(coworkingState))
-                        {
                             emissionErrors++;
-                            errorMessages.Add($"NF #{note.Id}: Estado do coworking não encontrado.");
-                            continue;
+                            errorMessages.Add($"NF #{note.Id}: {ex.Message}");
+                            note.Status = "Erro";
+                            note.ErrorMessage = ex.Message;
+                            note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                            _context.FiscalNotes.Update(note);
                         }
+                    }
 
-                        // Buscar configuração SEFAZ para o estado
-                        var config = await _sefazService.GetConfigurationByStateAsync(coworkingState);
-                        
-                        if (config == null)
-                        {
-                            emissionErrors++;
-                            errorMessages.Add($"NF #{note.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}.");
-                            continue;
-                        }
+                    await _context.SaveChangesAsync();
 
-                        var emittedNote = await _sefazService.IssueIntermediationNoteAsync(note, config);
-                        _context.FiscalNotes.Update(emittedNote);
-                        emittedCount++;
-                    }
-                    catch (NotSupportedException ex)
+                    var log = new FiscalNoteScriptExecution
                     {
-                        emissionErrors++;
-                        errorMessages.Add($"NF #{note.Id}: {ex.Message}");
-                        note.Status = "Erro";
-                        note.ErrorMessage = ex.Message;
-                        note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        _context.FiscalNotes.Update(note);
-                    }
-                    catch (Exception ex)
+                        ExecutedAt = executedAt,
+                        ExecutedByUserId = userId,
+                        ExecutedByUserName = userName,
+                        NoteType = noteType,
+                        StartDate = startDate,
+                        EndDate = endDate,
+                        NotesCreated = notesCreated,
+                        NotesEmitted = emittedCount,
+                        ErrorsCount = errors + emissionErrors,
+                        UnsupportedStatesCount = unsupportedStates,
+                        ErrorDetails = errorMessages.Count > 0 ? string.Join("; ", errorMessages.Take(20)) : null
+                    };
+                    _context.FiscalNoteScriptExecutions.Add(log);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+                    var message = $"Script executado com sucesso! {notesCreated} nota(s) fiscal(is) criada(s), {emittedCount} emitida(s) na SEFAZ.";
+                    if (unsupportedStates > 0)
                     {
-                        emissionErrors++;
-                        errorMessages.Add($"NF #{note.Id}: {ex.Message}");
-                        note.Status = "Erro";
-                        note.ErrorMessage = ex.Message;
-                        note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        _context.FiscalNotes.Update(note);
+                        message += $" {unsupportedStates} registro(s) ignorado(s) - estado sem integração implementada.";
+                        if (unsupportedStateMessages.Count > 0)
+                            TempData["UnsupportedStates"] = string.Join("<br>", unsupportedStateMessages.Take(10));
                     }
+                    if (errors + emissionErrors > 0)
+                    {
+                        message += $" {errors + emissionErrors} erro(s) encontrado(s).";
+                        if (errorMessages.Count > 0)
+                            TempData["ErrorDetails"] = string.Join("<br>", errorMessages.Take(10));
+                    }
+                    TempData["Success"] = message;
                 }
-
-                await _context.SaveChangesAsync();
-
-                var message = $"Script executado com sucesso! {notesEmitted} nota(s) fiscal(is) criada(s), {emittedCount} emitida(s) na SEFAZ.";
-                if (unsupportedStates > 0)
+                catch (Exception)
                 {
-                    message += $" {unsupportedStates} registro(s) ignorado(s) - estado sem integração implementada.";
-                    if (unsupportedStateMessages.Any())
-                    {
-                        TempData["UnsupportedStates"] = string.Join("<br>", unsupportedStateMessages.Take(10));
-                    }
+                    await transaction.RollbackAsync();
+                    throw;
                 }
-                if (errors > 0 || emissionErrors > 0)
-                {
-                    message += $" {errors + emissionErrors} erro(s) encontrado(s).";
-                    if (errorMessages.Any())
-                    {
-                        TempData["ErrorDetails"] = string.Join("<br>", errorMessages.Take(10));
-                    }
-                }
-                TempData["Success"] = message;
             }
             catch (Exception ex)
             {
@@ -3843,6 +4378,249 @@ CREATE TABLE IF NOT EXISTS Reservations (
             return RedirectToAction("FiscalNotes");
         }
 
+        /// <summary>
+        /// Endpoint AJAX para buscar clientes com autocomplete e paginação
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SearchClients(string term = "", int page = 1, int pageSize = 10)
+        {
+            var query = _context.Clients
+                .Include(c => c.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                var termLower = term.ToLower();
+                query = query.Where(c =>
+                    (c.RazaoSocial != null && c.RazaoSocial.ToLower().Contains(termLower)) ||
+                    (c.NomeFantasia != null && c.NomeFantasia.ToLower().Contains(termLower)) ||
+                    (c.ContactName != null && c.ContactName.ToLower().Contains(termLower)) ||
+                    (c.CNPJ != null && c.CNPJ.Contains(term)) ||
+                    (c.CPF != null && c.CPF.Contains(term)) ||
+                    (c.ContactEmail != null && c.ContactEmail.ToLower().Contains(termLower))
+                );
+            }
+
+            var totalItems = await query.CountAsync();
+            var clients = await query
+                .OrderBy(c => c.RazaoSocial ?? c.NomeFantasia ?? c.ContactName ?? "")
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var results = clients.Select(c => new
+            {
+                id = c.Id,
+                text = $"{c.RazaoSocial ?? c.NomeFantasia ?? c.ContactName ?? "Sem nome"} - {c.CNPJ ?? c.CPF ?? "Sem documento"}",
+                razaoSocial = c.RazaoSocial,
+                nomeFantasia = c.NomeFantasia,
+                contactName = c.ContactName,
+                cnpj = c.CNPJ,
+                cpf = c.CPF
+            }).ToList();
+
+            return Json(new
+            {
+                results = results,
+                pagination = new
+                {
+                    more = (page * pageSize) < totalItems
+                }
+            });
+        }
+
+        /// <summary>
+        /// Lista comissões pendentes de emissão de NF de comissão
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, int? clientId = null)
+        {
+            var query = _context.Commissions
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.CoworkingAddress)
+                                .ThenInclude(ca => ca.Location)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.Client)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                            .ThenInclude(ca => ca.Location)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                .Include(c => c.Coworking)
+                .Where(c => !_context.FiscalNotes.Any(fn => 
+                    (fn.PaymentId == c.PaymentId && fn.Type == "Intermediacao") ||
+                    (fn.CommissionAmount == c.Amount && fn.CoworkingId == c.CoworkingId && fn.Type == "Intermediacao")
+                ))
+                .AsQueryable();
+
+            if (coworkingId.HasValue)
+            {
+                query = query.Where(c => c.CoworkingId == coworkingId.Value);
+            }
+
+            if (clientId.HasValue)
+            {
+                query = query.Where(c => 
+                    (c.Payment.Subscription != null && c.Payment.Subscription.Contract != null && c.Payment.Subscription.Contract.ClientId == clientId.Value) ||
+                    (c.Payment.Reservation != null && c.Payment.Reservation.ClientId == clientId.Value)
+                );
+            }
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var commissions = await query
+                .OrderByDescending(c => c.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CoworkingId = coworkingId;
+            ViewBag.ClientId = clientId;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+
+            // Carregar cliente selecionado para exibir no autocomplete
+            if (clientId.HasValue)
+            {
+                var selectedClient = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == clientId.Value);
+                ViewBag.SelectedClient = selectedClient;
+            }
+
+            return View(commissions);
+        }
+
+        /// <summary>
+        /// Emite NF de comissão para uma comissão específica
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> IssueCommissionFiscalNote(int commissionId)
+        {
+            try
+            {
+                var commission = await _context.Commissions
+                    .Include(c => c.Payment)
+                        .ThenInclude(p => p.Subscription)
+                            .ThenInclude(s => s.Contract)
+                                .ThenInclude(ct => ct.CoworkingAddress)
+                                    .ThenInclude(ca => ca.Location)
+                    .Include(c => c.Payment)
+                        .ThenInclude(p => p.Reservation)
+                            .ThenInclude(r => r.CoworkingAddress)
+                                .ThenInclude(ca => ca.Location)
+                    .Include(c => c.Coworking)
+                    .Include(c => c.Payment)
+                        .ThenInclude(p => p.Subscription)
+                            .ThenInclude(s => s.Contract)
+                                .ThenInclude(ct => ct.Client)
+                    .Include(c => c.Payment)
+                        .ThenInclude(p => p.Reservation)
+                            .ThenInclude(r => r.Client)
+                    .FirstOrDefaultAsync(c => c.Id == commissionId);
+
+                if (commission == null)
+                {
+                    TempData["Error"] = "Comissão não encontrada.";
+                    return RedirectToAction("CommissionFiscalNotes");
+                }
+
+                // Verificar se já existe NF emitida para esta comissão
+                var existingNote = await _context.FiscalNotes
+                    .FirstOrDefaultAsync(fn => 
+                        (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
+                        (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao" && fn.Status == "Emitida")
+                    );
+
+                if (existingNote != null)
+                {
+                    TempData["Error"] = "Já existe uma NF de comissão emitida para esta comissão.";
+                    return RedirectToAction("CommissionFiscalNotes");
+                }
+
+                // Determinar o estado baseado no endereço
+                string state = "ES"; // Default
+                if (commission.Payment?.Subscription?.Contract?.CoworkingAddress?.Location != null)
+                {
+                    state = commission.Payment.Subscription.Contract.CoworkingAddress.Location.State;
+                }
+                else if (commission.Payment?.Reservation?.CoworkingAddress?.Location != null)
+                {
+                    state = commission.Payment.Reservation.CoworkingAddress.Location.State;
+                }
+
+                // Verificar se o estado tem integração
+                if (!_sefazService.IsStateSupported(state))
+                {
+                    TempData["Error"] = $"Integração SEFAZ ainda não implementada para o estado {state}.";
+                    return RedirectToAction("CommissionFiscalNotes");
+                }
+
+                // Buscar configuração SEFAZ da plataforma
+                var sefazConfig = await _sefazService.GetConfigurationByStateAsync(state, "Producao");
+                if (sefazConfig == null)
+                {
+                    TempData["Error"] = $"Configuração SEFAZ não encontrada para o estado {state}. Configure em SEFAZ > Configurações.";
+                    return RedirectToAction("CommissionFiscalNotes");
+                }
+
+                // Criar registro de NF
+                var fiscalNote = new FiscalNote
+                {
+                    Type = "Intermediacao",
+                    PaymentId = commission.PaymentId,
+                    CoworkingId = commission.CoworkingId,
+                    ClientId = commission.Payment?.Subscription?.Contract?.ClientId ?? commission.Payment?.Reservation?.ClientId,
+                    ContractId = commission.Payment?.Subscription?.ContractId,
+                    ReservationId = commission.Payment?.ReservationId,
+                    Amount = commission.Amount,
+                    CommissionAmount = commission.Amount,
+                    IssueDate = DateTime.UtcNow,
+                    Status = "Pendente",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.FiscalNotes.Add(fiscalNote);
+                await _context.SaveChangesAsync();
+
+                // Emitir NF via SEFAZ
+                try
+                {
+                    var emittedNote = await _sefazService.IssueIntermediationNoteAsync(fiscalNote, sefazConfig);
+                    _context.FiscalNotes.Update(emittedNote);
+                    await _context.SaveChangesAsync();
+
+                    TempData["Success"] = $"NF de comissão emitida com sucesso! Chave de acesso: {emittedNote.AccessKey}";
+                }
+                catch (Exception ex)
+                {
+                    _context.FiscalNotes.Update(fiscalNote);
+                    await _context.SaveChangesAsync();
+                    TempData["Error"] = $"Erro ao emitir NF: {ex.Message}";
+                }
+
+                return RedirectToAction("CommissionFiscalNotes");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao processar emissão de NF: {ex.Message}";
+                return RedirectToAction("CommissionFiscalNotes");
+            }
+        }
+
         [HttpGet]
         public async Task<IActionResult> QuickClientRegistration()
         {
@@ -3892,13 +4670,27 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     return RedirectToAction("QuickClientRegistration");
                 }
 
-                // Verificar se o endereço está disponível
+                // Verificar se o endereço está disponível (parceiro ativo, endereço ativo)
                 var selectedAddress = await _context.CoworkingAddresses
                     .Include(a => a.Coworking)
                     .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
 
-                if (selectedAddress == null || !selectedAddress.IsAvailable || 
-                    selectedAddress.CurrentContracts >= selectedAddress.MaxContracts)
+                if (selectedAddress == null)
+                {
+                    TempData["Error"] = "Endereço não encontrado.";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+                if (!selectedAddress.Coworking.IsActive)
+                {
+                    TempData["Error"] = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+                if (selectedAddress.AddressStatus != AddressStatus.Active)
+                {
+                    TempData["Error"] = "O endereço não está ativo para novas vendas (suspenso ou removido).";
+                    return RedirectToAction("QuickClientRegistration");
+                }
+                if (!selectedAddress.IsAvailable || selectedAddress.CurrentContracts >= selectedAddress.MaxContracts)
                 {
                     TempData["Error"] = "O endereço selecionado não está disponível para contrato.";
                     return RedirectToAction("QuickClientRegistration");
@@ -4023,8 +4815,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 // Converter valor anual para mensal (o monthlyValue recebido é anual, precisa dividir por 12)
                 var monthlyValueForContract = monthlyValue / 12;
 
-                // Criar contrato
-                var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValueForContract);
+                var adminUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                // Criar contrato (venda assistida: admin responsável registrado)
+                var contract = await _contractService.CreateContractAsync(client.Id, coworkingAddressId, monthlyValueForContract, assistedSaleAdminId: adminUserId > 0 ? adminUserId : null);
+
+                var newValues = System.Text.Json.JsonSerializer.Serialize(new { IsAssistedSale = true, AssistedSaleAdminId = adminUserId, Origin = "VendaAssistida" });
+                await _auditService.LogActionAsync(adminUserId > 0 ? adminUserId : null, "ContractCreated", "Contract", contract.Id, null, newValues,
+                    HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.FirstOrDefault());
 
                 // Buscar o pagamento criado para gerar o código PIX
                 var subscription = await _context.Subscriptions
@@ -4122,6 +4919,14 @@ CREATE TABLE IF NOT EXISTS Reservations (
             ViewBag.PixExpiresAt = payment.PixExpiresAt;
 
             return View();
+        }
+
+        private static bool IsDuplicateIdempotencyKeyException(DbUpdateException ex)
+        {
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            return msg.Contains("IdempotencyKey", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("IX_FiscalNotes_IdempotencyKey", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

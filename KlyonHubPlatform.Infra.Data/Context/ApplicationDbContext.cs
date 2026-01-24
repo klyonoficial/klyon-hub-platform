@@ -196,8 +196,11 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<Service> Services { get; set; }
         public DbSet<PartnerService> PartnerServices { get; set; }
         public DbSet<SefazConfiguration> SefazConfigurations { get; set; }
+        public DbSet<CoworkingSefazConfiguration> CoworkingSefazConfigurations { get; set; }
         public DbSet<FiscalNote> FiscalNotes { get; set; }
+        public DbSet<FiscalNoteScriptExecution> FiscalNoteScriptExecutions { get; set; }
         public DbSet<PaymentHistory> PaymentHistories { get; set; }
+        public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -275,6 +278,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Client).WithMany(c => c.Contracts).HasForeignKey(e => e.ClientId);
                 entity.HasOne(e => e.CoworkingAddress).WithMany().HasForeignKey(e => e.CoworkingAddressId);
                 entity.HasOne(e => e.Subscription).WithOne(s => s.Contract).HasForeignKey<Subscription>(s => s.ContractId);
+                entity.HasOne(e => e.AssistedSaleAdmin).WithMany().HasForeignKey(e => e.AssistedSaleAdminId).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasConversion<string>();
             });
 
@@ -364,6 +368,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany(c => c.Documents)
                     .HasForeignKey(e => e.CoworkingId);
                 entity.Property(e => e.Type).HasConversion<string>();
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
             });
 
             // CoworkingPartner configuration
@@ -652,6 +658,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(e => new { e.CoworkingId, e.ServiceId }).IsUnique();
                 entity.Property(e => e.Percentage).HasColumnType("DECIMAL(5,2)").IsRequired();
+                entity.Property(e => e.RemovalRequestStatus).HasConversion<string>().HasMaxLength(50);
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
                 // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
@@ -668,6 +675,29 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.IntermediationServiceCode).HasMaxLength(20);
                 entity.Property(e => e.IntermediationServiceDescription).HasMaxLength(500);
                 entity.Property(e => e.PlatformCNAE).HasMaxLength(20);
+                entity.Property(e => e.TaxRegime).HasMaxLength(100);
+                entity.Property(e => e.ISSMunicipality).HasMaxLength(200);
+                entity.Property(e => e.ISSAliquot).HasColumnType("DECIMAL(5,2)");
+                // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
+                // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // CoworkingSefazConfiguration configuration (configuração SEFAZ por parceiro e estado)
+            modelBuilder.Entity<CoworkingSefazConfiguration>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.State).IsRequired().HasMaxLength(2);
+                entity.HasIndex(e => new { e.CoworkingId, e.State, e.Environment }).IsUnique();
+                entity.Property(e => e.Environment).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.PartnerCNPJ).IsRequired().HasMaxLength(18);
+                entity.Property(e => e.PartnerMunicipalRegistration).HasMaxLength(50);
+                entity.Property(e => e.ServiceCode).HasMaxLength(20);
+                entity.Property(e => e.ServiceDescription).HasMaxLength(500);
+                entity.Property(e => e.PartnerCNAE).HasMaxLength(20);
                 entity.Property(e => e.TaxRegime).HasMaxLength(100);
                 entity.Property(e => e.ISSMunicipality).HasMaxLength(200);
                 entity.Property(e => e.ISSAliquot).HasColumnType("DECIMAL(5,2)");
@@ -707,10 +737,26 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Amount).HasColumnType("DECIMAL(10,2)").IsRequired();
                 entity.Property(e => e.CommissionAmount).HasColumnType("DECIMAL(10,2)");
                 entity.Property(e => e.ServiceAmount).HasColumnType("DECIMAL(10,2)");
+                entity.Property(e => e.IdempotencyKey).HasMaxLength(64);
                 entity.HasIndex(e => e.AccessKey);
                 entity.HasIndex(e => new { e.Type, e.ReservationId, e.ContractId });
+                entity.HasIndex(e => e.IdempotencyKey).IsUnique();
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
                 // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+
+            // FiscalNoteScriptExecution configuration
+            modelBuilder.Entity<FiscalNoteScriptExecution>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ExecutedByUserName).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.NoteType).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.ErrorDetails).HasMaxLength(4000);
+                entity.HasOne(e => e.ExecutedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ExecutedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(e => e.ExecutedAt);
             });
 
             // PaymentHistory configuration
@@ -730,6 +776,25 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 // Remover valor padrão do banco - vamos definir explicitamente no código
                 // entity.Property(e => e.ActionAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.HasIndex(e => e.PaymentId);
+            });
+
+            // CapacityChangeRequest configuration
+            modelBuilder.Entity<CapacityChangeRequest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany(a => a.CapacityChangeRequests)
+                    .HasForeignKey(e => e.CoworkingAddressId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReviewedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Justification).HasMaxLength(2000);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.HasIndex(e => e.CoworkingAddressId);
+                entity.HasIndex(e => e.Status);
             });
         }
     }

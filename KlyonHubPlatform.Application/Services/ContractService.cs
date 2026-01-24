@@ -6,6 +6,10 @@ using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
+using System.Text.Json;
+using System.Security.Claims;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -17,6 +21,9 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IDocumentService _documentService;
         private readonly ISubscriptionService _subscriptionService;
         private readonly IPaymentService _paymentService;
+        private readonly IConfiguration _configuration;
+        private readonly IAuditService? _auditService;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
         public ContractService(
             IContractRepository contractRepository,
@@ -24,7 +31,10 @@ namespace KlyonHubPlatform.Application.Services
             ApplicationDbContext context,
             IDocumentService documentService,
             ISubscriptionService subscriptionService,
-            IPaymentService paymentService)
+            IPaymentService paymentService,
+            IConfiguration configuration,
+            IAuditService? auditService = null,
+            IHttpContextAccessor? httpContextAccessor = null)
         {
             _contractRepository = contractRepository;
             _coworkingRepository = coworkingRepository;
@@ -32,6 +42,40 @@ namespace KlyonHubPlatform.Application.Services
             _documentService = documentService;
             _subscriptionService = subscriptionService;
             _paymentService = paymentService;
+            _configuration = configuration;
+            _auditService = auditService;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
+        {
+            if (_auditService == null) return;
+
+            string? ipAddress = null;
+            string? userAgent = null;
+            if (_httpContextAccessor?.HttpContext != null)
+            {
+                ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+            }
+
+            string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;
+            string? newValuesJson = newValues != null ? JsonSerializer.Serialize(newValues) : null;
+
+            await _auditService.LogActionAsync(userId, action, entityType, entityId, oldValuesJson, newValuesJson, ipAddress, userAgent);
+        }
+
+        private int? GetCurrentUserId()
+        {
+            if (_httpContextAccessor?.HttpContext?.User != null)
+            {
+                var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return userId;
+                }
+            }
+            return null;
         }
 
         public async Task<Contract?> GetByIdAsync(int id)
@@ -44,7 +88,7 @@ namespace KlyonHubPlatform.Application.Services
             return await _contractRepository.GetByClientIdAsync(clientId);
         }
 
-        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue)
+        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -54,11 +98,36 @@ namespace KlyonHubPlatform.Application.Services
 
                 try
                 {
-                    var address = await _coworkingRepository.GetAddressByIdAsync(coworkingAddressId);
-                    if (address == null || !address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
-                    {
+                    // Buscar endereço com relacionamentos necessários
+                    var address = await _context.CoworkingAddresses
+                        .Include(a => a.Location)
+                        .Include(a => a.Coworking)
+                        .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
+
+                    if (address == null)
+                        throw new InvalidOperationException("Endereço não encontrado.");
+                    if (!address.Coworking.IsActive)
+                        throw new InvalidOperationException("O parceiro está suspenso. Não é possível criar novos contratos.");
+                    if (address.AddressStatus != AddressStatus.Active)
+                        throw new InvalidOperationException("O endereço não está ativo para novas vendas (suspenso ou removido). Contratos em andamento continuam válidos.");
+                    if (!address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
                         throw new InvalidOperationException("Endereço não disponível para contrato");
+
+                    // Validar capacidade fiscal aprovada
+                    if (address.CurrentContracts >= address.ApprovedFiscalCapacity)
+                    {
+                        throw new InvalidOperationException($"Não é possível criar contrato. A capacidade fiscal aprovada ({address.ApprovedFiscalCapacity}) já foi atingida. Contratos ativos: {address.CurrentContracts}");
                     }
+
+                    // Capturar valores para congelamento (snapshot)
+                    decimal commissionPercentage = await GetCommissionPercentageAsync(address);
+                    decimal platformCommissionPercentage = commissionPercentage;
+                    decimal coworkingCommissionPercentage = 100 - commissionPercentage;
+
+                    // Montar endereço completo como string
+                    var snapshotAddress = $"{address.Address}, {address.Number}" +
+                        (!string.IsNullOrEmpty(address.Complement) ? $" - {address.Complement}" : "") +
+                        $", {address.Neighborhood}, {address.City}/{address.State}, CEP: {address.ZipCode}";
 
                     var contract = new Contract
                     {
@@ -67,7 +136,16 @@ namespace KlyonHubPlatform.Application.Services
                         ContractNumber = await GenerateContractNumberAsync(),
                         StartDate = DateTime.UtcNow,
                         MonthlyValue = monthlyValue,
-                        Status = ContractStatus.PendingPayment
+                        Status = ContractStatus.PendingPayment,
+                        IsAssistedSale = assistedSaleAdminId.HasValue,
+                        AssistedSaleAdminId = assistedSaleAdminId,
+                        // Valores congelados (snapshot)
+                        SnapshotMonthlyValue = monthlyValue,
+                        SnapshotPlatformCommissionPercentage = platformCommissionPercentage,
+                        SnapshotCoworkingCommissionPercentage = coworkingCommissionPercentage,
+                        SnapshotAddress = snapshotAddress,
+                        SnapshotCommissionPercentage = commissionPercentage,
+                        SnapshotCapacityConsumed = address.CurrentContracts
                     };
 
                     var createdContract = await _contractRepository.CreateAsync(contract);
@@ -95,6 +173,28 @@ namespace KlyonHubPlatform.Application.Services
                     }
 
                     await transaction.CommitAsync();
+
+                    // Log de auditoria: criação de contrato (apenas autoatendimento; venda assistida é auditada no Admin)
+                    if (!assistedSaleAdminId.HasValue)
+                    {
+                        await LogAuditAsync(
+                            GetCurrentUserId(),
+                            "Contrato criado",
+                            "Contract",
+                            createdContract.Id,
+                            null,
+                            new { 
+                                ContractNumber = createdContract.ContractNumber,
+                                ClientId = clientId,
+                                CoworkingAddressId = coworkingAddressId,
+                                MonthlyValue = monthlyValue,
+                                Status = createdContract.Status.ToString(),
+                                SnapshotMonthlyValue = createdContract.SnapshotMonthlyValue,
+                                SnapshotPlatformCommissionPercentage = createdContract.SnapshotPlatformCommissionPercentage
+                            }
+                        );
+                    }
+
                     return createdContract;
                 }
                 catch
@@ -111,16 +211,21 @@ namespace KlyonHubPlatform.Application.Services
             if (contract == null)
                 throw new InvalidOperationException("Contrato não encontrado");
 
+            // Capturar valores antigos para auditoria
+            var oldStatus = contract.Status;
+            var oldCancelledAt = contract.CancelledAt;
+
             contract.Status = ContractStatus.Cancelled;
             contract.CancelledAt = DateTime.UtcNow;
             contract.CancellationReason = reason;
 
-            // Liberar endereço
+            // Liberar vaga no endereço (suspensão/remoção não afetam contratos; ao cancelar só decrementamos)
             var address = await _coworkingRepository.GetAddressByIdAsync(contract.CoworkingAddressId);
             if (address != null)
             {
                 address.CurrentContracts = Math.Max(0, address.CurrentContracts - 1);
-                address.IsAvailable = true;
+                if (address.AddressStatus == AddressStatus.Active && address.CurrentContracts < address.MaxContracts)
+                    address.IsAvailable = true;
                 await _coworkingRepository.UpdateAddressAsync(address);
             }
 
@@ -132,7 +237,19 @@ namespace KlyonHubPlatform.Application.Services
                 contract.Subscription.CancellationReason = reason;
             }
 
-            return await _contractRepository.UpdateAsync(contract);
+            var updatedContract = await _contractRepository.UpdateAsync(contract);
+
+            // Log de auditoria: cancelamento de contrato
+            await LogAuditAsync(
+                GetCurrentUserId(),
+                "Contrato cancelado",
+                "Contract",
+                contractId,
+                new { Status = oldStatus.ToString(), CancelledAt = oldCancelledAt },
+                new { Status = updatedContract.Status.ToString(), CancelledAt = updatedContract.CancelledAt, CancellationReason = reason, ContractNumber = updatedContract.ContractNumber }
+            );
+
+            return updatedContract;
         }
 
         public async Task<Contract> SuspendContractAsync(int contractId)
@@ -141,6 +258,9 @@ namespace KlyonHubPlatform.Application.Services
             if (contract == null)
                 throw new InvalidOperationException("Contrato não encontrado");
 
+            // Capturar valores antigos para auditoria
+            var oldStatus = contract.Status;
+
             contract.Status = ContractStatus.Suspended;
             if (contract.Subscription != null)
             {
@@ -148,7 +268,19 @@ namespace KlyonHubPlatform.Application.Services
                 contract.Subscription.SuspendedAt = DateTime.UtcNow;
             }
 
-            return await _contractRepository.UpdateAsync(contract);
+            var updatedContract = await _contractRepository.UpdateAsync(contract);
+
+            // Log de auditoria: suspensão de contrato
+            await LogAuditAsync(
+                GetCurrentUserId(),
+                "Contrato suspenso",
+                "Contract",
+                contractId,
+                new { Status = oldStatus.ToString() },
+                new { Status = updatedContract.Status.ToString(), ContractNumber = updatedContract.ContractNumber, SuspendedAt = contract.Subscription?.SuspendedAt }
+            );
+
+            return updatedContract;
         }
 
         public async Task<Contract> ActivateContractAsync(int contractId)
@@ -175,6 +307,45 @@ namespace KlyonHubPlatform.Application.Services
                 .CountAsync();
 
             return $"CT-{year}-{count + 1:D6}";
+        }
+
+        /// <summary>
+        /// Obtém o percentual de comissão aplicado para um endereço, seguindo a mesma lógica do CommissionService
+        /// </summary>
+        private async Task<decimal> GetCommissionPercentageAsync(CoworkingAddress address)
+        {
+            // Buscar o Service "Contratar Endereço Fiscal"
+            var service = await _context.Services
+                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+
+            if (service != null)
+            {
+                // Buscar porcentagem do PartnerService
+                var partnerService = await _context.PartnerServices
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == address.CoworkingId && ps.ServiceId == service.Id);
+
+                if (partnerService != null && partnerService.Percentage > 0)
+                {
+                    return partnerService.Percentage;
+                }
+            }
+
+            // Fallback: Buscar comissão da localidade
+            if (address.LocationId != null)
+            {
+                var locationCommission = await _context.LocationCommissions
+                    .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
+                    .OrderByDescending(lc => lc.EffectiveDate)
+                    .FirstOrDefaultAsync();
+
+                if (locationCommission != null)
+                {
+                    return locationCommission.CommissionPercentage;
+                }
+            }
+
+            // Fallback final: usar valor padrão do appsettings
+            return _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
         }
     }
 }

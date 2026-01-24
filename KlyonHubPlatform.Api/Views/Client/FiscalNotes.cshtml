@@ -1,0 +1,212 @@
+@{
+    ViewData["Title"] = "Notas Fiscais";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-receipt-cutoff"></i> Notas Fiscais</h2>
+        <p class="text-muted mb-0">Visualize as notas fiscais dos serviços que você pagou</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="status" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    <option value="Pendente" selected="@(ViewBag.Status == "Pendente")">Pendente</option>
+                    <option value="Emitida" selected="@(ViewBag.Status == "Emitida")">Emitida</option>
+                    <option value="Cancelada" selected="@(ViewBag.Status == "Cancelada")">Cancelada</option>
+                    <option value="Erro" selected="@(ViewBag.Status == "Erro")">Erro</option>
+                </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Notas Fiscais -->
+<div class="card">
+    <div class="card-body">
+        @{
+            var currentPage = ViewBag.CurrentPage as int? ?? 1;
+            var totalPages = ViewBag.TotalPages as int? ?? 1;
+            var totalItems = ViewBag.TotalItems as int? ?? 0;
+            var pageSize = ViewBag.PageSize as int? ?? 20;
+        }
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Número</th>
+                            <th>Serviço</th>
+                            <th>Parceiro</th>
+                            <th>Valor Pago (R$)</th>
+                            <th>Data Emissão</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var note in Model)
+                        {
+                            var serviceName = "Serviço";
+                            var location = "";
+                            
+                            if (note.Contract != null && note.Contract.CoworkingAddress != null && note.Contract.CoworkingAddress.Location != null)
+                            {
+                                serviceName = "Endereço Fiscal";
+                                location = $"{note.Contract.CoworkingAddress.Location.City}/{note.Contract.CoworkingAddress.Location.State}";
+                            }
+                            else if (note.Reservation != null && note.Reservation.CoworkingAddress != null && note.Reservation.CoworkingAddress.Location != null)
+                            {
+                                serviceName = "Reserva de Sala";
+                                location = $"{note.Reservation.CoworkingAddress.Location.City}/{note.Reservation.CoworkingAddress.Location.State}";
+                            }
+                            
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(note.Number))
+                                    {
+                                        <strong>@note.Number</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>@serviceName</strong>
+                                    @if (!string.IsNullOrEmpty(location))
+                                    {
+                                        <br><small class="text-muted">@location</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (note.Coworking != null)
+                                    {
+                                        @note.Coworking.Name
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>R$ @note.Amount.ToString("F2")</strong>
+                                </td>
+                                <td>@note.IssueDate.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    @{
+                                        var statusClass = note.Status switch
+                                        {
+                                            "Emitida" => "success",
+                                            "Pendente" => "warning",
+                                            "Cancelada" => "danger",
+                                            "Erro" => "danger",
+                                            _ => "secondary"
+                                        };
+                                        var statusText = note.Status switch
+                                        {
+                                            "Emitida" => "Emitida",
+                                            "Pendente" => "Pendente",
+                                            "Cancelada" => "Cancelada",
+                                            "Erro" => "Erro",
+                                            _ => note.Status
+                                        };
+                                    }
+                                    <span class="badge bg-@statusClass">@statusText</span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(note.AccessKey))
+                                    {
+                                        <a href="@note.ViewUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Visualizar NF">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        @if (!string.IsNullOrEmpty(note.PdfUrl))
+                                        {
+                                            <a href="@note.PdfUrl" target="_blank" class="btn btn-sm btn-outline-danger" title="Download PDF">
+                                                <i class="bi bi-file-pdf"></i>
+                                            </a>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (totalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (currentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage - 1, pageSize, status = ViewBag.Status })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = i, pageSize, status = ViewBag.Status })">@i</a>
+                            </li>
+                        }
+
+                        @if (currentPage < totalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage + 1, pageSize, status = ViewBag.Status })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+
+            <div class="text-center text-muted mt-3">
+                Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems nota(s) fiscal(is)
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhuma nota fiscal encontrada.
+            </div>
+        }
+    </div>
+</div>

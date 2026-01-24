@@ -5,6 +5,7 @@
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
 @using KlyonHubPlatform.Domain.Entities
+@using KlyonHubPlatform.Domain.Core.Enums
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Visualizar Coworking - @Model.Name</h2>
@@ -158,23 +159,47 @@
                                     <th>Endereço</th>
                                     <th>Cidade</th>
                                     <th>Estado</th>
-                                    <th>Status</th>
+                                    <th>Status do endereço</th>
+                                    <th>Disponível</th>
                                     <th>Contratos</th>
+                                    <th class="text-end">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var address in Model.Addresses)
                                 {
+                                    var addrStatus = address.AddressStatus;
+                                    var (badge, label) = addrStatus == AddressStatus.Active ? ("success", "Ativo")
+                                        : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") : ("secondary", "Removido");
                                     <tr>
                                         <td>@address.Address, @address.Number</td>
                                         <td>@address.City</td>
                                         <td>@address.State</td>
                                         <td>
+                                            <span class="badge bg-@badge">@label</span>
+                                            @if (addrStatus != AddressStatus.Active)
+                                            {
+                                                <small class="text-muted d-block">Contratos ativos seguem válidos</small>
+                                            }
+                                        </td>
+                                        <td>
                                             <span class="badge bg-@(address.IsAvailable ? "success" : "danger")">
-                                                @(address.IsAvailable ? "Disponível" : "Indisponível")
+                                                @(address.IsAvailable ? "Sim" : "Não")
                                             </span>
                                         </td>
                                         <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                        <td class="text-end">
+                                            <form asp-action="SetAddressStatus" asp-controller="Admin" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="addressId" value="@address.Id" />
+                                                <input type="hidden" name="coworkingId" value="@Model.Id" />
+                                                <select name="status" class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="this.form.submit()">
+                                                    @if (addrStatus == AddressStatus.Active) { <option value="Active" selected>Ativo</option> } else { <option value="Active">Ativo</option> }
+                                                    @if (addrStatus == AddressStatus.Suspended) { <option value="Suspended" selected>Suspenso</option> } else { <option value="Suspended">Suspenso</option> }
+                                                    @if (addrStatus == AddressStatus.Removed) { <option value="Removed" selected>Removido</option> } else { <option value="Removed">Removido</option> }
+                                                </select>
+                                            </form>
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -218,6 +243,192 @@
                 }
             </div>
         </div>
+
+        @{
+            var requiredDocTypes = new[]
+            {
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+            };
+            var docsByType = Model.Documents?.ToDictionary(d => d.Type) ?? new Dictionary<KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType, KlyonHubPlatform.Domain.Entities.CoworkingDocument>();
+            
+            // Paginação
+            var documentsPage = ViewBag.DocumentsPage as int? ?? 1;
+            var documentsPageSize = ViewBag.DocumentsPageSize as int? ?? 4;
+            var documentsTotalPages = ViewBag.DocumentsTotalPages as int? ?? 1;
+            var documentsTotalItems = ViewBag.DocumentsTotalItems as int? ?? requiredDocTypes.Length;
+            
+            var skip = (documentsPage - 1) * documentsPageSize;
+            var paginatedDocTypes = requiredDocTypes.Skip(skip).Take(documentsPageSize);
+        }
+        <div class="card mb-3" id="documentos">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios (@(Model.Documents?.Count ?? 0))</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Documento</th>
+                                <th>Arquivo / Enviado em</th>
+                                <th>Status</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var (docType, docName, docDesc) in paginatedDocTypes)
+                            {
+                                var d = docsByType.ContainsKey(docType) ? docsByType[docType] : null;
+                                <tr>
+                                    <td>
+                                        <strong>@docName</strong>
+                                        <br><small class="text-muted">@docDesc</small>
+                                    </td>
+                                    <td>
+                                        @if (d != null)
+                                        {
+                                            <span>@d.FileName</span>
+                                            <br><small class="text-muted">@d.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Não enviado</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (d != null)
+                                        {
+                                            var st = d.Status;
+                                            if (st == KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentStatus.Pending)
+                                            {
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Em análise</span>
+                                            }
+                                            else if (st == KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentStatus.Approved)
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Aprovado</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger"><i class="bi bi-x-circle-fill"></i> Rejeitado</span>
+                                                @if (!string.IsNullOrWhiteSpace(d.RejectionReason))
+                                                {
+                                                    <br><small class="text-danger" title="@d.RejectionReason">@(d.RejectionReason.Length > 50 ? d.RejectionReason.Substring(0, 50) + "…" : d.RejectionReason)</small>
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (d != null)
+                                        {
+                                            <a href="@Url.Action("DownloadDocument", "Coworking", new { documentId = d.Id })" class="btn btn-sm btn-outline-primary" target="_blank" title="Visualizar"><i class="bi bi-download"></i></a>
+                                            @if (d.Status == KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentStatus.Pending)
+                                            {
+                                                <form asp-action="ApproveDocument" asp-controller="Admin" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="documentId" value="@d.Id" />
+                                                    <input type="hidden" name="page" value="@documentsPage" />
+                                                    <input type="hidden" name="pageSize" value="@documentsPageSize" />
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Aprovar documento"><i class="bi bi-check-circle"></i></button>
+                                                </form>
+                                                <button type="button" class="btn btn-sm btn-danger" title="Reprovar documento" data-bs-toggle="modal" data-bs-target="#modalReprovarDoc" data-doc-id="@d.Id" data-doc-page="@documentsPage" data-doc-page-size="@documentsPageSize">
+                                                    <i class="bi bi-x-octagon"></i>
+                                                </button>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginação -->
+                @if (documentsTotalPages > 1)
+                {
+                    <nav aria-label="Paginação de documentos">
+                        <ul class="pagination justify-content-center mt-3">
+                            @if (documentsPage > 1)
+                            {
+                                <li class="page-item">
+                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = documentsPage - 1, pageSize = documentsPageSize })#documentos">
+                                        <i class="bi bi-chevron-left"></i> Anterior
+                                    </a>
+                                </li>
+                            }
+
+                            @for (int i = Math.Max(1, documentsPage - 2); i <= Math.Min(documentsTotalPages, documentsPage + 2); i++)
+                            {
+                                <li class="page-item @(i == documentsPage ? "active" : "")">
+                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = i, pageSize = documentsPageSize })#documentos">
+                                        @i
+                                    </a>
+                                </li>
+                            }
+
+                            @if (documentsPage < documentsTotalPages)
+                            {
+                                <li class="page-item">
+                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = documentsPage + 1, pageSize = documentsPageSize })#documentos">
+                                        Próxima <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    </nav>
+                }
+            </div>
+        </div>
+
+        <!-- Modal Reprovar Documento -->
+        <div class="modal fade" id="modalReprovarDoc" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="RejectDocument" asp-controller="Admin" method="post" id="formRejectDoc">
+                        <input type="hidden" name="documentId" id="rejectDocId" value="" />
+                        <input type="hidden" name="page" id="rejectDocPage" value="@documentsPage" />
+                        <input type="hidden" name="pageSize" id="rejectDocPageSize" value="@documentsPageSize" />
+                        @Html.AntiForgeryToken()
+                        <div class="modal-header">
+                            <h5 class="modal-title">Reprovar documento</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Informe o <strong>motivo da rejeição</strong>. O coworking verá esta mensagem na aba Documentos Obrigatórios.</p>
+                            <textarea name="rejectionReason" class="form-control" rows="4" required placeholder="Ex.: Comprovante de endereço ilegível. Envie cópia mais nítida."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.getElementById('modalReprovarDoc')?.addEventListener('show.bs.modal', function (e) {
+                var btn = e.relatedTarget;
+                var docId = btn?.getAttribute('data-doc-id');
+                var docPage = btn?.getAttribute('data-doc-page');
+                var docPageSize = btn?.getAttribute('data-doc-page-size');
+                var inpId = document.getElementById('rejectDocId');
+                var inpPage = document.getElementById('rejectDocPage');
+                var inpPageSize = document.getElementById('rejectDocPageSize');
+                if (inpId && docId) inpId.value = docId;
+                if (inpPage && docPage) inpPage.value = docPage;
+                if (inpPageSize && docPageSize) inpPageSize.value = docPageSize;
+            });
+        </script>
 
         <div class="d-flex flex-wrap gap-2 align-items-center">
             <a href="@Url.Action("CoworkingHistory", "Admin", new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
