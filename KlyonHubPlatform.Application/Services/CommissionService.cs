@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -56,7 +57,7 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Endereço não encontrado");
 
                 coworkingId = address.CoworkingId;
-                serviceName = "Contratar Endereço Fiscal";
+                serviceName = "Ofertar Endereço Fiscal";
             }
             else if (payment.ReservationId.HasValue && payment.Reservation != null)
             {

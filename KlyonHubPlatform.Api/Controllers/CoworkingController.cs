@@ -9,6 +9,7 @@ using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using Microsoft.EntityFrameworkCore;
@@ -3824,11 +3825,11 @@ namespace KlyonHubPlatform.Api.Controllers
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
+            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Ofertar Endereço Fiscal"
             if (!showCoworkingMenus)
             {
                 partnerServices = partnerServices
-                    .Where(ps => ps.Service != null && ps.Service.Name == "Contratar Endereço Fiscal")
+                    .Where(ps => ps.Service != null && ps.Service.Name == "Ofertar Endereço Fiscal")
                     .ToList();
             }
 

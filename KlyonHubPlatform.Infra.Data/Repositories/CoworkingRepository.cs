@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 
 namespace KlyonHubPlatform.Infra.Data.Repositories
 {
@@ -76,9 +77,9 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
 
         public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null)
         {
-            // Buscar o ID do serviço "Contratar Endereço Fiscal"
+            // Buscar o ID do serviço "Ofertar Endereço Fiscal"
             var fiscalAddressService = await _context.Services
-                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+                .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
 
             if (fiscalAddressService == null)
             {

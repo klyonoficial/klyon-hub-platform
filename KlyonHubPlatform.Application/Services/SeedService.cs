@@ -3,6 +3,7 @@ using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -219,6 +220,7 @@ namespace KlyonHubPlatform.Application.Services
                 new Service
                 {
                     Name = "Aluguel de Sala Compartilhada",
+                    Code = "SHARED_ROOM_RENTAL",
                     Description = "Aluguel de espaço em sala compartilhada para trabalho",
                     Route = "/Home/Marketplace",
                     DisplayOrder = 1,
@@ -228,6 +230,7 @@ namespace KlyonHubPlatform.Application.Services
                 new Service
                 {
                     Name = "Aluguel de Sala Particular",
+                    Code = "PRIVATE_ROOM_RENTAL",
                     Description = "Aluguel de sala privativa para reuniões e eventos",
                     Route = "/Home/Marketplace",
                     DisplayOrder = 2,
@@ -237,6 +240,7 @@ namespace KlyonHubPlatform.Application.Services
                 new Service
                 {
                     Name = "Aluguel de Auditório",
+                    Code = AuditoriumRental,
                     Description = "Aluguel de auditório para eventos e apresentações",
                     Route = "/Home/Marketplace",
                     DisplayOrder = 3,
@@ -245,7 +249,8 @@ namespace KlyonHubPlatform.Application.Services
                 },
                 new Service
                 {
-                    Name = "Contratar Endereço Fiscal",
+                    Name = "Ofertar Endereço Fiscal",
+                    Code = FiscalAddressOffer,
                     Description = "Contratação de endereço fiscal para empresas",
                     Route = "/Client/ChooseLocation",
                     DisplayOrder = 4,
@@ -264,19 +269,21 @@ namespace KlyonHubPlatform.Application.Services
                 await _context.SaveChangesAsync();
             }
 
-            // Atualizar serviços existentes com ImageUrl e rotas corretas
+            // Atualizar serviços existentes com ImageUrl, rotas e códigos corretos
             var servicesToUpdate = existingServices
-                .Where(s => string.IsNullOrEmpty(s.ImageUrl) || 
-                           s.Route == "/marketplace" || 
-                           (s.Route == "/contracts" && s.Name.Contains("Endereço Fiscal")))
+                .Where(s => string.IsNullOrEmpty(s.ImageUrl) ||
+                           s.Route == "/marketplace" ||
+                           (s.Route == "/contracts" && s.Name.Contains("Endereço Fiscal")) ||
+                           string.IsNullOrEmpty(s.Code))
                 .ToList();
 
             var needsRouteUpdate = false;
 
             foreach (var existingService in existingServices)
             {
-                var matchingService = servicesToAdd.FirstOrDefault(s => 
-                    s.Name.Equals(existingService.Name, StringComparison.OrdinalIgnoreCase));
+                var matchingService = servicesToAdd.FirstOrDefault(s =>
+                    s.Name.Equals(existingService.Name, StringComparison.OrdinalIgnoreCase) ||
+                    (existingService.Name == "Contratar Endereço Fiscal" && s.Name == "Ofertar Endereço Fiscal"));
                 
                 if (matchingService != null)
                 {
@@ -287,7 +294,7 @@ namespace KlyonHubPlatform.Application.Services
                     }
 
                     // Corrigir rotas incorretas
-                    if (existingService.Route == "/marketplace" || 
+                    if (existingService.Route == "/marketplace" ||
                         (existingService.Route.Contains("/marketplace") && !existingService.Route.Contains("/Home/Marketplace")))
                     {
                         existingService.Route = "/Home/Marketplace";
@@ -296,6 +303,20 @@ namespace KlyonHubPlatform.Application.Services
                     else if (existingService.Route == "/contracts" && existingService.Name.Contains("Endereço Fiscal"))
                     {
                         existingService.Route = "/Client/ChooseLocation";
+                        needsRouteUpdate = true;
+                    }
+
+                    // Atualizar Code se não tiver ou estiver vazio
+                    if (string.IsNullOrEmpty(existingService.Code) && !string.IsNullOrEmpty(matchingService.Code))
+                    {
+                        existingService.Code = matchingService.Code;
+                        needsRouteUpdate = true; // Reutilizando a flag para indicar que houve atualização
+                    }
+
+                    // Atualizar nome do serviço se for o antigo "Contratar Endereço Fiscal"
+                    if (existingService.Name == "Contratar Endereço Fiscal" && matchingService.Name == "Ofertar Endereço Fiscal")
+                    {
+                        existingService.Name = matchingService.Name;
                         needsRouteUpdate = true;
                     }
                 }
