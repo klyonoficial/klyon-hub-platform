@@ -336,7 +336,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             modelBuilder.Entity<AuditLog>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).ValueGeneratedOnAdd(); // Garantir que Id seja auto-increment
+                entity.Property(e => e.Id).ValueGeneratedOnAdd(); // Garantir auto-incremento
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.ActionDate);
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.SetNull);

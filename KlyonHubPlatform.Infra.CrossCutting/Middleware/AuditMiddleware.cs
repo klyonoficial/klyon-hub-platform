@@ -15,6 +15,13 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
 
         public async Task InvokeAsync(HttpContext context, IAuditService auditService)
         {
+            // Verificar se a auditoria deve ser ignorada (ex: durante limpeza de base de dados)
+            if (context.Items.ContainsKey("SkipAudit") && (bool)context.Items["SkipAudit"] == true)
+            {
+                await _next(context);
+                return;
+            }
+
             var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var action = $"{context.Request.Method} {context.Request.Path}";
             var ipAddress = context.Connection.RemoteIpAddress?.ToString();
