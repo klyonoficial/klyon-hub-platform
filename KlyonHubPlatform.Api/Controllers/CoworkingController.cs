@@ -26,6 +26,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAuditService _auditService;
         private readonly IReservationTransferService _reservationTransferService;
         private readonly ISystemConfigurationService _systemConfig;
+        private readonly ISefazService _sefazService;
 
         public CoworkingController(
             ICoworkingService coworkingService,
@@ -36,7 +37,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAddressDeclarationService addressDeclarationService,
             IAuditService auditService,
             IReservationTransferService reservationTransferService,
-            ISystemConfigurationService systemConfig)
+            ISystemConfigurationService systemConfig,
+            ISefazService sefazService)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
@@ -47,6 +49,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _auditService = auditService;
             _reservationTransferService = reservationTransferService;
             _systemConfig = systemConfig;
+            _sefazService = sefazService;
         }
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
@@ -472,6 +475,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var address = await _context.CoworkingAddresses
                 .Include(a => a.Location)
+                .Include(a => a.CapacityChangeRequests)
                 .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
 
             if (address == null)
@@ -504,8 +508,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Register");
                 }
 
-                // Buscar o endereço existente
+                // Buscar o endereço existente com relacionamentos
                 var existingAddress = await _context.CoworkingAddresses
+                    .Include(a => a.CapacityChangeRequests)
                     .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
 
                 if (existingAddress == null)
@@ -580,6 +585,74 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.Locations = locations;
                 ViewBag.Address = existingAddress;
                 return View(existingAddress);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestCapacityChange([FromBody] CapacityChangeRequestDto request)
+        {
+            try
+            {
+                if (request == null || request.AddressId <= 0 || request.RequestedCapacity <= 0)
+                {
+                    return Json(new { success = false, message = "Dados inválidos." });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    return Json(new { success = false, message = "Coworking não encontrado." });
+                }
+
+                var address = await _context.CoworkingAddresses
+                    .FirstOrDefaultAsync(a => a.Id == request.AddressId && a.CoworkingId == coworkingEntity.Id);
+
+                if (address == null)
+                {
+                    return Json(new { success = false, message = "Endereço não encontrado ou você não tem permissão para editá-lo." });
+                }
+
+                // Validar capacidade solicitada
+                if (request.RequestedCapacity < address.CurrentContracts)
+                {
+                    return Json(new { success = false, message = $"A capacidade solicitada ({request.RequestedCapacity}) não pode ser menor que o número de contratos ativos ({address.CurrentContracts})." });
+                }
+
+                // Verificar se já existe solicitação pendente
+                if (address.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
+                {
+                    return Json(new { success = false, message = "Já existe uma solicitação de alteração de capacidade pendente para este endereço." });
+                }
+
+                // Criar solicitação de alteração
+                var capacityRequest = new CapacityChangeRequest
+                {
+                    CoworkingAddressId = address.Id,
+                    RequestedCapacity = request.RequestedCapacity,
+                    PreviousCapacity = address.ApprovedFiscalCapacity,
+                    Status = CapacityApprovalStatus.Pending,
+                    Justification = request.Justification?.Trim(),
+                    CreatedAt = DateTimeHelper.GetBrazilianTime()
+                };
+
+                _context.CapacityChangeRequests.Add(capacityRequest);
+
+                // Atualizar status do endereço
+                address.RequestedFiscalCapacity = request.RequestedCapacity;
+                address.CapacityApprovalStatus = CapacityApprovalStatus.Pending;
+                address.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, message = "Solicitação de alteração de capacidade enviada com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = $"Erro ao processar solicitação: {ex.Message}" });
             }
         }
 
@@ -765,6 +838,35 @@ namespace KlyonHubPlatform.Api.Controllers
             // Criar timeline do fluxo
             var timeline = new List<object>();
 
+            string ContractStatusPt(ContractStatus s) => s switch
+            {
+                ContractStatus.Active => "Ativo",
+                ContractStatus.Suspended => "Suspenso",
+                ContractStatus.PendingPayment => "Aguardando Pagamento",
+                ContractStatus.PendingCancellation => "Cancelamento Pendente",
+                ContractStatus.Cancelled => "Cancelado",
+                ContractStatus.Expired => "Expirado",
+                _ => s.ToString()
+            };
+            string PaymentStatusPt(PaymentStatus s) => s switch
+            {
+                PaymentStatus.Pending => "Aguardando",
+                PaymentStatus.Processing => "Processando",
+                PaymentStatus.AwaitingValidation => "Aguardando Validação",
+                PaymentStatus.Paid => "Pago",
+                PaymentStatus.Failed => "Falhou",
+                PaymentStatus.Refunded => "Reembolsado",
+                PaymentStatus.Cancelled => "Cancelado",
+                _ => s.ToString()
+            };
+            string PaymentMethodPt(PaymentMethod m) => m switch
+            {
+                PaymentMethod.PIX => "PIX",
+                PaymentMethod.CreditCard => "Cartão",
+                PaymentMethod.BankTransfer => "Boleto",
+                _ => m.ToString()
+            };
+
             // Adicionar criação do contrato
             timeline.Add(new
             {
@@ -779,12 +881,13 @@ namespace KlyonHubPlatform.Api.Controllers
             // Adicionar mudanças de status
             if (contract.UpdatedAt.HasValue && contract.UpdatedAt != contract.CreatedAt)
             {
+                var statusPt = ContractStatusPt(contract.Status);
                 timeline.Add(new
                 {
                     Date = contract.UpdatedAt.Value,
                     Type = "Status",
-                    Title = $"Status: {contract.Status}",
-                    Description = $"Status do contrato alterado para {contract.Status}",
+                    Title = $"Status: {statusPt}",
+                    Description = $"Status do contrato alterado para {statusPt}",
                     Icon = "bi-arrow-repeat",
                     Color = "info"
                 });
@@ -798,7 +901,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Date = payment.CreatedAt,
                     Type = "Pagamento",
                     Title = $"Pagamento de R$ {payment.Amount:N2}",
-                    Description = $"Status: {payment.Status} - Método: {payment.Method}",
+                    Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
                     Icon = "bi-cash-coin",
                     Color = payment.Status == PaymentStatus.Paid ? "success" : "warning",
                     Payment = payment
@@ -1302,6 +1405,64 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Where(c => c.CoworkingId == coworkingEntity.Id)
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync();
+
+            // Buscar transferências relacionadas para verificar o status real
+            var transfers = await _context.Transfers
+                .Where(t => t.CoworkingId == coworkingEntity.Id)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            // Criar um dicionário para mapear comissões para transferências
+            // Como não há relação direta, vamos usar uma heurística baseada em:
+            // 1. Data de transferência próxima (dentro de 1 hora)
+            // 2. Agrupar comissões que foram transferidas na mesma data/hora
+            var commissionTransferMap = new Dictionary<int, Transfer?>();
+            
+            // Agrupar comissões transferidas por data/hora aproximada
+            var transferredCommissions = commissions
+                .Where(c => c.IsTransferred && c.TransferredAt.HasValue)
+                .GroupBy(c => new 
+                { 
+                    Date = c.TransferredAt.Value.Date,
+                    Hour = c.TransferredAt.Value.Hour 
+                })
+                .ToList();
+
+            foreach (var group in transferredCommissions)
+            {
+                var groupCommissions = group.ToList();
+                var totalCreditado = groupCommissions.Sum(c => c.TotalPaymentAmount - c.Amount);
+                
+                // Encontrar transferência que corresponde a este grupo
+                var matchingTransfer = transfers
+                    .Where(t => 
+                        t.CreatedAt.Date == group.Key.Date &&
+                        Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 && // Dentro de 1 hora
+                        Math.Abs(t.Amount - totalCreditado) < 0.01m) // Valor deve ser muito próximo (tolerância de 1 centavo)
+                    .OrderBy(t => Math.Abs((t.CreatedAt - groupCommissions.First().TransferredAt.Value).TotalMinutes))
+                    .FirstOrDefault();
+
+                // Se não encontrou por valor exato, tentar por valor aproximado (pode haver taxas)
+                if (matchingTransfer == null)
+                {
+                    matchingTransfer = transfers
+                        .Where(t => 
+                            t.CreatedAt.Date == group.Key.Date &&
+                            Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 &&
+                            t.Amount >= totalCreditado * 0.95m && // Pelo menos 95% do valor
+                            t.Amount <= totalCreditado * 1.05m) // No máximo 105% do valor
+                        .OrderBy(t => Math.Abs((t.CreatedAt - groupCommissions.First().TransferredAt.Value).TotalMinutes))
+                        .FirstOrDefault();
+                }
+
+                // Mapear todas as comissões do grupo para a mesma transferência
+                foreach (var commission in groupCommissions)
+                {
+                    commissionTransferMap[commission.Id] = matchingTransfer;
+                }
+            }
+
+            ViewBag.CommissionTransferMap = commissionTransferMap;
 
             return View(commissions);
         }
@@ -2443,7 +2604,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddPartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false)
+        public async Task<IActionResult> AddPartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false)
         {
             try
             {
@@ -2469,6 +2630,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 partner.CoworkingId = coworkingEntity.Id;
                 partner.CreatedAt = DateTime.UtcNow;
                 partner.IsPrincipal = IsPrincipal;
+                partner.IsContractSigner = IsContractSigner;
                 
                 // Converter SharePercentage de string (pode vir com vírgula) para decimal
                 if (Request.Form.ContainsKey("SharePercentage") && !string.IsNullOrWhiteSpace(Request.Form["SharePercentage"]))
@@ -2519,7 +2681,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false)
+        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false)
         {
             try
             {
@@ -2548,6 +2710,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingPartner.Phone = partner.Phone;
                 existingPartner.Role = partner.Role;
                 existingPartner.IsPrincipal = IsPrincipal;
+                existingPartner.IsContractSigner = IsContractSigner;
                 existingPartner.UpdatedAt = DateTime.UtcNow;
                 
                 // Converter SharePercentage de string (pode vir com vírgula) para decimal
@@ -2777,6 +2940,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     existingDoc.FilePath = filePath;
                     existingDoc.UpdatedAt = DateTime.UtcNow;
                     existingDoc.IsValid = true;
+                    existingDoc.Status = CoworkingDocumentStatus.Pending;
+                    existingDoc.RejectionReason = null;
                     
                     // Definir data de expiração para comprovante de endereço (90 dias)
                     if (docType == CoworkingDocumentType.AddressProof)
@@ -2786,7 +2951,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else
                 {
-                    // Criar novo documento
+                    // Criar novo documento (Status = Em análise)
                     var coworkingDocument = new CoworkingDocument
                     {
                         CoworkingId = coworkingEntity.Id,
@@ -2794,6 +2959,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         FileName = documentFile.FileName,
                         FilePath = filePath,
                         IsValid = true,
+                        Status = CoworkingDocumentStatus.Pending,
                         ExpiresAt = docType == CoworkingDocumentType.AddressProof 
                             ? DateTime.UtcNow.AddDays(90) 
                             : null
@@ -3033,8 +3199,13 @@ namespace KlyonHubPlatform.Api.Controllers
             var partnerServices = await _context.PartnerServices
                 .Include(ps => ps.Service)
                 .Where(ps => ps.CoworkingId == coworkingEntity.Id)
-                .OrderBy(ps => ps.Service.Name)
                 .ToListAsync();
+
+            // Remover itens com Service nulo (dados órfãos) e ordenar por nome
+            partnerServices = partnerServices
+                .Where(ps => ps.Service != null)
+                .OrderBy(ps => ps.Service!.Name)
+                .ToList();
 
             // Verificar se os menus de coworking estão habilitados
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
@@ -3044,7 +3215,7 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!showCoworkingMenus)
             {
                 partnerServices = partnerServices
-                    .Where(ps => ps.Service.Name == "Contratar Endereço Fiscal")
+                    .Where(ps => ps.Service != null && ps.Service.Name == "Contratar Endereço Fiscal")
                     .ToList();
             }
 
@@ -3281,5 +3452,320 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Services");
             }
         }
+
+        /// <summary>
+        /// Lista pagamentos pendentes de emissão de NF de serviço
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 20)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço emitida
+            var query = _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                            .ThenInclude(ca => ca.Location)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.Client)
+                            .ThenInclude(cl => cl.User)
+                .Include(p => p.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(p => p.Reservation)
+                    .ThenInclude(r => r.Client)
+                        .ThenInclude(cl => cl.User)
+                .Where(p => 
+                    (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
+                    (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                )
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .Where(p => !_context.FiscalNotes.Any(fn => 
+                    fn.PaymentId == p.Id && fn.Type == "Servico" && fn.Status == "Emitida"
+                ))
+                .AsQueryable();
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var payments = await query
+                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            ViewBag.CoworkingId = coworkingEntity.Id;
+
+            return View(payments);
+        }
+
+        /// <summary>
+        /// Emite NF de serviço para um pagamento específico
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> IssueServiceFiscalNote(int paymentId)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Parceiro não encontrado.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(c => c.CoworkingAddress)
+                                .ThenInclude(ca => ca.Location)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(c => c.Client)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                            .ThenInclude(ca => ca.Location)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                // Verificar se o pagamento pertence a este coworking
+                var belongsToCoworking = false;
+                string state = "ES"; // Default
+
+                if (payment.Subscription?.Contract?.CoworkingAddress != null)
+                {
+                    belongsToCoworking = payment.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id;
+                    state = payment.Subscription.Contract.CoworkingAddress.Location?.State ?? "ES";
+                }
+                else if (payment.Reservation?.CoworkingAddress != null)
+                {
+                    belongsToCoworking = payment.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id;
+                    state = payment.Reservation.CoworkingAddress.Location?.State ?? "ES";
+                }
+
+                if (!belongsToCoworking)
+                {
+                    TempData["Error"] = "Este pagamento não pertence ao seu coworking.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                // Verificar se já existe NF emitida
+                var existingNote = await _context.FiscalNotes
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && fn.Status == "Emitida");
+
+                if (existingNote != null)
+                {
+                    TempData["Error"] = "Já existe uma NF de serviço emitida para este pagamento.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                // Verificar se o estado tem integração
+                if (!_sefazService.IsStateSupported(state))
+                {
+                    TempData["Error"] = $"Integração SEFAZ ainda não implementada para o estado {state}.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                // Buscar configuração SEFAZ do parceiro
+                var sefazConfig = await _sefazService.GetCoworkingConfigurationAsync(coworkingEntity.Id, state, "Producao");
+                if (sefazConfig == null)
+                {
+                    TempData["Error"] = $"Configuração SEFAZ não encontrada para o estado {state}. Configure em Configurações SEFAZ.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                // Criar registro de NF
+                var fiscalNote = new FiscalNote
+                {
+                    Type = "Servico",
+                    PaymentId = payment.Id,
+                    CoworkingId = coworkingEntity.Id,
+                    ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
+                    ContractId = payment.Subscription?.ContractId,
+                    ReservationId = payment.ReservationId,
+                    Amount = payment.Amount,
+                    ServiceAmount = payment.Amount,
+                    IssueDate = DateTime.UtcNow,
+                    Status = "Pendente",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.FiscalNotes.Add(fiscalNote);
+                await _context.SaveChangesAsync();
+
+                // Emitir NF via SEFAZ
+                try
+                {
+                    var emittedNote = await _sefazService.IssueServiceNoteAsync(fiscalNote, sefazConfig);
+                    _context.FiscalNotes.Update(emittedNote);
+                    await _context.SaveChangesAsync();
+
+                    TempData["Success"] = $"NF de serviço emitida com sucesso! Chave de acesso: {emittedNote.AccessKey}";
+                }
+                catch (Exception ex)
+                {
+                    _context.FiscalNotes.Update(fiscalNote);
+                    await _context.SaveChangesAsync();
+                    TempData["Error"] = $"Erro ao emitir NF: {ex.Message}";
+                }
+
+                return RedirectToAction("ServiceFiscalNotes");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao processar emissão de NF: {ex.Message}";
+                return RedirectToAction("ServiceFiscalNotes");
+            }
+        }
+
+        /// <summary>
+        /// Configurações SEFAZ do parceiro
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SefazConfiguration()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            var configurations = await _context.CoworkingSefazConfigurations
+                .Where(c => c.CoworkingId == coworkingEntity.Id)
+                .OrderBy(c => c.State)
+                .ThenBy(c => c.Environment)
+                .ToListAsync();
+
+            ViewBag.Coworking = coworkingEntity;
+            ViewBag.SupportedStates = new[] { "ES" }; // Por enquanto apenas ES
+
+            return View(configurations);
+        }
+
+        /// <summary>
+        /// Criar/Editar configuração SEFAZ do parceiro
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveSefazConfiguration(
+            int? id,
+            string state,
+            string environment,
+            string partnerCNPJ,
+            string partnerMunicipalRegistration,
+            string serviceCode,
+            string serviceDescription,
+            decimal issAliquot,
+            string issMunicipality,
+            string? homologationUrl,
+            string? productionUrl)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Parceiro não encontrado.";
+                    return RedirectToAction("SefazConfiguration");
+                }
+
+                CoworkingSefazConfiguration config;
+
+                if (id.HasValue)
+                {
+                    config = await _context.CoworkingSefazConfigurations
+                        .FirstOrDefaultAsync(c => c.Id == id.Value && c.CoworkingId == coworkingEntity.Id);
+
+                    if (config == null)
+                    {
+                        TempData["Error"] = "Configuração não encontrada.";
+                        return RedirectToAction("SefazConfiguration");
+                    }
+                }
+                else
+                {
+                    // Verificar se já existe configuração para este estado/ambiente
+                    var existing = await _context.CoworkingSefazConfigurations
+                        .FirstOrDefaultAsync(c => c.CoworkingId == coworkingEntity.Id && 
+                                                  c.State == state.ToUpper() && 
+                                                  c.Environment == environment);
+
+                    if (existing != null)
+                    {
+                        TempData["Error"] = "Já existe uma configuração para este estado e ambiente.";
+                        return RedirectToAction("SefazConfiguration");
+                    }
+
+                    config = new CoworkingSefazConfiguration
+                    {
+                        CoworkingId = coworkingEntity.Id,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.CoworkingSefazConfigurations.Add(config);
+                }
+
+                config.State = state.ToUpper();
+                config.Environment = environment;
+                config.PartnerCNPJ = partnerCNPJ;
+                config.PartnerMunicipalRegistration = partnerMunicipalRegistration;
+                config.ServiceCode = serviceCode;
+                config.ServiceDescription = serviceDescription;
+                config.ISSAliquot = issAliquot;
+                config.ISSMunicipality = issMunicipality;
+                config.HomologationUrl = homologationUrl;
+                config.ProductionUrl = productionUrl;
+                config.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Configuração SEFAZ salva com sucesso!";
+                return RedirectToAction("SefazConfiguration");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao salvar configuração: {ex.Message}";
+                return RedirectToAction("SefazConfiguration");
+            }
+        }
+    }
+
+    // DTO para solicitação de alteração de capacidade
+    public class CapacityChangeRequestDto
+    {
+        public int AddressId { get; set; }
+        public int RequestedCapacity { get; set; }
+        public string? Justification { get; set; }
     }
 }

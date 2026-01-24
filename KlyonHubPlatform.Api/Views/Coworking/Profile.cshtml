@@ -579,6 +579,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                     <th>Cargo/Função</th>
                                     <th>Participação</th>
                                     <th>Principal</th>
+                                    <th>Assinante do Contrato</th>
                                     <th class="text-end">Ações</th>
                                 </tr>
                             </thead>
@@ -600,8 +601,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                                         <td>@(partner.Role ?? "-")</td>
                                         <td>@(partner.SharePercentage.HasValue ? $"{partner.SharePercentage.Value:F2}%".Replace(".", ",") : "-")</td>
                                         <td>@if (partner.IsPrincipal) { <span class="badge bg-success"><i class="bi bi-star-fill"></i> Principal</span> } else { <span class="text-muted">-</span> }</td>
+                                        <td>@if (partner.IsContractSigner) { <span class="badge bg-info"><i class="bi bi-pen-fill"></i> Sim</span> } else { <span class="text-muted">-</span> }</td>
                                         <td class="text-end">
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, IsContractSigner=partner.IsContractSigner, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="event.preventDefault(); handleDeletePartner(this); return false;">
@@ -707,26 +709,42 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                         var existingDoc = existingDocuments.ContainsKey(docType) ? existingDocuments[docType] : null;
                         var hasDocument = existingDoc != null;
                         var isExpired = existingDoc?.ExpiresAt.HasValue == true && existingDoc.ExpiresAt.Value < DateTime.UtcNow;
+                        var docStatus = existingDoc?.Status ?? CoworkingDocumentStatus.Pending;
+                        var statusBorder = !hasDocument ? "border-warning" : docStatus == CoworkingDocumentStatus.Approved ? "border-success" : docStatus == CoworkingDocumentStatus.Rejected ? "border-danger" : "border-warning";
                         
                         <div class="col-md-6 mb-4">
-                            <div class="card @(hasDocument && !isExpired ? "border-success" : "border-warning")">
+                            <div class="card @statusBorder">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                         <div>
                                             <h6 class="card-title mb-1">
-                                                @if (hasDocument && !isExpired)
-                                                {
-                                                    <i class="bi bi-check-circle-fill text-success"></i>
-                                                }
-                                                else
-                                                {
-                                                    <i class="bi bi-exclamation-circle-fill text-warning"></i>
-                                                }
                                                 @docName
                                             </h6>
                                             <small class="text-muted">@docDescription</small>
                                         </div>
+                                        @if (hasDocument)
+                                        {
+                                            @if (docStatus == CoworkingDocumentStatus.Pending)
+                                            {
+                                                <span class="badge bg-warning text-dark" title="Aguardando revisão"><i class="bi bi-hourglass-split"></i> Em análise</span>
+                                            }
+                                            else if (docStatus == CoworkingDocumentStatus.Approved)
+                                            {
+                                                <span class="badge bg-success" title="Documento aprovado"><i class="bi bi-check-circle-fill"></i> Aprovado</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger" title="Documento rejeitado"><i class="bi bi-x-circle-fill"></i> Rejeitado</span>
+                                            }
+                                        }
                                     </div>
+
+                                    @if (hasDocument && docStatus == CoworkingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(existingDoc.RejectionReason))
+                                    {
+                                        <div class="alert alert-danger py-2 px-3 mb-3 small">
+                                            <strong><i class="bi bi-info-circle"></i> Motivo:</strong> @existingDoc.RejectionReason
+                                        </div>
+                                    }
 
                                     @if (hasDocument)
                                     {
@@ -1075,6 +1093,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="IsPrincipal" value="true" id="partnerIsPrincipal">
                             <label class="form-check-label" for="partnerIsPrincipal">Sócio principal (será exibido ao clicar no coworking)</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="IsContractSigner" value="true" id="partnerIsContractSigner">
+                            <label class="form-check-label" for="partnerIsContractSigner">Sócio assinante do contrato</label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1746,6 +1768,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             }
             document.getElementById('partnerShare').value = share;
             document.getElementById('partnerIsPrincipal').checked = !!d.IsPrincipal;
+            document.getElementById('partnerIsContractSigner').checked = !!d.IsContractSigner;
             // Cargo/Função: select
             var sel = document.getElementById('partnerRole');
             var role = d.Role || '';

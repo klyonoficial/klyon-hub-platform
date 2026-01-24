@@ -6,7 +6,7 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         Task<DashboardViewModel> GetDashboardDataAsync();
         Task<List<Payment>> GetRecentPaymentsAsync(int days = 30, int take = 10);
-        Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null);
+        Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null, string? assistedSaleFilter = null);
         Task<List<ClientCreditsReportDto>> GetClientCreditsReportAsync();
         Task<ClientCreditStatementDto> GetClientCreditStatementAsync(int clientId, DateTime? dateFrom = null, DateTime? dateTo = null);
         Task<List<CoworkingRevenueReportDto>> GetCoworkingRevenueReportAsync();
@@ -44,6 +44,14 @@ namespace KlyonHubPlatform.Application.Interfaces
         public const string CertificadoDigitais = "CertificadoDigitais";
     }
 
+    /// <summary>Filtro de origem da venda (relatório financeiro): null/"" = Todos, "AssistedOnly", "SelfServiceOnly"</summary>
+    public static class ReportAssistedSaleFilter
+    {
+        public const string All = "";
+        public const string AssistedOnly = "AssistedOnly";
+        public const string SelfServiceOnly = "SelfServiceOnly";
+    }
+
     public class ReportFinancialResult
     {
         public List<ReportFinancialRowDto> Rows { get; set; } = new();
@@ -62,6 +70,12 @@ namespace KlyonHubPlatform.Application.Interfaces
         public string Client { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        /// <summary>Indica se o pagamento é de contrato criado via venda assistida (admin). Apenas para Endereço fiscal.</summary>
+        public bool IsAssistedSale { get; set; }
+        /// <summary>Origem da venda: "Venda assistida" ou "Autoatendimento". Vazio para outros produtos.</summary>
+        public string SaleOrigin { get; set; } = string.Empty;
+        /// <summary>Nome do admin responsável (venda assistida). Vazio quando não se aplica.</summary>
+        public string? AssistedSaleAdminName { get; set; }
     }
 
     /// <summary>Relatório de créditos por cliente: compras, gastos por coworking e saldo.</summary>

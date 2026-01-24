@@ -50,7 +50,7 @@
                                     <span class="badge bg-secondary">Expirado</span>
                                     break;
                                 default:
-                                    <span class="badge bg-secondary">@Model.Status</span>
+                                    <span class="badge bg-secondary">Outro</span>
                                     break;
                             }
                         </td>
@@ -218,7 +218,7 @@
                                 DocumentType.Receipt => "Recibo",
                                 DocumentType.TaxDeclaration => "Declaração Fiscal",
                                 DocumentType.TermsOfUse => "Termos de Uso",
-                                _ => doc.Type.ToString()
+                                _ => "Outro"
                             };
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>@documentTypeText</span>
@@ -273,7 +273,7 @@
                                                     <span class="badge bg-secondary">Boleto</span>
                                                     break;
                                                 default:
-                                                    <span class="badge bg-secondary">@payment.Method</span>
+                                                    <span class="badge bg-secondary">Outro</span>
                                                     break;
                                             }
                                         </td>
@@ -302,7 +302,7 @@
                                                     <span class="badge bg-dark">Cancelado</span>
                                                     break;
                                                 default:
-                                                    <span class="badge bg-secondary">@payment.Status</span>
+                                                    <span class="badge bg-secondary">Outro</span>
                                                     break;
                                             }
                                         </td>

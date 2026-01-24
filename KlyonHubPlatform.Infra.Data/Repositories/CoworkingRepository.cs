@@ -2,6 +2,7 @@ using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 
 namespace KlyonHubPlatform.Infra.Data.Repositories
 {
@@ -98,15 +99,16 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 return new List<CoworkingAddress>();
             }
 
-            // Filtrar endereços apenas dos coworkings que atendem todos os critérios
+            // Filtrar endereços: parceiro ativo, endereço ativo (suspenso/removido bloqueia só novas vendas)
             var query = _context.CoworkingAddresses
                 .Include(a => a.Coworking)
                 .Include(a => a.Location)
                 .Where(a => a.IsAvailable 
+                    && a.AddressStatus == AddressStatus.Active
                     && a.CurrentContracts < a.MaxContracts
                     && a.Coworking.IsActive 
                     && a.Coworking.IsPartner
-                    && a.Coworking.ApprovalStatus == Domain.Core.Enums.CoworkingApprovalStatus.Approved
+                    && a.Coworking.ApprovalStatus == CoworkingApprovalStatus.Approved
                     && coworkingIdsWithService.Contains(a.CoworkingId));
 
             if (locationId.HasValue)

@@ -134,6 +134,75 @@
                 </div>
             </div>
 
+            <!-- Capacidade Fiscal -->
+            <div class="card mb-3 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-building"></i> Capacidade Fiscal
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Capacidade Aprovada</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" value="@Model.ApprovedFiscalCapacity" readonly>
+                                <span class="input-group-text">
+                                    <i class="bi bi-check-circle text-success"></i>
+                                </span>
+                            </div>
+                            <small class="form-text text-muted">Capacidade fiscal aprovada pela plataforma</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Contratos Ativos</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" value="@Model.CurrentContracts" readonly>
+                                <span class="input-group-text">
+                                    <i class="bi bi-people"></i>
+                                </span>
+                            </div>
+                            <small class="form-text text-muted">Contratos ativos no momento</small>
+                        </div>
+                    </div>
+                    @{
+                        var hasPendingRequest = Model.CapacityApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending;
+                        var canRequestChange = !hasPendingRequest && Model.RequestedFiscalCapacity != Model.ApprovedFiscalCapacity;
+                    }
+                    @if (hasPendingRequest)
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-clock-history"></i> <strong>Solicitação pendente:</strong> Você solicitou alteração da capacidade fiscal para <strong>@Model.RequestedFiscalCapacity</strong>. Aguardando aprovação administrativa.
+                        </div>
+                    }
+                    else if (canRequestChange)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Você pode solicitar alteração da capacidade fiscal. A alteração requer aprovação administrativa.
+                        </div>
+                    }
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="RequestedFiscalCapacity" class="form-label">Nova Capacidade Solicitada</label>
+                            <input type="number" class="form-control" id="RequestedFiscalCapacity" 
+                                   value="@Model.RequestedFiscalCapacity" min="@Model.CurrentContracts" 
+                                   @(hasPendingRequest ? "readonly" : "")>
+                            <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="CapacityJustification" class="form-label">Justificativa</label>
+                            <textarea class="form-control" id="CapacityJustification" rows="3" 
+                                      placeholder="Explique o motivo da solicitação de alteração de capacidade..." 
+                                      @(hasPendingRequest ? "readonly" : "")></textarea>
+                            <small class="form-text text-muted">Obrigatório ao solicitar alteração</small>
+                        </div>
+                    </div>
+                    @if (!hasPendingRequest)
+                    {
+                        <button type="button" class="btn btn-primary" id="btnRequestCapacityChange">
+                            <i class="bi bi-send"></i> Solicitar Alteração de Capacidade
+                        </button>
+                    }
+                </div>
+            </div>
+
             <div class="alert alert-info mb-3">
                 <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="@Url.Action("Products", "Coworking")">Produtos &gt; Aluguéis de Sala</a>.
             </div>
@@ -275,6 +344,64 @@ document.querySelector('form').addEventListener('submit', function(e) {
         showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
         document.getElementById('MaxContracts').focus();
         return false;
+    }
+});
+
+// Solicitar alteração de capacidade fiscal
+document.getElementById('btnRequestCapacityChange')?.addEventListener('click', async function() {
+    const requestedCapacity = parseInt(document.getElementById('RequestedFiscalCapacity').value);
+    const justification = document.getElementById('CapacityJustification').value.trim();
+    const currentContracts = @Model.CurrentContracts;
+    const approvedCapacity = @Model.ApprovedFiscalCapacity;
+
+    if (!requestedCapacity || requestedCapacity < currentContracts) {
+        showToast('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').', 'warning');
+        document.getElementById('RequestedFiscalCapacity').focus();
+        return;
+    }
+
+    if (requestedCapacity === approvedCapacity) {
+        showToast('A capacidade solicitada é igual à capacidade aprovada. Não é necessário solicitar alteração.', 'info');
+        return;
+    }
+
+    if (!justification) {
+        showToast('Por favor, informe a justificativa para a alteração de capacidade.', 'warning');
+        document.getElementById('CapacityJustification').focus();
+        return;
+    }
+
+    if (!confirm('Deseja solicitar alteração da capacidade fiscal de ' + approvedCapacity + ' para ' + requestedCapacity + '?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('@Url.Action("RequestCapacityChange", "Coworking")', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+            },
+            body: JSON.stringify({
+                addressId: @Model.Id,
+                requestedCapacity: requestedCapacity,
+                justification: justification
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Solicitação de alteração de capacidade enviada com sucesso! Aguardando aprovação administrativa.', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showToast(result.message || 'Erro ao enviar solicitação.', 'error');
+        }
+    } catch (error) {
+        console.error('Erro ao solicitar alteração de capacidade:', error);
+        showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
     }
 });
 </script>

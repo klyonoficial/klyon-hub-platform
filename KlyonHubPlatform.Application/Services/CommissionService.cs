@@ -42,10 +42,11 @@ namespace KlyonHubPlatform.Application.Services
             CoworkingAddress? address = null;
 
             // Identificar o serviço e coworking baseado no tipo de pagamento
+            Contract? contract = null;
             if (payment.SubscriptionId.HasValue && payment.Subscription?.Contract != null)
             {
                 // Pagamento de Endereço Fiscal (Subscription -> Contract)
-                var contract = payment.Subscription.Contract;
+                contract = payment.Subscription.Contract;
                 address = await _context.CoworkingAddresses
                     .Include(a => a.Coworking)
                     .Include(a => a.Location)
@@ -77,46 +78,56 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não possui Subscription ou Reservation associada");
             }
 
-            // Buscar o ServiceId baseado no nome do serviço
-            var service = await _context.Services
-                .FirstOrDefaultAsync(s => s.Name == serviceName && s.IsActive);
-
-            if (service != null)
-            {
-                serviceId = service.Id;
-            }
-
-            // Buscar porcentagem do PartnerService baseado no ServiceId e CoworkingId
+            // Para contratos, usar valores congelados (snapshot) se disponíveis
             decimal commissionPercentage = 0;
             
-            if (serviceId.HasValue)
+            if (contract != null && contract.SnapshotCommissionPercentage > 0)
             {
-                var partnerService = await _context.PartnerServices
-                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == serviceId.Value);
-
-                if (partnerService != null && partnerService.Percentage > 0)
-                {
-                    commissionPercentage = partnerService.Percentage;
-                }
+                // Usar percentual congelado do contrato (garante imutabilidade)
+                commissionPercentage = contract.SnapshotCommissionPercentage;
             }
-
-            // Se não encontrou porcentagem do PartnerService, usar fallback
-            if (commissionPercentage == 0)
+            else
             {
-                // Buscar comissão da localidade como fallback
-                if (address?.LocationId != null)
-                {
-                    var locationCommission = await _context.LocationCommissions
-                        .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
-                        .OrderByDescending(lc => lc.EffectiveDate)
-                        .FirstOrDefaultAsync();
+                // Para reservas ou contratos antigos sem snapshot, buscar valores atuais
+                // Buscar o ServiceId baseado no nome do serviço
+                var service = await _context.Services
+                    .FirstOrDefaultAsync(s => s.Name == serviceName && s.IsActive);
 
-                    commissionPercentage = locationCommission?.CommissionPercentage ?? 
-                        _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
-                }
-                else
+                if (service != null)
                 {
-                    commissionPercentage = _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                    serviceId = service.Id;
+                }
+
+                // Buscar porcentagem do PartnerService baseado no ServiceId e CoworkingId
+                if (serviceId.HasValue)
+                {
+                    var partnerService = await _context.PartnerServices
+                        .FirstOrDefaultAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == serviceId.Value);
+
+                    if (partnerService != null && partnerService.Percentage > 0)
+                    {
+                        commissionPercentage = partnerService.Percentage;
+                    }
+                }
+
+                // Se não encontrou porcentagem do PartnerService, usar fallback
+                if (commissionPercentage == 0)
+                {
+                    // Buscar comissão da localidade como fallback
+                    if (address?.LocationId != null)
+                    {
+                        var locationCommission = await _context.LocationCommissions
+                            .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
+                            .OrderByDescending(lc => lc.EffectiveDate)
+                            .FirstOrDefaultAsync();
+
+                        commissionPercentage = locationCommission?.CommissionPercentage ?? 
+                            _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                    }
+                    else
+                    {
+                        commissionPercentage = _configuration.GetValue<decimal>("CommissionSettings:DefaultCommissionPercentage");
+                    }
                 }
             }
 

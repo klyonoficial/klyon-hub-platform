@@ -14,8 +14,21 @@ using Microsoft.AspNetCore.Localization;
 using System.Globalization;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configurar Kestrel para desabilitar HTTP/2 em desenvolvimento (corrige ERR_HTTP2_PROTOCOL_ERROR)
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<KestrelServerOptions>(options =>
+    {
+        options.ConfigureEndpointDefaults(listenOptions =>
+        {
+            listenOptions.Protocols = HttpProtocols.Http1;
+        });
+    });
+}
 
 // Add services to the container.
 builder.Services.AddControllersWithViews()
@@ -133,6 +146,9 @@ builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(Program));
 
+// HttpContextAccessor para acesso ao contexto HTTP nos serviços
+builder.Services.AddHttpContextAccessor();
+
 // Session
 builder.Services.AddSession(options =>
 {
@@ -153,6 +169,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// Cache Control Middleware - configura headers de cache do navegador
+app.UseMiddleware<CacheControlMiddleware>();
+
 // Localization - DEVE vir antes de UseRouting mas depois de UseStaticFiles
 var localizationOptions = app.Services.GetService<IOptions<RequestLocalizationOptions>>();
 app.UseRequestLocalization(localizationOptions!.Value);
@@ -165,15 +184,15 @@ app.UseAuthorization();
 app.UseSession();
 app.UseMiddleware<AuditMiddleware>();
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-// Rota de alias para Parceiro -> Coworking
+// Rota de alias para Parceiro -> Coworking (precisa vir antes da default para /Parceiro/* não ser interpretado como controller=Parceiro)
 app.MapControllerRoute(
     name: "parceiro",
     pattern: "Parceiro/{action=Dashboard}/{id?}",
     defaults: new { controller = "Coworking" });
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 // Initialize database
 using (var scope = app.Services.CreateScope())

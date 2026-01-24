@@ -80,7 +80,13 @@
                     </tr>
                     <tr>
                         <th>Valor Mensal:</th>
-                        <td><strong>R$ @Model.MonthlyValue.ToString("F2")</strong></td>
+                        <td>
+                            <strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString("F2") : Model.MonthlyValue.ToString("F2"))</strong>
+                            @if (Model.SnapshotMonthlyValue > 0 && Model.SnapshotMonthlyValue != Model.MonthlyValue)
+                            {
+                                <br><small class="text-muted">(Valor congelado no momento da criação)</small>
+                            }
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -91,12 +97,22 @@
                 <h5>Endereço Fiscal</h5>
             </div>
             <div class="card-body">
-                <p>
-                    @Model.CoworkingAddress?.Address, @Model.CoworkingAddress?.Number<br>
-                    @Model.CoworkingAddress?.Neighborhood<br>
-                    @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
-                    CEP: @Model.CoworkingAddress?.ZipCode
-                </p>
+                @if (!string.IsNullOrEmpty(Model.SnapshotAddress))
+                {
+                    <p>
+                        @Model.SnapshotAddress
+                        <br><small class="text-muted">(Endereço congelado no momento da criação)</small>
+                    </p>
+                }
+                else
+                {
+                    <p>
+                        @Model.CoworkingAddress?.Address, @Model.CoworkingAddress?.Number<br>
+                        @Model.CoworkingAddress?.Neighborhood<br>
+                        @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
+                        CEP: @Model.CoworkingAddress?.ZipCode
+                    </p>
+                }
             </div>
         </div>
 

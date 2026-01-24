@@ -53,6 +53,41 @@
     </div>
 }
 
+@{
+    var adminAlerts = ViewBag.AdminAlerts as List<dynamic> ?? new List<dynamic>();
+}
+@if (adminAlerts.Any())
+{
+    <div class="mb-4">
+        <h4 class="mb-3"><i class="bi bi-bell-fill"></i> Alertas Administrativos</h4>
+        @foreach (var alert in adminAlerts)
+        {
+            <div class="alert alert-@alert.Type alert-dismissible fade show d-flex align-items-start shadow-sm" role="alert">
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-2">
+                        <i class="bi @alert.Icon"></i> 
+                        <strong>@alert.Title</strong>
+                        @if (alert.Count > 0)
+                        {
+                            <span class="badge bg-@alert.Type ms-2">@alert.Count</span>
+                        }
+                    </h5>
+                    <p class="mb-2">@alert.Message</p>
+                    @if (!string.IsNullOrEmpty(alert.ActionUrl))
+                    {
+                        <div class="mt-3">
+                            <a href="@alert.ActionUrl" class="btn btn-@alert.Type btn-sm">
+                                <i class="bi bi-arrow-right-circle"></i> @alert.ActionText
+                            </a>
+                        </div>
+                    }
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+    </div>
+}
+
 <!-- KPIs Principais -->
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
@@ -290,19 +325,26 @@
 
 <!-- Gráficos de Produtos e Reservas -->
 <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-box-seam"></i> Produtos Oferecidos pelos Coworkings</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="productsChart"></canvas>
-            </div>
-        </div>
-    </div>
-    @if (showCoworkingMenus)
+    @{
+        var productsByType = ViewBag.ProductsByType as List<dynamic> ?? new List<dynamic>();
+        var hasProducts = productsByType != null && productsByType.Count > 0;
+    }
+    @if (hasProducts)
     {
         <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-box-seam"></i> Produtos Oferecidos pelos Coworkings</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="productsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    }
+    @if (showCoworkingMenus)
+    {
+        <div class="@(hasProducts ? "col-md-6" : "col-md-12") mb-3">
             <div class="card">
                 <div class="card-header">
                     <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
@@ -636,7 +678,7 @@ new Chart(topLocationsCtx, {
 const productsCtx = document.getElementById('productsChart');
 const productsByType = @Html.Raw(Json.Serialize(ViewBag.ProductsByType ?? new List<dynamic>()));
 
-if (productsByType && productsByType.length > 0) {
+if (productsCtx && productsByType && productsByType.length > 0) {
     const productLabels = productsByType.map(p => {
         const productType = p.productType;
         switch(productType) {
@@ -667,8 +709,6 @@ if (productsByType && productsByType.length > 0) {
             }
         }
     });
-} else {
-    document.getElementById('productsChart').parentElement.innerHTML = '<p class="text-muted text-center p-3">Nenhum produto cadastrado ainda.</p>';
 }
 
 // Gráfico de Reservas por Status (apenas se EnableCoworkingMenus estiver habilitado)

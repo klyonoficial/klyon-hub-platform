@@ -1,0 +1,210 @@
+@{
+    ViewData["Title"] = "Configurações SEFAZ";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.CoworkingSefazConfiguration>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-gear"></i> Configurações SEFAZ</h2>
+    <a href="@Url.Action("ServiceFiscalNotes", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> <strong>Importante:</strong> Configure suas credenciais SEFAZ para cada estado onde você presta serviços. 
+    Cada estado tem sua própria SEFAZ e requer configuração separada.
+</div>
+
+<!-- Lista de Configurações -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Configurações Cadastradas</h5>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal" onclick="openConfigModal(null)">
+            <i class="bi bi-plus-circle"></i> Nova Configuração
+        </button>
+    </div>
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>Ambiente</th>
+                            <th>CNPJ</th>
+                            <th>Inscrição Municipal</th>
+                            <th>Código Serviço</th>
+                            <th>ISS (%)</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var config in Model)
+                        {
+                            <tr>
+                                <td><strong>@config.State</strong></td>
+                                <td>
+                                    <span class="badge bg-@(config.Environment == "Producao" ? "success" : "warning")">
+                                        @config.Environment
+                                    </span>
+                                </td>
+                                <td>@config.PartnerCNPJ</td>
+                                <td>@config.PartnerMunicipalRegistration</td>
+                                <td>@config.ServiceCode</td>
+                                <td>@config.ISSAliquot.ToString("F2")%</td>
+                                <td>
+                                    @if (config.IsActive)
+                                    {
+                                        <span class="badge bg-success">Ativa</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inativa</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#configModal" onclick="openConfigModal(@config.Id)">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning text-center">
+                <i class="bi bi-exclamation-triangle"></i> Nenhuma configuração SEFAZ cadastrada. 
+                Clique em "Nova Configuração" para começar.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Modal de Configuração -->
+<div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="configModalLabel">
+                    <i class="bi bi-gear"></i> Configuração SEFAZ
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("SaveSefazConfiguration", "Coworking")" id="configForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="configId" name="id" />
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="state" class="form-label">Estado (UF) <span class="text-danger">*</span></label>
+                            <select class="form-select" id="state" name="state" required>
+                                <option value="">Selecione...</option>
+                                @foreach (var state in ViewBag.SupportedStates as string[])
+                                {
+                                    <option value="@state">@state</option>
+                                }
+                            </select>
+                            <small class="form-text text-muted">Estados com integração disponível</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="environment" class="form-label">Ambiente <span class="text-danger">*</span></label>
+                            <select class="form-select" id="environment" name="environment" required>
+                                <option value="Homologacao">Homologação</option>
+                                <option value="Producao">Produção</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="partnerCNPJ" class="form-label">CNPJ do Parceiro <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="partnerCNPJ" name="partnerCNPJ" required placeholder="00.000.000/0001-00">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="partnerMunicipalRegistration" class="form-label">Inscrição Municipal <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="partnerMunicipalRegistration" name="partnerMunicipalRegistration" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="serviceCode" class="form-label">Código do Serviço (LC 116) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="serviceCode" name="serviceCode" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="serviceDescription" class="form-label">Descrição do Serviço <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="serviceDescription" name="serviceDescription" required placeholder="Prestação de serviços">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="issAliquot" class="form-label">Alíquota de ISS (%) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" id="issAliquot" name="issAliquot" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="issMunicipality" class="form-label">Município de Incidência do ISS <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="issMunicipality" name="issMunicipality" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="homologationUrl" class="form-label">URL SEFAZ (Homologação)</label>
+                            <input type="url" class="form-control" id="homologationUrl" name="homologationUrl" placeholder="https://...">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="productionUrl" class="form-label">URL SEFAZ (Produção)</label>
+                            <input type="url" class="form-control" id="productionUrl" name="productionUrl" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar Configuração
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function openConfigModal(configId) {
+        const modal = new bootstrap.Modal(document.getElementById('configModal'));
+        const form = document.getElementById('configForm');
+        const configIdInput = document.getElementById('configId');
+        
+        // Limpar formulário
+        form.reset();
+        configIdInput.value = configId || '';
+        
+        if (configId) {
+            // Carregar dados da configuração
+            // Por enquanto, vamos apenas abrir o modal
+            // Em uma implementação completa, você faria uma chamada AJAX para buscar os dados
+        }
+        
+        modal.show();
+    }
+</script>

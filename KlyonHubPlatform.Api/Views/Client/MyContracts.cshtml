@@ -81,10 +81,17 @@
                             <tr>
                                 <td><strong>@contract.ContractNumber</strong></td>
                                 <td>
-                                    @contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number
-                                    @if (!string.IsNullOrEmpty(contract.CoworkingAddress?.Complement))
+                                    @if (!string.IsNullOrEmpty(contract.SnapshotAddress))
                                     {
-                                        <br><small class="text-muted">@contract.CoworkingAddress.Complement</small>
+                                        <span>@contract.SnapshotAddress</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</span>
+                                        @if (!string.IsNullOrEmpty(contract.CoworkingAddress?.Complement))
+                                        {
+                                            <br><small class="text-muted">@contract.CoworkingAddress.Complement</small>
+                                        }
                                     }
                                 </td>
                                 <td>
@@ -99,7 +106,9 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td><strong>R$ @contract.MonthlyValue.ToString("F2")</strong></td>
+                                <td>
+                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("F2") : contract.MonthlyValue.ToString("F2"))</strong>
+                                </td>
                                 <td>
                                     @{
                                         var statusClass = contract.Status switch

@@ -27,10 +27,30 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? CancellationApprovedAt { get; set; }
         public string? CancellationRejectionReason { get; set; }
 
+        // Campos congelados (snapshot) - valores imutáveis durante a vigência do contrato
+        /// <summary>Valor mensal do contrato no momento da criação (congelado)</summary>
+        public decimal SnapshotMonthlyValue { get; set; }
+        /// <summary>Percentual de comissão da plataforma no momento da criação (congelado)</summary>
+        public decimal SnapshotPlatformCommissionPercentage { get; set; }
+        /// <summary>Percentual de comissão do coworking no momento da criação (congelado)</summary>
+        public decimal SnapshotCoworkingCommissionPercentage { get; set; }
+        /// <summary>Endereço completo contratado no momento da criação (congelado)</summary>
+        public string SnapshotAddress { get; set; } = string.Empty;
+        /// <summary>Percentual aplicado no momento da criação (congelado)</summary>
+        public decimal SnapshotCommissionPercentage { get; set; }
+        /// <summary>Capacidade consumida no momento da criação (congelado)</summary>
+        public int SnapshotCapacityConsumed { get; set; }
+
+        /// <summary>Indica se o contrato foi criado via painel administrativo (venda assistida)</summary>
+        public bool IsAssistedSale { get; set; }
+        /// <summary>ID do admin responsável pela venda assistida (quando criado pelo painel)</summary>
+        public int? AssistedSaleAdminId { get; set; }
+
         // Navigation properties
         public virtual Client Client { get; set; } = null!;
         public virtual CoworkingAddress CoworkingAddress { get; set; } = null!;
         public virtual Subscription? Subscription { get; set; }
+        public virtual User? AssistedSaleAdmin { get; set; }
         public virtual ICollection<Document> Documents { get; set; } = new List<Document>();
     }
 }

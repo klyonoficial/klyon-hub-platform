@@ -1,0 +1,138 @@
+@{
+    ViewData["Title"] = "Solicitações de Remoção";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@using KlyonHubPlatform.Domain.Core.Enums
+@model List<KlyonHubPlatform.Domain.Entities.PartnerService>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção</h2>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (Model == null || !Model.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Nenhuma solicitação de remoção encontrada.
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Parceiro/Coworking</th>
+                            <th>Serviço</th>
+                            <th>Percentagem</th>
+                            <th>Status</th>
+                            <th>Data da Solicitação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ps in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@(ps.Coworking?.Name ?? "N/A")</strong><br>
+                                    <small class="text-muted">@(ps.Coworking?.User?.Email ?? "-")</small>
+                                </td>
+                                <td>
+                                    <strong>@(ps.Service?.Name ?? "N/A")</strong><br>
+                                    <small class="text-muted">@(ps.Service?.Description ?? "-")</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">@ps.Percentage.ToString("F2")%</span>
+                                </td>
+                                <td>
+                                    @{
+                                        var statusClass = ps.RemovalRequestStatus switch
+                                        {
+                                            RemovalRequestStatus.Pending => "warning",
+                                            RemovalRequestStatus.Approved => "success",
+                                            RemovalRequestStatus.Rejected => "danger",
+                                            _ => "secondary"
+                                        };
+                                        var statusText = ps.RemovalRequestStatus switch
+                                        {
+                                            RemovalRequestStatus.Pending => "Pendente",
+                                            RemovalRequestStatus.Approved => "Aprovada",
+                                            RemovalRequestStatus.Rejected => "Rejeitada",
+                                            _ => "N/A"
+                                        };
+                                    }
+                                    <span class="badge bg-@statusClass">@statusText</span>
+                                </td>
+                                <td>
+                                    @if (ps.RemovalRequestedAt.HasValue)
+                                    {
+                                        <small>@ps.RemovalRequestedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("ServiceRemovalRequests", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("ServiceRemovalRequests", new { page = i, pageSize = ViewBag.PageSize })">@i</a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("ServiceRemovalRequests", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+
+            <div class="text-center text-muted mt-3">
+                Mostrando @((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1) a @(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems)) de @ViewBag.TotalItems solicitação(ões)
+            </div>
+        </div>
+    </div>
+}

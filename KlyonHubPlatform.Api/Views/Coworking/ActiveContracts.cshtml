@@ -128,17 +128,24 @@
                                     <small class="text-muted">@(contract.Client?.CNPJ ?? contract.Client?.CPF ?? "")</small>
                                 </td>
                                 <td>
-                                    @(contract.CoworkingAddress?.Address ?? "N/A"), @(contract.CoworkingAddress?.Number ?? "")
-                                    @if (!string.IsNullOrEmpty(contract.CoworkingAddress?.Complement))
+                                    @if (!string.IsNullOrEmpty(contract.SnapshotAddress))
                                     {
-                                        <br><small class="text-muted">@contract.CoworkingAddress.Complement</small>
+                                        <span>@contract.SnapshotAddress</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(contract.CoworkingAddress?.Address ?? "N/A"), @(contract.CoworkingAddress?.Number ?? "")</span>
+                                        @if (!string.IsNullOrEmpty(contract.CoworkingAddress?.Complement))
+                                        {
+                                            <br><small class="text-muted">@contract.CoworkingAddress.Complement</small>
+                                        }
                                     }
                                 </td>
                                 <td>
                                     @(contract.CoworkingAddress?.Location?.City ?? "N/A")/@(contract.CoworkingAddress?.Location?.State ?? "")
                                 </td>
                                 <td>
-                                    <strong>R$ @(contract.Subscription?.MonthlyAmount.ToString("N2") ?? "0,00")</strong>
+                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("N2") : (contract.Subscription?.MonthlyAmount.ToString("N2") ?? contract.MonthlyValue.ToString("N2")))</strong>
                                 </td>
                                 <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
                                 <td>

@@ -1,0 +1,92 @@
+@{
+    ViewData["Title"] = "Coworkings Parceiros";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Coworking>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Coworkings Parceiros</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nome</th>
+                            <th>CNPJ</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Endereços</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var coworking in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@coworking.Name</strong>
+                                </td>
+                                <td>@coworking.CNPJ</td>
+                                <td>@(coworking.ContactEmail ?? coworking.User?.Email ?? "-")</td>
+                                <td>@(coworking.ContactPhone ?? "-")</td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        @(coworking.Addresses?.Count ?? 0) endereço(s)
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Coworkings", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Coworkings", new { page = i, pageSize = ViewBag.PageSize })">@i</a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Coworkings", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+
+            <div class="text-center text-muted mt-3">
+                Mostrando @((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1) a @(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems)) de @ViewBag.TotalItems coworking(s)
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Nenhum coworking parceiro encontrado.
+            </div>
+        }
+    </div>
+</div>

@@ -16,17 +16,20 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentRepository _paymentRepository;
         private readonly IPaymentService _paymentService;
         private readonly ILogger<PagBankWebhookController> _logger;
+        private readonly IAuditService? _auditService;
 
         public PagBankWebhookController(
             IPagBankService pagBankService,
             IPaymentRepository paymentRepository,
             IPaymentService paymentService,
-            ILogger<PagBankWebhookController> logger)
+            ILogger<PagBankWebhookController> logger,
+            IAuditService? auditService = null)
         {
             _pagBankService = pagBankService;
             _paymentRepository = paymentRepository;
             _paymentService = paymentService;
             _logger = logger;
+            _auditService = auditService;
         }
 
         [HttpPost]
@@ -150,9 +153,31 @@ namespace KlyonHubPlatform.Api.Controllers
                     return;
                 }
 
+                // Capturar valores antigos para auditoria
+                var oldStatus = payment.Status;
+                var oldRefundedAt = payment.UpdatedAt;
+
                 payment.Status = PaymentStatus.Refunded;
                 await _paymentRepository.UpdateAsync(payment);
                 _logger.LogInformation($"Pagamento {payment.Id} estornado via webhook PagBank");
+
+                // Log de auditoria: estorno de pagamento
+                if (_auditService != null)
+                {
+                    var ipAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var userAgent = Request.Headers["User-Agent"].ToString();
+                    
+                    await _auditService.LogActionAsync(
+                        null, // Webhook do PagBank (sistema externo)
+                        "Pagamento estornado",
+                        "Payment",
+                        payment.Id,
+                        JsonSerializer.Serialize(new { Status = oldStatus.ToString(), RefundedAt = oldRefundedAt }),
+                        JsonSerializer.Serialize(new { Status = payment.Status.ToString(), Amount = payment.Amount, ExternalPaymentId = resource.Id }),
+                        ipAddress,
+                        userAgent
+                    );
+                }
             }
             catch (Exception ex)
             {

@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class CoworkingAddress
@@ -14,8 +16,18 @@ namespace KlyonHubPlatform.Domain.Entities
         public string ZipCode { get; set; } = string.Empty;
         public decimal BasePrice { get; set; }
         public bool IsAvailable { get; set; } = true;
+        /// <summary>Status do endereço (ativo/suspenso/removido). Suspensão/remoção não afeta contratos em andamento.</summary>
+        public AddressStatus AddressStatus { get; set; } = AddressStatus.Active;
         public int MaxContracts { get; set; } = 1;
         public int CurrentContracts { get; set; } = 0;
+        
+        // Capacidade fiscal
+        /// <summary>Capacidade fiscal solicitada pelo parceiro</summary>
+        public int RequestedFiscalCapacity { get; set; } = 1;
+        /// <summary>Capacidade fiscal aprovada pela plataforma</summary>
+        public int ApprovedFiscalCapacity { get; set; } = 1;
+        /// <summary>Status da aprovação de alteração de capacidade</summary>
+        public CapacityApprovalStatus CapacityApprovalStatus { get; set; } = CapacityApprovalStatus.None;
         
         // Configurações de salas para aluguel
         public bool OffersSharedRoom { get; set; } = false;
@@ -33,6 +45,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Coworking Coworking { get; set; } = null!;
         public virtual Location Location { get; set; } = null!;
         public virtual ICollection<CoworkingRoom> Rooms { get; set; } = new List<CoworkingRoom>();
+        public virtual ICollection<CapacityChangeRequest> CapacityChangeRequests { get; set; } = new List<CapacityChangeRequest>();
     }
 }
 

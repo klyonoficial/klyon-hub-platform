@@ -5,6 +5,10 @@ using KlyonHubPlatform.Infra.Data.Repositories;
 
 namespace KlyonHubPlatform.Application.Services
 {
+    /// <summary>
+    /// Serviço de auditoria para logs imutáveis de ações críticas do sistema.
+    /// Os logs registrados por este serviço não podem ser editados ou excluídos.
+    /// </summary>
     public class AuditService : IAuditService
     {
         private readonly IAuditLogRepository _auditLogRepository;
@@ -14,7 +18,19 @@ namespace KlyonHubPlatform.Application.Services
             _auditLogRepository = auditLogRepository;
         }
 
-        public async Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null)
+        /// <summary>
+        /// Registra uma ação crítica no log de auditoria.
+        /// Este log é imutável e não pode ser editado ou excluído.
+        /// </summary>
+        /// <param name="userId">ID do usuário que realizou a ação (null para ações do sistema)</param>
+        /// <param name="action">Descrição da ação realizada</param>
+        /// <param name="entityType">Tipo da entidade afetada (ex: "Payment", "Contract", "FiscalNote")</param>
+        /// <param name="entityId">ID da entidade afetada</param>
+        /// <param name="oldValues">Valores anteriores (JSON ou texto)</param>
+        /// <param name="newValues">Valores novos (JSON ou texto)</param>
+        /// <param name="ipAddress">Endereço IP de origem</param>
+        /// <param name="userAgent">User Agent do navegador/cliente</param>
+        public async Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null, string? ipAddress = null, string? userAgent = null)
         {
             var log = new AuditLog
             {
@@ -24,6 +40,8 @@ namespace KlyonHubPlatform.Application.Services
                 EntityId = entityId,
                 OldValues = oldValues,
                 NewValues = newValues,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
                 ActionDate = DateTime.UtcNow
             };
 

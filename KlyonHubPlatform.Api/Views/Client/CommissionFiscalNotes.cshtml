@@ -1,0 +1,150 @@
+@{
+    ViewData["Title"] = "Emitir NF de Comissão";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Commission>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão</h2>
+    <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Notas Fiscais
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-list-check"></i> Total de Comissões</h6>
+                <h2 class="mb-0">@ViewBag.TotalItems</h2>
+                <small class="text-white-50">Aguardando emissão de NF</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total</h6>
+                <h2 class="mb-0">R$ @(Model?.Sum(c => c.Amount).ToString("N2") ?? "0,00")</h2>
+                <small class="text-white-50">Em comissões pendentes</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Comissões -->
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Parceiro</th>
+                            <th>Serviço</th>
+                            <th>Valor Total</th>
+                            <th>Comissão</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var commission in Model)
+                        {
+                            var coworking = commission.Coworking;
+                            var payment = commission.Payment;
+                            var serviceName = payment?.Subscription?.Contract != null ? "Endereço Fiscal" : "Reserva de Sala";
+                            var location = payment?.Subscription?.Contract?.CoworkingAddress?.Location ?? payment?.Reservation?.CoworkingAddress?.Location;
+                            
+                            <tr>
+                                <td>#@commission.Id</td>
+                                <td>
+                                    <strong>@coworking?.Name</strong><br>
+                                    <small class="text-muted">@coworking?.CNPJ</small>
+                                </td>
+                                <td>
+                                    @serviceName<br>
+                                    @if (location != null)
+                                    {
+                                        <small class="text-muted">@location.City/@location.State</small>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>R$ @commission.TotalPaymentAmount.ToString("N2")</strong>
+                                </td>
+                                <td>
+                                    <strong class="text-primary">R$ @commission.Amount.ToString("N2")</strong><br>
+                                    <small class="text-muted">@commission.Percentage.ToString("F2")%</small>
+                                </td>
+                                <td>
+                                    @commission.CreatedAt.ToString("dd/MM/yyyy")<br>
+                                    <small class="text-muted">@commission.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                    Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                    Próximo
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Nenhuma comissão pendente de emissão de NF encontrada.
+            </div>
+        }
+    </div>
+</div>

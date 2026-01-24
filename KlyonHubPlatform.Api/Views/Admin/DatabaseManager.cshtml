@@ -3,7 +3,40 @@
 @{
     ViewData["Title"] = "Gerenciador de Banco de Dados";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var pendingMigrations = ViewBag.PendingMigrations as List<string> ?? new List<string>();
 }
+
+<script>
+    // Definir função imediatamente para garantir disponibilidade
+    window.handleExecuteMigrations = async function(button) {
+        try {
+            const migrationCount = @(pendingMigrations?.Count ?? 0);
+            if (typeof showConfirm !== 'function') {
+                if (confirm('⚠️ ATENÇÃO: Você está prestes a executar ' + migrationCount + ' migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?')) {
+                    const form = button.closest('form');
+                    if (form) form.submit();
+                }
+                return;
+            }
+            
+            const confirmed = await showConfirm(
+                '⚠️ ATENÇÃO: Você está prestes a executar ' + migrationCount + ' migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?',
+                'Confirmar Execução de Migrations',
+                'warning'
+            );
+            
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao executar migrations:', error);
+            alert('Erro ao processar a solicitação. Por favor, tente novamente.');
+        }
+    };
+</script>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-database"></i> Gerenciador de Banco de Dados</h2>
@@ -56,7 +89,6 @@
 </div>
 
 @{
-    var pendingMigrations = ViewBag.PendingMigrations as List<string> ?? new List<string>();
     var appliedMigrations = ViewBag.AppliedMigrations as IEnumerable<string> ?? Enumerable.Empty<string>();
 }
 
@@ -94,10 +126,10 @@
                                         <li><code class="bg-light p-1 rounded">@m</code></li>
                                     }
                                 </ul>
-                                <form method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
+                                <form id="form-run-migrations" method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-warning btn-lg" 
-                                            onclick="event.preventDefault(); handleExecuteMigrations(this);">
+                                    <button type="button" class="btn btn-warning btn-lg" 
+                                            onclick="handleExecuteMigrations(this); return false;">
                                         <i class="bi bi-play-circle-fill"></i> Executar @pendingMigrations.Count Migration(s) Pendente(s)
                                     </button>
                                 </form>
@@ -149,6 +181,31 @@
                         </div>
                     </details>
                 }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios – Status por documento</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">
+                    Adiciona as colunas <strong>Status</strong> e <strong>RejectionReason</strong> na tabela <code>CoworkingDocuments</code>.
+                    Permite exibir por documento: ⏳ Em análise, ✅ Aprovado, ❌ Rejeitado (com motivo).
+                </p>
+                <p class="mb-3 text-muted small">
+                    Usa apenas <code>ALTER TABLE</code> / <code>ADD COLUMN</code>. Documentos existentes recebem Status = &apos;Approved&apos;.
+                </p>
+                <form method="post" action="@Url.Action("AddDocumentStatusColumns", "Admin")" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-info" onclick="event.preventDefault(); handleAddDocumentStatusColumns(this);">
+                        <i class="bi bi-plus-circle"></i> Adicionar Status e RejectionReason em CoworkingDocuments
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -437,29 +494,57 @@
         details[open] summary .bi-chevron-down::before {
             content: "\f284"; /* bi-chevron-up */
         }
+        /* Garantir que o botão de migrations seja clicável (evitar overlay ou stacking bloquear) */
+        #form-run-migrations .btn-warning.btn-lg {
+            position: relative;
+            z-index: 1;
+        }
     </style>
     <script>
+        // Esconder overlay de loading ao carregar esta página (evita bloqueio de cliques no botão Executar Migrations)
+        (function(){ if (window.KlyonLoading && typeof window.KlyonLoading.hide === 'function') { window.KlyonLoading.hide(); } })();
+        // Definir funções diretamente no escopo global para garantir disponibilidade
+        'use strict';
+        
         function copyToEditor(text) {
             const textarea = document.querySelector('textarea[name="sqlQuery"]');
-            textarea.value = text;
-            textarea.focus();
-        }
-        // Funções para confirmações elegantes
-        async function handleExecuteMigrations(button) {
-            const confirmed = await showConfirm(
-                '⚠️ ATENÇÃO: Você está prestes a executar @pendingMigrations.Count migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?',
-                'Confirmar Execução de Migrations',
-                'warning'
-            );
-            
-            if (confirmed) {
-                const form = button.closest('form');
-                if (form) {
-                    form.submit();
-                }
+            if (textarea) {
+                textarea.value = text;
+                textarea.focus();
             }
         }
-
+        
+        // Funções para confirmações elegantes
+        async function handleExecuteMigrations(button) {
+            try {
+                const migrationCount = @(pendingMigrations?.Count ?? 0);
+                if (typeof showConfirm !== 'function') {
+                    console.error('showConfirm não está disponível');
+                    if (confirm('⚠️ ATENÇÃO: Você está prestes a executar ' + migrationCount + ' migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?')) {
+                        const form = button.closest('form');
+                        if (form) form.submit();
+                    }
+                    return;
+                }
+                
+                const confirmed = await showConfirm(
+                    '⚠️ ATENÇÃO: Você está prestes a executar ' + migrationCount + ' migration(s) no banco de dados.\n\nIsso irá:\n- Criar novas tabelas\n- Adicionar/modificar colunas\n- Criar índices\n- Aplicar outras alterações de estrutura\n\nTem certeza que deseja continuar?',
+                    'Confirmar Execução de Migrations',
+                    'warning'
+                );
+                
+                if (confirmed) {
+                    const form = button.closest('form');
+                    if (form) {
+                        form.submit();
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao executar migrations:', error);
+                alert('Erro ao processar a solicitação. Por favor, tente novamente.');
+            }
+        }
+        
         async function handleCreateTable(form, message) {
             const confirmed = await showConfirm(
                 message,
@@ -528,5 +613,27 @@
                 }
             }
         }
+
+        async function handleAddDocumentStatusColumns(button) {
+            const confirmed = await showConfirm(
+                'Adicionar as colunas Status e RejectionReason na tabela CoworkingDocuments?\n\nSerão executados apenas ALTER TABLE / ADD COLUMN. Documentos existentes receberão Status = \'Approved\'.',
+                'Adicionar Status em Documentos Obrigatórios',
+                'info'
+            );
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) form.submit();
+            }
+        }
+        
+        // Garantir que as funções estejam disponíveis globalmente
+        window.copyToEditor = copyToEditor;
+        window.handleExecuteMigrations = handleExecuteMigrations;
+        window.handleCreateTable = handleCreateTable;
+        window.handleAddColumn = handleAddColumn;
+        window.handleClearTestData = handleClearTestData;
+        window.handleClearDatabase = handleClearDatabase;
+        window.handleExecuteQuery = handleExecuteQuery;
+        window.handleAddDocumentStatusColumns = handleAddDocumentStatusColumns;
     </script>
 }

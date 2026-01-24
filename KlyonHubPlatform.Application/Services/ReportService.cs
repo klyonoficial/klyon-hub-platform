@@ -138,7 +138,7 @@ namespace KlyonHubPlatform.Application.Services
                 .ToListAsync();
         }
 
-        public async Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null)
+        public async Task<ReportFinancialResult> GetFinancialReportAsync(DateTime dateFrom, DateTime dateTo, string? product = null, string? assistedSaleFilter = null)
         {
             var result = new ReportFinancialResult();
             var rows = new List<ReportFinancialRowDto>();
@@ -146,6 +146,7 @@ namespace KlyonHubPlatform.Application.Services
             var pending = 0m;
 
             var productNorm = string.IsNullOrWhiteSpace(product) ? ReportProductFilter.Todos : product.Trim();
+            var assistedNorm = string.IsNullOrWhiteSpace(assistedSaleFilter) ? ReportAssistedSaleFilter.All : assistedSaleFilter.Trim();
 
             // Endereço fiscal (Payment -> Subscription -> Contract)
             if (productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.EnderecoFiscal)
@@ -155,39 +156,42 @@ namespace KlyonHubPlatform.Application.Services
 
                 var payments = await _context.Payments
                     .Where(p =>
+                        p.SubscriptionId != null &&
                         ((p.PaidAt != null && p.PaidAt >= dateFromUtc && p.PaidAt < dateToEnd) ||
                          (p.PaidAt == null && p.CreatedAt >= dateFromUtc && p.CreatedAt < dateToEnd))
                     )
                     .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.Client)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.Client)
                                 .ThenInclude(client => client.User)
                     .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.CoworkingAddress)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.CoworkingAddress)
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                            .ThenInclude(c => c!.AssistedSaleAdmin)
                     .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                     .ToListAsync();
 
                 foreach (var p in payments)
                 {
+                    var contract = p.Subscription?.Contract;
+                    if (contract == null) continue;
+
+                    var isAssisted = contract.IsAssistedSale;
+                    if (assistedNorm == ReportAssistedSaleFilter.AssistedOnly && !isAssisted) continue;
+                    if (assistedNorm == ReportAssistedSaleFilter.SelfServiceOnly && isAssisted) continue;
+
                     var isPaid = p.Status == PaymentStatus.Paid;
                     if (isPaid) totalReceived += p.Amount;
                     else if (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.AwaitingValidation || p.Status == PaymentStatus.Processing)
                         pending += p.Amount;
 
-                    // Obter nome do cliente
-                    var clientName = "N/A";
-                    var client = p.Subscription?.Contract?.Client;
-                    if (client != null)
-                    {
-                        clientName = client.RazaoSocial 
-                            ?? client.NomeFantasia 
-                            ?? client.ContactName 
-                            ?? client.User?.FullName 
-                            ?? "N/A";
-                    }
+                    var client = contract.Client;
+                    var clientName = client != null
+                        ? (client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "N/A")
+                        : "N/A";
 
-                    // Obter método de pagamento
                     var paymentMethod = p.Method switch
                     {
                         PaymentMethod.PIX => "PIX",
@@ -196,18 +200,18 @@ namespace KlyonHubPlatform.Application.Services
                         _ => p.Method.ToString()
                     };
 
-                    // Obter localidade
+                    var address = contract.CoworkingAddress;
                     var location = "N/A";
-                    var address = p.Subscription?.Contract?.CoworkingAddress;
                     if (address != null)
                     {
                         var city = address.City ?? "";
                         var state = address.State ?? "";
                         if (!string.IsNullOrEmpty(city) || !string.IsNullOrEmpty(state))
-                        {
                             location = $"{city}/{state}".Trim('/');
-                        }
                     }
+
+                    var saleOrigin = isAssisted ? "Venda assistida" : "Autoatendimento";
+                    var adminName = isAssisted && contract.AssistedSaleAdmin != null ? contract.AssistedSaleAdmin.FullName : null;
 
                     rows.Add(new ReportFinancialRowDto
                     {
@@ -218,13 +222,16 @@ namespace KlyonHubPlatform.Application.Services
                         Client = clientName,
                         Location = location,
                         Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
+                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        IsAssistedSale = isAssisted,
+                        SaleOrigin = saleOrigin,
+                        AssistedSaleAdminName = adminName
                     });
                 }
             }
 
-            // Aluguel de salas (Reservations -> Payments)
-            if (productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.AluguelSalas)
+            // Aluguel de salas (Reservations -> Payments). Filtro por venda assistida não se aplica.
+            if ((productNorm == ReportProductFilter.Todos || productNorm == ReportProductFilter.AluguelSalas) && assistedNorm == ReportAssistedSaleFilter.All)
             {
                 var dateFromUtc = dateFrom.Date;
                 var dateToEnd = dateTo.Date.AddDays(1);
@@ -294,7 +301,10 @@ namespace KlyonHubPlatform.Application.Services
                         Client = clientName,
                         Location = location,
                         Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString()
+                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        IsAssistedSale = false,
+                        SaleOrigin = "",
+                        AssistedSaleAdminName = null
                     });
                 }
             }
