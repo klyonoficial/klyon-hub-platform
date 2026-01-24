@@ -200,12 +200,32 @@
                             <a class="nav-link" href="@Url.Action("Payments", "Admin")">
                                 <i class="bi bi-credit-card"></i> Gerenciar Pagamentos
                             </a>
-                            <a class="nav-link" href="@Url.Action("SystemConfigurations", "Admin")">
-                                <i class="bi bi-gear"></i> Configurações do Sistema
-                            </a>
-                            <a class="nav-link" href="@Url.Action("SefazConfiguration", "Admin")">
-                                <i class="bi bi-receipt"></i> Configuração SEFAZ
-                            </a>
+                            @* Menu Configuração com submenu *@
+                            <div class="sidebar-dropdown" id="configuracaoAdminDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="configuracaoAdminLink" 
+                                   onclick="toggleSidebarMenu('configuracaoAdmin'); return false;" 
+                                   href="#">
+                                    <i class="bi bi-gear"></i> Configuração
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="configuracaoAdminMenu">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("SystemConfigurations", "Admin")">
+                                            <i class="bi bi-gear"></i> Configurações do Sistema
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("DatabaseManager", "Admin")">
+                                            <i class="bi bi-database"></i> Gerenciador de BD
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("SefazConfiguration", "Admin")">
+                                            <i class="bi bi-receipt"></i> Configuração SEFAZ
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                             @* Menu Nota Fiscal com submenu (estilo cliente) *@
                             <div class="sidebar-dropdown" id="notaFiscalAdminDropdown">
                                 <a class="nav-link sidebar-dropdown-toggle" id="notaFiscalAdminLink" 
@@ -227,9 +247,6 @@
                                     </li>
                                 </ul>
                             </div>
-                            <a class="nav-link" href="@Url.Action("DatabaseManager", "Admin")">
-                                <i class="bi bi-database"></i> Gerenciador de BD
-                            </a>
                         }
                         @if (User.IsInRole("CoworkingPartner"))
                         {
@@ -550,7 +567,7 @@
             }
             
             // Lista de todos os menus dropdown
-            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'parceiros', 'financeiro'];
+            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'parceiros', 'financeiro', 'configuracaoAdmin'];
             
             menuIds.forEach(function(menuId) {
                 const menu = document.getElementById(menuId + 'Menu');

@@ -80,6 +80,7 @@
                             <th>Localização</th>
                             <th>Valor para Emitir (R$)</th>
                             <th>Data Pagamento</th>
+                            <th>Opção</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -124,26 +125,24 @@
                                     <input type="hidden" class="net-amount" value="@netAmount.ToString("F2")" />
                                 </td>
                                 <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div>
-                                            @if (payment.PaidAt.HasValue)
-                                            {
-                                                @payment.PaidAt.Value.ToString("dd/MM/yyyy")<br>
-                                                <small class="text-muted">@payment.PaidAt.Value.ToString("HH:mm")</small>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">-</span>
-                                            }
-                                        </div>
-                                        <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="paymentId" value="@payment.Id" />
-                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @netAmount.ToString("N2")?');">
-                                                <i class="bi bi-file-earmark-check"></i> Emitir NF
-                                            </button>
-                                        </form>
-                                    </div>
+                                    @if (payment.PaidAt.HasValue)
+                                    {
+                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy")<br>
+                                        <small class="text-muted">@payment.PaidAt.Value.ToString("HH:mm")</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="paymentId" value="@payment.Id" />
+                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @netAmount.ToString("N2")?');">
+                                            <i class="bi bi-file-earmark-check"></i> Emitir NF
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         }

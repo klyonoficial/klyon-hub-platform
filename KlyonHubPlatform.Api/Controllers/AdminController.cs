@@ -64,6 +64,11 @@ namespace KlyonHubPlatform.Api.Controllers
             _emailService = emailService;
         }
 
+        public IActionResult Index()
+        {
+            return RedirectToAction("Dashboard");
+        }
+
         public async Task<IActionResult> Dashboard()
         {
             var dashboardData = await _reportService.GetDashboardDataAsync();
