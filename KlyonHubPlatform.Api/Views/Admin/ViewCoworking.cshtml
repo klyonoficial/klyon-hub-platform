@@ -14,29 +14,13 @@
     </a>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <div class="row">
     <div class="col-md-12">
         <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dados Básicos</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dadosBasicos" aria-expanded="true" aria-controls="dadosBasicos">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dados Básicos <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse show" id="dadosBasicos">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Nome do Coworking</label>
@@ -94,10 +78,10 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-telephone"></i> Contatos</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#contatos" aria-expanded="false" aria-controls="contatos">
+                <h5 class="mb-0"><i class="bi bi-telephone"></i> Contatos <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="contatos">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Email de Contato</label>
@@ -120,10 +104,10 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-bank"></i> Dados Bancários</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dadosBancarios" aria-expanded="false" aria-controls="dadosBancarios">
+                <h5 class="mb-0"><i class="bi bi-bank"></i> Dados Bancários <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="dadosBancarios">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Banco</label>
@@ -146,10 +130,10 @@
         </div>
 
         <div class="card mb-3" id="enderecos">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços (@(Model.Addresses?.Count ?? 0))</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecosBody" aria-expanded="false" aria-controls="enderecosBody">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="enderecosBody">
                 @if (Model.Addresses != null && Model.Addresses.Any())
                 {
                     <div class="table-responsive">
@@ -264,10 +248,10 @@
             var paginatedDocTypes = requiredDocTypes.Skip(skip).Take(documentsPageSize);
         }
         <div class="card mb-3" id="documentos">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios (@(Model.Documents?.Count ?? 0))</h5>
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#documentosBody" aria-expanded="false" aria-controls="documentosBody">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios (@(Model.Documents?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="documentosBody">
                 <div class="table-responsive">
                     <table class="table table-hover table-sm">
                         <thead class="table-light">
@@ -480,12 +464,14 @@
         <!-- Serviços e Percentagens -->
         <div class="card mb-3" id="servicos">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-grid"></i> Serviços e Percentagens</h5>
-                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceModal">
+                <h5 class="mb-0" style="cursor: pointer; flex: 1;" data-bs-toggle="collapse" data-bs-target="#servicosBody" aria-expanded="false" aria-controls="servicosBody">
+                    <i class="bi bi-grid"></i> Serviços e Percentagens <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceModal" onclick="event.stopPropagation();">
                     <i class="bi bi-plus-circle"></i> Adicionar Serviço
                 </button>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="servicosBody">
                 @{
                     var partnerServices = ViewBag.PartnerServices as List<KlyonHubPlatform.Domain.Entities.PartnerService> ?? new List<KlyonHubPlatform.Domain.Entities.PartnerService>();
                 }
@@ -647,4 +633,53 @@
             form.submit();
         }
     }
+
+    // Rotacionar ícones de chevron ao expandir/colapsar seções
+    document.addEventListener('DOMContentLoaded', function() {
+        const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]');
+        
+        collapseElements.forEach(function(element) {
+            const chevron = element.querySelector('.bi-chevron-down');
+            if (chevron) {
+                element.addEventListener('shown.bs.collapse', function() {
+                    chevron.classList.remove('bi-chevron-down');
+                    chevron.classList.add('bi-chevron-up');
+                });
+                
+                element.addEventListener('hidden.bs.collapse', function() {
+                    chevron.classList.remove('bi-chevron-up');
+                    chevron.classList.add('bi-chevron-down');
+                });
+            }
+        });
+
+        // Expandir seção baseada na âncora da URL
+        const hash = window.location.hash;
+        if (hash) {
+            let targetId = '';
+            if (hash === '#servicos') {
+                targetId = 'servicosBody';
+            } else if (hash === '#documentos') {
+                targetId = 'documentosBody';
+            } else if (hash === '#enderecos') {
+                targetId = 'enderecosBody';
+            }
+            
+            if (targetId) {
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    const bsCollapse = new bootstrap.Collapse(targetElement, { show: true });
+                    // Atualizar o ícone
+                    const header = document.querySelector('[data-bs-target="#' + targetId + '"]');
+                    if (header) {
+                        const chevron = header.querySelector('.bi-chevron-down');
+                        if (chevron) {
+                            chevron.classList.remove('bi-chevron-down');
+                            chevron.classList.add('bi-chevron-up');
+                        }
+                    }
+                }
+            }
+        }
+    });
 </script>

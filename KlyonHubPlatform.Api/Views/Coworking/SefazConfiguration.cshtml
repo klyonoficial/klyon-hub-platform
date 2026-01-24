@@ -12,22 +12,6 @@
     </a>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> <strong>Importante:</strong> Configure suas credenciais SEFAZ para cada estado onde você presta serviços. 
     Cada estado tem sua própria SEFAZ e requer configuração separada.
@@ -37,7 +21,7 @@
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-list-ul"></i> Configurações Cadastradas</h5>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal" onclick="openConfigModal(null)">
+        <button type="button" class="btn btn-primary" onclick="openConfigModal(null)">
             <i class="bi bi-plus-circle"></i> Nova Configuração
         </button>
     </div>
@@ -83,7 +67,7 @@
                                     }
                                 </td>
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#configModal" onclick="openConfigModal(@config.Id)">
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="openConfigModal(@config.Id)">
                                         <i class="bi bi-pencil"></i> Editar
                                     </button>
                                 </td>
@@ -190,21 +174,24 @@
 </div>
 
 <script>
-    async function openConfigModal(configId) {
-        const modal = new bootstrap.Modal(document.getElementById('configModal'));
+    (function () {
+        const modalEl = document.getElementById('configModal');
         const form = document.getElementById('configForm');
         const configIdInput = document.getElementById('configId');
-        
-        // Limpar formulário
-        form.reset();
-        configIdInput.value = configId || '';
-        
-        if (configId) {
-            // Carregar dados da configuração
-            // Por enquanto, vamos apenas abrir o modal
-            // Em uma implementação completa, você faria uma chamada AJAX para buscar os dados
+        const cancelBtn = document.querySelector('#configModal .btn-secondary[data-bs-dismiss="modal"]');
+
+        window.openConfigModal = function (configId) {
+            form.reset();
+            configIdInput.value = configId || '';
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        };
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            });
         }
-        
-        modal.show();
-    }
+    })();
 </script>

@@ -873,6 +873,11 @@ namespace KlyonHubPlatform.Api.Controllers
             coworking.RejectedAt = null;
             coworking.RejectedBy = null;
             coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+            
+            // Marcar notificação de mudança de status
+            coworking.HasPendingStatusNotification = true;
+            coworking.LastNotifiedStatus = CoworkingApprovalStatus.Approved;
+            
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"Approved\"}");
             TempData["Success"] = $"Cadastro de '{coworking.Name}' aprovado. O espaço já está disponível no marketplace.";
@@ -895,6 +900,11 @@ namespace KlyonHubPlatform.Api.Controllers
             coworking.RejectedAt = DateTimeHelper.GetBrazilianTime();
             coworking.RejectedBy = userId;
             coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+            
+            // Marcar notificação de mudança de status
+            coworking.HasPendingStatusNotification = true;
+            coworking.LastNotifiedStatus = CoworkingApprovalStatus.AwaitingAdjustment;
+            
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"AwaitingAdjustment\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(coworking.RejectionReason) + "}");
             TempData["Success"] = "Cadastro reprovado. O coworking foi notificado e poderá reenviar após os ajustes.";

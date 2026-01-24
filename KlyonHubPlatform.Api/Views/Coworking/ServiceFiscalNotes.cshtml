@@ -15,30 +15,17 @@
         <a href="@Url.Action("ListServiceFiscalNotes", "Coworking")" class="btn btn-outline-info me-2">
             <i class="bi bi-list-ul"></i> Ver Notas Emitidas
         </a>
-        <a href="@Url.Action("SefazConfiguration", "Coworking")" class="btn btn-outline-primary me-2">
-            <i class="bi bi-gear"></i> Configurações SEFAZ
-        </a>
+        @if (!ViewBag.HasSefazConfiguration)
+        {
+            <a href="@Url.Action("SefazConfiguration", "Coworking")" class="btn btn-outline-primary me-2">
+                <i class="bi bi-gear"></i> Configurações SEFAZ
+            </a>
+        }
         <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
 </div>
-
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
 
 <!-- Resumo -->
 <div class="row mb-4">

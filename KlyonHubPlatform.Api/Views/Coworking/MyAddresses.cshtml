@@ -7,31 +7,15 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-geo-alt"></i> Meus Endereços</h2>
-    <a href="@Url.Action("AddAddress", "Coworking")" class="btn btn-primary">
+    <a href="/Parceiro/AddAddress" class="btn btn-primary">
         <i class="bi bi-plus-circle"></i> Adicionar Endereço
     </a>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-circle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("MyAddresses", "Coworking")" class="row g-3" id="filterForm">
+        <form method="get" action="/Parceiro/MyAddresses" class="row g-3" id="filterForm">
             <input type="hidden" name="page" value="1" id="pageInput" />
             <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
@@ -70,7 +54,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-secondary">
+                <a href="/Parceiro/MyAddresses" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -144,7 +128,7 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="@Url.Action("EditAddress", "Coworking", new { id = address.Id })" class="btn btn-sm btn-primary" title="Editar">
+                                    <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
                                         <i class="bi bi-pencil"></i> Editar
                                     </a>
                                 </td>
@@ -163,14 +147,14 @@
                             int currentPage = ViewBag.CurrentPage ?? 1;
                             int totalPages = ViewBag.TotalPages ?? 1;
                             int pageSize = ViewBag.PageSize ?? 15;
-                            string PageUrl(int p) => Url.Action("MyAddresses", "Coworking", new
+                            string PageUrl(int p)
                             {
-                                search = ViewBag.Search,
-                                status = ViewBag.Status,
-                                locationId = ViewBag.LocationId,
-                                page = p,
-                                pageSize = pageSize
-                            })!;
+                                var query = $"?page={p}&pageSize={pageSize}";
+                                if (!string.IsNullOrEmpty(ViewBag.Search)) query += $"&search={ViewBag.Search}";
+                                if (!string.IsNullOrEmpty(ViewBag.Status)) query += $"&status={ViewBag.Status}";
+                                if (ViewBag.LocationId != null) query += $"&locationId={ViewBag.LocationId}";
+                                return $"/Parceiro/MyAddresses{query}";
+                            }
                         }
                         <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
                             <a class="page-link" href="@PageUrl(currentPage - 1)">
@@ -215,13 +199,13 @@
                 <i class="bi bi-info-circle"></i> Nenhum endereço encontrado.
                 @if (ViewBag.Search != null || ViewBag.Status != null || ViewBag.LocationId != null)
                 {
-                    <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-sm btn-outline-primary mt-2">
+                    <a href="/Parceiro/MyAddresses" class="btn btn-sm btn-outline-primary mt-2">
                         <i class="bi bi-x-circle"></i> Limpar Filtros
                     </a>
                 }
                 else
                 {
-                    <a href="@Url.Action("AddAddress", "Coworking")" class="btn btn-primary mt-2">
+                    <a href="/Parceiro/AddAddress" class="btn btn-primary mt-2">
                         <i class="bi bi-plus-circle"></i> Cadastrar Primeiro Endereço
                     </a>
                 }

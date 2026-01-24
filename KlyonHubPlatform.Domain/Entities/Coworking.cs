@@ -43,6 +43,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public int? RejectedBy { get; set; }
         public DateTime? ApprovedAt { get; set; }
         public int? ApprovedBy { get; set; }
+        
+        // Notificações de mudança de status
+        public bool HasPendingStatusNotification { get; set; } = false;
+        public CoworkingApprovalStatus? LastNotifiedStatus { get; set; }
 
         // Navigation properties
         public virtual User User { get; set; } = null!;

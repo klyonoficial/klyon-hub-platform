@@ -666,26 +666,31 @@
                 'success': {
                     class: 'bg-success text-white',
                     icon: 'bi-check-circle-fill',
-                    title: 'Sucesso'
+                    title: 'Sucesso',
+                    closeClass: 'btn-close btn-close-white'
                 },
                 'error': {
                     class: 'bg-danger text-white',
                     icon: 'bi-exclamation-triangle-fill',
-                    title: 'Erro'
+                    title: 'Erro',
+                    closeClass: 'btn-close btn-close-white'
                 },
                 'warning': {
                     class: 'bg-warning text-dark',
                     icon: 'bi-exclamation-triangle-fill',
-                    title: 'Atenção'
+                    title: 'Atenção',
+                    closeClass: 'btn-close'
                 },
                 'info': {
                     class: 'bg-info text-white',
                     icon: 'bi-info-circle-fill',
-                    title: 'Informação'
+                    title: 'Informação',
+                    closeClass: 'btn-close btn-close-white'
                 }
             };
             
             const config = toastTypes[type] || toastTypes['info'];
+            const closeBtnClass = config.closeClass || 'btn-close btn-close-white';
             const toastId = 'toast-' + Date.now();
             
             // Criar elemento toast
@@ -705,7 +710,7 @@
                         <div class="flex-grow-1">
                             <strong>${config.title}:</strong> ${message}
                         </div>
-                        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast" aria-label="Fechar"></button>
+                        <button type="button" class="${closeBtnClass} ms-2" data-bs-dismiss="toast" aria-label="Fechar"></button>
                     </div>
                 </div>
             `;
@@ -744,6 +749,38 @@
         // window.alert = function(message) {
         //     showToast(message, 'info');
         // };
+    </script>
+    
+    @{
+        var _toastSuccess = TempData["Success"]?.ToString();
+        var _toastError = TempData["Error"]?.ToString();
+        var _toastErrorDetails = TempData["ErrorDetails"]?.ToString();
+        var _toastWarning = TempData["Warning"]?.ToString();
+        var _toastInfo = TempData["Info"]?.ToString();
+        var _toastUnsupportedStates = TempData["UnsupportedStates"]?.ToString();
+    }
+    <script>
+        (function() {
+            document.addEventListener('DOMContentLoaded', function() {
+                var delay = 0;
+                function showTempToast(message, type, duration) {
+                    if (!message) return;
+                    setTimeout(function() {
+                        if (typeof showToast === 'function') showToast(message, type, duration || 5000);
+                    }, delay);
+                    delay += 200;
+                }
+                var err = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastError ?? ""));
+                if (err) {
+                    var errDetail = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastErrorDetails ?? ""));
+                    showTempToast(errDetail ? (err + " " + errDetail) : err, 'error', 7000);
+                }
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastWarning ?? "")), 'warning');
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastSuccess ?? "")), 'success');
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastInfo ?? "")), 'info');
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastUnsupportedStates ?? "")), 'warning');
+            });
+        })();
     </script>
     
     <!-- Modal de Confirmação Elegante -->

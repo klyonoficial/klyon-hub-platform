@@ -11,20 +11,49 @@
     <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
 </div>
 
-@if (TempData["Error"] != null)
+@* Notificações especiais de mudança de status *@
+@if (ViewBag.HasStatusNotification == true)
 {
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @Html.Raw(TempData["Error"])
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
+    var notificationType = (KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus)ViewBag.StatusNotificationType;
+    
+    if (notificationType == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-lg border-success mb-4" role="alert" style="border-width: 3px;">
+            <h4 class="alert-heading">
+                <i class="bi bi-trophy-fill"></i> Parabéns! Seu cadastro foi aprovado!
+            </h4>
+            <hr>
+            <p class="mb-3">
+                <i class="bi bi-check-circle-fill"></i> Seu espaço está agora disponível no marketplace e você já pode começar a receber clientes para endereços fiscais e serviços de coworking. 
+                Desejamos muito sucesso! 🎉
+            </p>
+            <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-check"></i> Entendi
+                </button>
+            </form>
+        </div>
+    }
+    else if (notificationType == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment)
+    {
+        <div class="alert alert-warning alert-dismissible fade show shadow-lg border-warning mb-4" role="alert" style="border-width: 3px;">
+            <h4 class="alert-heading">
+                <i class="bi bi-exclamation-triangle-fill"></i> Atenção: Seu cadastro requer revisão
+            </h4>
+            <hr>
+            <p class="mb-3">
+                <i class="bi bi-info-circle-fill"></i> Infelizmente seu cadastro não foi aprovado e necessita de ajustes. 
+                Por favor, revise as informações indicadas abaixo e reenvie para análise.
+            </p>
+            <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-warning btn-sm">
+                    <i class="bi bi-check"></i> Entendi
+                </button>
+            </form>
+        </div>
+    }
 }
 
 @if (ViewBag.Coworking == null)
@@ -73,6 +102,46 @@ else
             {
                 <text>Você já pode cadastrar endereços fiscais e receber clientes.</text>
             }
+        </div>
+    }
+
+    @* Seção de Alertas Administrativos *@
+    @if (ViewBag.AdministrativeAlerts != null && ((List<object>)ViewBag.AdministrativeAlerts).Any())
+    {
+        <div class="card border-warning shadow-sm mb-4">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Alertas Administrativos
+                </h5>
+                <span class="badge bg-dark">@(((List<object>)ViewBag.AdministrativeAlerts).Count) pendência(s)</span>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    @foreach (dynamic alert in (List<object>)ViewBag.AdministrativeAlerts)
+                    {
+                        <div class="list-group-item border-start border-@alert.Type border-3 px-3 py-3">
+                            <div class="d-flex align-items-start">
+                                <i class="bi @alert.Icon text-@alert.Type me-3 mt-1" style="font-size: 1.3rem;"></i>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1 fw-bold">@alert.Title</h6>
+                                    <p class="mb-2 text-muted small">@alert.Message</p>
+                                    @if (alert.ActionUrl != null)
+                                    {
+                                        <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1">
+                                            <i class="bi bi-arrow-right"></i> @alert.ActionText
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="mt-3 pt-3 border-top text-center">
+                    <a href="@Url.Action("Profile", "Coworking")" class="btn btn-warning btn-lg">
+                        <i class="bi bi-list-check"></i> Verificar Pendências
+                    </a>
+                </div>
+            </div>
         </div>
     }
 

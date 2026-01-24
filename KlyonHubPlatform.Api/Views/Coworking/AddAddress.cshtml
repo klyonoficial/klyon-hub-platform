@@ -7,30 +7,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-plus-circle"></i> Adicionar Endereço</h2>
-    <a href="@Url.Action("MyAddresses", "Coworking")" class="btn btn-secondary">
+    <a href="/Parceiro/MyAddresses" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <div class="card">
     <div class="card-body">
-        <form method="post" action="@Url.Action("AddAddress", "Coworking")">
+        <form method="post" action="/Parceiro/AddAddress">
             <!-- CEP como primeiro campo -->
             <div class="row">
                 <div class="col-md-4 mb-3">
@@ -132,7 +116,7 @@
             </div>
 
             <div class="alert alert-info mb-3">
-                <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="@Url.Action("Products", "Coworking")">Produtos &gt; Aluguéis de Sala</a>.
+                <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
             </div>
 
             <button type="submit" class="btn btn-primary">

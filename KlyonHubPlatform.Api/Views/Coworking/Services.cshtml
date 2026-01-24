@@ -18,30 +18,6 @@
     <h2><i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens</h2>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["Info"] != null)
-{
-    <div class="alert alert-info alert-dismissible fade show" role="alert">
-        <i class="bi bi-info-circle"></i> @TempData["Info"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
 <div class="alert alert-warning">
     <i class="bi bi-info-circle"></i> <strong>Importante:</strong> A percentagem de cada serviço é definida em contrato pelo administrador e não pode ser alterada pelo parceiro. Ao adicionar um serviço, a percentagem será definida posteriormente pelo administrador.
 </div>

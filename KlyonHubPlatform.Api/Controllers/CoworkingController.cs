@@ -163,6 +163,121 @@ namespace KlyonHubPlatform.Api.Controllers
                 pendingReservationsCount = 0;
             }
 
+            // Buscar alertas administrativos (pendências)
+            var administrativeAlerts = new List<object>();
+
+            // 1. Verificar status de aprovação do cadastro (apenas se aguardando ajuste - "Em Análise" já é mostrado no topo)
+            if (coworkingEntity.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
+            {
+                administrativeAlerts.Add(new
+                {
+                    Type = "danger",
+                    Icon = "bi-exclamation-triangle-fill",
+                    Title = "Cadastro Aguardando Ajuste",
+                    Message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) 
+                        ? coworkingEntity.RejectionReason 
+                        : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.",
+                    ActionUrl = Url.Action("Profile", "Coworking"),
+                    ActionText = "Ver Perfil"
+                });
+            }
+
+            // 2. Buscar documentos rejeitados
+            var rejectedDocuments = await _context.CoworkingDocuments
+                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected)
+                .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+                .ToListAsync();
+
+            foreach (var doc in rejectedDocuments)
+            {
+                var docTypeName = doc.Type switch
+                {
+                    CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço",
+                    CoworkingDocumentType.AddressProof => "Comprovante de Endereço",
+                    CoworkingDocumentType.CNPJCard => "Cartão CNPJ",
+                    CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização",
+                    CoworkingDocumentType.UtilityBill => "Conta de Utilidade",
+                    _ => doc.Type.ToString()
+                };
+
+                administrativeAlerts.Add(new
+                {
+                    Type = "danger",
+                    Icon = "bi-file-earmark-x-fill",
+                    Title = $"Documento Rejeitado: {docTypeName}",
+                    Message = !string.IsNullOrEmpty(doc.RejectionReason)
+                        ? doc.RejectionReason
+                        : "Este documento foi rejeitado e requer correção.",
+                    ActionUrl = Url.Action("Profile", "Coworking"),
+                    ActionText = "Ver Documentos"
+                });
+            }
+
+            // 3. Buscar documentos pendentes (opcional - apenas informativo)
+            var pendingDocuments = await _context.CoworkingDocuments
+                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending)
+                .CountAsync();
+
+            if (pendingDocuments > 0)
+            {
+                administrativeAlerts.Add(new
+                {
+                    Type = "info",
+                    Icon = "bi-file-earmark-check",
+                    Title = "Documentos Em Análise",
+                    Message = $"{pendingDocuments} documento(s) aguardando análise administrativa.",
+                    ActionUrl = Url.Action("Profile", "Coworking"),
+                    ActionText = "Ver Documentos"
+                });
+            }
+
+            // 4. Buscar endereços com capacidade pendente ou rejeitada
+            var addressesWithCapacityIssues = await _context.CoworkingAddresses
+                .Where(a => a.CoworkingId == coworkingEntity.Id && 
+                    (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || 
+                     a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected))
+                .ToListAsync();
+
+            foreach (var address in addressesWithCapacityIssues)
+            {
+                if (address.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
+                {
+                    administrativeAlerts.Add(new
+                    {
+                        Type = "warning",
+                        Icon = "bi-clock-history",
+                        Title = $"Capacidade Fiscal Aguardando Aprovação",
+                        Message = $"A alteração de capacidade do endereço {address.Address}, {address.City} está aguardando aprovação administrativa.",
+                        ActionUrl = Url.Action("MyAddresses", "Coworking"),
+                        ActionText = "Ver Endereços"
+                    });
+                }
+                else if (address.CapacityApprovalStatus == CapacityApprovalStatus.Rejected)
+                {
+                    administrativeAlerts.Add(new
+                    {
+                        Type = "danger",
+                        Icon = "bi-x-circle-fill",
+                        Title = $"Capacidade Fiscal Rejeitada",
+                        Message = $"A alteração de capacidade do endereço {address.Address}, {address.City} foi rejeitada.",
+                        ActionUrl = Url.Action("MyAddresses", "Coworking"),
+                        ActionText = "Ver Endereços"
+                    });
+                }
+            }
+
+            // Verificar se há notificação de mudança de status
+            var coworkingForNotification = coworkingWithAddresses ?? coworkingEntity;
+            if (coworkingForNotification.HasPendingStatusNotification)
+            {
+                ViewBag.HasStatusNotification = true;
+                ViewBag.StatusNotificationType = coworkingForNotification.LastNotifiedStatus;
+            }
+            else
+            {
+                ViewBag.HasStatusNotification = false;
+            }
+
             ViewBag.Coworking = coworkingWithAddresses ?? coworkingEntity;
             ViewBag.ActiveContracts = contracts.Count(c => c.Status == ContractStatus.Active);
             ViewBag.PendingCommissions = totalPending;
@@ -170,8 +285,30 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalAddresses = coworkingWithAddresses?.Addresses?.Count ?? 0;
             ViewBag.PendingPaymentsCount = pendingPaymentsCount;
             ViewBag.PendingReservationsCount = pendingReservationsCount;
+            ViewBag.AdministrativeAlerts = administrativeAlerts;
 
             return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DismissStatusNotification()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity != null)
+            {
+                var coworkingToUpdate = await _context.Coworkings.FindAsync(coworkingEntity.Id);
+                if (coworkingToUpdate != null)
+                {
+                    coworkingToUpdate.HasPendingStatusNotification = false;
+                    await _context.SaveChangesAsync();
+                }
+            }
+
+            return RedirectToAction("Dashboard");
         }
 
         [HttpGet]
@@ -3704,12 +3841,17 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var commissionDict = commissions.ToDictionary(c => c.PaymentId, c => c);
 
+            // Verificar se já existe alguma configuração SEFAZ ativa para este coworking
+            var hasSefazConfiguration = await _context.CoworkingSefazConfigurations
+                .AnyAsync(c => c.CoworkingId == coworkingEntity.Id && c.IsActive);
+
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             ViewBag.CoworkingId = coworkingEntity.Id;
             ViewBag.CommissionDict = commissionDict;
+            ViewBag.HasSefazConfiguration = hasSefazConfiguration;
 
             return View(payments);
         }
