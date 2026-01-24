@@ -151,6 +151,9 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
 
     public class PagBankWebhookNotification
     {
+        [JsonPropertyName("id")]
+        public string? NotificationId { get; set; }
+
         [JsonPropertyName("event")]
         public string Event { get; set; } = string.Empty;
 
@@ -159,12 +162,18 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
 
         [JsonPropertyName("resource")]
         public PagBankWebhookResource? Resource { get; set; }
+
+        [JsonPropertyName("charges")]
+        public List<PagBankWebhookCharge>? Charges { get; set; }
     }
 
     public class PagBankWebhookResource
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("reference_id")]
+        public string? ReferenceId { get; set; }
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
@@ -174,5 +183,41 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
 
         [JsonPropertyName("paid_at")]
         public DateTime? PaidAt { get; set; }
+
+        [JsonPropertyName("payment_response")]
+        public PagBankPaymentResponse? PaymentResponse { get; set; }
+    }
+
+    public class PagBankWebhookCharge
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("reference_id")]
+        public string? ReferenceId { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("amount")]
+        public PagBankAmount? Amount { get; set; }
+
+        [JsonPropertyName("paid_at")]
+        public DateTime? PaidAt { get; set; }
+
+        [JsonPropertyName("payment_response")]
+        public PagBankPaymentResponse? PaymentResponse { get; set; }
+    }
+
+    public class PagBankPaymentResponse
+    {
+        [JsonPropertyName("code")]
+        public string? Code { get; set; }
+
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
+
+        [JsonPropertyName("reference")]
+        public string? Reference { get; set; }
     }
 }

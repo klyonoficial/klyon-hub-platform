@@ -209,6 +209,9 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<ChatIntention> ChatIntentions { get; set; }
         public DbSet<ChatUnansweredQuestion> ChatUnansweredQuestions { get; set; }
 
+        // PagBank Webhook
+        public DbSet<PagBankWebhookLog> PagBankWebhookLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -899,6 +902,32 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => e.Frequency);
                 entity.HasIndex(e => e.CreatedAt);
+            });
+
+            // PagBankWebhookLog configuration
+            modelBuilder.Entity<PagBankWebhookLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.EventId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.EventType).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.ResourceId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ReferenceId).HasMaxLength(100);
+                entity.Property(e => e.ResourceStatus).HasMaxLength(50);
+                entity.Property(e => e.ProcessingStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+                entity.Property(e => e.RawPayload).HasColumnType("TEXT");
+                entity.Property(e => e.ReceivedSignature).HasMaxLength(255);
+                entity.Property(e => e.SourceIp).HasMaxLength(50);
+                entity.HasOne(e => e.Payment)
+                    .WithMany()
+                    .HasForeignKey(e => e.PaymentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                // Índice único para garantir idempotência
+                entity.HasIndex(e => e.EventId).IsUnique();
+                entity.HasIndex(e => e.ResourceId);
+                entity.HasIndex(e => e.ReferenceId);
+                entity.HasIndex(e => e.ReceivedAt);
+                entity.HasIndex(e => e.ProcessingStatus);
             });
         }
     }
