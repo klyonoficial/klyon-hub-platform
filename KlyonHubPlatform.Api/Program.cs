@@ -118,6 +118,8 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ISefazService, SefazService>();
+builder.Services.AddScoped<IFocusNFeService, FocusNFeService>();
+builder.Services.AddScoped<IMonthlySettlementService, MonthlySettlementService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 builder.Services.AddScoped<IReservationTransferService, ReservationTransferService>();
@@ -152,6 +154,7 @@ builder.Services.AddScoped<ContractExpiryNotificationService>();
 // Background Services
 builder.Services.AddHostedService<ContractExpiryBackgroundService>();
 builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
+builder.Services.AddHostedService<MonthlySettlementBackgroundService>();
 
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(Program));

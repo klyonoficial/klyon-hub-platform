@@ -1,0 +1,265 @@
+@{
+    ViewData["Title"] = "Meus Repasses";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.MonthlySettlement>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cash-stack"></i> Meus Repasses</h2>
+    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<!-- Resumo -->
+@{
+    var summary = ViewBag.Summary as KlyonHubPlatform.Application.Interfaces.SettlementDashboardSummary;
+}
+@if (summary != null)
+{
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalAwaitingInvoice</h4>
+                    <small>Aguardando NF</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalInvoiceApproved</h4>
+                    <small>NF Aprovada</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalCompleted</h4>
+                    <small>Transferidos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4>R$ @summary.TotalAmountPending.ToString("N2")</h4>
+                    <small>Pendente</small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Alerta de NF pendente -->
+@{
+    var pendingInvoices = Model.Where(s => s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice).ToList();
+}
+@if (pendingInvoices.Any())
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> 
+        <strong>Atenção!</strong> Você tem @pendingInvoices.Count fechamento(s) aguardando o envio da nota fiscal.
+        Envie a NF em até 5 dias úteis para evitar emissão automática.
+    </div>
+}
+
+<!-- Lista de Fechamentos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Histórico de Repasses</h5>
+    </div>
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Período</th>
+                            <th>Vendas</th>
+                            <th>Comissão Plataforma</th>
+                            <th>Valor Líquido</th>
+                            <th>Status</th>
+                            <th>Data Repasse</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var settlement in Model)
+                        {
+                            var statusBadge = settlement.Status switch
+                            {
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "secondary",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "warning",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "info",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "primary",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferScheduled => "primary",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferProcessing => "info",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "success",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "danger",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "danger",
+                                _ => "secondary"
+                            };
+
+                            var statusText = settlement.Status switch
+                            {
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "Em Aberto",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "Aguardando NF",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "NF Recebida",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "NF Aprovada",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferScheduled => "Agendado",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferProcessing => "Processando",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "Transferido",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "NF Rejeitada",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "Falha",
+                                _ => "Desconhecido"
+                            };
+
+                            var monthName = new DateTime(settlement.ReferenceYear, settlement.ReferenceMonth, 1).ToString("MMMM/yyyy", new System.Globalization.CultureInfo("pt-BR"));
+                            
+                            <tr>
+                                <td><strong>@monthName</strong></td>
+                                <td>
+                                    R$ @settlement.TotalGrossAmount.ToString("N2")
+                                    <br><small class="text-muted">@settlement.CommissionCount item(ns)</small>
+                                </td>
+                                <td class="text-danger">- R$ @settlement.TotalPlatformCommission.ToString("N2")</td>
+                                <td class="text-success fw-bold">R$ @settlement.TotalAmount.ToString("N2")</td>
+                                <td>
+                                    <span class="badge bg-@statusBadge">@statusText</span>
+                                    @if (settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice && settlement.InvoiceDeadline.HasValue)
+                                    {
+                                        var daysLeft = (settlement.InvoiceDeadline.Value - DateTime.Now).Days;
+                                        <br><small class="text-@(daysLeft <= 2 ? "danger" : "muted")">
+                                            Prazo: @settlement.InvoiceDeadline.Value.ToString("dd/MM")
+                                            @if (daysLeft <= 2) { <text>(@daysLeft dias)</text> }
+                                        </small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (settlement.TransferredAt.HasValue)
+                                    {
+                                        @settlement.TransferredAt.Value.ToString("dd/MM/yyyy")
+                                    }
+                                    else if (settlement.ScheduledTransferDate.HasValue)
+                                    {
+                                        <small class="text-muted">Previsto: @settlement.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</small>
+                                    }
+                                    else
+                                    {
+                                        <small class="text-muted">-</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice || 
+                                         settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-primary" 
+                                                onclick="openUploadModal(@settlement.Id, @settlement.TotalAmount.ToString(System.Globalization.CultureInfo.InvariantCulture))">
+                                            <i class="bi bi-upload"></i> Importar NF
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <a href="@Url.Action("SettlementDetails", "Coworking", new { id = settlement.Id })" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Detalhes
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Nenhum fechamento encontrado.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Modal de Upload de NF -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel">
+                    <i class="bi bi-upload"></i> Importar Nota Fiscal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("UploadPartnerInvoice", "Coworking")" enctype="multipart/form-data" id="uploadForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="settlementId" name="settlementId" />
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Envie a nota fiscal de serviço referente aos serviços prestados neste período.
+                        O valor da NF deve ser compatível com o valor do repasse.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Valor Esperado</label>
+                        <input type="text" class="form-control" id="expectedAmount" readonly />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="pdfFile" class="form-label">Arquivo PDF <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="pdfFile" name="pdfFile" accept=".pdf" required>
+                            <small class="text-muted">Arquivo PDF da nota fiscal</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="xmlFile" class="form-label">Arquivo XML</label>
+                            <input type="file" class="form-control" id="xmlFile" name="xmlFile" accept=".xml">
+                            <small class="text-muted">XML da NF (opcional, mas recomendado para validação automática)</small>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="invoiceNumber" class="form-label">Número da NF</label>
+                            <input type="text" class="form-control" id="invoiceNumber" name="invoiceNumber" placeholder="Ex: 000123">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="invoiceAmount" class="form-label">Valor da NF <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" id="invoiceAmount" name="invoiceAmount" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="partnerNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="partnerNotes" name="partnerNotes" rows="2" 
+                                  placeholder="Informações adicionais sobre a NF"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Enviar Nota Fiscal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function openUploadModal(settlementId, expectedAmount) {
+        document.getElementById('settlementId').value = settlementId;
+        document.getElementById('expectedAmount').value = 'R$ ' + expectedAmount.toFixed(2).replace('.', ',');
+        document.getElementById('invoiceAmount').value = expectedAmount.toFixed(2);
+        
+        var modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+        modal.show();
+    }
+</script>
+}

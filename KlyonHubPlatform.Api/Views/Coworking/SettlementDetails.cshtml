@@ -1,0 +1,311 @@
+@{
+    ViewData["Title"] = "Detalhes do Repasse";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model KlyonHubPlatform.Domain.Entities.MonthlySettlement
+
+@{
+    var invoice = ViewBag.Invoice as KlyonHubPlatform.Domain.Entities.PartnerInvoice;
+    var monthName = new DateTime(Model.ReferenceYear, Model.ReferenceMonth, 1).ToString("MMMM/yyyy", new System.Globalization.CultureInfo("pt-BR"));
+    
+    var statusBadge = Model.Status switch
+    {
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "secondary",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "warning",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "info",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "primary",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferScheduled => "primary",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferProcessing => "info",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "success",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "danger",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "danger",
+        _ => "secondary"
+    };
+
+    var statusText = Model.Status switch
+    {
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "Em Aberto",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "Aguardando NF",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "NF Recebida",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "NF Aprovada",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferScheduled => "Agendado",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferProcessing => "Processando",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "Transferido",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "NF Rejeitada",
+        KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "Falha",
+        _ => "Desconhecido"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cash-stack"></i> Repasse @monthName</h2>
+    <a href="@Url.Action("MonthlySettlements", "Coworking")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Informações do Fechamento -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações do Repasse</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Período:</strong> @monthName</p>
+                        <p><strong>Status:</strong> <span class="badge bg-@statusBadge">@statusText</span></p>
+                        <p><strong>Quantidade de Vendas:</strong> @Model.CommissionCount</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Valor Bruto:</strong> R$ @Model.TotalGrossAmount.ToString("N2")</p>
+                        <p><strong>Comissão Plataforma:</strong> <span class="text-danger">- R$ @Model.TotalPlatformCommission.ToString("N2")</span></p>
+                        <p><strong>Valor Líquido:</strong> <span class="text-success fw-bold">R$ @Model.TotalAmount.ToString("N2")</span></p>
+                    </div>
+                </div>
+
+                @if (Model.ScheduledTransferDate.HasValue)
+                {
+                    <hr />
+                    <p><strong>Data Prevista do Repasse:</strong> @Model.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</p>
+                }
+
+                @if (Model.TransferredAt.HasValue)
+                {
+                    <p><strong>Data da Transferência:</strong> @Model.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                    @if (!string.IsNullOrEmpty(Model.ExternalTransferId))
+                    {
+                        <p><strong>ID da Transferência:</strong> @Model.ExternalTransferId</p>
+                    }
+                }
+
+                @if (!string.IsNullOrEmpty(Model.FailureReason))
+                {
+                    <div class="alert alert-danger mt-3">
+                        <strong>Motivo da Falha:</strong> @Model.FailureReason
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Nota Fiscal -->
+        @if (invoice != null)
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Nota Fiscal</h5>
+                </div>
+                <div class="card-body">
+                    @{
+                        var invoiceStatusBadge = invoice.Status switch
+                        {
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Pending => "secondary",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Submitted => "info",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Approved => "success",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Rejected => "danger",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.AutoGenerated => "warning",
+                            _ => "secondary"
+                        };
+
+                        var invoiceStatusText = invoice.Status switch
+                        {
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Pending => "Pendente",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Submitted => "Enviada",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Approved => "Aprovada",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.Rejected => "Rejeitada",
+                            KlyonHubPlatform.Domain.Core.Enums.InvoiceValidationStatus.AutoGenerated => "Auto-gerada",
+                            _ => "Desconhecido"
+                        };
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> <span class="badge bg-@invoiceStatusBadge">@invoiceStatusText</span></p>
+                            @if (!string.IsNullOrEmpty(invoice.InvoiceNumber))
+                            {
+                                <p><strong>Número:</strong> @invoice.InvoiceNumber</p>
+                            }
+                            <p><strong>Valor:</strong> R$ @invoice.InvoiceAmount.ToString("N2")</p>
+                        </div>
+                        <div class="col-md-6">
+                            @if (invoice.SubmittedAt.HasValue)
+                            {
+                                <p><strong>Enviada em:</strong> @invoice.SubmittedAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                            }
+                            @if (invoice.ValidatedAt.HasValue)
+                            {
+                                <p><strong>Validada em:</strong> @invoice.ValidatedAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                            }
+                        </div>
+                    </div>
+
+                    @if (invoice.AutoValidationPassed.HasValue)
+                    {
+                        <div class="alert alert-@(invoice.AutoValidationPassed.Value ? "success" : "warning") mt-3">
+                            <strong>Validação Automática:</strong>
+                            @if (invoice.AutoValidationPassed.Value)
+                            {
+                                <text>OK</text>
+                            }
+                            else
+                            {
+                                @invoice.AutoValidationMessage
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(invoice.RejectionReason))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            <strong>Motivo da Rejeição:</strong> @invoice.RejectionReason
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(invoice.PdfFilePath))
+                    {
+                        <a href="@invoice.PdfFilePath" target="_blank" class="btn btn-outline-primary">
+                            <i class="bi bi-file-pdf"></i> Ver PDF
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Lista de Comissões -->
+        @if (Model.SettlementCommissions?.Any() == true)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> Vendas Incluídas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Valor Total</th>
+                                    <th>Seu Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sc in Model.SettlementCommissions)
+                                {
+                                    <tr>
+                                        <td>@sc.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                        <td>R$ @sc.Commission?.TotalPaymentAmount.ToString("N2")</td>
+                                        <td class="text-success">R$ @sc.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        <!-- Timeline -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Linha do Tempo</h6>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="timeline-item @(Model.CreatedAt != default ? "active" : "")">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <strong>Criado</strong>
+                            <br><small class="text-muted">@Model.CreatedAt.ToString("dd/MM/yyyy")</small>
+                        </div>
+                    </div>
+
+                    @if (Model.ClosedAt.HasValue)
+                    {
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <strong>Fechado</strong>
+                                <br><small class="text-muted">@Model.ClosedAt.Value.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    }
+
+                    @if (invoice?.SubmittedAt.HasValue == true)
+                    {
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <strong>NF Enviada</strong>
+                                <br><small class="text-muted">@invoice.SubmittedAt.Value.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    }
+
+                    @if (Model.ApprovedAt.HasValue)
+                    {
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <strong>NF Aprovada</strong>
+                                <br><small class="text-muted">@Model.ApprovedAt.Value.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    }
+
+                    @if (Model.TransferredAt.HasValue)
+                    {
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <strong>Transferido</strong>
+                                <br><small class="text-muted">@Model.TransferredAt.Value.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    }
+                    else if (Model.ScheduledTransferDate.HasValue)
+                    {
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-secondary"></div>
+                            <div class="timeline-content">
+                                <strong>Transferência</strong>
+                                <br><small class="text-muted">Previsto: @Model.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+        border-left: 2px solid #dee2e6;
+        padding-left: 20px;
+        margin-left: 10px;
+    }
+    .timeline-item:last-child {
+        border-left: 2px solid transparent;
+    }
+    .timeline-item.active {
+        border-left-color: #28a745;
+    }
+    .timeline-marker {
+        position: absolute;
+        left: -11px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 3px solid #fff;
+    }
+</style>

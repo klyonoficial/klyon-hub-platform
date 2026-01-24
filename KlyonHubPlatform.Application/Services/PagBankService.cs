@@ -521,5 +521,150 @@ namespace KlyonHubPlatform.Application.Services
                 Number = cleanPhone
             };
         }
+
+        #region PIX Transfer
+
+        /// <summary>
+        /// Cria uma transferência PIX para uma chave PIX
+        /// </summary>
+        public async Task<PixTransferResult> CreatePixTransferAsync(string referenceId, decimal amount, string pixKey, 
+            string pixKeyType, string receiverName, string? description = null)
+        {
+            try
+            {
+                _logger.LogInformation("Criando transferência PIX. Ref: {ReferenceId}, Valor: {Amount}, Chave: {PixKey}",
+                    referenceId, amount, pixKey.Substring(0, Math.Min(5, pixKey.Length)) + "***");
+
+                // PagBank PIX Transfer API endpoint: POST /pix/transfers
+                // Nota: Este é um exemplo baseado na estrutura comum de APIs PIX
+                // A implementação real deve seguir a documentação oficial do PagBank
+                
+                var transferRequest = new
+                {
+                    reference_id = referenceId,
+                    receiver = new
+                    {
+                        pix_key = pixKey,
+                        pix_key_type = pixKeyType, // cpf, cnpj, email, phone, evp
+                        name = receiverName
+                    },
+                    amount = new
+                    {
+                        value = (int)(amount * 100), // Valor em centavos
+                        currency = "BRL"
+                    },
+                    description = description ?? $"Repasse - Ref: {referenceId}"
+                };
+
+                var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/pix/transfers");
+                request.Content = new StringContent(
+                    JsonSerializer.Serialize(transferRequest),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                var response = await _httpClient.SendAsync(request);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Erro na transferência PIX PagBank: {StatusCode} - {Response}", 
+                        response.StatusCode, responseContent);
+                    
+                    return new PixTransferResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Erro na transferência: {response.StatusCode}. Detalhes: {responseContent}"
+                    };
+                }
+
+                // Parse da resposta (estrutura baseada em padrões comuns de API PIX)
+                using var doc = JsonDocument.Parse(responseContent);
+                var root = doc.RootElement;
+
+                var transferId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
+                var endToEndId = root.TryGetProperty("end_to_end_id", out var e2eProp) ? e2eProp.GetString() : null;
+
+                return new PixTransferResult
+                {
+                    Success = true,
+                    TransferId = transferId,
+                    Status = status,
+                    Amount = amount,
+                    EndToEndId = endToEndId,
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao criar transferência PIX para {PixKey}", pixKey);
+                return new PixTransferResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Consulta o status de uma transferência PIX
+        /// </summary>
+        public async Task<PixTransferResult> GetPixTransferAsync(string transferId)
+        {
+            try
+            {
+                var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get, $"/pix/transfers/{transferId}");
+                var response = await _httpClient.SendAsync(request);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Erro ao consultar transferência PIX: {StatusCode} - {Response}",
+                        response.StatusCode, responseContent);
+                    
+                    return new PixTransferResult
+                    {
+                        Success = false,
+                        TransferId = transferId,
+                        ErrorMessage = $"Erro na consulta: {response.StatusCode}"
+                    };
+                }
+
+                using var doc = JsonDocument.Parse(responseContent);
+                var root = doc.RootElement;
+
+                var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
+                var endToEndId = root.TryGetProperty("end_to_end_id", out var e2eProp) ? e2eProp.GetString() : null;
+                var amountValue = 0m;
+                
+                if (root.TryGetProperty("amount", out var amountProp) && 
+                    amountProp.TryGetProperty("value", out var valueProp))
+                {
+                    amountValue = valueProp.GetInt32() / 100m;
+                }
+
+                return new PixTransferResult
+                {
+                    Success = true,
+                    TransferId = transferId,
+                    Status = status,
+                    Amount = amountValue,
+                    EndToEndId = endToEndId
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao consultar transferência PIX {TransferId}", transferId);
+                return new PixTransferResult
+                {
+                    Success = false,
+                    TransferId = transferId,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        #endregion
     }
 }

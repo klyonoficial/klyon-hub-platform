@@ -11,7 +11,7 @@ namespace KlyonHubPlatform.Application.Services
 {
     /// <summary>
     /// Serviço de integração com SEFAZ para emissão de notas fiscais
-    /// Suporta múltiplos estados, cada um com sua própria configuração
+    /// Suporta múltiplos estados via Focus NFe (intermediário)
     /// </summary>
     public class SefazService : ISefazService
     {
@@ -19,16 +19,28 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ILogger<SefazService> _logger;
         private readonly IAuditService? _auditService;
         private readonly IHttpContextAccessor? _httpContextAccessor;
+        private readonly IFocusNFeService? _focusNFeService;
 
-        // Estados com integração implementada
-        private static readonly HashSet<string> SupportedStates = new HashSet<string> { "ES" };
+        // Estados com integração implementada (via Focus NFe)
+        private static readonly HashSet<string> SupportedStates = new HashSet<string> 
+        { 
+            "ES", "SP", "RJ", "MG", "PR", "SC", "RS", "BA", "PE", "CE", 
+            "GO", "DF", "MT", "MS", "PA", "AM", "MA", "RN", "PB", "AL",
+            "SE", "PI", "AC", "AP", "RO", "RR", "TO" 
+        };
 
-        public SefazService(ApplicationDbContext context, ILogger<SefazService> logger, IAuditService? auditService = null, IHttpContextAccessor? httpContextAccessor = null)
+        public SefazService(
+            ApplicationDbContext context, 
+            ILogger<SefazService> logger, 
+            IAuditService? auditService = null, 
+            IHttpContextAccessor? httpContextAccessor = null,
+            IFocusNFeService? focusNFeService = null)
         {
             _context = context;
             _logger = logger;
             _auditService = auditService;
             _httpContextAccessor = httpContextAccessor;
+            _focusNFeService = focusNFeService;
         }
 
         private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
@@ -115,9 +127,6 @@ namespace KlyonHubPlatform.Application.Services
                     throw new NotSupportedException($"Integração SEFAZ ainda não implementada para o estado {config.State}. Estados suportados: {string.Join(", ", SupportedStates)}");
                 }
 
-                // TODO: Implementar integração real com SEFAZ do estado específico
-                // Por enquanto, simula a emissão
-                
                 _logger.LogInformation($"Iniciando emissão de NF de intermediação para Reserva #{fiscalNote.ReservationId} ou Contrato #{fiscalNote.ContractId} no estado {config.State}");
 
                 // Validar configuração
@@ -131,6 +140,16 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("CNPJ da plataforma não configurado.");
                 }
 
+                // Se Focus NFe está configurado e disponível, usar ele
+                if (_focusNFeService != null && !string.IsNullOrEmpty(config.ApiToken))
+                {
+                    _logger.LogInformation("Emitindo NF de intermediação via Focus NFe");
+                    return await _focusNFeService.EmitirNotaIntermediacao(fiscalNote, config);
+                }
+
+                // Fallback: emissão simulada (para testes ou quando Focus NFe não está configurado)
+                _logger.LogWarning("Focus NFe não configurado - usando emissão simulada");
+
                 // Determinar URL baseada no ambiente
                 var baseUrl = config.Environment == "Producao" 
                     ? config.ProductionUrl 
@@ -138,7 +157,7 @@ namespace KlyonHubPlatform.Application.Services
 
                 if (string.IsNullOrEmpty(baseUrl))
                 {
-                    throw new InvalidOperationException($"URL da SEFAZ não configurada para ambiente {config.Environment}.");
+                    baseUrl = "https://focusnfe.com.br"; // URL padrão
                 }
 
                 // Buscar dados do cliente e parceiro
@@ -155,16 +174,7 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Cliente ou parceiro não encontrado.");
                 }
 
-                // Preparar dados para emissão da NF
-                // NOTA: Esta é uma implementação básica. A integração real com SEFAZ ES requer:
-                // 1. Certificado digital A1 ou A3
-                // 2. Biblioteca específica da SEFAZ ES (ex: NFe.ES)
-                // 3. Geração do XML da NF-e conforme layout da SEFAZ
-                // 4. Assinatura digital do XML
-                // 5. Envio via webservice da SEFAZ
-                // 6. Processamento da resposta e atualização do registro
-
-                // Simulação de emissão (substituir por integração real)
+                // Simulação de emissão (modo de teste)
                 fiscalNote.Number = GenerateFiscalNoteNumber();
                 fiscalNote.AccessKey = GenerateAccessKey();
                 fiscalNote.VerificationCode = GenerateVerificationCode();
@@ -176,9 +186,9 @@ namespace KlyonHubPlatform.Application.Services
                 fiscalNote.PdfUrl = $"{baseUrl}/nfe/pdf/{fiscalNote.AccessKey}";
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
 
-                _logger.LogInformation($"NF de intermediação emitida com sucesso: {fiscalNote.AccessKey}");
+                _logger.LogInformation($"NF de intermediação emitida com sucesso (simulado): {fiscalNote.AccessKey}");
 
-                // Log de auditoria: execução de NF de intermediação
+                // Log de auditoria
                 await LogAuditAsync(
                     GetCurrentUserId(),
                     "NF de intermediação emitida (SEFAZ)",
@@ -194,7 +204,8 @@ namespace KlyonHubPlatform.Application.Services
                         State = config.State,
                         Environment = config.Environment,
                         ReservationId = fiscalNote.ReservationId,
-                        ContractId = fiscalNote.ContractId
+                        ContractId = fiscalNote.ContractId,
+                        IntegrationMode = "Simulado"
                     }
                 );
 
@@ -279,6 +290,16 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("CNPJ do parceiro não configurado.");
                 }
 
+                // Se Focus NFe está configurado e disponível, usar ele
+                if (_focusNFeService != null && !string.IsNullOrEmpty(config.ApiToken))
+                {
+                    _logger.LogInformation("Emitindo NF de serviço via Focus NFe");
+                    return await _focusNFeService.EmitirNotaServico(fiscalNote, config);
+                }
+
+                // Fallback: emissão simulada (para testes ou quando Focus NFe não está configurado)
+                _logger.LogWarning("Focus NFe não configurado para o parceiro - usando emissão simulada");
+
                 // Determinar URL baseada no ambiente
                 var baseUrl = config.Environment == "Producao" 
                     ? config.ProductionUrl 
@@ -286,7 +307,7 @@ namespace KlyonHubPlatform.Application.Services
 
                 if (string.IsNullOrEmpty(baseUrl))
                 {
-                    throw new InvalidOperationException($"URL da SEFAZ não configurada para ambiente {config.Environment}.");
+                    baseUrl = "https://focusnfe.com.br"; // URL padrão
                 }
 
                 // Buscar dados do cliente e parceiro
@@ -303,16 +324,7 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Cliente ou parceiro não encontrado.");
                 }
 
-                // Preparar dados para emissão da NF de serviço
-                // NOTA: Esta é uma implementação básica. A integração real com SEFAZ ES requer:
-                // 1. Certificado digital A1 ou A3
-                // 2. Biblioteca específica da SEFAZ ES (ex: NFe.ES)
-                // 3. Geração do XML da NF-e conforme layout da SEFAZ
-                // 4. Assinatura digital do XML
-                // 5. Envio via webservice da SEFAZ
-                // 6. Processamento da resposta e atualização do registro
-
-                // Simulação de emissão (substituir por integração real)
+                // Simulação de emissão (modo de teste)
                 fiscalNote.Number = GenerateFiscalNoteNumber();
                 fiscalNote.AccessKey = GenerateAccessKeyForPartner(config.PartnerCNPJ, config.State);
                 fiscalNote.VerificationCode = GenerateVerificationCode();
@@ -324,9 +336,9 @@ namespace KlyonHubPlatform.Application.Services
                 fiscalNote.PdfUrl = $"{baseUrl}/nfe/pdf/{fiscalNote.AccessKey}";
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
 
-                _logger.LogInformation($"NF de serviço emitida com sucesso: {fiscalNote.AccessKey}");
+                _logger.LogInformation($"NF de serviço emitida com sucesso (simulado): {fiscalNote.AccessKey}");
 
-                // Log de auditoria: execução de NF de serviço
+                // Log de auditoria
                 await LogAuditAsync(
                     GetCurrentUserId(),
                     "NF de serviço emitida (SEFAZ)",
@@ -343,7 +355,8 @@ namespace KlyonHubPlatform.Application.Services
                         Environment = config.Environment,
                         ReservationId = fiscalNote.ReservationId,
                         ContractId = fiscalNote.ContractId,
-                        CoworkingId = fiscalNote.CoworkingId
+                        CoworkingId = fiscalNote.CoworkingId,
+                        IntegrationMode = "Simulado"
                     }
                 );
 

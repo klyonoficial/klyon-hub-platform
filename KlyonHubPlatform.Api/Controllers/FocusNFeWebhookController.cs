@@ -1,0 +1,368 @@
+using System.Text.Json;
+using KlyonHubPlatform.Application.DTOs.FocusNFe;
+using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Enums;
+using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Infra.Data.Context;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace KlyonHubPlatform.Api.Controllers
+{
+    /// <summary>
+    /// Controller para receber webhooks do Focus NFe
+    /// </summary>
+    [ApiController]
+    [Route("api/[controller]")]
+    public class FocusNFeWebhookController : ControllerBase
+    {
+        private readonly IFocusNFeService _focusNFeService;
+        private readonly ApplicationDbContext _context;
+        private readonly ILogger<FocusNFeWebhookController> _logger;
+
+        public FocusNFeWebhookController(
+            IFocusNFeService focusNFeService,
+            ApplicationDbContext context,
+            ILogger<FocusNFeWebhookController> logger)
+        {
+            _focusNFeService = focusNFeService;
+            _context = context;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Endpoint para receber notificações do Focus NFe (webhook)
+        /// O Focus NFe envia POST quando há mudança de status na NFSe
+        /// </summary>
+        [HttpPost]
+        [AllowAnonymous]
+        public async Task<IActionResult> ReceberWebhook()
+        {
+            try
+            {
+                // Ler o body da requisição
+                using var reader = new StreamReader(Request.Body);
+                var body = await reader.ReadToEndAsync();
+
+                _logger.LogInformation("Webhook Focus NFe recebido. Body: {Body}", body);
+
+                if (string.IsNullOrWhiteSpace(body))
+                {
+                    _logger.LogWarning("Webhook Focus NFe recebido com body vazio");
+                    return BadRequest(new { error = "Body vazio" });
+                }
+
+                // Deserializar o payload
+                var payload = JsonSerializer.Deserialize<FocusWebhookPayload>(body, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                });
+
+                if (payload == null)
+                {
+                    _logger.LogWarning("Webhook Focus NFe recebido com payload inválido");
+                    return BadRequest(new { error = "Payload inválido" });
+                }
+
+                // Obter IP de origem
+                var sourceIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+                // Processar o webhook
+                var webhookLog = await _focusNFeService.ProcessarWebhookAsync(payload, sourceIp);
+
+                _logger.LogInformation("Webhook Focus NFe processado. Ref: {Ref}, Status: {Status}, ProcessingStatus: {ProcessingStatus}", 
+                    webhookLog.Ref, webhookLog.Status, webhookLog.ProcessingStatus);
+
+                // Retornar 200 OK para o Focus NFe saber que recebemos
+                return Ok(new 
+                { 
+                    success = true, 
+                    message = "Webhook processado com sucesso",
+                    ref_id = webhookLog.Ref,
+                    processing_status = webhookLog.ProcessingStatus.ToString()
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao processar webhook Focus NFe");
+                
+                // Mesmo com erro, retornamos 200 para evitar reenvios desnecessários
+                // O erro foi logado para análise posterior
+                return Ok(new { success = false, error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lista os webhooks recebidos do Focus NFe (para debug/auditoria)
+        /// </summary>
+        [HttpGet("logs")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ListarWebhooks(
+            [FromQuery] int page = 1, 
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? status = null,
+            [FromQuery] string? referencia = null)
+        {
+            try
+            {
+                var query = _context.Set<FocusNFeWebhookLog>().AsQueryable();
+
+                if (!string.IsNullOrEmpty(status))
+                {
+                    if (Enum.TryParse<FocusWebhookProcessingStatus>(status, true, out var processingStatus))
+                    {
+                        query = query.Where(w => w.ProcessingStatus == processingStatus);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(referencia))
+                {
+                    query = query.Where(w => w.Ref.Contains(referencia));
+                }
+
+                var total = await query.CountAsync();
+                var logs = await query
+                    .OrderByDescending(w => w.ReceivedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(w => new
+                    {
+                        w.Id,
+                        w.Ref,
+                        w.CnpjEmitente,
+                        w.DocumentType,
+                        w.Status,
+                        w.Evento,
+                        w.Numero,
+                        w.CodigoVerificacao,
+                        w.Url,
+                        w.FiscalNoteId,
+                        ProcessingStatus = w.ProcessingStatus.ToString(),
+                        w.ErrorMessage,
+                        w.SourceIp,
+                        w.ReceivedAt,
+                        w.ProcessedAt,
+                        w.ProcessingAttempts
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    total,
+                    page,
+                    pageSize,
+                    totalPages = (int)Math.Ceiling(total / (double)pageSize),
+                    logs
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao listar webhooks Focus NFe");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Consulta o status de uma NFSe no Focus NFe
+        /// </summary>
+        [HttpGet("consultar/{referencia}")]
+        [Authorize(Roles = "Admin,Partner")]
+        public async Task<IActionResult> ConsultarNFSe(string referencia)
+        {
+            try
+            {
+                // Buscar a nota fiscal para obter a configuração
+                var fiscalNote = await _context.FiscalNotes
+                    .FirstOrDefaultAsync(fn => fn.IdempotencyKey == referencia || fn.AccessKey == referencia);
+
+                if (fiscalNote == null)
+                {
+                    return NotFound(new { error = "Nota fiscal não encontrada" });
+                }
+
+                // Determinar se é nota de intermediação ou serviço
+                string? apiToken = null;
+                bool isProduction = false;
+
+                if (fiscalNote.Type == "Intermediacao")
+                {
+                    var config = await _context.SefazConfigurations
+                        .Where(c => c.IsActive)
+                        .OrderByDescending(c => c.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (config != null)
+                    {
+                        apiToken = config.ApiToken;
+                        isProduction = config.Environment == "Producao";
+                    }
+                }
+                else
+                {
+                    var config = await _context.CoworkingSefazConfigurations
+                        .Where(c => c.CoworkingId == fiscalNote.CoworkingId && c.IsActive)
+                        .OrderByDescending(c => c.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (config != null)
+                    {
+                        apiToken = config.ApiToken;
+                        isProduction = config.Environment == "Producao";
+                    }
+                }
+
+                if (string.IsNullOrEmpty(apiToken))
+                {
+                    return BadRequest(new { error = "Token da API Focus NFe não configurado" });
+                }
+
+                var response = await _focusNFeService.ConsultarNFSeAsync(referencia, apiToken, isProduction);
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao consultar NFSe no Focus NFe");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Endpoint para simular um webhook (apenas em desenvolvimento)
+        /// </summary>
+        [HttpPost("simulate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> SimularWebhook([FromBody] FocusWebhookPayload payload)
+        {
+            try
+            {
+                var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                if (environment == "Production")
+                {
+                    return BadRequest(new { error = "Simulação não permitida em produção" });
+                }
+
+                var sourceIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var webhookLog = await _focusNFeService.ProcessarWebhookAsync(payload, sourceIp);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Webhook simulado processado",
+                    webhookLog = new
+                    {
+                        webhookLog.Id,
+                        webhookLog.Ref,
+                        webhookLog.Status,
+                        ProcessingStatus = webhookLog.ProcessingStatus.ToString()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao simular webhook Focus NFe");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Configura a URL de webhook no Focus NFe
+        /// </summary>
+        [HttpPost("configurar")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ConfigurarWebhook([FromBody] ConfigurarWebhookRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(request.WebhookUrl))
+                {
+                    return BadRequest(new { error = "URL do webhook é obrigatória" });
+                }
+
+                // Buscar configuração da plataforma
+                var config = await _context.SefazConfigurations
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (config == null || string.IsNullOrEmpty(config.ApiToken))
+                {
+                    return BadRequest(new { error = "Configuração da SEFAZ não encontrada ou token não configurado" });
+                }
+
+                var webhookConfig = new FocusWebhookConfig
+                {
+                    Nfse = request.WebhookUrl
+                };
+
+                var isProduction = config.Environment == "Producao";
+                var success = await _focusNFeService.ConfigurarWebhookAsync(webhookConfig, config.ApiToken, isProduction);
+
+                if (success)
+                {
+                    return Ok(new { success = true, message = "Webhook configurado com sucesso" });
+                }
+                else
+                {
+                    return BadRequest(new { error = "Falha ao configurar webhook no Focus NFe" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao configurar webhook Focus NFe");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Verifica a disponibilidade da API Focus NFe
+        /// </summary>
+        [HttpGet("status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> VerificarStatus()
+        {
+            try
+            {
+                var config = await _context.SefazConfigurations
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (config == null || string.IsNullOrEmpty(config.ApiToken))
+                {
+                    return Ok(new 
+                    { 
+                        configured = false, 
+                        message = "Token da API Focus NFe não configurado" 
+                    });
+                }
+
+                var isProduction = config.Environment == "Producao";
+                var isAvailable = await _focusNFeService.VerificarDisponibilidadeAsync(config.ApiToken, isProduction);
+
+                return Ok(new
+                {
+                    configured = true,
+                    environment = config.Environment,
+                    available = isAvailable,
+                    message = isAvailable ? "API Focus NFe disponível" : "API Focus NFe indisponível"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao verificar status Focus NFe");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+    }
+
+    /// <summary>
+    /// Request para configurar webhook
+    /// </summary>
+    public class ConfigurarWebhookRequest
+    {
+        public string WebhookUrl { get; set; } = string.Empty;
+    }
+}

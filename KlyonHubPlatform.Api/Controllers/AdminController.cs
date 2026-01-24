@@ -32,6 +32,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
         private readonly ICommissionService _commissionService;
+        private readonly IMonthlySettlementService _monthlySettlementService;
 
         public AdminController(
             IUserService userService,
@@ -48,7 +49,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ICoworkingService coworkingService,
             IAuthService authService,
             IEmailService emailService,
-            ICommissionService commissionService)
+            ICommissionService commissionService,
+            IMonthlySettlementService monthlySettlementService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -65,6 +67,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _authService = authService;
             _emailService = emailService;
             _commissionService = commissionService;
+            _monthlySettlementService = monthlySettlementService;
         }
 
         public IActionResult Index()
@@ -5527,6 +5530,139 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public class DeletePartnerServiceRequest
         {
             public int Id { get; set; }
+        }
+
+        #endregion
+
+        #region Invoice Validation (Validação de Notas Fiscais)
+
+        /// <summary>
+        /// Lista de fechamentos para validação de NF
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> InvoiceValidation()
+        {
+            var settlements = await _context.MonthlySettlements
+                .Include(s => s.Coworking)
+                .Include(s => s.PartnerInvoices)
+                .OrderByDescending(s => s.ReferenceYear)
+                .ThenByDescending(s => s.ReferenceMonth)
+                .ToListAsync();
+
+            var summary = await _monthlySettlementService.GetDashboardSummaryAsync();
+            ViewBag.Summary = summary;
+
+            return View(settlements);
+        }
+
+        /// <summary>
+        /// Aprovar nota fiscal
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveInvoice(int invoiceId, string? notes)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+                await _monthlySettlementService.ApproveInvoiceAsync(invoiceId, userId, notes);
+
+                TempData["Success"] = "Nota fiscal aprovada com sucesso! A transferência será agendada automaticamente.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar nota fiscal: {ex.Message}";
+            }
+
+            return RedirectToAction("InvoiceValidation");
+        }
+
+        /// <summary>
+        /// Rejeitar nota fiscal
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectInvoice(int invoiceId, string rejectionReason)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    TempData["Error"] = "Por favor, informe o motivo da rejeição.";
+                    return RedirectToAction("InvoiceValidation");
+                }
+
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+                await _monthlySettlementService.RejectInvoiceAsync(invoiceId, userId, rejectionReason);
+
+                TempData["Success"] = "Nota fiscal rejeitada. O parceiro será notificado para enviar uma nova NF.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao rejeitar nota fiscal: {ex.Message}";
+            }
+
+            return RedirectToAction("InvoiceValidation");
+        }
+
+        /// <summary>
+        /// Executar transferência manualmente
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ExecuteTransfer(int settlementId)
+        {
+            try
+            {
+                await _monthlySettlementService.ExecuteTransferAsync(settlementId);
+                TempData["Success"] = "Transferência executada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao executar transferência: {ex.Message}";
+            }
+
+            return RedirectToAction("InvoiceValidation");
+        }
+
+        /// <summary>
+        /// Forçar fechamento de mês manualmente
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForceCloseMonth(int coworkingId, int month, int year)
+        {
+            try
+            {
+                await _monthlySettlementService.CloseMonthAsync(coworkingId, month, year);
+                TempData["Success"] = $"Mês {month}/{year} fechado com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao fechar mês: {ex.Message}";
+            }
+
+            return RedirectToAction("InvoiceValidation");
+        }
+
+        /// <summary>
+        /// Gerar NF automática para um fechamento
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GenerateAutomaticInvoice(int settlementId)
+        {
+            try
+            {
+                await _monthlySettlementService.GenerateAutomaticInvoiceAsync(settlementId);
+                TempData["Success"] = "Nota fiscal gerada automaticamente!";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao gerar NF automática: {ex.Message}";
+            }
+
+            return RedirectToAction("InvoiceValidation");
         }
 
         #endregion

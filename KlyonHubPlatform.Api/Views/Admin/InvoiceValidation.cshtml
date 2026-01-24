@@ -1,0 +1,368 @@
+@{
+    ViewData["Title"] = "Validação de Notas Fiscais";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.MonthlySettlement>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-check"></i> Validação de Notas Fiscais</h2>
+    <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<!-- Resumo -->
+@{
+    var summary = ViewBag.Summary as KlyonHubPlatform.Application.Interfaces.SettlementDashboardSummary;
+}
+@if (summary != null)
+{
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalAwaitingInvoice</h4>
+                    <small>Aguardando NF</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalInvoiceReceived</h4>
+                    <small>Para Validar</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalInvoiceApproved</h4>
+                    <small>Aprovadas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalCompleted</h4>
+                    <small>Transferidos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h4>@summary.TotalFailed</h4>
+                    <small>Com Falha</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-dark text-white">
+                <div class="card-body text-center">
+                    <h4>R$ @summary.TotalAmountPending.ToString("N0")</h4>
+                    <small>Pendente</small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="invoiceTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" 
+                type="button" role="tab" aria-controls="pending" aria-selected="true">
+            <i class="bi bi-hourglass-split"></i> Para Validar
+            <span class="badge bg-info">@Model.Count(s => s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived)</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" 
+                type="button" role="tab" aria-controls="approved" aria-selected="false">
+            <i class="bi bi-check-circle"></i> Aprovadas
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" 
+                type="button" role="tab" aria-controls="all" aria-selected="false">
+            <i class="bi bi-list"></i> Todos
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="invoiceTabsContent">
+    <!-- Para Validar -->
+    <div class="tab-pane fade show active" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+        @{
+            var pendingList = Model.Where(s => s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived).ToList();
+        }
+        @if (pendingList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Período</th>
+                            <th>Valor</th>
+                            <th>NF</th>
+                            <th>Validação Auto</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var settlement in pendingList)
+                        {
+                            var invoice = settlement.PartnerInvoices?.OrderByDescending(i => i.CreatedAt).FirstOrDefault();
+                            var monthName = new DateTime(settlement.ReferenceYear, settlement.ReferenceMonth, 1).ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR"));
+                            
+                            <tr>
+                                <td>
+                                    <strong>@settlement.Coworking?.Name</strong>
+                                    <br><small class="text-muted">@settlement.Coworking?.CNPJ</small>
+                                </td>
+                                <td>@monthName</td>
+                                <td>
+                                    <strong>R$ @settlement.TotalAmount.ToString("N2")</strong>
+                                    <br><small class="text-muted">@settlement.CommissionCount vendas</small>
+                                </td>
+                                <td>
+                                    @if (invoice != null)
+                                    {
+                                        <text>NF @invoice.InvoiceNumber</text>
+                                        <br><small>R$ @invoice.InvoiceAmount.ToString("N2")</small>
+                                        @if (!string.IsNullOrEmpty(invoice.PdfFilePath))
+                                        {
+                                            <br><a href="@invoice.PdfFilePath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-file-pdf"></i> PDF
+                                            </a>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    @if (invoice?.AutoValidationPassed == true)
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check"></i> OK</span>
+                                    }
+                                    else if (invoice?.AutoValidationPassed == false)
+                                    {
+                                        <span class="badge bg-warning" title="@invoice.AutoValidationMessage">
+                                            <i class="bi bi-exclamation"></i> Alerta
+                                        </span>
+                                        <br><small class="text-muted">@invoice.AutoValidationMessage</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-success" 
+                                            onclick="approveInvoice(@(invoice?.Id ?? 0), '@settlement.Coworking?.Name')">
+                                        <i class="bi bi-check-lg"></i> Aprovar
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            onclick="rejectInvoice(@(invoice?.Id ?? 0), '@settlement.Coworking?.Name')">
+                                        <i class="bi bi-x-lg"></i> Rejeitar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-check-circle"></i> Nenhuma nota fiscal pendente de validação.
+            </div>
+        }
+    </div>
+
+    <!-- Aprovadas -->
+    <div class="tab-pane fade" id="approved" role="tabpanel" aria-labelledby="approved-tab">
+        @{
+            var approvedList = Model.Where(s => s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved || 
+                                               s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferScheduled ||
+                                               s.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed).ToList();
+        }
+        @if (approvedList.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Período</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Data Repasse</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var settlement in approvedList)
+                        {
+                            var monthName = new DateTime(settlement.ReferenceYear, settlement.ReferenceMonth, 1).ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR"));
+                            var statusBadge = settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed ? "success" : "primary";
+                            var statusText = settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed ? "Transferido" : "Agendado";
+                            
+                            <tr>
+                                <td><strong>@settlement.Coworking?.Name</strong></td>
+                                <td>@monthName</td>
+                                <td>R$ @settlement.TotalAmount.ToString("N2")</td>
+                                <td><span class="badge bg-@statusBadge">@statusText</span></td>
+                                <td>
+                                    @if (settlement.TransferredAt.HasValue)
+                                    {
+                                        @settlement.TransferredAt.Value.ToString("dd/MM/yyyy")
+                                    }
+                                    else if (settlement.ScheduledTransferDate.HasValue)
+                                    {
+                                        <text>Previsto: @settlement.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</text>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                Nenhuma nota fiscal aprovada.
+            </div>
+        }
+    </div>
+
+    <!-- Todos -->
+    <div class="tab-pane fade" id="all" role="tabpanel" aria-labelledby="all-tab">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Período</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var settlement in Model)
+                        {
+                            var monthName = new DateTime(settlement.ReferenceYear, settlement.ReferenceMonth, 1).ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR"));
+                            var statusBadge = settlement.Status switch
+                            {
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "secondary",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "warning",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "info",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "primary",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "success",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "danger",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "danger",
+                                _ => "secondary"
+                            };
+                            var statusText = settlement.Status switch
+                            {
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "Em Aberto",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "Aguardando NF",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "NF Recebida",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "NF Aprovada",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "Transferido",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "NF Rejeitada",
+                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "Falha",
+                                _ => "Desconhecido"
+                            };
+                            
+                            <tr>
+                                <td><strong>@settlement.Coworking?.Name</strong></td>
+                                <td>@monthName</td>
+                                <td>R$ @settlement.TotalAmount.ToString("N2")</td>
+                                <td><span class="badge bg-@statusBadge">@statusText</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                Nenhum fechamento encontrado.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Modal de Rejeição -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rejectModalLabel">
+                    <i class="bi bi-x-circle text-danger"></i> Rejeitar Nota Fiscal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("RejectInvoice", "Admin")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="rejectInvoiceId" name="invoiceId" />
+                <div class="modal-body">
+                    <p>Parceiro: <strong id="rejectPartnerName"></strong></p>
+                    <div class="mb-3">
+                        <label for="rejectionReason" class="form-label">Motivo da Rejeição <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="rejectionReason" name="rejectionReason" rows="3" 
+                                  placeholder="Informe o motivo da rejeição para que o parceiro possa enviar uma nova NF" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg"></i> Rejeitar NF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function approveInvoice(invoiceId, partnerName) {
+        if (confirm('Aprovar nota fiscal de ' + partnerName + '? Isso irá agendar a transferência automaticamente.')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '@Url.Action("ApproveInvoice", "Admin")';
+            
+            var token = document.createElement('input');
+            token.type = 'hidden';
+            token.name = '__RequestVerificationToken';
+            token.value = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            form.appendChild(token);
+            
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'invoiceId';
+            input.value = invoiceId;
+            form.appendChild(input);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+
+    function rejectInvoice(invoiceId, partnerName) {
+        document.getElementById('rejectInvoiceId').value = invoiceId;
+        document.getElementById('rejectPartnerName').textContent = partnerName;
+        
+        var modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+        modal.show();
+    }
+</script>
+}

@@ -28,6 +28,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IReservationTransferService _reservationTransferService;
         private readonly ISystemConfigurationService _systemConfig;
         private readonly ISefazService _sefazService;
+        private readonly IMonthlySettlementService _monthlySettlementService;
 
         public CoworkingController(
             ICoworkingService coworkingService,
@@ -39,7 +40,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAuditService auditService,
             IReservationTransferService reservationTransferService,
             ISystemConfigurationService systemConfig,
-            ISefazService sefazService)
+            ISefazService sefazService,
+            IMonthlySettlementService monthlySettlementService)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
@@ -51,6 +53,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _reservationTransferService = reservationTransferService;
             _systemConfig = systemConfig;
             _sefazService = sefazService;
+            _monthlySettlementService = monthlySettlementService;
         }
 
         private async Task RefreshUserPrincipalAsync(User user)
@@ -4452,6 +4455,134 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("SefazConfiguration");
             }
         }
+
+        #region Monthly Settlements (Repasses Mensais)
+
+        /// <summary>
+        /// Lista os fechamentos mensais do parceiro
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> MonthlySettlements()
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            if (coworking == null)
+            {
+                return RedirectToAction("Login", "Auth");
+            }
+
+            var settlements = await _monthlySettlementService.GetSettlementsByCoworkingAsync(coworking.Id);
+            var summary = await _monthlySettlementService.GetDashboardSummaryAsync(coworking.Id);
+
+            ViewBag.Summary = summary;
+            return View(settlements);
+        }
+
+        /// <summary>
+        /// Detalhes de um fechamento
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SettlementDetails(int id)
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            if (coworking == null)
+            {
+                return RedirectToAction("Login", "Auth");
+            }
+
+            var settlement = await _monthlySettlementService.GetSettlementByIdAsync(id);
+            if (settlement == null || settlement.CoworkingId != coworking.Id)
+            {
+                TempData["Error"] = "Fechamento não encontrado.";
+                return RedirectToAction("MonthlySettlements");
+            }
+
+            var invoice = await _monthlySettlementService.GetInvoiceBySettlementAsync(id);
+            ViewBag.Invoice = invoice;
+
+            return View(settlement);
+        }
+
+        /// <summary>
+        /// Upload da nota fiscal do parceiro
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadPartnerInvoice(int settlementId, IFormFile pdfFile, IFormFile? xmlFile, 
+            string? invoiceNumber, decimal invoiceAmount, string? partnerNotes)
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            if (coworking == null)
+            {
+                return RedirectToAction("Login", "Auth");
+            }
+
+            try
+            {
+                if (pdfFile == null || pdfFile.Length == 0)
+                {
+                    TempData["Error"] = "Por favor, selecione o arquivo PDF da nota fiscal.";
+                    return RedirectToAction("MonthlySettlements");
+                }
+
+                // Validar tipo de arquivo
+                if (!pdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    TempData["Error"] = "O arquivo deve ser um PDF.";
+                    return RedirectToAction("MonthlySettlements");
+                }
+
+                using var pdfStream = pdfFile.OpenReadStream();
+                Stream? xmlStream = null;
+                string? xmlFileName = null;
+
+                if (xmlFile != null && xmlFile.Length > 0)
+                {
+                    if (!xmlFile.FileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TempData["Error"] = "O arquivo XML deve ter extensão .xml";
+                        return RedirectToAction("MonthlySettlements");
+                    }
+                    xmlStream = xmlFile.OpenReadStream();
+                    xmlFileName = xmlFile.FileName;
+                }
+
+                var invoice = await _monthlySettlementService.UploadPartnerInvoiceAsync(
+                    settlementId, coworking.Id, pdfStream, pdfFile.FileName,
+                    xmlStream, xmlFileName, invoiceNumber, invoiceAmount, partnerNotes);
+
+                if (invoice.AutoValidationPassed == true)
+                {
+                    TempData["Success"] = "Nota fiscal enviada com sucesso! Validação automática OK. Aguardando aprovação do administrador.";
+                }
+                else if (invoice.AutoValidationPassed == false)
+                {
+                    TempData["Warning"] = $"Nota fiscal enviada, mas a validação automática encontrou problemas: {invoice.AutoValidationMessage}. O administrador irá analisar.";
+                }
+                else
+                {
+                    TempData["Success"] = "Nota fiscal enviada com sucesso! Aguardando validação do administrador.";
+                }
+
+                return RedirectToAction("MonthlySettlements");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao enviar nota fiscal: {ex.Message}";
+                return RedirectToAction("MonthlySettlements");
+            }
+        }
+
+        private async Task<Coworking?> GetCurrentCoworkingAsync()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null) return null;
+
+            var userId = int.Parse(userIdClaim.Value);
+            return await _context.Coworkings
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+        }
+
+        #endregion
     }
 
     // DTO para solicitação de alteração de capacidade

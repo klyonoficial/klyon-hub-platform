@@ -7,14 +7,18 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear"></i> Configurações SEFAZ</h2>
-    <a href="@Url.Action("ServiceFiscalNotes", "Coworking")" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar
-    </a>
+    <div>
+        <span class="badge bg-success me-2"><i class="bi bi-cloud-check"></i> Focus NFe</span>
+        <a href="@Url.Action("ServiceFiscalNotes", "Coworking")" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
 </div>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> <strong>Importante:</strong> Configure suas credenciais SEFAZ para cada estado onde você presta serviços. 
-    Cada estado tem sua própria SEFAZ e requer configuração separada.
+    <i class="bi bi-info-circle"></i> <strong>Integração Focus NFe:</strong> A emissão de notas fiscais é feita através do Focus NFe, 
+    um intermediário que elimina a necessidade de certificado digital próprio. Configure seu token da API para cada estado onde você presta serviços.
+    <a href="https://focusnfe.com.br" target="_blank">Saiba mais sobre o Focus NFe</a>
 </div>
 
 <!-- Lista de Configurações -->
@@ -38,6 +42,7 @@
                             <th>Inscrição Municipal</th>
                             <th>Código Serviço</th>
                             <th>ISS (%)</th>
+                            <th>Token API</th>
                             <th>Status</th>
                             <th>Ações</th>
                         </tr>
@@ -56,6 +61,16 @@
                                 <td>@config.PartnerMunicipalRegistration</td>
                                 <td>@config.ServiceCode</td>
                                 <td>@config.ISSAliquot.ToString("F2")%</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(config.ApiToken))
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Configurado</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Pendente</span>
+                                    }
+                                </td>
                                 <td>
                                     @if (config.IsActive)
                                     {
@@ -152,14 +167,15 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="homologationUrl" class="form-label">URL SEFAZ (Homologação)</label>
-                            <input type="url" class="form-control" id="homologationUrl" name="homologationUrl" placeholder="https://...">
+                        <div class="col-md-12 mb-3">
+                            <label for="apiToken" class="form-label">Token da API Focus NFe <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="apiToken" name="apiToken" placeholder="Token de autenticação do Focus NFe" required>
+                            <small class="form-text text-muted">Obtenha o token no painel do Focus NFe. Este token é usado para emitir notas fiscais em nome do seu estabelecimento.</small>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="productionUrl" class="form-label">URL SEFAZ (Produção)</label>
-                            <input type="url" class="form-control" id="productionUrl" name="productionUrl" placeholder="https://...">
-                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-lightbulb"></i> <strong>Dica:</strong> O Focus NFe oferece ambiente de homologação gratuito para testes. 
+                        Use o ambiente de homologação primeiro antes de configurar a produção.
                     </div>
                 </div>
                 <div class="modal-footer">

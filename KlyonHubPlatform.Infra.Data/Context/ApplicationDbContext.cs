@@ -212,6 +212,14 @@ namespace KlyonHubPlatform.Infra.Data.Context
         // PagBank Webhook
         public DbSet<PagBankWebhookLog> PagBankWebhookLogs { get; set; }
 
+        // Focus NFe Webhook
+        public DbSet<FocusNFeWebhookLog> FocusNFeWebhookLogs { get; set; }
+
+        // Monthly Settlement (Fechamento Mensal)
+        public DbSet<MonthlySettlement> MonthlySettlements { get; set; }
+        public DbSet<SettlementCommission> SettlementCommissions { get; set; }
+        public DbSet<PartnerInvoice> PartnerInvoices { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -928,6 +936,118 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.ReferenceId);
                 entity.HasIndex(e => e.ReceivedAt);
                 entity.HasIndex(e => e.ProcessingStatus);
+            });
+
+            // FocusNFeWebhookLog configuration
+            modelBuilder.Entity<FocusNFeWebhookLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Ref).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.CnpjEmitente).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.DocumentType).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Evento).HasMaxLength(50);
+                entity.Property(e => e.Numero).HasMaxLength(50);
+                entity.Property(e => e.CodigoVerificacao).HasMaxLength(50);
+                entity.Property(e => e.Url).HasMaxLength(500);
+                entity.Property(e => e.CaminhoXml).HasMaxLength(500);
+                entity.Property(e => e.ProcessingStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+                entity.Property(e => e.RawPayload).HasColumnType("TEXT");
+                entity.Property(e => e.SourceIp).HasMaxLength(50);
+                entity.HasOne(e => e.FiscalNote)
+                    .WithMany()
+                    .HasForeignKey(e => e.FiscalNoteId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                // Índices para consultas e idempotência
+                entity.HasIndex(e => e.Ref);
+                entity.HasIndex(e => e.CnpjEmitente);
+                entity.HasIndex(e => e.ReceivedAt);
+                entity.HasIndex(e => e.ProcessingStatus);
+                entity.HasIndex(e => new { e.Ref, e.Status, e.Evento }); // Para verificação de duplicidade
+            });
+
+            // MonthlySettlement configuration (Fechamento Mensal)
+            modelBuilder.Entity<MonthlySettlement>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.ApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ApprovedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.TotalAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
+                entity.Property(e => e.TotalGrossAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
+                entity.Property(e => e.TotalPlatformCommission).HasColumnType("DECIMAL(12,2)").IsRequired();
+                entity.Property(e => e.ExternalTransferId).HasMaxLength(100);
+                entity.Property(e => e.PixKey).HasMaxLength(100);
+                entity.Property(e => e.FailureReason).HasMaxLength(2000);
+                entity.Property(e => e.Notes).HasMaxLength(2000);
+                // Índice único para período por coworking
+                entity.HasIndex(e => new { e.CoworkingId, e.ReferenceYear, e.ReferenceMonth }).IsUnique();
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.ScheduledTransferDate);
+                entity.HasIndex(e => e.ExternalTransferId);
+            });
+
+            // SettlementCommission configuration (Relacionamento Fechamento-Comissão)
+            modelBuilder.Entity<SettlementCommission>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.MonthlySettlement)
+                    .WithMany(s => s.SettlementCommissions)
+                    .HasForeignKey(e => e.MonthlySettlementId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Commission)
+                    .WithMany()
+                    .HasForeignKey(e => e.CommissionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Amount).HasColumnType("DECIMAL(10,2)").IsRequired();
+                // Índice único para evitar duplicidade
+                entity.HasIndex(e => new { e.MonthlySettlementId, e.CommissionId }).IsUnique();
+            });
+
+            // PartnerInvoice configuration (NF do Parceiro)
+            modelBuilder.Entity<PartnerInvoice>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.MonthlySettlement)
+                    .WithMany(s => s.PartnerInvoices)
+                    .HasForeignKey(e => e.MonthlySettlementId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Validator)
+                    .WithMany()
+                    .HasForeignKey(e => e.ValidatedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Type).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.InvoiceAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
+                entity.Property(e => e.ExpectedAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
+                entity.Property(e => e.InvoiceNumber).HasMaxLength(50);
+                entity.Property(e => e.InvoiceSeries).HasMaxLength(10);
+                entity.Property(e => e.IssuerCnpj).HasMaxLength(20);
+                entity.Property(e => e.IssuerName).HasMaxLength(255);
+                entity.Property(e => e.AccessKey).HasMaxLength(50);
+                entity.Property(e => e.VerificationCode).HasMaxLength(50);
+                entity.Property(e => e.PdfFilePath).HasMaxLength(500);
+                entity.Property(e => e.XmlFilePath).HasMaxLength(500);
+                entity.Property(e => e.XmlContent).HasColumnType("MEDIUMTEXT");
+                entity.Property(e => e.AutoValidationMessage).HasMaxLength(2000);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.Property(e => e.FocusNFeRef).HasMaxLength(100);
+                entity.Property(e => e.PartnerNotes).HasMaxLength(2000);
+                entity.Property(e => e.AdminNotes).HasMaxLength(2000);
+                entity.HasIndex(e => e.MonthlySettlementId);
+                entity.HasIndex(e => e.CoworkingId);
+                entity.HasIndex(e => e.Status);
             });
         }
     }

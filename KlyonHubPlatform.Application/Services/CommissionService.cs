@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
@@ -16,17 +17,20 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IPaymentRepository _paymentRepository;
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<CommissionService> _logger;
 
         public CommissionService(
             ICommissionRepository commissionRepository,
             IPaymentRepository paymentRepository,
             ApplicationDbContext context,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ILogger<CommissionService> logger)
         {
             _commissionRepository = commissionRepository;
             _paymentRepository = paymentRepository;
             _context = context;
             _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<Commission> CreateCommissionAsync(int paymentId)
@@ -142,7 +146,88 @@ namespace KlyonHubPlatform.Application.Services
                 TotalPaymentAmount = payment.Amount
             };
 
-            return await _commissionRepository.CreateAsync(commission);
+            var createdCommission = await _commissionRepository.CreateAsync(commission);
+
+            // Adicionar automaticamente ao fechamento mensal
+            try
+            {
+                await AddCommissionToMonthlySettlementAsync(createdCommission);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao adicionar comissão {CommissionId} ao fechamento mensal", createdCommission.Id);
+                // Não falhar a criação da comissão se houver erro no fechamento
+            }
+
+            return createdCommission;
+        }
+
+        /// <summary>
+        /// Adiciona uma comissão ao fechamento mensal do parceiro
+        /// </summary>
+        private async Task AddCommissionToMonthlySettlementAsync(Commission commission)
+        {
+            var paymentDate = commission.CreatedAt;
+            var month = paymentDate.Month;
+            var year = paymentDate.Year;
+
+            // Buscar ou criar o fechamento mensal
+            var settlement = await _context.MonthlySettlements
+                .FirstOrDefaultAsync(s => s.CoworkingId == commission.CoworkingId 
+                    && s.ReferenceMonth == month 
+                    && s.ReferenceYear == year);
+
+            if (settlement == null)
+            {
+                settlement = new MonthlySettlement
+                {
+                    CoworkingId = commission.CoworkingId,
+                    ReferenceMonth = month,
+                    ReferenceYear = year,
+                    Status = SettlementStatus.Open,
+                    TotalAmount = 0,
+                    TotalGrossAmount = 0,
+                    TotalPlatformCommission = 0,
+                    CommissionCount = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.MonthlySettlements.Add(settlement);
+                await _context.SaveChangesAsync();
+            }
+
+            // Verificar se a comissão já está no fechamento
+            var existingLink = await _context.SettlementCommissions
+                .AnyAsync(sc => sc.CommissionId == commission.Id);
+
+            if (existingLink || settlement.Status != SettlementStatus.Open)
+            {
+                return; // Já existe ou fechamento não está aberto
+            }
+
+            // Calcular valor líquido do parceiro
+            var partnerAmount = commission.TotalPaymentAmount - commission.Amount;
+
+            var settlementCommission = new SettlementCommission
+            {
+                MonthlySettlementId = settlement.Id,
+                CommissionId = commission.Id,
+                Amount = partnerAmount,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.SettlementCommissions.Add(settlementCommission);
+
+            // Atualizar totais
+            settlement.TotalAmount += partnerAmount;
+            settlement.TotalGrossAmount += commission.TotalPaymentAmount;
+            settlement.TotalPlatformCommission += commission.Amount;
+            settlement.CommissionCount++;
+            settlement.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Comissão {CommissionId} adicionada ao fechamento {SettlementId}. Valor parceiro: {Amount}", 
+                commission.Id, settlement.Id, partnerAmount);
         }
 
         public async Task<List<Commission>> GetPendingCommissionsAsync(int coworkingId)
