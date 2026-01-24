@@ -911,9 +911,11 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             await _auditService.LogActionAsync(userId, "DocumentApproved", "CoworkingDocument", documentId, "{\"Status\":\"Pending\"}", "{\"Status\":\"Approved\"}");
             TempData["Success"] = "Documento aprovado.";
-            var redirectParams = new { id = doc.CoworkingId };
-            if (page.HasValue) redirectParams = new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 };
-            return RedirectToAction("ViewCoworking", redirectParams);
+            if (page.HasValue)
+            {
+                return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 });
+            }
+            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
         }
 
         [HttpPost]
@@ -932,9 +934,11 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             await _auditService.LogActionAsync(userId, "DocumentRejected", "CoworkingDocument", documentId, "{\"Status\":\"" + oldStatus + "\"}", "{\"Status\":\"Rejected\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(doc.RejectionReason) + "}");
             TempData["Success"] = "Documento rejeitado. O coworking verá o motivo no perfil.";
-            var redirectParams = new { id = doc.CoworkingId };
-            if (page.HasValue) redirectParams = new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 };
-            return RedirectToAction("ViewCoworking", redirectParams);
+            if (page.HasValue)
+            {
+                return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId, page = page.Value, pageSize = pageSize ?? 4 });
+            }
+            return RedirectToAction("ViewCoworking", new { id = doc.CoworkingId });
         }
 
         [HttpPost]
