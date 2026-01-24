@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using System.Globalization;
 using System.Security.Claims;
@@ -50,6 +51,33 @@ namespace KlyonHubPlatform.Api.Controllers
             _reservationTransferService = reservationTransferService;
             _systemConfig = systemConfig;
             _sefazService = sefazService;
+        }
+
+        private async Task RefreshUserPrincipalAsync(User user)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Name, user.FullName)
+            };
+
+            var tokenClaim = User.FindFirst("Token");
+            if (tokenClaim != null)
+            {
+                claims.Add(new Claim("Token", tokenClaim.Value));
+            }
+
+            foreach (var roleClaim in User.FindAll(ClaimTypes.Role))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
+            }
+
+            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+
+            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            HttpContext.Session.SetString("UserName", user.FullName);
         }
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
@@ -164,6 +192,11 @@ namespace KlyonHubPlatform.Api.Controllers
             // Preencher o email do usuário logado automaticamente
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
+            
+            // Buscar o FullName do usuário da tabela Users
+            var user = await _context.Users.FindAsync(userId);
+            ViewBag.UserFullName = user?.FullName ?? string.Empty;
+            
             return View();
         }
 
@@ -199,8 +232,41 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Error"] = "Nome e CNPJ são obrigatórios.";
                     var userEmail = User.FindFirstValue(ClaimTypes.Email);
                     ViewBag.UserEmail = userEmail;
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
                     return View(coworking);
                 }
+
+                // Validar CNPJ
+                var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
+                {
+                    TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
+                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
+                    ViewBag.UserEmail = userEmail;
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
+                    return View(coworking);
+                }
+
+                // Verificar se o CNPJ já está cadastrado
+                var existingCNPJ = await _context.Coworkings
+                    .Where(c => c.CNPJ != null && 
+                        c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
+                    .FirstOrDefaultAsync();
+                
+                if (existingCNPJ != null)
+                {
+                    TempData["Error"] = $"O CNPJ {coworking.CNPJ} já está cadastrado no sistema.";
+                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
+                    ViewBag.UserEmail = userEmail;
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
+                    return View(coworking);
+                }
+
+                // Formatar CNPJ com máscara
+                coworking.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
 
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 coworking.UserId = userId;
@@ -294,6 +360,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 await _context.SaveChangesAsync();
+
+                // Atualizar o FullName do usuário na tabela Users com o nome do coworking
+                var userToUpdate = await _context.Users.FindAsync(userId);
+                if (userToUpdate != null && !string.IsNullOrWhiteSpace(coworking.Name))
+                {
+                    userToUpdate.FullName = coworking.Name;
+                    userToUpdate.UpdatedAt = DateTime.UtcNow;
+                    _context.Users.Update(userToUpdate);
+                    await _context.SaveChangesAsync();
+                    await RefreshUserPrincipalAsync(userToUpdate);
+                }
 
                 TempData["Success"] = "Coworking cadastrado com sucesso!";
                 return RedirectToAction("Dashboard");
@@ -1541,6 +1618,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == coworkingEntity.Id);
 
+            // Buscar o FullName do usuário da tabela Users para preencher o campo Name
+            var user = await _context.Users.FindAsync(userId);
+            ViewBag.UserFullName = user?.FullName ?? coworkingEntity.Name;
+
             // Carregar Products separadamente para evitar erro se a tabela não existir
             if (coworkingWithDetails != null)
             {
@@ -1639,6 +1720,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
             ViewBag.BlockedDates = blockedDates;
 
+            // Email principal vem da tabela Users (somente leitura na tela)
+            ViewBag.UserEmail = user?.Email ?? User.FindFirstValue(ClaimTypes.Email);
+
             return View(coworkingWithDetails ?? coworkingEntity);
         }
 
@@ -1647,6 +1731,9 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
+                // Verificar se é requisição AJAX (declarar uma única vez no início do método)
+                var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
+                
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = existingCoworking.FirstOrDefault();
@@ -1663,13 +1750,70 @@ namespace KlyonHubPlatform.Api.Controllers
                 switch (activeTab)
                 {
                     case "basic":
+                        // Validar que o nome é obrigatório
+                        if (string.IsNullOrWhiteSpace(coworking.Name))
+                        {
+                            var errorMessage = "Nome do Coworking é obrigatório.";
+                            TempData["Error"] = errorMessage;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = errorMessage });
+                            }
+                            return RedirectToAction("Profile");
+                        }
+
+                        // Validar CNPJ antes de atualizar
+                        if (string.IsNullOrWhiteSpace(coworking.CNPJ))
+                        {
+                            var errorMessage = "CNPJ é obrigatório.";
+                            TempData["Error"] = errorMessage;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = errorMessage });
+                            }
+                            return RedirectToAction("Profile");
+                        }
+
+                        var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                        if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
+                        {
+                            var errorMessage = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
+                            TempData["Error"] = errorMessage;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = errorMessage });
+                            }
+                            return RedirectToAction("Profile");
+                        }
+
+                        // Verificar se o CNPJ já está cadastrado em outro coworking
+                        var existingCNPJ = await _context.Coworkings
+                            .Where(c => c.Id != coworkingEntity.Id && 
+                                c.CNPJ != null && 
+                                c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
+                            .FirstOrDefaultAsync();
+                        
+                        if (existingCNPJ != null)
+                        {
+                            var errorMessage = $"O CNPJ {coworking.CNPJ} já está cadastrado para outro coworking.";
+                            TempData["Error"] = errorMessage;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = errorMessage });
+                            }
+                            return RedirectToAction("Profile");
+                        }
+
+                        // Formatar CNPJ com máscara
+                        coworking.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+
                         coworkingEntity.Name = coworking.Name;
                         coworkingEntity.CNPJ = coworking.CNPJ;
                         coworkingEntity.TradeName = coworking.TradeName;
                         coworkingEntity.Description = coworking.Description;
                         break;
                     case "contact":
-                        coworkingEntity.ContactEmail = coworking.ContactEmail;
+                        // Email principal vem da tabela Users (não atualizar aqui)
                         coworkingEntity.ContactPhone = coworking.ContactPhone;
                         coworkingEntity.SecondaryPhone = coworking.SecondaryPhone;
                         coworkingEntity.SecondaryEmail = coworking.SecondaryEmail;
@@ -1743,6 +1887,20 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _coworkingService.UpdateAsync(coworkingEntity);
 
+                // Atualizar o FullName do usuário na tabela Users com o nome do coworking (apenas se for a aba basic)
+                if (activeTab == "basic" && !string.IsNullOrWhiteSpace(coworking.Name))
+                {
+                    var userToUpdate = await _context.Users.FindAsync(userId);
+                    if (userToUpdate != null)
+                    {
+                        userToUpdate.FullName = coworking.Name;
+                        userToUpdate.UpdatedAt = DateTime.UtcNow;
+                        _context.Users.Update(userToUpdate);
+                        await _context.SaveChangesAsync();
+                        await RefreshUserPrincipalAsync(userToUpdate);
+                    }
+                }
+
                 // Validar se há horários de funcionamento configurados (obrigatório apenas se EnableCoworkingMenus estiver habilitado)
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
@@ -1764,16 +1922,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["ActiveTab"] = activeTab;
                 }
+                
+                // Se for requisição AJAX, retornar JSON
+                if (isAjaxRequest)
+                {
+                    return Json(new { success = true, message = "Perfil atualizado com sucesso!" });
+                }
+                
+                TempData["Success"] = "Perfil atualizado com sucesso!";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao atualizar dados: {ex.Message}";
+                // Verificar se é requisição AJAX no catch também
+                var isAjaxRequestCatch = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
+                
+                var errorMessage = $"Erro ao atualizar dados: {ex.Message}";
+                TempData["Error"] = errorMessage;
                 var activeTab = Request.Form["activeTab"].ToString();
                 if (!string.IsNullOrEmpty(activeTab))
                 {
                     TempData["ActiveTab"] = activeTab;
                 }
+                
+                // Se for requisição AJAX, retornar JSON com erro
+                if (isAjaxRequestCatch)
+                {
+                    return Json(new { success = false, error = errorMessage });
+                }
+                
                 return RedirectToAction("Profile");
             }
         }

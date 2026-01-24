@@ -267,6 +267,11 @@
             form.classList.contains('confirm-required')) {
             return;
         }
+
+        // Não mostrar loading se o formulário estiver inválido (inclui validações customizadas via setCustomValidity)
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+            return;
+        }
         
         // Garantir que o overlay existe antes de mostrar
         let overlay = document.getElementById('klyon-loading-overlay');
