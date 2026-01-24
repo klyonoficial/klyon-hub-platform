@@ -121,6 +121,12 @@ builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 builder.Services.AddScoped<IReservationTransferService, ReservationTransferService>();
 
+// Chatbot Services
+builder.Services.AddScoped<IChatbotRepository, ChatbotRepository>();
+builder.Services.AddScoped<IChatbotService, ChatbotService>();
+builder.Services.AddScoped<IAIIntentionService, AIIntentionService>();
+builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
+
 // PagBank Service
 builder.Services.AddHttpClient<PagBankService>();
 builder.Services.AddScoped<IPagBankService, PagBankService>();
@@ -130,6 +136,9 @@ builder.Services.AddHttpClient<ID4SignService, D4SignService>();
 
 // Address Declaration Service
 builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService>();
+
+// Client Menu (ex.: ocultar "Localidades Disponíveis" quando cliente tem endereço ativo)
+builder.Services.AddScoped<IClientMenuService, ClientMenuService>();
 
 // Storage Services
 builder.Services.AddScoped<AWSStorageService>();

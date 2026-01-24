@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 using System.Linq;
 
 namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
@@ -11,24 +11,27 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
     public class CacheControlMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly IHostEnvironment _environment;
+        private readonly IConfiguration _configuration;
 
-        public CacheControlMiddleware(RequestDelegate next, IHostEnvironment environment)
+        public CacheControlMiddleware(RequestDelegate next, IConfiguration configuration)
         {
             _next = next;
-            _environment = environment;
+            _configuration = configuration;
         }
 
         public async Task InvokeAsync(HttpContext context)
         {
+            // Verificar se o cache está desabilitado via configuração
+            var disableBrowserCache = _configuration.GetValue<bool>("AppSettings:DisableBrowserCache", false);
+            
             // Determinar o tipo de cache ANTES de processar a requisição
             var path = context.Request.Path.Value?.ToLower() ?? "";
             string? cacheControlValue = null;
             string? pragmaValue = null;
             string? expiresValue = null;
 
-            // Em desenvolvimento, desabilitar cache para refletir mudanças imediatamente
-            if (_environment.IsDevelopment())
+            // Se o cache estiver desabilitado, aplicar no-cache para todas as rotas de Client, Coworking e Admin
+            if (disableBrowserCache && (IsClientRoute(path) || IsCoworkingRoute(path) || IsAdminRoute(path)))
             {
                 cacheControlValue = "no-store, no-cache, must-revalidate, private";
                 pragmaValue = "no-cache";
@@ -77,6 +80,32 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
 
             // Processar a requisição
             await _next(context);
+        }
+
+        /// <summary>
+        /// Verifica se a rota é do Client.
+        /// </summary>
+        private bool IsClientRoute(string path)
+        {
+            return path.StartsWith("/client/");
+        }
+
+        /// <summary>
+        /// Verifica se a rota é do Coworking/Parceiro.
+        /// </summary>
+        private bool IsCoworkingRoute(string path)
+        {
+            return path.StartsWith("/coworking/") || 
+                   path.StartsWith("/parceiro/") || 
+                   path.StartsWith("/partner/");
+        }
+
+        /// <summary>
+        /// Verifica se a rota é do Admin.
+        /// </summary>
+        private bool IsAdminRoute(string path)
+        {
+            return path.StartsWith("/admin/");
         }
 
         /// <summary>

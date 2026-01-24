@@ -156,6 +156,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 return View();
             }
 
+            // IMPORTANTE: Este método apenas cria o usuário e atribui a role.
+            // NÃO cria Client nem Contract automaticamente.
+            // O cliente deve ser criado separadamente através de /Client/RegisterClient
+            // e os contratos devem ser criados apenas quando o cliente escolher um endereço fiscal.
             var success = await _authService.RegisterAsync(email, password, fullName, role);
             if (!success)
             {

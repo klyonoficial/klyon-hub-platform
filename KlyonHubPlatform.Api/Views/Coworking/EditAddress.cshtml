@@ -16,12 +16,23 @@
     return;
 }
 
+@{
+    var hasActiveContracts = ViewBag.HasActiveContracts as bool? ?? false;
+}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-pencil"></i> Editar Endereço</h2>
     <a href="/Parceiro/MyAddresses" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
+
+@if (hasActiveContracts)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Este endereço possui contrato(s) ativo(s). Não é possível alterar os dados do endereço enquanto houver contrato ativo.
+    </div>
+}
 
 <div class="card">
     <div class="card-body">
@@ -31,27 +42,50 @@
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="ZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" 
-                           value="@Model.ZipCode" placeholder="00000-000" maxlength="9" required
-                           onkeypress="return onlyNumbers(event)"
-                           onblur="buscarCEP(this.value)">
-                    <small class="form-text text-muted">Digite o CEP para buscar o endereço automaticamente</small>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@Model.ZipCode</div>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="ZipCode" name="ZipCode" 
+                               value="@Model.ZipCode" placeholder="00000-000" maxlength="9" required
+                               onkeypress="return onlyNumbers(event)"
+                               onblur="buscarCEP(this.value)">
+                        <small class="form-text text-muted">Digite o CEP para buscar o endereço automaticamente</small>
+                    }
                 </div>
                 <div class="col-md-8 mb-3">
                     <label for="LocationId" class="form-label">Localidade <span class="text-danger">*</span></label>
-                    <select class="form-select" id="LocationId" name="LocationId" required onchange="preencherEstado()">
-                        <option value="">Selecione a localidade...</option>
-                        @if (ViewBag.Locations != null)
-                        {
-                            @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location> ?? new List<KlyonHubPlatform.Domain.Entities.Location>())
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">
+                            @if (Model.Location != null)
                             {
-                                var isSelected = Model.LocationId == location.Id;
-                                <option value="@location.Id" data-state="@location.State" selected="@isSelected">
-                                    @location.City/@location.State
-                                </option>
+                                @($"{Model.Location.City}/{Model.Location.State}")
                             }
-                        }
-                    </select>
+                            else
+                            {
+                                <span class="text-muted">N/A</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <select class="form-select" id="LocationId" name="LocationId" required onchange="preencherEstado()">
+                            <option value="">Selecione a localidade...</option>
+                            @if (ViewBag.Locations != null)
+                            {
+                                @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location> ?? new List<KlyonHubPlatform.Domain.Entities.Location>())
+                                {
+                                    var isSelected = Model.LocationId == location.Id;
+                                    <option value="@location.Id" data-state="@location.State" selected="@isSelected">
+                                        @location.City/@location.State
+                                    </option>
+                                }
+                            }
+                        </select>
+                    }
                 </div>
             </div>
 
@@ -59,11 +93,25 @@
             <div class="row">
                 <div class="col-md-8 mb-3">
                     <label for="Address" class="form-label">Endereço <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@Model.Address</div>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
+                    }
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="Number" class="form-label">Número <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="Number" name="Number" value="@Model.Number" required>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@Model.Number</div>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Number" name="Number" value="@Model.Number" required>
+                    }
                 </div>
             </div>
 
@@ -71,11 +119,25 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="Complement" class="form-label">Complemento</label>
-                    <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement">
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@(Model.Complement ?? "-")</div>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement">
+                    }
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="Neighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood" required>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@Model.Neighborhood</div>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood" required>
+                    }
                 </div>
             </div>
 
@@ -106,15 +168,29 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="BasePrice" class="form-label">Preço Base (R$) <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" 
-                           value="@Model.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" required>
-                    <small class="form-text text-muted">O valor deve ser maior ou igual a zero</small>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">R$ @Model.BasePrice.ToString("F2")</div>
+                    }
+                    else
+                    {
+                        <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" 
+                               value="@Model.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" required>
+                        <small class="form-text text-muted">O valor deve ser maior ou igual a zero</small>
+                    }
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="MaxContracts" class="form-label">Máximo de Contratos <span class="text-danger">*</span></label>
-                    <input type="number" class="form-control" id="MaxContracts" name="MaxContracts" 
-                           value="@Model.MaxContracts" min="@Model.CurrentContracts" required>
-                    <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">@Model.MaxContracts</div>
+                    }
+                    else
+                    {
+                        <input type="number" class="form-control" id="MaxContracts" name="MaxContracts" 
+                               value="@Model.MaxContracts" min="@Model.CurrentContracts" required>
+                        <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
+                    }
                 </div>
             </div>
 
@@ -187,28 +263,46 @@
                 </div>
             </div>
 
-            <div class="alert alert-info mb-3">
-                <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
-            </div>
+            @if (ViewBag.HasRoomRental == true)
+            {
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
+                </div>
+            }
 
             <!-- Status: checkbox DEVE vir antes do hidden para o model binder usar "true" quando marcado -->
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="IsAvailable" name="IsAvailable" 
-                               value="true" @(Model.IsAvailable ? "checked" : "")>
-                        <label class="form-check-label" for="IsAvailable">
-                            Endereço Disponível
-                        </label>
-                    </div>
-                    <input type="hidden" name="IsAvailable" value="false">
-                    <small class="form-text text-muted">Desmarque para tornar o endereço indisponível</small>
+                    <label class="form-label">Status</label>
+                    @if (hasActiveContracts)
+                    {
+                        <div class="form-control-plaintext">
+                            <span class="badge bg-@(Model.IsAvailable ? "success" : "danger")">
+                                @(Model.IsAvailable ? "Disponível" : "Indisponível")
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="IsAvailable" name="IsAvailable" 
+                                   value="true" @(Model.IsAvailable ? "checked" : "")>
+                            <label class="form-check-label" for="IsAvailable">
+                                Endereço Disponível
+                            </label>
+                        </div>
+                        <input type="hidden" name="IsAvailable" value="false">
+                        <small class="form-text text-muted">Desmarque para tornar o endereço indisponível</small>
+                    }
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-check-circle"></i> Atualizar Endereço
-            </button>
+            @if (!hasActiveContracts)
+            {
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> Atualizar Endereço
+                </button>
+            }
         </form>
     </div>
 </div>
@@ -234,9 +328,14 @@ function onlyNumbers(event) {
 }
 
 // Aplicar máscara de CEP
-document.getElementById('ZipCode').addEventListener('input', function(e) {
-    e.target.value = formatarCEP(e.target.value);
-});
+if (!hasActiveContracts) {
+    var zipCodeInput = document.getElementById('ZipCode');
+    if (zipCodeInput) {
+        zipCodeInput.addEventListener('input', function(e) {
+            e.target.value = formatarCEP(e.target.value);
+        });
+    }
+}
 
 // Buscar CEP via API ViaCEP
 async function buscarCEP(cep) {
@@ -290,46 +389,57 @@ function preencherEstado() {
 }
 
 // Validar preço base (não permitir valores negativos)
-document.getElementById('BasePrice').addEventListener('input', function(e) {
-    const value = parseFloat(e.target.value);
-    if (value < 0) {
-        e.target.setCustomValidity('O preço base não pode ser negativo.');
-        e.target.value = '';
-    } else {
-        e.target.setCustomValidity('');
-    }
-});
-
-// Validar maxContracts (não pode ser menor que currentContracts)
-document.getElementById('MaxContracts').addEventListener('input', function(e) {
-    const minValue = parseInt(e.target.min);
-    const value = parseInt(e.target.value);
-    if (value < minValue) {
-        e.target.setCustomValidity('O máximo de contratos não pode ser menor que ' + minValue + '.');
-    } else {
-        e.target.setCustomValidity('');
-    }
-});
-
-// Validar antes de enviar o formulário
-document.querySelector('form').addEventListener('submit', function(e) {
-    const basePrice = parseFloat(document.getElementById('BasePrice').value);
-    if (basePrice < 0) {
-        e.preventDefault();
-        showToast('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.', 'warning');
-        document.getElementById('BasePrice').focus();
-        return false;
+if (!hasActiveContracts) {
+    var basePriceInput = document.getElementById('BasePrice');
+    if (basePriceInput) {
+        basePriceInput.addEventListener('input', function(e) {
+            const value = parseFloat(e.target.value);
+            if (value < 0) {
+                e.target.setCustomValidity('O preço base não pode ser negativo.');
+                e.target.value = '';
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
     }
 
-    const maxContracts = parseInt(document.getElementById('MaxContracts').value);
-    const minContracts = parseInt(document.getElementById('MaxContracts').min);
-    if (maxContracts < minContracts) {
-        e.preventDefault();
-        showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
-        document.getElementById('MaxContracts').focus();
-        return false;
+    // Validar maxContracts (não pode ser menor que currentContracts)
+    var maxContractsInput = document.getElementById('MaxContracts');
+    if (maxContractsInput) {
+        maxContractsInput.addEventListener('input', function(e) {
+            const minValue = parseInt(e.target.min);
+            const value = parseInt(e.target.value);
+            if (value < minValue) {
+                e.target.setCustomValidity('O máximo de contratos não pode ser menor que ' + minValue + '.');
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
     }
-});
+
+    // Validar antes de enviar o formulário
+    var form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const basePrice = parseFloat(document.getElementById('BasePrice').value);
+            if (basePrice < 0) {
+                e.preventDefault();
+                showToast('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.', 'warning');
+                document.getElementById('BasePrice').focus();
+                return false;
+            }
+
+            const maxContracts = parseInt(document.getElementById('MaxContracts').value);
+            const minContracts = parseInt(document.getElementById('MaxContracts').min);
+            if (maxContracts < minContracts) {
+                e.preventDefault();
+                showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
+                document.getElementById('MaxContracts').focus();
+                return false;
+            }
+        });
+    }
+}
 
 // Solicitar alteração de capacidade fiscal
 document.getElementById('btnRequestCapacityChange')?.addEventListener('click', async function() {

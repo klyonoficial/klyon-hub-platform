@@ -113,12 +113,6 @@ namespace KlyonHubPlatform.Application.Services
                     if (!address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
                         throw new InvalidOperationException("Endereço não disponível para contrato");
 
-                    // Validar capacidade fiscal aprovada
-                    if (address.CurrentContracts >= address.ApprovedFiscalCapacity)
-                    {
-                        throw new InvalidOperationException($"Não é possível criar contrato. A capacidade fiscal aprovada ({address.ApprovedFiscalCapacity}) já foi atingida. Contratos ativos: {address.CurrentContracts}");
-                    }
-
                     // Capturar valores para congelamento (snapshot)
                     decimal commissionPercentage = await GetCommissionPercentageAsync(address);
                     decimal platformCommissionPercentage = commissionPercentage;

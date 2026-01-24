@@ -147,7 +147,38 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<List<Commission>> GetPendingCommissionsAsync(int coworkingId)
         {
-            return await _commissionRepository.GetPendingTransfersAsync(coworkingId);
+            // Buscar comissões que não foram transferidas
+            var allPending = await _commissionRepository.GetPendingTransfersAsync(coworkingId);
+            
+            // Buscar transfers pendentes ou em processamento do mesmo coworking
+            var pendingTransfers = await _context.Transfers
+                .Where(t => t.CoworkingId == coworkingId && 
+                           (t.Status == TransferStatus.Pending || t.Status == TransferStatus.Processing))
+                .ToListAsync();
+            
+            // Extrair IDs de comissões que estão em transfers pendentes
+            var commissionIdsInPendingTransfers = new HashSet<int>();
+            foreach (var transfer in pendingTransfers)
+            {
+                if (!string.IsNullOrEmpty(transfer.Description) && transfer.Description.Contains("CommissionIds:"))
+                {
+                    var idsPart = transfer.Description.Split("CommissionIds:")[1];
+                    if (!string.IsNullOrEmpty(idsPart))
+                    {
+                        var ids = idsPart.Split(',');
+                        foreach (var idStr in ids)
+                        {
+                            if (int.TryParse(idStr.Trim(), out var commissionId))
+                            {
+                                commissionIdsInPendingTransfers.Add(commissionId);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Retornar apenas comissões que não estão em transfers pendentes
+            return allPending.Where(c => !commissionIdsInPendingTransfers.Contains(c.Id)).ToList();
         }
 
         public async Task<Transfer> CreateTransferAsync(int coworkingId, List<int> commissionIds)
@@ -182,16 +213,15 @@ namespace KlyonHubPlatform.Application.Services
                 ExternalTransferId = Guid.NewGuid().ToString()
             };
 
+            // Armazenar IDs das comissões no Description para poder recuperá-las depois
+            var commissionIdsStr = string.Join(",", commissionIds);
+            transfer.Description = $"Repasse de {commissions.Count}";
+
             _context.Transfers.Add(transfer);
             await _context.SaveChangesAsync();
 
-            // Marcar comissões como transferidas
-            foreach (var commission in commissions)
-            {
-                commission.IsTransferred = true;
-                commission.TransferredAt = DateTime.UtcNow;
-                await _commissionRepository.UpdateAsync(commission);
-            }
+            // NÃO marcar comissões como transferidas aqui - apenas quando o repasse for aprovado e processado
+            // As comissões serão marcadas como transferidas no ProcessTransferAsync quando o status for Completed
 
             return transfer;
         }
@@ -216,6 +246,73 @@ namespace KlyonHubPlatform.Application.Services
             transfer.Status = TransferStatus.Completed;
             transfer.ProcessedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // Agora que o repasse foi processado e está Completed, marcar as comissões como transferidas
+            // Buscar IDs das comissões do Description
+            var commissionIds = new List<int>();
+            if (!string.IsNullOrEmpty(transfer.Description) && transfer.Description.Contains("CommissionIds:"))
+            {
+                var idsPart = transfer.Description.Split("CommissionIds:")[1];
+                if (!string.IsNullOrEmpty(idsPart))
+                {
+                    var ids = idsPart.Split(',');
+                    foreach (var idStr in ids)
+                    {
+                        if (int.TryParse(idStr.Trim(), out var commissionId))
+                        {
+                            commissionIds.Add(commissionId);
+                        }
+                    }
+                }
+            }
+
+            // Se não encontrou IDs no Description, tentar encontrar comissões pela heurística (data e valor)
+            // Isso é para casos antigos onde os IDs não foram armazenados
+            if (commissionIds.Count == 0)
+            {
+                // Buscar comissões do mesmo coworking que não foram transferidas e foram criadas antes do Transfer
+                // e que somam aproximadamente o valor do Transfer
+                var candidateCommissions = await _context.Commissions
+                    .Where(c => c.CoworkingId == transfer.CoworkingId && 
+                               !c.IsTransferred &&
+                               c.CreatedAt <= transfer.CreatedAt.AddHours(1)) // Criadas até 1 hora após o Transfer
+                    .OrderByDescending(c => c.CreatedAt)
+                    .ToListAsync();
+
+                // Tentar encontrar combinação de comissões que soma o valor do Transfer
+                // Como pode ser complexo, vamos usar uma abordagem simples: buscar comissões criadas no mesmo dia
+                var sameDayCommissions = candidateCommissions
+                    .Where(c => c.CreatedAt.Date == transfer.CreatedAt.Date)
+                    .ToList();
+
+                var totalSameDay = sameDayCommissions.Sum(c => c.Amount);
+                // Se a soma das comissões do mesmo dia é próxima ao valor do Transfer, usar essas
+                if (Math.Abs(totalSameDay - transfer.Amount) < 0.01m && sameDayCommissions.Count > 0)
+                {
+                    commissionIds = sameDayCommissions.Select(c => c.Id).ToList();
+                }
+                else
+                {
+                    // Se não encontrou, usar todas as comissões não transferidas que somam aproximadamente o valor
+                    var totalAll = candidateCommissions.Sum(c => c.Amount);
+                    if (Math.Abs(totalAll - transfer.Amount) < 0.01m && candidateCommissions.Count > 0)
+                    {
+                        commissionIds = candidateCommissions.Select(c => c.Id).ToList();
+                    }
+                }
+            }
+
+            // Marcar comissões como transferidas apenas quando o repasse for Completed
+            foreach (var commissionId in commissionIds)
+            {
+                var commission = await _commissionRepository.GetByIdAsync(commissionId);
+                if (commission != null && !commission.IsTransferred)
+                {
+                    commission.IsTransferred = true;
+                    commission.TransferredAt = transfer.ProcessedAt ?? DateTime.UtcNow;
+                    await _commissionRepository.UpdateAsync(commission);
+                }
+            }
 
             return transfer;
         }

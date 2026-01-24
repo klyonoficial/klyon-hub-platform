@@ -55,6 +55,12 @@
         }
     </div>
 }
+else if (ViewBag.HasActiveContract == true)
+{
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Você já possui um contrato ativo. Acesse <a href="@Url.Action("MyContracts", "Client")" class="alert-link">Meus Contratos</a> para gerenciar seu contrato.
+    </div>
+}
 else
 {
     <div class="alert alert-info">

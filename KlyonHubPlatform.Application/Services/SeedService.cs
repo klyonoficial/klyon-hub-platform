@@ -20,41 +20,55 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task SeedInitialDataAsync()
         {
-            // Seed Roles
-            if (!_context.Roles.Any())
+            try
             {
-                _context.Roles.AddRange(
-                    new Role { Name = RoleNames.Administrator, Description = "Administrador da Plataforma" },
-                    new Role { Name = RoleNames.CoworkingPartner, Description = "Coworking Parceiro" },
-                    new Role { Name = RoleNames.Client, Description = "Cliente Final" }
-                );
-                await _context.SaveChangesAsync();
-            }
-
-            // Seed Admin User
-            if (!_context.Users.Any(u => u.Email == "admin@klyon.com"))
-            {
-                var adminUser = new User
+                // Seed Roles
+                if (!_context.Roles.Any())
                 {
-                    Email = "admin@klyon.com",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                    FullName = "Administrador",
-                    IsActive = true,
-                    EmailVerified = true
-                };
-                _context.Users.Add(adminUser);
-                await _context.SaveChangesAsync();
-
-                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Administrator);
-                if (adminRole != null)
-                {
-                    _context.UserRoles.Add(new UserRole
-                    {
-                        UserId = adminUser.Id,
-                        RoleId = adminRole.Id
-                    });
+                    _context.Roles.AddRange(
+                        new Role { Name = RoleNames.Administrator, Description = "Administrador da Plataforma" },
+                        new Role { Name = RoleNames.CoworkingPartner, Description = "Coworking Parceiro" },
+                        new Role { Name = RoleNames.Client, Description = "Cliente Final" }
+                    );
                     await _context.SaveChangesAsync();
                 }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao fazer seed de Roles: {ex.Message}", ex);
+            }
+
+            try
+            {
+                // Seed Admin User
+                if (!_context.Users.Any(u => u.Email == "admin@klyon.com"))
+                {
+                    var adminUser = new User
+                    {
+                        Email = "admin@klyon.com",
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                        FullName = "Administrador",
+                        IsActive = true,
+                        EmailVerified = true
+                    };
+                    _context.Users.Add(adminUser);
+                    await _context.SaveChangesAsync();
+
+                    var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Administrator);
+                    if (adminRole != null)
+                    {
+                        _context.UserRoles.Add(new UserRole
+                        {
+                            UserId = adminUser.Id,
+                            RoleId = adminRole.Id
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao fazer seed de Admin User: {ex.Message}", ex);
             }
 
             // Seed Locations - Uma localidade por estado brasileiro
@@ -105,30 +119,37 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true
                 }).ToList();
 
-            if (locationsToAdd.Any())
+            try
             {
-                _context.Locations.AddRange(locationsToAdd);
+                if (locationsToAdd.Any())
+                {
+                    _context.Locations.AddRange(locationsToAdd);
+                    await _context.SaveChangesAsync();
+                }
+
+                // Seed Location Commissions - Garantir que todas as localidades tenham comissão
+                var allLocations = await _context.Locations.ToListAsync();
+                var existingCommissions = await _context.LocationCommissions.ToListAsync();
+                var locationsWithCommission = existingCommissions.Select(c => c.LocationId).ToHashSet();
+
+                foreach (var location in allLocations)
+                {
+                    if (!locationsWithCommission.Contains(location.Id))
+                    {
+                        _context.LocationCommissions.Add(new LocationCommission
+                        {
+                            LocationId = location.Id,
+                            CommissionPercentage = 15.0m,
+                            IsActive = true
+                        });
+                    }
+                }
                 await _context.SaveChangesAsync();
             }
-
-            // Seed Location Commissions - Garantir que todas as localidades tenham comissão
-            var allLocations = await _context.Locations.ToListAsync();
-            var existingCommissions = await _context.LocationCommissions.ToListAsync();
-            var locationsWithCommission = existingCommissions.Select(c => c.LocationId).ToHashSet();
-
-            foreach (var location in allLocations)
+            catch (Exception ex)
             {
-                if (!locationsWithCommission.Contains(location.Id))
-                {
-                    _context.LocationCommissions.Add(new LocationCommission
-                    {
-                        LocationId = location.Id,
-                        CommissionPercentage = 15.0m,
-                        IsActive = true
-                    });
-                }
+                throw new Exception($"Erro ao fazer seed de Locations: {ex.Message}", ex);
             }
-            await _context.SaveChangesAsync();
 
             // Localidades adicionais (além das capitais): mesmo estado pode ter várias cidades
             var additionalLocations = new[] { ("Cariacica", "ES", "Sudeste") };
@@ -285,10 +306,12 @@ namespace KlyonHubPlatform.Application.Services
                 await _context.SaveChangesAsync();
             }
 
-            // Seed System Configurations
-            if (!_context.SystemConfigurations.Any())
+            try
             {
-                _context.SystemConfigurations.AddRange(
+                // Seed System Configurations
+                if (!_context.SystemConfigurations.Any())
+                {
+                    _context.SystemConfigurations.AddRange(
                     // Email Settings
                     new SystemConfiguration
                     {
@@ -619,8 +642,13 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     }
-                );
-                await _context.SaveChangesAsync();
+                    );
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao fazer seed de SystemConfigurations: {ex.Message}", ex);
             }
 
             // Garantir que existe uma linha em PlatformCreditBalances (conta do administrador).

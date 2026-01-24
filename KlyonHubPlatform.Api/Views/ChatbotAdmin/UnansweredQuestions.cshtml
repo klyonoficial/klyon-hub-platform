@@ -1,0 +1,376 @@
+@{
+    ViewData["Title"] = "Perguntas Não Respondidas - KlyonBoot";
+}
+
+<link rel="stylesheet" href="~/css/klyonboot-admin.css" />
+
+<div class="klyonboot-admin">
+    <div class="klyonboot-admin-header">
+        <a href="/admin/chatbot/dashboard" style="color: #6C5CE7; text-decoration: none; font-size: 24px;">←</a>
+        <div>
+            <h1>❓ Perguntas Não Respondidas</h1>
+            <p style="color: #636E72; margin: 4px 0 0 0;">Gerencie e melhore a base de conhecimento do KlyonBoot</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="section">
+        <div class="filters">
+            <select id="filter-status" class="filter-select">
+                <option value="">Todos os status</option>
+                <option value="pending" selected>Pendente</option>
+                <option value="under_review">Em Revisão</option>
+                <option value="resolved">Resolvido</option>
+                <option value="added_to_faq">Adicionado ao FAQ</option>
+            </select>
+
+            <select id="filter-frequency" class="filter-select">
+                <option value="">Qualquer frequência</option>
+                <option value="5">Mínimo 5 ocorrências</option>
+                <option value="10">Mínimo 10 ocorrências</option>
+                <option value="20">Mínimo 20 ocorrências</option>
+            </select>
+
+            <button onclick="applyFilters()" class="btn-primary">Aplicar Filtros</button>
+        </div>
+    </div>
+
+    <!-- Lista de Perguntas -->
+    <div class="section">
+        <div id="questions-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Carregando perguntas...</p>
+        </div>
+
+        <div id="questions-content" style="display: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Pergunta</th>
+                        <th>Frequência</th>
+                        <th>Intenção Detectada</th>
+                        <th>Categoria Sugerida</th>
+                        <th>Status</th>
+                        <th>Data</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="questions-table-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="questions-empty" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">🎉</div>
+            <h3>Nenhuma pergunta encontrada</h3>
+            <p>Todas as perguntas foram respondidas ou não há registros com os filtros aplicados.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Revisão -->
+<div id="review-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Revisar Pergunta</h3>
+            <button onclick="closeReviewModal()" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Pergunta:</label>
+                <p id="review-question" style="background: #F5F5F5; padding: 12px; border-radius: 8px;"></p>
+            </div>
+
+            <div class="form-group">
+                <label>Status:</label>
+                <select id="review-status" class="form-control">
+                    <option value="pending">Pendente</option>
+                    <option value="under_review">Em Revisão</option>
+                    <option value="resolved">Resolvido</option>
+                    <option value="added_to_faq">Adicionado ao FAQ</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Notas da Revisão:</label>
+                <textarea id="review-notes" class="form-control" rows="4" placeholder="Adicione observações sobre esta pergunta..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeReviewModal()" class="btn-secondary">Cancelar</button>
+            <button onclick="submitReview()" class="btn-primary">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .filters {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .filter-select {
+        padding: 10px 14px;
+        border: 1px solid #DFE6E9;
+        border-radius: 8px;
+        font-size: 14px;
+        min-width: 200px;
+    }
+
+    .btn-primary {
+        padding: 10px 20px;
+        background: #6C5CE7;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: #5B4BC9;
+    }
+
+    .btn-secondary {
+        padding: 10px 20px;
+        background: #DFE6E9;
+        color: #2D3436;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #B2BEC3;
+    }
+
+    .btn-action {
+        padding: 6px 12px;
+        background: #6C5CE7;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+        background: #5B4BC9;
+    }
+
+    /* Modal */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 600px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #DFE6E9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 20px;
+        color: #2D3436;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 32px;
+        color: #636E72;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #DFE6E9;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #2D3436;
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #DFE6E9;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #6C5CE7;
+        box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let questions = [];
+        let currentQuestionId = null;
+        const currentUserId = 1; // TODO: Pegar do contexto do usuário logado
+
+        async function loadQuestions() {
+            try {
+                const status = document.getElementById('filter-status').value;
+                const minFrequency = document.getElementById('filter-frequency').value;
+
+                let url = '/api/chatbot/admin/unanswered-questions';
+                const params = new URLSearchParams();
+                if (status) params.append('status', status);
+                if (minFrequency) params.append('minFrequency', minFrequency);
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+
+                const response = await fetch(url);
+                questions = await response.json();
+
+                document.getElementById('questions-loading').style.display = 'none';
+
+                if (questions.length === 0) {
+                    document.getElementById('questions-empty').style.display = 'block';
+                    document.getElementById('questions-content').style.display = 'none';
+                    return;
+                }
+
+                document.getElementById('questions-empty').style.display = 'none';
+                document.getElementById('questions-content').style.display = 'block';
+
+                renderQuestions();
+            } catch (error) {
+                console.error('Erro ao carregar perguntas:', error);
+            }
+        }
+
+        function renderQuestions() {
+            const tbody = document.getElementById('questions-table-body');
+            tbody.innerHTML = '';
+
+            questions.forEach(q => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${q.question}</td>
+                    <td><strong style="color: #6C5CE7;">${q.frequency}x</strong></td>
+                    <td>${q.detectedIntention || '-'}</td>
+                    <td>${q.suggestedCategory || '-'}</td>
+                    <td><span class="badge-status ${q.status}">${getStatusLabel(q.status)}</span></td>
+                    <td>${new Date(q.createdAt).toLocaleDateString('pt-BR')}</td>
+                    <td>
+                        <button class="btn-action" onclick="openReviewModal(${q.id})">Revisar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function applyFilters() {
+            document.getElementById('questions-loading').style.display = 'block';
+            document.getElementById('questions-content').style.display = 'none';
+            document.getElementById('questions-empty').style.display = 'none';
+            loadQuestions();
+        }
+
+        function openReviewModal(questionId) {
+            const question = questions.find(q => q.id === questionId);
+            if (!question) return;
+
+            currentQuestionId = questionId;
+            document.getElementById('review-question').textContent = question.question;
+            document.getElementById('review-status').value = question.status;
+            document.getElementById('review-notes').value = question.reviewNotes || '';
+            document.getElementById('review-modal').style.display = 'flex';
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').style.display = 'none';
+            currentQuestionId = null;
+        }
+
+        async function submitReview() {
+            try {
+                const status = document.getElementById('review-status').value;
+                const notes = document.getElementById('review-notes').value;
+
+                await fetch(`/api/chatbot/admin/unanswered-questions/${currentQuestionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: status,
+                        reviewedBy: currentUserId,
+                        notes: notes
+                    })
+                });
+
+                closeReviewModal();
+                loadQuestions();
+            } catch (error) {
+                console.error('Erro ao salvar revisão:', error);
+                alert('Erro ao salvar revisão. Tente novamente.');
+            }
+        }
+
+        function getStatusLabel(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'under_review': 'Em Revisão',
+                'resolved': 'Resolvido',
+                'added_to_faq': 'Adicionado ao FAQ'
+            };
+            return labels[status] || status;
+        }
+
+        // Inicializar
+        window.addEventListener('DOMContentLoaded', () => {
+            loadQuestions();
+        });
+    </script>
+}

@@ -92,17 +92,21 @@ else
     }
     else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
     {
-        <div class="alert alert-success mb-4">
-            <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
-            @if (showCoworkingMenus)
-            {
-                <text>Seu espaço está disponível no marketplace para que clientes possam alugar.</text>
-            }
-            else
-            {
-                <text>Você já pode cadastrar endereços fiscais e receber clientes.</text>
-            }
-        </div>
+        @* Só mostra esta mensagem se não houver uma notificação especial de aprovação sendo exibida acima *@
+        @if (!(ViewBag.HasStatusNotification == true && (KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus)ViewBag.StatusNotificationType == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved))
+        {
+            <div class="alert alert-success mb-4">
+                <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
+                @if (showCoworkingMenus)
+                {
+                    <text>Seu espaço está disponível no marketplace para que clientes possam alugar.</text>
+                }
+                else
+                {
+                    <text>Você já pode cadastrar endereços fiscais e receber clientes.</text>
+                }
+            </div>
+        }
     }
 
     @* Seção de Alertas Administrativos *@
@@ -147,11 +151,11 @@ else
 
     <div class="row mb-4">
         <div class="col-md-2">
-            <div class="card text-white bg-primary">
+            <div class="card text-white bg-primary" data-drilldown="@Url.Action("ActiveContracts", "Parceiro")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal</h5>
                     <h2 class="display-4">@ViewBag.ActiveContracts</h2>
-                    <a href="@Url.Action("ActiveContracts", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                    <a href="@Url.Action("ActiveContracts", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
                         <i class="bi bi-arrow-right"></i> Ver Todos
                     </a>
                 </div>
@@ -160,11 +164,11 @@ else
         @if (showCoworkingMenus)
         {
             <div class="col-md-2">
-                <div class="card text-white" style="background-color: #6f42c1;">
+                <div class="card text-white" style="background-color: #6f42c1;" data-drilldown="@Url.Action("Reservations", "Parceiro")">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-calendar-check"></i> Reservas</h5>
                         <h2 class="display-4">@(ViewBag.PendingReservationsCount ?? 0)</h2>
-                        <a href="@Url.Action("Reservations", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                        <a href="@Url.Action("Reservations", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
                             <i class="bi bi-arrow-right"></i> Ver Todas
                         </a>
                     </div>
@@ -172,13 +176,13 @@ else
             </div>
         }
         <div class="col-md-2">
-            <div class="card text-white bg-warning">
+            <div class="card text-white bg-warning" data-drilldown="@((ViewBag.PendingPaymentsCount ?? 0) > 0 ? Url.Action("PendingPayments", "Parceiro") : "#")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagamentos</h5>
                     <h2 class="display-4">@(ViewBag.PendingPaymentsCount ?? 0)</h2>
                     @if ((ViewBag.PendingPaymentsCount ?? 0) > 0)
                     {
-                        <a href="@Url.Action("PendingPayments", "Coworking")" class="btn btn-light btn-sm mt-2 w-100">
+                        <a href="@Url.Action("PendingPayments", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
                             <i class="bi bi-arrow-right"></i> Validar
                         </a>
                     }
@@ -186,7 +190,7 @@ else
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-success">
+            <div class="card text-white bg-success" data-drilldown="@Url.Action("Commissions", "Parceiro")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-trophy-fill"></i> Ganhos Pendentes</h5>
                     <h2 class="mb-0" style="font-size: 2.2rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
@@ -194,7 +198,7 @@ else
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card text-white bg-info">
+            <div class="card text-white bg-info" data-drilldown="@Url.Action("MyAddresses", "Parceiro")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>
                     <h2 class="display-4">@(ViewBag.TotalAddresses ?? 0)</h2>

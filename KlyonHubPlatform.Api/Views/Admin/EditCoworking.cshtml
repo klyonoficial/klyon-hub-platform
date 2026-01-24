@@ -4,6 +4,8 @@
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
+@using KlyonHubPlatform.Domain.Entities
+@using KlyonHubPlatform.Domain.Core.Enums
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Editar Coworking - @Model.Name</h2>
@@ -12,39 +14,352 @@
     </a>
 </div>
 
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Para editar os dados do coworking, utilize a funcionalidade de perfil do próprio coworking. 
-    Esta página permite visualizar e gerenciar informações administrativas.
-</div>
+<form method="post" action="@Url.Action("UpdateCoworking", "Admin")" id="editCoworkingForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Id" value="@Model.Id" />
 
-<div class="card">
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-12">
-                <p><strong>ID:</strong> @Model.Id</p>
-                <p><strong>Nome:</strong> @Model.Name</p>
-                <p><strong>CNPJ:</strong> @Model.CNPJ</p>
-                <p><strong>Email:</strong> @Model.ContactEmail</p>
-                <p><strong>Status:</strong> 
-                    <span class="badge bg-@(Model.IsActive ? "success" : "danger")">
-                        @(Model.IsActive ? "Ativo" : "Inativo")
-                    </span>
-                </p>
-                <p><strong>Tipo:</strong> 
-                    <span class="badge bg-@(Model.IsPartner ? "primary" : "secondary")">
-                        @(Model.IsPartner ? "Parceiro" : "Próprio")
-                    </span>
-                </p>
+    <div class="row">
+        <div class="col-md-12">
+            <!-- Dados Básicos -->
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dadosBasicos" aria-expanded="true" aria-controls="dadosBasicos">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dados Básicos <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse show" id="dadosBasicos">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Nome do Coworking <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="Name" value="@Model.Name" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">CNPJ <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="CNPJ" value="@Model.CNPJ" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Nome Fantasia</label>
+                            <input type="text" class="form-control" name="TradeName" value="@(Model.TradeName ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Status</label>
+                            <select class="form-select" name="IsActive">
+                                @if (Model.IsActive)
+                                {
+                                    <option value="true" selected>Ativo</option>
+                                    <option value="false">Inativo</option>
+                                }
+                                else
+                                {
+                                    <option value="true">Ativo</option>
+                                    <option value="false" selected>Inativo</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Aprovação do cadastro</label>
+                            <select class="form-select" name="ApprovalStatus">
+                                <option value="0" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.UnderReview)">Aguardando aprovação</option>
+                                <option value="1" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)">Aguardando ajuste</option>
+                                <option value="2" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.Approved)">Aprovado</option>
+                            </select>
+                        </div>
+                        @if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment && !string.IsNullOrEmpty(Model.RejectionReason))
+                        {
+                            <div class="col-12 mb-3">
+                                <label class="form-label fw-bold text-danger">Motivo da reprovação / Itens a corrigir</label>
+                                <textarea class="form-control" name="RejectionReason" rows="3">@Model.RejectionReason</textarea>
+                            </div>
+                        }
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Tipo</label>
+                            <select class="form-select" name="IsPartner">
+                                @if (Model.IsPartner)
+                                {
+                                    <option value="true" selected>Parceiro</option>
+                                    <option value="false">Próprio</option>
+                                }
+                                else
+                                {
+                                    <option value="true">Parceiro</option>
+                                    <option value="false" selected>Próprio</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Data de Cadastro</label>
+                            <p class="form-control-plaintext">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contatos -->
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#contatos" aria-expanded="false" aria-controls="contatos">
+                    <h5 class="mb-0"><i class="bi bi-telephone"></i> Contatos <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="contatos">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Email de Contato</label>
+                            <input type="email" class="form-control" name="ContactEmail" value="@(Model.ContactEmail ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Telefone</label>
+                            <input type="text" class="form-control" name="ContactPhone" value="@(Model.ContactPhone ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Email Secundário</label>
+                            <input type="email" class="form-control" name="SecondaryEmail" value="@(Model.SecondaryEmail ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Telefone Secundário</label>
+                            <input type="text" class="form-control" name="SecondaryPhone" value="@(Model.SecondaryPhone ?? "")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dados Bancários -->
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#dadosBancarios" aria-expanded="false" aria-controls="dadosBancarios">
+                    <h5 class="mb-0"><i class="bi bi-bank"></i> Dados Bancários <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="dadosBancarios">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Banco</label>
+                            <input type="text" class="form-control" name="BankName" value="@(Model.BankName ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Agência</label>
+                            <input type="text" class="form-control" name="BankAgency" value="@(Model.BankAgency ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Conta</label>
+                            <input type="text" class="form-control" name="BankAccount" value="@(Model.BankAccount ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Tipo de Conta</label>
+                            <select class="form-select" name="BankAccountType">
+                                <option value="">Selecione...</option>
+                                <option value="Corrente" selected="@(Model.BankAccountType == "Corrente")">Corrente</option>
+                                <option value="Poupança" selected="@(Model.BankAccountType == "Poupança")">Poupança</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Chave PIX</label>
+                            <input type="text" class="form-control" name="BankPixKey" value="@(Model.BankPixKey ?? "")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Endereço -->
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#endereco" aria-expanded="false" aria-controls="endereco">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="endereco">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Logradouro</label>
+                            <input type="text" class="form-control" name="Address" value="@(Model.Address ?? "")" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Número</label>
+                            <input type="text" class="form-control" name="AddressNumber" value="@(Model.AddressNumber ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Complemento</label>
+                            <input type="text" class="form-control" name="AddressComplement" value="@(Model.AddressComplement ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Bairro</label>
+                            <input type="text" class="form-control" name="AddressNeighborhood" value="@(Model.AddressNeighborhood ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Cidade</label>
+                            <input type="text" class="form-control" name="AddressCity" value="@(Model.AddressCity ?? "")" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Estado</label>
+                            <input type="text" class="form-control" name="AddressState" value="@(Model.AddressState ?? "")" maxlength="2" placeholder="Ex: SP" />
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label fw-bold">CEP</label>
+                            <input type="text" class="form-control" name="AddressZipCode" value="@(Model.AddressZipCode ?? "")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informações Adicionais -->
+            <div class="card mb-3">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#infoAdicionais" aria-expanded="false" aria-controls="infoAdicionais">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações Adicionais <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="infoAdicionais">
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">Descrição</label>
+                            <textarea class="form-control" name="Description" rows="4">@(Model.Description ?? "")</textarea>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Website</label>
+                            <input type="url" class="form-control" name="Website" value="@(Model.Website ?? "")" placeholder="https://..." />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Instagram</label>
+                            <input type="text" class="form-control" name="Instagram" value="@(Model.Instagram ?? "")" placeholder="@@usuario" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Facebook</label>
+                            <input type="text" class="form-control" name="Facebook" value="@(Model.Facebook ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">LinkedIn</label>
+                            <input type="text" class="form-control" name="LinkedIn" value="@(Model.LinkedIn ?? "")" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Endereços Cadastrados (somente visualização) -->
+            <div class="card mb-3" id="enderecos">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecosBody" aria-expanded="false" aria-controls="enderecosBody">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços Cadastrados (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="enderecosBody">
+                    @if (Model.Addresses != null && Model.Addresses.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Endereço</th>
+                                        <th>Cidade</th>
+                                        <th>Estado</th>
+                                        <th>Status</th>
+                                        <th>Disponível</th>
+                                        <th>Contratos</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var address in Model.Addresses)
+                                    {
+                                        var addrStatus = address.AddressStatus;
+                                        var (badge, label) = addrStatus == AddressStatus.Active ? ("success", "Ativo")
+                                            : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") : ("secondary", "Removido");
+                                        <tr>
+                                            <td>@address.Address, @address.Number</td>
+                                            <td>@address.City</td>
+                                            <td>@address.State</td>
+                                            <td>
+                                                <span class="badge bg-@badge">@label</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-@(address.IsAvailable ? "success" : "danger")">
+                                                    @(address.IsAvailable ? "Sim" : "Não")
+                                                </span>
+                                            </td>
+                                            <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted small mt-2">
+                            <i class="bi bi-info-circle"></i> Para gerenciar endereços, utilize a tela de visualização.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Nenhum endereço cadastrado.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Fotos (somente visualização) -->
+            <div class="card mb-3" id="fotos">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#fotosBody" aria-expanded="false" aria-controls="fotosBody">
+                    <h5 class="mb-0"><i class="bi bi-images"></i> Fotos (@(Model.Photos?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="fotosBody">
+                    @if (Model.Photos != null && Model.Photos.Any())
+                    {
+                        <div class="row">
+                            @foreach (var photo in Model.Photos)
+                            {
+                                <div class="col-md-3 mb-3">
+                                    <div class="card">
+                                        <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
+                                        @if (!string.IsNullOrEmpty(photo.Description))
+                                        {
+                                            <div class="card-body">
+                                                <p class="card-text small">@photo.Description</p>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <p class="text-muted small mt-2">
+                            <i class="bi bi-info-circle"></i> Para gerenciar fotos, utilize a tela de visualização.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Nenhuma foto cadastrada.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Documentos (somente visualização) -->
+            <div class="card mb-3" id="documentos">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#documentosBody" aria-expanded="false" aria-controls="documentosBody">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios (@(Model.Documents?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
+                </div>
+                <div class="card-body collapse" id="documentosBody">
+                    <p class="text-muted small">
+                        <i class="bi bi-info-circle"></i> Para gerenciar documentos, utilize a tela de visualização.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="d-flex gap-2 mt-3">
-    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-info">
-        <i class="bi bi-eye"></i> Visualizar Detalhes
-    </a>
-    <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar para Lista
-    </a>
-</div>
+    <!-- Botões de Ação -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save"></i> Salvar Alterações
+        </button>
+        <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-secondary">
+            <i class="bi bi-x-circle"></i> Cancelar
+        </a>
+        <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para Lista
+        </a>
+    </div>
+</form>
+
+<script>
+    // Rotacionar ícones de chevron ao expandir/colapsar seções
+    document.addEventListener('DOMContentLoaded', function() {
+        const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]');
+        
+        collapseElements.forEach(function(element) {
+            const chevron = element.querySelector('.bi-chevron-down');
+            if (chevron) {
+                element.addEventListener('shown.bs.collapse', function() {
+                    chevron.classList.remove('bi-chevron-down');
+                    chevron.classList.add('bi-chevron-up');
+                });
+                
+                element.addEventListener('hidden.bs.collapse', function() {
+                    chevron.classList.remove('bi-chevron-up');
+                    chevron.classList.add('bi-chevron-down');
+                });
+            }
+        });
+    });
+</script>

@@ -273,6 +273,12 @@
             return;
         }
         
+        // Verificar se o formulário tem uma flag indicando que a validação customizada falhou
+        // Esta flag é definida pelo validation.js quando há erro de validação customizada
+        if (form.dataset.validationFailed === 'true') {
+            return;
+        }
+        
         // Garantir que o overlay existe antes de mostrar
         let overlay = document.getElementById('klyon-loading-overlay');
         if (!overlay && document.body) {

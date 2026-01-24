@@ -1,8 +1,20 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
+@inject KlyonHubPlatform.Application.Interfaces.IClientMenuService ClientMenuService
+@using System.Security.Claims
 @{
     // Verificar se os menus de coworking estão habilitados
     var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
     var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+
+    // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo (status "Ativo" em Meus Contratos).
+    // Ocultar "Localidades Disponíveis" no menu quando houver endereço ativo.
+    var clientHasActiveContract = false;
+    if (User.IsInRole("Client") && User.Identity?.IsAuthenticated == true)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(userIdStr, out var userId))
+            clientHasActiveContract = await ClientMenuService.ClientHasActiveContractAsync(userId);
+    }
 }
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -197,9 +209,27 @@
                             <a class="nav-link" href="@Url.Action("Reports", "Admin")">
                                 <i class="bi bi-graph-up"></i> Relatórios Financeiros
                             </a>
-                            <a class="nav-link" href="@Url.Action("Payments", "Admin")">
-                                <i class="bi bi-credit-card"></i> Gerenciar Pagamentos
-                            </a>
+                            @* Menu Financeiro com submenu *@
+                            <div class="sidebar-dropdown" id="financeiroAdminDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="financeiroAdminLink" 
+                                   onclick="toggleSidebarMenu('financeiroAdmin'); return false;" 
+                                   href="#">
+                                    <i class="bi bi-wallet2"></i> Financeiro
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="financeiroAdminMenu">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Payments", "Admin")">
+                                            <i class="bi bi-credit-card"></i> Gerenciar Pagamentos
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("Transfers", "Admin")">
+                                            <i class="bi bi-arrow-left-right"></i> Repasses
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                             @* Menu Configuração com submenu *@
                             <div class="sidebar-dropdown" id="configuracaoAdminDropdown">
                                 <a class="nav-link sidebar-dropdown-toggle" id="configuracaoAdminLink" 
@@ -342,52 +372,17 @@
                                 <i class="bi bi-speedometer2"></i> Dashboard
                             </a>
                             
-                            @* Menu Nota Fiscal com submenu *@
-                            <div class="sidebar-dropdown" id="notaFiscalDropdown">
-                                <a class="nav-link sidebar-dropdown-toggle" id="notaFiscalLink" 
-                                   onclick="toggleSidebarMenu('notaFiscal'); return false;" 
-                                   href="#">
-                                    <i class="bi bi-file-earmark-text"></i> Nota Fiscal
-                                    <i class="bi bi-chevron-right float-end"></i>
-                                </a>
-                                <ul class="sidebar-submenu" id="notaFiscalMenu">
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("FiscalNotes", "Client")">
-                                            <i class="bi bi-file-earmark-text"></i> Notas Fiscais
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                            
-                            @* Menu Parceiros com submenu *@
-                            <div class="sidebar-dropdown" id="parceirosDropdown">
-                                <a class="nav-link sidebar-dropdown-toggle" id="parceirosLink" 
-                                   onclick="toggleSidebarMenu('parceiros'); return false;" 
-                                   href="#">
-                                    <i class="bi bi-people"></i> Parceiros
-                                    <i class="bi bi-chevron-right float-end"></i>
-                                </a>
-                                <ul class="sidebar-submenu" id="parceirosMenu">
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("Coworkings", "Client")">
-                                            <i class="bi bi-building"></i> Coworkings Parceiros
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="nav-link" href="@Url.Action("ServiceRemovalRequests", "Client")">
-                                            <i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                            
                             <a class="nav-link" href="@Url.Action("MyContracts", "Client")">
                                 <i class="bi bi-file-earmark-text"></i> Contrato de Endereço Fiscal
                             </a>
                             
-                            <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
-                                <i class="bi bi-geo-alt"></i> Localidades Disponíveis
-                            </a>
+                            @* Só exibir "Localidades Disponíveis" se o cliente NÃO tiver endereço ativo (contrato com status Ativo em Meus Contratos) *@
+                            @if (!clientHasActiveContract)
+                            {
+                                <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
+                                    <i class="bi bi-geo-alt"></i> Localidades Disponíveis
+                                </a>
+                            }
                             
                             @* Menu Financeiro com submenu *@
                             <div class="sidebar-dropdown" id="financeiroDropdown">
@@ -401,6 +396,23 @@
                                     <li>
                                         <a class="nav-link" href="@Url.Action("MyPayments", "Client")">
                                             <i class="bi bi-credit-card"></i> Gerenciar Pagamentos
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            @* Menu Nota Fiscal com submenu *@
+                            <div class="sidebar-dropdown" id="notaFiscalDropdown">
+                                <a class="nav-link sidebar-dropdown-toggle" id="notaFiscalLink" 
+                                   onclick="toggleSidebarMenu('notaFiscal'); return false;" 
+                                   href="#">
+                                    <i class="bi bi-file-earmark-text"></i> Nota Fiscal
+                                    <i class="bi bi-chevron-right float-end"></i>
+                                </a>
+                                <ul class="sidebar-submenu" id="notaFiscalMenu">
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action("FiscalNotes", "Client")">
+                                            <i class="bi bi-file-earmark-text"></i> Notas Fiscais
                                         </a>
                                     </li>
                                 </ul>
@@ -425,8 +437,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="~/js/masks.js" asp-append-version="true"></script>
+    <script src="~/js/validation.js" asp-append-version="true"></script>
     <script src="~/js/loading.js" asp-append-version="true"></script>
     <script src="~/js/autocomplete.js" asp-append-version="true"></script>
+    <script src="~/js/drilldown.js" asp-append-version="true"></script>
     <script>
         // Garantir que os formulários de idioma recarreguem a página após o submit
         document.addEventListener('DOMContentLoaded', function() {
@@ -567,7 +581,7 @@
             }
             
             // Lista de todos os menus dropdown
-            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'parceiros', 'financeiro', 'configuracaoAdmin'];
+            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'financeiro', 'financeiroAdmin', 'configuracaoAdmin'];
             
             menuIds.forEach(function(menuId) {
                 const menu = document.getElementById(menuId + 'Menu');
@@ -949,5 +963,35 @@
     </script>
     
     @await RenderSectionAsync("Scripts", required: false)
+    
+    <!-- KlyonBoot Chat Widget - Temporariamente desabilitado -->
+    @* <script src="~/js/klyonboot.js" asp-append-version="true"></script> *@
+    @* <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar KlyonBoot apenas se o usuário estiver autenticado
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <text>
+                // Obter ID do usuário (pode ser de diferentes fontes dependendo do tipo de usuário)
+                var userId = null;
+                @if (User.IsInRole("Administrator") || User.IsInRole("Client") || User.IsInRole("Coworking"))
+                {
+                    <text>
+                    // Tentar obter o ID do usuário do contexto
+                    userId = @(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "null");
+                    </text>
+                }
+                
+                // Inicializar o widget
+                if (typeof KlyonBoot !== 'undefined') {
+                    window.klyonBoot = new KlyonBoot({
+                        apiBaseUrl: '/api/chatbot',
+                        userId: userId
+                    });
+                }
+                </text>
+            }
+        });
+    </script> *@
 </body>
 </html>

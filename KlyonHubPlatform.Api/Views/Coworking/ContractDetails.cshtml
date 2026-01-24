@@ -185,8 +185,10 @@
                         @foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
                         {
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong>@declaration.DeclarationNumber</strong><br>
+                                <div class="flex-grow-1">
+                                    <a href="@Url.Action("DownloadDeclaration", "Coworking", new { id = declaration.Id })" class="text-decoration-none text-dark fw-bold">
+                                        <i class="bi bi-download me-1"></i>@declaration.DeclarationNumber
+                                    </a><br>
                                     <small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString("dd/MM/yyyy")</small>
                                 </div>
                                 @if (declaration.IsValid)
@@ -221,7 +223,9 @@
                                 _ => "Outro"
                             };
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>@documentTypeText</span>
+                                <a href="@Url.Action("DownloadContractDocument", "Coworking", new { id = doc.Id })" class="text-decoration-none text-dark">
+                                    <i class="bi bi-download me-1"></i>@documentTypeText
+                                </a>
                                 <small class="text-muted">@doc.GeneratedAt.ToString("dd/MM/yyyy")</small>
                             </li>
                         }

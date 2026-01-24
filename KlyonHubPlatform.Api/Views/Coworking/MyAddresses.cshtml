@@ -7,9 +7,18 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-geo-alt"></i> Meus Endereços</h2>
-    <a href="/Parceiro/AddAddress" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Adicionar Endereço
-    </a>
+    @if (ViewBag.CanAddAddress == true)
+    {
+        <a href="/Parceiro/AddAddress" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Adicionar Endereço
+        </a>
+    }
+    else
+    {
+        <button type="button" class="btn btn-primary" disabled title="Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.">
+            <i class="bi bi-plus-circle"></i> Adicionar Endereço
+        </button>
+    }
 </div>
 
 <!-- Filtros -->
@@ -128,9 +137,22 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
-                                        <i class="bi bi-pencil"></i> Editar
-                                    </a>
+                                    @{
+                                        var activeContractsDict = ViewBag.ActiveContractsByAddress as Dictionary<int, int> ?? new Dictionary<int, int>();
+                                        var hasActiveContracts = activeContractsDict.ContainsKey(address.Id) && activeContractsDict[address.Id] > 0;
+                                    }
+                                    @if (!hasActiveContracts)
+                                    {
+                                        <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" title="Não é possível editar endereço com contrato ativo">
+                                            <i class="bi bi-lock"></i> Bloqueado
+                                        </span>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -203,7 +225,7 @@
                         <i class="bi bi-x-circle"></i> Limpar Filtros
                     </a>
                 }
-                else
+                else if (ViewBag.CanAddAddress == true)
                 {
                     <a href="/Parceiro/AddAddress" class="btn btn-primary mt-2">
                         <i class="bi bi-plus-circle"></i> Cadastrar Primeiro Endereço

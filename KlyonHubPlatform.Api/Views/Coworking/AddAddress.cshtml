@@ -115,9 +115,12 @@
                 </div>
             </div>
 
-            <div class="alert alert-info mb-3">
-                <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
-            </div>
+            @if (ViewBag.HasRoomRental == true)
+            {
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
+                </div>
+            }
 
             <button type="submit" class="btn btn-primary">
                 <i class="bi bi-check-circle"></i> Salvar Endereço

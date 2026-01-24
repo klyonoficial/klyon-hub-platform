@@ -1,0 +1,265 @@
+@{
+    ViewData["Title"] = "Solicitações de Repasse";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var _currentPage = (int)(ViewBag.CurrentPage ?? 1);
+    var _totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var _totalItems = (int)(ViewBag.TotalItems ?? 0);
+    var _ps = (int)(ViewBag.PageSize ?? 15);
+    var _coId = ViewBag.CoworkingId;
+    var _st = ViewBag.Status;
+    var _df = ViewBag.DateFrom;
+    var _dt = ViewBag.DateTo;
+    string _dfStr = _df != null ? ((DateTime)_df).ToString("yyyy-MM-dd") : null;
+    string _dtStr = _dt != null ? ((DateTime)_dt).ToString("yyyy-MM-dd") : null;
+    var _pageSize = (int)(ViewBag.PageSize ?? 15);
+}
+
+@model List<KlyonHubPlatform.Domain.Entities.Transfer>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-arrow-left-right"></i> Solicitações de Repasse</h2>
+    <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Notas Fiscais
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("Transfers", "Admin")" class="row g-3">
+            <div class="col-md-2">
+                <label for="coworkingId" class="form-label">Parceiro</label>
+                <select class="form-select" id="coworkingId" name="coworkingId">
+                    <option value="">Todos</option>
+                    @foreach (var c in ViewBag.Coworkings as List<KlyonHubPlatform.Domain.Entities.Coworking> ?? new List<KlyonHubPlatform.Domain.Entities.Coworking>())
+                    {
+                        @if (ViewBag.CoworkingId != null && (int)ViewBag.CoworkingId == c.Id)
+                        {
+                            <option value="@c.Id" selected="selected">@c.Name</option>
+                        }
+                        else
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    @if (ViewBag.Status != null && (int)ViewBag.Status == 0) { <option value="0" selected="selected">Pendente</option> } else { <option value="0">Pendente</option> }
+                    @if (ViewBag.Status != null && (int)ViewBag.Status == 1) { <option value="1" selected="selected">Processando</option> } else { <option value="1">Processando</option> }
+                    @if (ViewBag.Status != null && (int)ViewBag.Status == 2) { <option value="2" selected="selected">Concluído</option> } else { <option value="2">Concluído</option> }
+                    @if (ViewBag.Status != null && (int)ViewBag.Status == 3) { <option value="3" selected="selected">Falhou</option> } else { <option value="3">Falhou</option> }
+                    @if (ViewBag.Status != null && (int)ViewBag.Status == 4) { <option value="4" selected="selected">Cancelado</option> } else { <option value="4">Cancelado</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="dateFrom" class="form-label">Data de</label>
+                <input type="date" class="form-control" id="dateFrom" name="dateFrom" value="@(ViewBag.DateFrom != null ? ((DateTime)ViewBag.DateFrom).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-2">
+                <label for="dateTo" class="form-label">Data até</label>
+                <input type="date" class="form-control" id="dateTo" name="dateTo" value="@(ViewBag.DateTo != null ? ((DateTime)ViewBag.DateTo).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-2">
+                <label for="pageSize" class="form-label">Por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    @if (_pageSize == 10) { <option value="10" selected="selected">10</option> } else { <option value="10">10</option> }
+                    @if (_pageSize == 15) { <option value="15" selected="selected">15</option> } else { <option value="15">15</option> }
+                    @if (_pageSize == 25) { <option value="25" selected="selected">25</option> } else { <option value="25">25</option> }
+                    @if (_pageSize == 50) { <option value="50" selected="selected">50</option> } else { <option value="50">50</option> }
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("Transfers", "Admin")" class="btn btn-secondary" title="Limpar filtros">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-list-check"></i> Total</h6>
+                <h2 class="mb-0">@(ViewBag.TotalItems ?? 0)</h2>
+                <small class="text-white-50">solicitações</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-clock-history"></i> Pendentes</h6>
+                <h2 class="mb-0">@(ViewBag.PendingCount ?? 0)</h2>
+                <small class="text-white-50">aguardando aprovação</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor (página)</h6>
+                <h2 class="mb-0">R$ @((Model != null && Model.Any()) ? Model.Sum(t => t.Amount).ToString("N2") : "0,00")</h2>
+                <small class="text-white-50">na página atual</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Id</th>
+                            <th>Parceiro</th>
+                            <th>Valor</th>
+                            <th>Descrição</th>
+                            <th>Data solicitação</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var t in Model)
+                        {
+                            <tr class="clickable-row" data-href="@Url.Action("TransferDetails", "Admin", new { id = t.Id })" style="cursor: pointer;">
+                                <td>#@t.Id</td>
+                                <td>
+                                    <strong>@(t.Coworking?.Name ?? "—")</strong>
+                                    @if (t.Coworking?.CNPJ != null)
+                                    {
+                                        <br /><small class="text-muted">@t.Coworking.CNPJ</small>
+                                    }
+                                </td>
+                                <td><strong class="text-success">R$ @t.Amount.ToString("N2")</strong></td>
+                                <td>@(t.Description ?? "—")</td>
+                                <td>
+                                    @t.CreatedAt.ToString("dd/MM/yyyy")<br />
+                                    <small class="text-muted">@t.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                                <td>
+                                    @switch (t.Status)
+                                    {
+                                        case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending:
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> Pendente</span>
+                                            break;
+                                        case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Processing:
+                                            <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Processando</span>
+                                            break;
+                                        case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed:
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Concluído</span>
+                                            break;
+                                        case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Failed:
+                                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Falhou</span>
+                                            break;
+                                        case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Cancelled:
+                                            <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Cancelado</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary">@t.Status</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>
+                                    @if (t.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending)
+                                    {
+                                        <form method="post" action="@Url.Action("ApproveTransfer", "Admin")" class="d-inline approve-transfer-form" onclick="event.stopPropagation();">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="transferId" value="@t.Id" />
+                                            <button type="submit" class="btn btn-sm btn-success" data-amount="@t.Amount.ToString("N2")">
+                                                <i class="bi bi-check-circle"></i> Aprovar
+                                            </button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <a href="@Url.Action("TransferDetails", "Admin", new { id = t.Id })" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();">
+                                            <i class="bi bi-eye"></i> Ver Detalhes
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            @if (_totalPages > 1)
+            {
+                <nav aria-label="Paginação" class="mt-3">
+                    <ul class="pagination justify-content-center flex-wrap">
+                        @if (_currentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Transfers", "Admin", new { page = _currentPage - 1, pageSize = _ps, coworkingId = _coId, status = _st, dateFrom = _dfStr, dateTo = _dtStr })">Anterior</a>
+                            </li>
+                        }
+                        @for (var i = 1; i <= _totalPages; i++)
+                        {
+                            <li class="page-item @(i == _currentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Transfers", "Admin", new { page = i, pageSize = _ps, coworkingId = _coId, status = _st, dateFrom = _dfStr, dateTo = _dtStr })">@i</a>
+                            </li>
+                        }
+                        @if (_currentPage < _totalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Transfers", "Admin", new { page = _currentPage + 1, pageSize = _ps, coworkingId = _coId, status = _st, dateFrom = _dfStr, dateTo = _dtStr })">Próximo</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+            <p class="text-muted text-center small mb-0">
+                Mostrando @((_currentPage - 1) * _ps + 1) a @Math.Min(_currentPage * _ps, _totalItems) de @_totalItems solicitações
+            </p>
+        }
+        else
+        {
+            <div class="alert alert-info text-center mb-0">
+                <i class="bi bi-info-circle"></i> Nenhuma solicitação de repasse encontrada.
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .clickable-row:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+    <script>
+        document.querySelectorAll('.approve-transfer-form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                var amount = form.querySelector('button[type="submit"]').getAttribute('data-amount');
+                if (!confirm('Tem certeza que deseja aprovar o repasse de R$ ' + amount + '?')) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        document.querySelectorAll('.clickable-row').forEach(function(row) {
+            row.addEventListener('click', function(e) {
+                var href = row.getAttribute('data-href');
+                if (href && !e.target.closest('button') && !e.target.closest('form') && !e.target.closest('a')) {
+                    window.location.href = href;
+                }
+            });
+        });
+    </script>
+}
