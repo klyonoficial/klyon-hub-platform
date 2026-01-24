@@ -9,6 +9,7 @@ using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
@@ -210,7 +211,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     new Domain.Entities.Service
                     {
-                        Name = "Contratar Endereço Fiscal",
+                        Name = "Ofertar Endereço Fiscal",
+                        Code = FiscalAddressOffer,
                         Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
                         Route = chooseLocationRoute,
                         DisplayOrder = 1,
@@ -221,6 +223,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     new Domain.Entities.Service
                     {
                         Name = "Reservar Sala",
+                        Code = RoomReservation,
                         Description = "Reserve salas de coworking para reuniões e trabalho",
                         Route = marketplaceRoute,
                         DisplayOrder = 2,
@@ -246,11 +249,11 @@ namespace KlyonHubPlatform.Api.Controllers
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
+            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Ofertar Endereço Fiscal"
             if (!showCoworkingMenus)
             {
                 services = services
-                    .Where(s => s.Name == "Contratar Endereço Fiscal")
+                    .Where(s => s.Code == FiscalAddressOffer)
                     .ToList();
             }
 

@@ -4,6 +4,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -865,7 +866,7 @@ namespace KlyonHubPlatform.Api.Controllers
             
             // Verificar se tem percentagem configurada antes de aprovar
             var fiscalAddressService = await _context.Services
-                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+                .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
 
             if (fiscalAddressService != null)
             {
@@ -876,7 +877,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (partnerService == null)
                 {
-                    TempData["Warning"] = $"Atenção: O coworking '{coworking.Name}' foi aprovado, mas não possui percentagem configurada para o serviço 'Contratar Endereço Fiscal'. Configure a percentagem para que os endereços fiquem disponíveis para compra.";
+                    TempData["Warning"] = $"Atenção: O coworking '{coworking.Name}' foi aprovado, mas não possui percentagem configurada para o serviço 'Ofertar Endereço Fiscal'. Configure a percentagem para que os endereços fiquem disponíveis para compra.";
                 }
             }
             
@@ -1316,9 +1317,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Se estiver tentando ativar, verificar se tem percentagem informada
                 if (!coworking.IsActive)
                 {
-                    // Buscar o serviço "Contratar Endereço Fiscal"
+                    // Buscar o serviço "Ofertar Endereço Fiscal"
                     var fiscalAddressService = await _context.Services
-                        .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+                        .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
 
                     if (fiscalAddressService != null)
                     {
@@ -1330,7 +1331,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                         if (partnerService == null)
                         {
-                            TempData["Error"] = $"Não é possível ativar o coworking '{coworking.Name}' porque não possui percentagem informada para o serviço 'Contratar Endereço Fiscal'. Configure a percentagem antes de ativar.";
+                            TempData["Error"] = $"Não é possível ativar o coworking '{coworking.Name}' porque não possui percentagem informada para o serviço 'Ofertar Endereço Fiscal'. Configure a percentagem antes de ativar.";
                             return RedirectToAction("Coworkings", new { 
                                 search = Request.Query["search"],
                                 status = Request.Query["status"],

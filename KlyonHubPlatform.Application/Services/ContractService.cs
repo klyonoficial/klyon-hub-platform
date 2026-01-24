@@ -2,6 +2,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -308,9 +309,9 @@ namespace KlyonHubPlatform.Application.Services
         /// </summary>
         private async Task<decimal> GetCommissionPercentageAsync(CoworkingAddress address)
         {
-            // Buscar o Service "Contratar Endereço Fiscal"
+            // Buscar o Service "Ofertar Endereço Fiscal"
             var service = await _context.Services
-                .FirstOrDefaultAsync(s => s.Name == "Contratar Endereço Fiscal" && s.IsActive);
+                .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
 
             if (service != null)
             {
