@@ -15,6 +15,13 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
 
         public async Task InvokeAsync(HttpContext context, IAuditService auditService)
         {
+            // Verificar se a auditoria deve ser ignorada (ex: durante limpeza de base de dados)
+            if (context.Items.ContainsKey("SkipAudit") && (bool)context.Items["SkipAudit"] == true)
+            {
+                await _next(context);
+                return;
+            }
+
             var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var action = $"{context.Request.Method} {context.Request.Path}";
             var ipAddress = context.Connection.RemoteIpAddress?.ToString();
@@ -25,17 +32,25 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             // Log apenas ações importantes
             if (context.Request.Method != "GET" && userId != null)
             {
-                int? userIdInt = int.TryParse(userId, out var id) ? id : null;
-                await auditService.LogActionAsync(
-                    userIdInt,
-                    action,
-                    "HTTP",
-                    null,
-                    null,
-                    $"Status: {context.Response.StatusCode}",
-                    ipAddress,
-                    userAgent
-                );
+                try
+                {
+                    int? userIdInt = int.TryParse(userId, out var id) ? id : null;
+                    await auditService.LogActionAsync(
+                        userIdInt,
+                        action,
+                        "HTTP",
+                        null,
+                        null,
+                        $"Status: {context.Response.StatusCode}",
+                        ipAddress,
+                        userAgent
+                    );
+                }
+                catch
+                {
+                    // Ignorar erros de auditoria para não quebrar o fluxo da aplicação
+                    // (ex: durante limpeza de base de dados, migrações, etc.)
+                }
             }
         }
     }

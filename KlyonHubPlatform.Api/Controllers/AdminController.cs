@@ -3015,46 +3015,69 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
         {
             try
             {
+                // Desabilitar auditoria durante a limpeza para evitar erros
+                HttpContext.Items["SkipAudit"] = true;
+
                 // Desabilitar foreign keys temporariamente
                 await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
 
                 // Lista completa de tabelas para limpar (na ordem correta - dependentes primeiro)
-                // Preservar: Roles, UserRoles (do admin), SystemConfigurations, Languages, Locations, Services, Users (admin)
+                // 
+                // TABELAS ESSENCIAIS QUE SERÃO MANTIDAS (NÃO LIMPAR):
+                // - __EFMigrationsHistory: Histórico de migrações do EF Core (essencial para controle de schema)
+                // - SefazConfigurations: Configurações SEFAZ globais (essencial para emissão de notas fiscais, NÃO tem seed)
+                //
+                // TABELAS ESSENCIAIS COM SEED (SERÃO LIMPAS E RECRIADAS PELO SEED):
+                // - Roles: Papéis do sistema (tem seed no SeedService)
+                // - Languages: Idiomas suportados (tem seed no SeedService)
+                // - Locations: Localidades (tem seed no SeedService)
+                // - Services: Serviços disponíveis (tem seed no SeedService)
+                // - SystemConfigurations: Configurações globais (tem seed no SeedService)
+                //
+                // TABELAS COM PRESERVAÇÃO ESPECIAL (lógica customizada no código):
+                // - Users: Preservar apenas o admin (tem seed no SeedService)
+                // - UserRoles: Preservar apenas vínculos do admin (tem seed no SeedService)
+                //
                 var tablesToClear = new[]
                 {
-                    // Tabelas dependentes primeiro
-                    "AuditLogs",
-                    "ReservationCommissions",
-                    "Commissions",
-                    "Transfers",
-                    "FiscalNotes",
-                    "Reservations",
-                    "Payments",
-                    "Subscriptions",
-                    "Contracts",
-                    "AddressDeclarations",
-                    "CoworkingRoomPhotos",
-                    "CoworkingRooms",
-                    "CoworkingPhotos",
-                    "CoworkingDocuments",
-                    "CoworkingOperatingHours",
-                    "BlockedDates",
-                    "CoworkingPartners",
-                    "CoworkingAddresses",
-                    "PartnerServices",
-                    "LocationCommissions",
-                    "PlatformCreditBalances",
-                    "Coworkings",
-                    "Clients",
-                    "CreditPurchases",
-                    "ClientCredits",
-                    "CreditPlans",
-                    "CreditCards",
-                    "Documents",
-                    "Interests",
-                    "CoworkingProducts",
-                    "CoworkingRatings",
-                    "Translations"
+                    // Tabelas dependentes primeiro (ordem de dependência)
+                    "AuditLogs",                      // Logs de auditoria
+                    "PaymentHistories",               // Histórico de pagamentos
+                    "FiscalNoteScriptExecutions",     // Execuções de scripts de notas fiscais
+                    "FiscalNotes",                    // Notas fiscais emitidas
+                    "ReservationCommissions",         // Comissões de reservas
+                    "Commissions",                     // Comissões gerais
+                    "Transfers",                       // Transferências
+                    "Reservations",                   // Reservas
+                    "Payments",                        // Pagamentos
+                    "Subscriptions",                   // Assinaturas
+                    "Contracts",                      // Contratos
+                    "AddressDeclarations",             // Declarações de endereço
+                    "CapacityChangeRequests",          // Solicitações de mudança de capacidade
+                    "CoworkingRoomPhotos",            // Fotos de salas
+                    "CoworkingRooms",                 // Salas de coworking
+                    "CoworkingPhotos",                // Fotos de coworkings
+                    "CoworkingDocuments",             // Documentos de coworkings
+                    "CoworkingOperatingHours",        // Horários de funcionamento
+                    "BlockedDates",                    // Datas bloqueadas
+                    "CoworkingPartners",              // Sócios/parceiros de coworkings
+                    "CoworkingSefazConfigurations",   // Configurações SEFAZ por coworking (específicas)
+                    "CoworkingAddresses",             // Endereços de coworkings
+                    "PartnerServices",                // Serviços dos parceiros
+                    "LocationCommissions",            // Comissões por localidade (tem seed, será recriado)
+                    "PlatformCreditBalances",         // Saldos de créditos da plataforma (tem seed, será recriado)
+                    "Coworkings",                     // Coworkings
+                    "Clients",                        // Clientes
+                    "CreditPurchases",                 // Compras de créditos
+                    "ClientCredits",                   // Créditos dos clientes
+                    "CreditPlans",                     // Planos de crédito
+                    "CreditCards",                     // Cartões de crédito
+                    "Documents",                       // Documentos gerais
+                    "Interests",                       // Interesses/contatos
+                    "CoworkingProducts",              // Produtos de coworkings
+                    "CoworkingRatings",               // Avaliações de coworkings
+                    "Translations",                    // Traduções (dados dinâmicos, não essenciais)
+                    "Services",                        // Serviços (tem seed)
                 };
 
                 var clearedTables = new List<string>();
@@ -3167,7 +3190,9 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 var seedService = new Application.Services.SeedService(_context);
                 await seedService.SeedInitialDataAsync();
 
-                var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas. Dados essenciais (Roles, Configurações, Localidades, Serviços) foram preservados.";
+                var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas. " +
+                    $"Dados essenciais preservados: Users (admin), UserRoles (admin), SefazConfigurations, __EFMigrationsHistory. " +
+                    $"Tabelas com seed recriadas automaticamente: Roles, Languages, Locations, Services, SystemConfigurations.";
                 if (errors.Any())
                 {
                     successMessage += $" Avisos: {string.Join("; ", errors.Take(3))}";
@@ -3188,6 +3213,11 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 {
                     TempData["Error"] += $" Detalhes: {ex.InnerException.Message}";
                 }
+            }
+            finally
+            {
+                // Reabilitar auditoria após a limpeza
+                HttpContext.Items.Remove("SkipAudit");
             }
 
             return RedirectToAction("DatabaseManager");
