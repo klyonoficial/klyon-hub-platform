@@ -13,7 +13,7 @@
 @Html.AntiForgeryToken()
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
+    <h2 id="coworkingProfileTitle"><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
     <a href="@Url.Action("Dashboard", "Parceiro")" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
@@ -143,11 +143,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="Name" name="Name" value="@Model.Name" required>
+                            <input type="text" class="form-control" id="Name" name="Name" value="@(ViewBag.UserFullName ?? Model.Name)" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="CNPJ" name="CNPJ" value="@Model.CNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
+                            <div class="invalid-feedback" id="cnpjError"></div>
                         </div>
                     </div>
                     <div class="row">
@@ -184,7 +185,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="ContactEmail" class="form-label">Email Principal <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" value="@Model.ContactEmail" required>
+                            <input type="email" class="form-control" id="ContactEmail" value="@ViewBag.UserEmail" readonly>
+                            <small class="form-text text-muted">Email principal vinculado ao usuário.</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="SecondaryEmail" class="form-label">Email Secundário</label>
@@ -1099,11 +1101,38 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 onSuccess: null,
                 onError: null,
                 reloadOnSuccess: false,
-                updateElement: null // ID do elemento a ser atualizado
+                updateElement: null, // ID do elemento a ser atualizado
+                customValidation: null // Função de validação customizada que retorna { isValid: boolean, errorMessage: string }
             };
             var config = Object.assign({}, defaults, options || {});
             
             form.addEventListener('submit', function(e) {
+                // Executar validação customizada primeiro, se fornecida
+                if (config.customValidation && typeof config.customValidation === 'function') {
+                    var validationResult = config.customValidation();
+                    if (!validationResult.isValid) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        showToast(validationResult.errorMessage || 'Por favor, preencha todos os campos obrigatórios corretamente.', 'error');
+                        return false;
+                    }
+                }
+                
+                // Verificar validação HTML5 antes de prevenir default
+                if (!form.checkValidity()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    form.classList.add('was-validated');
+                    // Focar no primeiro campo inválido
+                    const firstInvalid = form.querySelector(':invalid');
+                    if (firstInvalid) {
+                        firstInvalid.focus();
+                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+                
                 e.preventDefault();
                 
                 // Verificar se há modal de confirmação aberto
@@ -1133,7 +1162,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'RequestVerificationToken': token
+                        'RequestVerificationToken': token,
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     redirect: 'manual'
                 })
@@ -1145,6 +1175,36 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                     
                     // Remover marcação
                     form.removeAttribute('data-ajax-request');
+                    
+                    // Verificar se a resposta é JSON (erro de validação)
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json().then(data => {
+                            if (!data.success) {
+                                // Erro de validação
+                                if (config.onError) {
+                                    config.onError(data);
+                                } else {
+                                    showToast(data.error || 'Erro ao salvar. Por favor, verifique os dados.', 'error');
+                                }
+                                return;
+                            }
+                            // Sucesso em JSON
+                            if (config.onSuccess) {
+                                config.onSuccess(response);
+                            } else if (config.reloadOnSuccess) {
+                                window.location.reload();
+                            } else if (config.updateElement) {
+                                updateElementContent(config.updateElement);
+                                showToast('Alterações salvas com sucesso!', 'success');
+                            } else if (config.updateTable) {
+                                config.updateTable();
+                                showToast('Alterações salvas com sucesso!', 'success');
+                            } else {
+                                showToast('Alterações salvas com sucesso!', 'success');
+                            }
+                        });
+                    }
                     
                     if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
                         // Sucesso com redirect
@@ -1180,7 +1240,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                             showToast('Alterações salvas com sucesso!', 'success');
                         }
                     } else {
-                        // Erro
+                        // Erro HTTP
                         if (config.onError) {
                             config.onError(response);
                         } else {
@@ -1339,6 +1399,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
             // Não recarregar página, apenas mostrar toast de sucesso
             document.querySelectorAll('form[action*="UpdateProfile"]').forEach(function(form) {
                 if (form.id !== 'partnerForm') { // Excluir partnerForm que já tem tratamento especial
+                    // Para o formulário básico, não aplicar convertFormToAjax aqui
+                    // Será aplicado após a validação customizada ser configurada
+                    if (form.closest('#basic')) {
+                        return;
+                    }
                     convertFormToAjax(form, {
                         // Apenas mostrar toast, não recarregar
                     });
@@ -2426,6 +2491,232 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
                 });
             }
         }
+
+        // Função para validar CNPJ
+        function validateCNPJ(cnpj) {
+            cnpj = cnpj.replace(/[^\d]+/g, '');
+            
+            if (cnpj.length != 14) return false;
+            
+            // Eliminar CNPJs conhecidos como inválidos
+            if (/^(\d)\1+$/.test(cnpj)) return false;
+            
+            // Validar dígitos verificadores
+            let tamanho = cnpj.length - 2;
+            let numeros = cnpj.substring(0, tamanho);
+            let digitos = cnpj.substring(tamanho);
+            let soma = 0;
+            let pos = tamanho - 7;
+            
+            for (let i = tamanho; i >= 1; i--) {
+                soma += numeros.charAt(tamanho - i) * pos--;
+                if (pos < 2) pos = 9;
+            }
+            
+            let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+            if (resultado != digitos.charAt(0)) return false;
+            
+            tamanho = tamanho + 1;
+            numeros = cnpj.substring(0, tamanho);
+            soma = 0;
+            pos = tamanho - 7;
+            
+            for (let i = tamanho; i >= 1; i--) {
+                soma += numeros.charAt(tamanho - i) * pos--;
+                if (pos < 2) pos = 9;
+            }
+            
+            resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+            if (resultado != digitos.charAt(1)) return false;
+            
+            return true;
+        }
+
+        // Validação de CNPJ no formulário básico
+        document.addEventListener('DOMContentLoaded', function() {
+            const cnpjInput = document.querySelector('#basic #CNPJ');
+            const nameInput = document.querySelector('#basic #Name');
+            const cnpjError = document.getElementById('cnpjError');
+            
+            if (cnpjInput) {
+                // Validar nome durante a digitação (para garantir checkValidity antes do submit)
+                if (nameInput) {
+                    nameInput.addEventListener('input', function() {
+                        if (!this.value || this.value.trim() === '') {
+                            this.setCustomValidity('Nome do Coworking é obrigatório.');
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    });
+                }
+
+                // Validar CNPJ durante a digitação (para garantir checkValidity antes do submit)
+                cnpjInput.addEventListener('input', function() {
+                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
+                    if (!cnpjValue) {
+                        this.setCustomValidity('');
+                    } else if (cnpjValue.length === 14) {
+                        if (!validateCNPJ(this.value)) {
+                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    } else {
+                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                    }
+                });
+
+                // Criar elemento de erro se não existir
+                let errorDiv = document.getElementById('cnpjError');
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.id = 'cnpjError';
+                    cnpjInput.parentElement.appendChild(errorDiv);
+                }
+                
+                // Validar ao sair do campo
+                cnpjInput.addEventListener('blur', function() {
+                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
+                    if (cnpjValue.length === 14) {
+                        if (!validateCNPJ(this.value)) {
+                            this.classList.add('is-invalid');
+                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                            if (errorDiv) {
+                                errorDiv.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                            }
+                        } else {
+                            this.classList.remove('is-invalid');
+                            this.classList.add('is-valid');
+                            this.setCustomValidity('');
+                            if (errorDiv) {
+                                errorDiv.textContent = '';
+                            }
+                        }
+                    } else if (cnpjValue.length > 0) {
+                        this.classList.add('is-invalid');
+                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                        if (errorDiv) {
+                            errorDiv.textContent = 'CNPJ deve conter 14 dígitos.';
+                        }
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+
+                // Validar valor inicial vindo do banco (sem interação)
+                const initialCnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
+                if (initialCnpjValue) {
+                    if (initialCnpjValue.length === 14) {
+                        if (!validateCNPJ(cnpjInput.value)) {
+                            cnpjInput.classList.add('is-invalid');
+                            cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                            if (errorDiv) {
+                                errorDiv.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                            }
+                        } else {
+                            cnpjInput.classList.remove('is-invalid');
+                            cnpjInput.setCustomValidity('');
+                        }
+                    } else {
+                        cnpjInput.classList.add('is-invalid');
+                        cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                        if (errorDiv) {
+                            errorDiv.textContent = 'CNPJ deve conter 14 dígitos.';
+                        }
+                    }
+                }
+                
+                // Validar antes de submeter o formulário básico e aplicar convertFormToAjax apenas se válido
+                const basicForm = document.querySelector('#basic form[action*="UpdateProfile"]');
+                if (basicForm) {
+                    // Aplicar convertFormToAjax ao formulário básico com validação customizada
+                    convertFormToAjax(basicForm, {
+                        // Apenas mostrar toast, não recarregar
+                        onSuccess: function() {
+                            if (nameInput && nameInput.value) {
+                                const trimmedName = nameInput.value.trim();
+                                const userNameLink = document.getElementById('userNameLink');
+                                if (userNameLink) {
+                                    userNameLink.textContent = trimmedName;
+                                }
+                                const profileTitle = document.getElementById('coworkingProfileTitle');
+                                if (profileTitle) {
+                                    profileTitle.innerHTML = '<i class="bi bi-person-badge"></i> Meu Perfil - ' + trimmedName;
+                                }
+                                // Atualizar campos hidden de outras abas para manter consistência
+                                document.querySelectorAll('input[type="hidden"][name="Name"]').forEach(function(hiddenInput) {
+                                    hiddenInput.value = trimmedName;
+                                });
+                            }
+                            showToast('Alterações salvas com sucesso!', 'success');
+                        },
+                        customValidation: function() {
+                            let isValid = true;
+                            let errorMessage = '';
+                            
+                            // Validar nome obrigatório
+                            if (nameInput && (!nameInput.value || nameInput.value.trim() === '')) {
+                                isValid = false;
+                                nameInput.classList.add('is-invalid');
+                                nameInput.setCustomValidity('Nome do Coworking é obrigatório.');
+                                errorMessage = 'Nome do Coworking é obrigatório.';
+                            } else if (nameInput) {
+                                nameInput.classList.remove('is-invalid');
+                                nameInput.setCustomValidity('');
+                            }
+                            
+                            // Validar CNPJ obrigatório
+                            const cnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
+                            if (!cnpjInput.value || cnpjValue.length === 0) {
+                                isValid = false;
+                                cnpjInput.classList.add('is-invalid');
+                                cnpjInput.setCustomValidity('CNPJ é obrigatório.');
+                                if (errorDiv) {
+                                    errorDiv.textContent = 'CNPJ é obrigatório.';
+                                }
+                                if (!errorMessage) {
+                                    errorMessage = 'CNPJ é obrigatório.';
+                                }
+                            } else if (cnpjValue.length === 14) {
+                                if (!validateCNPJ(cnpjInput.value)) {
+                                    isValid = false;
+                                    cnpjInput.classList.add('is-invalid');
+                                    cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                                    if (errorDiv) {
+                                        errorDiv.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                                    }
+                                    if (!errorMessage) {
+                                        errorMessage = 'CNPJ inválido. Verifique os dígitos.';
+                                    }
+                                } else {
+                                    cnpjInput.classList.remove('is-invalid');
+                                    cnpjInput.classList.add('is-valid');
+                                    cnpjInput.setCustomValidity('');
+                                }
+                            } else if (cnpjValue.length > 0) {
+                                isValid = false;
+                                cnpjInput.classList.add('is-invalid');
+                                cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                                if (errorDiv) {
+                                    errorDiv.textContent = 'CNPJ deve conter 14 dígitos.';
+                                }
+                                if (!errorMessage) {
+                                    errorMessage = 'CNPJ deve conter 14 dígitos.';
+                                }
+                            } else {
+                                cnpjInput.setCustomValidity('');
+                            }
+                            
+                            return {
+                                isValid: isValid,
+                                errorMessage: errorMessage
+                            };
+                        }
+                    });
+                }
+            }
+        });
     </script>
 
 <style>

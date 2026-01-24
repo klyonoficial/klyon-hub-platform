@@ -12,12 +12,13 @@
         <form method="post" action="@Url.Action("Register", "Coworking")" enctype="multipart/form-data">
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="Name" class="form-label">Nome do Coworking</label>
-                    <input type="text" class="form-control" id="Name" name="Name" required>
+                    <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="Name" name="Name" value="@ViewBag.UserFullName" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="CNPJ" class="form-label">CNPJ</label>
+                    <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
+                    <div class="invalid-feedback" id="cnpjError"></div>
                 </div>
             </div>
             <div class="row">
@@ -108,3 +109,219 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Função para validar CNPJ
+        function validateCNPJ(cnpj) {
+            cnpj = cnpj.replace(/[^\d]+/g, '');
+            
+            if (cnpj.length != 14) return false;
+            
+            // Eliminar CNPJs conhecidos como inválidos
+            if (/^(\d)\1+$/.test(cnpj)) return false;
+            
+            // Validar dígitos verificadores
+            let tamanho = cnpj.length - 2;
+            let numeros = cnpj.substring(0, tamanho);
+            let digitos = cnpj.substring(tamanho);
+            let soma = 0;
+            let pos = tamanho - 7;
+            
+            for (let i = tamanho; i >= 1; i--) {
+                soma += numeros.charAt(tamanho - i) * pos--;
+                if (pos < 2) pos = 9;
+            }
+            
+            let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+            if (resultado != digitos.charAt(0)) return false;
+            
+            tamanho = tamanho + 1;
+            numeros = cnpj.substring(0, tamanho);
+            soma = 0;
+            pos = tamanho - 7;
+            
+            for (let i = tamanho; i >= 1; i--) {
+                soma += numeros.charAt(tamanho - i) * pos--;
+                if (pos < 2) pos = 9;
+            }
+            
+            resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+            if (resultado != digitos.charAt(1)) return false;
+            
+            return true;
+        }
+
+        // Validação de CNPJ no formulário
+        document.addEventListener('DOMContentLoaded', function() {
+            const cnpjInput = document.getElementById('CNPJ');
+            const nameInput = document.getElementById('Name');
+            const cnpjError = document.getElementById('cnpjError');
+            const form = document.querySelector('form[action*="Register"]');
+            
+            if (cnpjInput && form) {
+                // Validar nome durante a digitação
+                if (nameInput) {
+                    nameInput.addEventListener('input', function() {
+                        if (!this.value || this.value.trim() === '') {
+                            this.setCustomValidity('Nome do Coworking é obrigatório.');
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    });
+                }
+
+                // Validar CNPJ durante a digitação
+                cnpjInput.addEventListener('input', function() {
+                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
+                    if (!cnpjValue) {
+                        this.setCustomValidity('');
+                    } else if (cnpjValue.length === 14) {
+                        if (!validateCNPJ(this.value)) {
+                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    } else {
+                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                    }
+                });
+
+                // Validar ao sair do campo
+                cnpjInput.addEventListener('blur', function() {
+                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
+                    if (cnpjValue.length === 14) {
+                        if (!validateCNPJ(this.value)) {
+                            this.classList.add('is-invalid');
+                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                            if (cnpjError) {
+                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                            }
+                        } else {
+                            this.classList.remove('is-invalid');
+                            this.classList.add('is-valid');
+                            this.setCustomValidity('');
+                            if (cnpjError) {
+                                cnpjError.textContent = '';
+                            }
+                        }
+                    } else if (cnpjValue.length > 0) {
+                        this.classList.add('is-invalid');
+                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                        if (cnpjError) {
+                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
+                        }
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+
+                // Validar valor inicial vindo do banco (se houver)
+                const initialCnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
+                if (initialCnpjValue) {
+                    if (initialCnpjValue.length === 14) {
+                        if (!validateCNPJ(cnpjInput.value)) {
+                            cnpjInput.classList.add('is-invalid');
+                            cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                            if (cnpjError) {
+                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                            }
+                        } else {
+                            cnpjInput.classList.remove('is-invalid');
+                            cnpjInput.setCustomValidity('');
+                        }
+                    } else {
+                        cnpjInput.classList.add('is-invalid');
+                        cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                        if (cnpjError) {
+                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
+                        }
+                    }
+                }
+                
+                // Enviar via AJAX para mostrar loading e redirecionar normalmente
+                form.addEventListener('submit', async function(e) {
+                    // Validar CNPJ antes de submeter
+                    const cnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
+                    if (cnpjValue.length === 14) {
+                        if (!validateCNPJ(cnpjInput.value)) {
+                            e.preventDefault();
+                            cnpjInput.classList.add('is-invalid');
+                            cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
+                            if (cnpjError) {
+                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
+                            }
+                            showToast('CNPJ inválido. Verifique os dígitos.', 'error');
+                            return false;
+                        }
+                    } else if (cnpjValue.length > 0) {
+                        e.preventDefault();
+                        cnpjInput.classList.add('is-invalid');
+                        cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
+                        if (cnpjError) {
+                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
+                        }
+                        showToast('CNPJ deve conter 14 dígitos.', 'error');
+                        return false;
+                    }
+
+                    // Se o formulário é inválido, não processar
+                    if (!form.checkValidity()) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        form.classList.add('was-validated');
+                        return false;
+                    }
+
+                    e.preventDefault();
+
+                    // Mostrar loading
+                    if (window.KlyonLoading && window.KlyonLoading.show) {
+                        window.KlyonLoading.show();
+                    }
+
+                    // Marcar como requisição AJAX manual para evitar interceptadores
+                    form.setAttribute('data-ajax-request', 'true');
+
+                    try {
+                        const formData = new FormData(form);
+                        const response = await fetch(form.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            redirect: 'follow'
+                        });
+
+                        // Remover marcação
+                        form.removeAttribute('data-ajax-request');
+
+                        // Se houver redirect, seguir normalmente
+                        if (response.redirected && response.url) {
+                            window.location.href = response.url;
+                            return;
+                        }
+
+                        if (response.ok && response.url) {
+                            window.location.href = response.url;
+                            return;
+                        }
+
+                        // Se chegou aqui, tratar como erro
+                        if (window.KlyonLoading && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        showToast('Erro ao salvar. Por favor, tente novamente.', 'error');
+                    } catch (error) {
+                        form.removeAttribute('data-ajax-request');
+                        if (window.KlyonLoading && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                        showToast('Erro ao processar requisição: ' + error.message, 'error');
+                    }
+                });
+            }
+        });
+    </script>
+}
