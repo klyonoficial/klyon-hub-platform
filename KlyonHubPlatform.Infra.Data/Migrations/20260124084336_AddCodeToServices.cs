@@ -7,11 +7,39 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace KlyonHubPlatform.Infra.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddCoworkingSefazConfiguration : Migration
+    public partial class AddCodeToServices : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "ChatFaqItems",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    Category = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Question = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Answer = table.Column<string>(type: "varchar(5000)", maxLength: 5000, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Keywords = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Intentions = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    UsageCount = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatFaqItems", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
             migrationBuilder.CreateTable(
                 name: "CreditPlans",
                 columns: table => new
@@ -338,6 +366,37 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
+                name: "ChatConversations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    UserId = table.Column<int>(type: "int", nullable: true),
+                    SessionId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    IpAddress = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    UserAgent = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    StartedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    EndedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
+                    IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    WasResolved = table.Column<bool>(type: "tinyint(1)", nullable: true),
+                    WasRedirectedToHuman = table.Column<bool>(type: "tinyint(1)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatConversations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ChatConversations_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
                 name: "Clients",
                 columns: table => new
                 {
@@ -451,7 +510,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     RejectedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     RejectedBy = table.Column<int>(type: "int", nullable: true),
                     ApprovedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
-                    ApprovedBy = table.Column<int>(type: "int", nullable: true)
+                    ApprovedBy = table.Column<int>(type: "int", nullable: true),
+                    HasPendingStatusNotification = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    LastNotifiedStatus = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -462,6 +523,39 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "FiscalNoteScriptExecutions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    ExecutedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    ExecutedByUserId = table.Column<int>(type: "int", nullable: true),
+                    ExecutedByUserName = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    NoteType = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    StartDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    NotesCreated = table.Column<int>(type: "int", nullable: false),
+                    NotesEmitted = table.Column<int>(type: "int", nullable: false),
+                    ErrorsCount = table.Column<int>(type: "int", nullable: false),
+                    UnsupportedStatesCount = table.Column<int>(type: "int", nullable: false),
+                    ErrorDetails = table.Column<string>(type: "varchar(4000)", maxLength: 4000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FiscalNoteScriptExecutions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FiscalNoteScriptExecutions_Users_ExecutedByUserId",
+                        column: x => x.ExecutedByUserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -488,6 +582,43 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "ChatMessages",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    ConversationId = table.Column<int>(type: "int", nullable: false),
+                    MessageType = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Content = table.Column<string>(type: "varchar(5000)", maxLength: 5000, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    FaqItemId = table.Column<int>(type: "int", nullable: true),
+                    WasAnswered = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    UsedAI = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    ConfidenceScore = table.Column<decimal>(type: "DECIMAL(5,4)", nullable: true),
+                    SentAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    Metadata = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatMessages", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ChatMessages_ChatConversations_ConversationId",
+                        column: x => x.ConversationId,
+                        principalTable: "ChatConversations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatMessages_ChatFaqItems_FaqItemId",
+                        column: x => x.FaqItemId,
+                        principalTable: "ChatFaqItems",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -655,8 +786,12 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     BasePrice = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
                     IsAvailable = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    AddressStatus = table.Column<int>(type: "int", nullable: false),
                     MaxContracts = table.Column<int>(type: "int", nullable: false),
                     CurrentContracts = table.Column<int>(type: "int", nullable: false),
+                    RequestedFiscalCapacity = table.Column<int>(type: "int", nullable: false),
+                    ApprovedFiscalCapacity = table.Column<int>(type: "int", nullable: false),
+                    CapacityApprovalStatus = table.Column<int>(type: "int", nullable: false),
                     OffersSharedRoom = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     SharedRoomPricePerHour = table.Column<decimal>(type: "decimal(65,30)", nullable: true),
                     SharedRoomMaxSeats = table.Column<int>(type: "int", nullable: true),
@@ -966,6 +1101,126 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
+                name: "ChatIntentions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    ConversationId = table.Column<int>(type: "int", nullable: false),
+                    MessageId = table.Column<int>(type: "int", nullable: false),
+                    IntentionName = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Category = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Confidence = table.Column<decimal>(type: "DECIMAL(5,4)", nullable: false),
+                    Entities = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    DetectedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatIntentions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ChatIntentions_ChatConversations_ConversationId",
+                        column: x => x.ConversationId,
+                        principalTable: "ChatConversations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatIntentions_ChatMessages_MessageId",
+                        column: x => x.MessageId,
+                        principalTable: "ChatMessages",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "ChatUnansweredQuestions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    ConversationId = table.Column<int>(type: "int", nullable: false),
+                    MessageId = table.Column<int>(type: "int", nullable: false),
+                    Question = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    DetectedIntention = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    SuggestedCategory = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Status = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ReviewedBy = table.Column<int>(type: "int", nullable: true),
+                    ReviewedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
+                    ReviewNotes = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Frequency = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatUnansweredQuestions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ChatUnansweredQuestions_ChatConversations_ConversationId",
+                        column: x => x.ConversationId,
+                        principalTable: "ChatConversations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatUnansweredQuestions_ChatMessages_MessageId",
+                        column: x => x.MessageId,
+                        principalTable: "ChatMessages",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatUnansweredQuestions_Users_ReviewedBy",
+                        column: x => x.ReviewedBy,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "CapacityChangeRequests",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    CoworkingAddressId = table.Column<int>(type: "int", nullable: false),
+                    RequestedCapacity = table.Column<int>(type: "int", nullable: false),
+                    PreviousCapacity = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Justification = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    RejectionReason = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ReviewedBy = table.Column<int>(type: "int", nullable: true),
+                    ReviewedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CapacityChangeRequests", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CapacityChangeRequests_CoworkingAddresses_CoworkingAddressId",
+                        column: x => x.CoworkingAddressId,
+                        principalTable: "CoworkingAddresses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CapacityChangeRequests_Users_ReviewedBy",
+                        column: x => x.ReviewedBy,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
                 name: "Contracts",
                 columns: table => new
                 {
@@ -998,7 +1253,16 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     CancellationApprovedBy = table.Column<int>(type: "int", nullable: true),
                     CancellationApprovedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     CancellationRejectionReason = table.Column<string>(type: "longtext", nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    SnapshotMonthlyValue = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SnapshotPlatformCommissionPercentage = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SnapshotCoworkingCommissionPercentage = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SnapshotAddress = table.Column<string>(type: "longtext", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    SnapshotCommissionPercentage = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SnapshotCapacityConsumed = table.Column<int>(type: "int", nullable: false),
+                    IsAssistedSale = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    AssistedSaleAdminId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1015,6 +1279,12 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         principalTable: "CoworkingAddresses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Contracts_Users_AssistedSaleAdminId",
+                        column: x => x.AssistedSaleAdminId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -1469,6 +1739,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     CancelledAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     CancellationReason = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    IdempotencyKey = table.Column<string>(type: "varchar(64)", maxLength: 64, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true)
                 },
@@ -1503,6 +1775,50 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         name: "FK_FiscalNotes_Reservations_ReservationId",
                         column: x => x.ReservationId,
                         principalTable: "Reservations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "PagBankWebhookLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    EventId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    EventType = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ResourceId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ReferenceId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ResourceStatus = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    PaymentId = table.Column<int>(type: "int", nullable: true),
+                    ProcessingStatus = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ErrorMessage = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    RawPayload = table.Column<string>(type: "TEXT", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ReceivedSignature = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    SignatureValid = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    SourceIp = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ReceivedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    ProcessedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
+                    ProcessingAttempts = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PagBankWebhookLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PagBankWebhookLogs_Payments_PaymentId",
+                        column: x => x.PaymentId,
+                        principalTable: "Payments",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
                 })
@@ -1567,6 +1883,116 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 columns: new[] { "CoworkingId", "BlockedDateValue" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_CapacityChangeRequests_CoworkingAddressId",
+                table: "CapacityChangeRequests",
+                column: "CoworkingAddressId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CapacityChangeRequests_ReviewedBy",
+                table: "CapacityChangeRequests",
+                column: "ReviewedBy");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CapacityChangeRequests_Status",
+                table: "CapacityChangeRequests",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatConversations_SessionId",
+                table: "ChatConversations",
+                column: "SessionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatConversations_StartedAt",
+                table: "ChatConversations",
+                column: "StartedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatConversations_UserId",
+                table: "ChatConversations",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatFaqItems_Category",
+                table: "ChatFaqItems",
+                column: "Category");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatFaqItems_IsActive",
+                table: "ChatFaqItems",
+                column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatIntentions_Category",
+                table: "ChatIntentions",
+                column: "Category");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatIntentions_ConversationId",
+                table: "ChatIntentions",
+                column: "ConversationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatIntentions_DetectedAt",
+                table: "ChatIntentions",
+                column: "DetectedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatIntentions_IntentionName",
+                table: "ChatIntentions",
+                column: "IntentionName");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatIntentions_MessageId",
+                table: "ChatIntentions",
+                column: "MessageId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatMessages_ConversationId",
+                table: "ChatMessages",
+                column: "ConversationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatMessages_FaqItemId",
+                table: "ChatMessages",
+                column: "FaqItemId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatMessages_SentAt",
+                table: "ChatMessages",
+                column: "SentAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_ConversationId",
+                table: "ChatUnansweredQuestions",
+                column: "ConversationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_CreatedAt",
+                table: "ChatUnansweredQuestions",
+                column: "CreatedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_Frequency",
+                table: "ChatUnansweredQuestions",
+                column: "Frequency");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_MessageId",
+                table: "ChatUnansweredQuestions",
+                column: "MessageId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_ReviewedBy",
+                table: "ChatUnansweredQuestions",
+                column: "ReviewedBy");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUnansweredQuestions_Status",
+                table: "ChatUnansweredQuestions",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ClientCredits_ClientId",
                 table: "ClientCredits",
                 column: "ClientId");
@@ -1597,6 +2023,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "IX_Commissions_PaymentId",
                 table: "Commissions",
                 column: "PaymentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Contracts_AssistedSaleAdminId",
+                table: "Contracts",
+                column: "AssistedSaleAdminId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Contracts_ClientId",
@@ -1730,6 +2161,12 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 column: "CoworkingId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FiscalNotes_IdempotencyKey",
+                table: "FiscalNotes",
+                column: "IdempotencyKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FiscalNotes_PaymentId",
                 table: "FiscalNotes",
                 column: "PaymentId");
@@ -1743,6 +2180,16 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "IX_FiscalNotes_Type_ReservationId_ContractId",
                 table: "FiscalNotes",
                 columns: new[] { "Type", "ReservationId", "ContractId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FiscalNoteScriptExecutions_ExecutedAt",
+                table: "FiscalNoteScriptExecutions",
+                column: "ExecutedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FiscalNoteScriptExecutions_ExecutedByUserId",
+                table: "FiscalNoteScriptExecutions",
+                column: "ExecutedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Interests_ContactedByUserId",
@@ -1764,6 +2211,37 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "IX_LocationCommissions_LocationId",
                 table: "LocationCommissions",
                 column: "LocationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_EventId",
+                table: "PagBankWebhookLogs",
+                column: "EventId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_PaymentId",
+                table: "PagBankWebhookLogs",
+                column: "PaymentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_ProcessingStatus",
+                table: "PagBankWebhookLogs",
+                column: "ProcessingStatus");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_ReceivedAt",
+                table: "PagBankWebhookLogs",
+                column: "ReceivedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_ReferenceId",
+                table: "PagBankWebhookLogs",
+                column: "ReferenceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PagBankWebhookLogs_ResourceId",
+                table: "PagBankWebhookLogs",
+                column: "ResourceId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartnerServices_CoworkingId_ServiceId",
@@ -1891,6 +2369,15 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "BlockedDates");
 
             migrationBuilder.DropTable(
+                name: "CapacityChangeRequests");
+
+            migrationBuilder.DropTable(
+                name: "ChatIntentions");
+
+            migrationBuilder.DropTable(
+                name: "ChatUnansweredQuestions");
+
+            migrationBuilder.DropTable(
                 name: "ClientCredits");
 
             migrationBuilder.DropTable(
@@ -1933,10 +2420,16 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "FiscalNotes");
 
             migrationBuilder.DropTable(
+                name: "FiscalNoteScriptExecutions");
+
+            migrationBuilder.DropTable(
                 name: "Interests");
 
             migrationBuilder.DropTable(
                 name: "LocationCommissions");
+
+            migrationBuilder.DropTable(
+                name: "PagBankWebhookLogs");
 
             migrationBuilder.DropTable(
                 name: "PartnerServices");
@@ -1966,6 +2459,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 name: "UserRoles");
 
             migrationBuilder.DropTable(
+                name: "ChatMessages");
+
+            migrationBuilder.DropTable(
                 name: "CreditPlans");
 
             migrationBuilder.DropTable(
@@ -1979,6 +2475,12 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "Roles");
+
+            migrationBuilder.DropTable(
+                name: "ChatConversations");
+
+            migrationBuilder.DropTable(
+                name: "ChatFaqItems");
 
             migrationBuilder.DropTable(
                 name: "Reservations");

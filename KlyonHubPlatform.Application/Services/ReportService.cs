@@ -73,7 +73,7 @@ namespace KlyonHubPlatform.Application.Services
                 .OrderBy(x => x.Year).ThenBy(x => x.Month)
                 .ToListAsync();
 
-            // Usuários por tipo
+            // Usuários por tipo (mantido para compatibilidade, mas não mais exibido)
             model.UsersByRole = await _context.UserRoles
                 .Include(ur => ur.Role)
                 .GroupBy(ur => ur.Role.Name)
@@ -83,6 +83,144 @@ namespace KlyonHubPlatform.Application.Services
                     Count = g.Count()
                 })
                 .ToListAsync();
+
+            // === NOVOS GRÁFICOS ===
+
+            // 1. Novos contratos por mês (últimos 6 meses)
+            model.MonthlyContracts = await _context.Contracts
+                .Where(c => c.CreatedAt >= sixMonthsAgo)
+                .GroupBy(c => new { Year = c.CreatedAt.Year, Month = c.CreatedAt.Month })
+                .Select(g => new MonthlyContractsDto
+                {
+                    Month = g.Key.Month,
+                    Year = g.Key.Year,
+                    NewContracts = g.Count(),
+                    CancelledContracts = g.Count(c => c.Status == ContractStatus.Cancelled)
+                })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToListAsync();
+
+            // Totais de contratos nos últimos 6 meses
+            model.NewContractsLast6Months = await _context.Contracts
+                .Where(c => c.CreatedAt >= sixMonthsAgo)
+                .CountAsync();
+            model.CancelledContractsLast6Months = await _context.Contracts
+                .Where(c => c.Status == ContractStatus.Cancelled && c.UpdatedAt >= sixMonthsAgo)
+                .CountAsync();
+
+            // 2. Top 5 coworkings por receita
+            // Materializar os dados primeiro e agrupar em memória para evitar problema de tradução do EF Core
+            var paymentsForTopCoworkings = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid && p.SubscriptionId != null)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                            .ThenInclude(a => a.Coworking)
+                .Where(p => p.Subscription != null && 
+                           p.Subscription.Contract != null && 
+                           p.Subscription.Contract.CoworkingAddress != null &&
+                           p.Subscription.Contract.CoworkingAddress.Coworking != null)
+                .Select(p => new {
+                    CoworkingId = p.Subscription.Contract.CoworkingAddress.CoworkingId,
+                    CoworkingName = p.Subscription.Contract.CoworkingAddress.Coworking.Name,
+                    Amount = p.Amount,
+                    ContractId = p.Subscription.Contract.Id
+                })
+                .ToListAsync();
+
+            model.TopCoworkingsByRevenue = paymentsForTopCoworkings
+                .GroupBy(p => new { p.CoworkingId, p.CoworkingName })
+                .Select(g => new TopCoworkingRevenueDto
+                {
+                    CoworkingId = g.Key.CoworkingId,
+                    CoworkingName = g.Key.CoworkingName,
+                    Revenue = g.Sum(p => p.Amount),
+                    ContractsCount = g.Select(p => p.ContractId).Distinct().Count()
+                })
+                .OrderByDescending(x => x.Revenue)
+                .Take(5)
+                .ToList();
+
+            // 3. Pagamentos por método (últimos 6 meses)
+            model.PaymentsByMethod = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt >= sixMonthsAgo)
+                .GroupBy(p => p.Method)
+                .Select(g => new PaymentsByMethodDto
+                {
+                    Method = g.Key.ToString(),
+                    MethodDisplay = g.Key == PaymentMethod.PIX ? "PIX" :
+                                   g.Key == PaymentMethod.CreditCard ? "Cartão de Crédito" :
+                                   g.Key == PaymentMethod.BankTransfer ? "Boleto" : g.Key.ToString(),
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(p => p.Amount)
+                })
+                .OrderByDescending(x => x.TotalAmount)
+                .ToListAsync();
+
+            // 4. Novos clientes por mês (últimos 6 meses)
+            model.MonthlyNewClients = await _context.Clients
+                .Where(c => c.CreatedAt >= sixMonthsAgo)
+                .GroupBy(c => new { Year = c.CreatedAt.Year, Month = c.CreatedAt.Month })
+                .Select(g => new MonthlyNewClientsDto
+                {
+                    Month = g.Key.Month,
+                    Year = g.Key.Year,
+                    NewClients = g.Count()
+                })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToListAsync();
+
+            // 5. Breakdown de receita mensal (bruta, parceiro, líquida) - últimos 6 meses
+            var paymentsWithCommissions = await _context.Payments
+                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt >= sixMonthsAgo)
+                .Select(p => new { 
+                    Year = p.PaidAt.Value.Year, 
+                    Month = p.PaidAt.Value.Month, 
+                    Amount = p.Amount 
+                })
+                .ToListAsync();
+
+            var commissionsData = await _context.Commissions
+                .Where(c => c.CreatedAt >= sixMonthsAgo)
+                .Select(c => new { 
+                    Year = c.CreatedAt.Year, 
+                    Month = c.CreatedAt.Month,
+                    CommissionAmount = c.Amount,
+                    PartnerAmount = c.TotalPaymentAmount - c.Amount
+                })
+                .ToListAsync();
+
+            var monthlyBreakdown = paymentsWithCommissions
+                .GroupBy(p => new { p.Year, p.Month })
+                .Select(g => {
+                    var commissionForMonth = commissionsData
+                        .Where(c => c.Year == g.Key.Year && c.Month == g.Key.Month)
+                        .ToList();
+                    
+                    var gross = g.Sum(p => p.Amount);
+                    var partner = commissionForMonth.Sum(c => c.PartnerAmount);
+                    var net = commissionForMonth.Sum(c => c.CommissionAmount);
+                    
+                    // Se não houver comissões, estimar 20% como receita líquida
+                    if (net == 0 && gross > 0)
+                    {
+                        net = gross * 0.20m;
+                        partner = gross - net;
+                    }
+                    
+                    return new MonthlyRevenueBreakdownDto
+                    {
+                        Month = g.Key.Month,
+                        Year = g.Key.Year,
+                        GrossRevenue = gross,
+                        PartnerRevenue = partner,
+                        NetRevenue = net
+                    };
+                })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToList();
+
+            model.MonthlyRevenueBreakdown = monthlyBreakdown;
 
             // Contratos por status
             model.ContractsByStatus = await _context.Contracts
@@ -112,7 +250,7 @@ namespace KlyonHubPlatform.Application.Services
                 .ToListAsync();
 
             // Pagamentos recentes
-            model.RecentPayments = await GetRecentPaymentsAsync(30, 10);
+            model.RecentPayments = await GetRecentPaymentsAsync(30, 50);
 
             return model;
         }

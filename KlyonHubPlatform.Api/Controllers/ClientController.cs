@@ -1589,6 +1589,73 @@ namespace KlyonHubPlatform.Api.Controllers
             return View(payment);
         }
 
+        /// <summary>
+        /// Endpoint para polling de status do pagamento (usado pelo JavaScript para atualização automática)
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetPaymentStatus(int paymentId)
+        {
+            try
+            {
+                var payment = await _context.Payments.FindAsync(paymentId);
+                if (payment == null)
+                {
+                    return NotFound(new { error = "Pagamento não encontrado" });
+                }
+
+                // Verificar se o pagamento pertence ao cliente logado
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                
+                if (client == null)
+                {
+                    return Unauthorized(new { error = "Cliente não encontrado" });
+                }
+
+                // Verificar autorização
+                bool isAuthorized = false;
+                
+                if (payment.SubscriptionId.HasValue)
+                {
+                    var subscription = await _context.Subscriptions
+                        .Include(s => s.Contract)
+                        .FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value);
+                    
+                    if (subscription?.Contract?.ClientId == client.Id)
+                    {
+                        isAuthorized = true;
+                    }
+                }
+                else if (payment.ReservationId.HasValue)
+                {
+                    var reservation = await _context.Reservations
+                        .FirstOrDefaultAsync(r => r.Id == payment.ReservationId.Value);
+                    
+                    if (reservation?.ClientId == client.Id)
+                    {
+                        isAuthorized = true;
+                    }
+                }
+
+                if (!isAuthorized && !User.IsInRole("Administrator"))
+                {
+                    return Forbid();
+                }
+
+                return Ok(new 
+                { 
+                    paymentId = payment.Id,
+                    status = payment.Status.ToString(),
+                    paidAt = payment.PaidAt,
+                    updatedAt = payment.UpdatedAt
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method)

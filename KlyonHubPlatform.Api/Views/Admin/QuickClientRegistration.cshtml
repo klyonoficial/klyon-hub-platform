@@ -156,9 +156,9 @@
                         <div class="input-group">
                             <span class="input-group-text">R$</span>
                             <input type="number" class="form-control" id="monthlyValue" name="monthlyValue" 
-                                   step="0.01" min="0.01" required placeholder="0,00" readonly>
+                                   step="0.01" min="0.01" required placeholder="0,00">
                         </div>
-                        <small class="form-text text-muted">Valor anual definido automaticamente pelo endereço selecionado.</small>
+                        <small class="form-text text-muted">Valor preenchido automaticamente. Pode ser ajustado se necessário.</small>
                     </div>
 
                     <div class="mb-3">
@@ -196,6 +196,95 @@
 
 @section Scripts {
     <script>
+        // Função para exibir erro de validação amigável
+        function showValidationError(title, message) {
+            // Criar modal de erro se não existir
+            let modal = document.getElementById('validationErrorModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'validationErrorModal';
+                modal.className = 'modal fade';
+                modal.setAttribute('tabindex', '-1');
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning">
+                                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> <span id="validationErrorTitle"></span></h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p id="validationErrorMessage" class="mb-0"></p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('validationErrorTitle').textContent = title;
+            document.getElementById('validationErrorMessage').textContent = message;
+            
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+
+        // Função para atualizar o valor anual baseado no endereço selecionado
+        function updateMonthlyValue() {
+            const addressSelect = document.getElementById('coworkingAddressId');
+            if (!addressSelect) return;
+            
+            const option = addressSelect.options[addressSelect.selectedIndex];
+            const info = document.getElementById('addressInfo');
+            const monthlyValueInput = document.getElementById('monthlyValue');
+            
+            console.log('updateMonthlyValue chamado, option:', option?.value, 'basePrice:', option?.getAttribute('data-base-price'));
+            
+            if (option && option.value) {
+                const location = option.getAttribute('data-location');
+                const coworking = option.getAttribute('data-coworking');
+                const vacancies = option.getAttribute('data-vacancies');
+                const basePrice = option.getAttribute('data-base-price');
+                
+                console.log('Dados do endereço:', { location, coworking, vacancies, basePrice });
+                
+                // Atualizar informações do endereço
+                if (info) {
+                    info.textContent = `${coworking} - ${location} (${vacancies} ${vacancies == 1 ? 'vaga disponível' : 'vagas disponíveis'})`;
+                    info.className = 'form-text text-muted';
+                }
+                
+                // Preencher valor anual automaticamente com o preço base
+                if (monthlyValueInput) {
+                    const price = parseFloat(basePrice) || 0;
+                    console.log('Preço parseado:', price);
+                    if (price > 0) {
+                        monthlyValueInput.value = price.toFixed(2);
+                        monthlyValueInput.classList.remove('is-invalid');
+                    } else {
+                        // Se o preço for 0 ou inválido, deixar vazio para preenchimento manual
+                        console.warn('Preço base inválido ou zero:', basePrice);
+                        monthlyValueInput.value = '';
+                        monthlyValueInput.classList.add('is-invalid');
+                        // Mostrar mensagem de aviso
+                        if (info) {
+                            info.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Este endereço não possui valor definido. Por favor, informe o valor manualmente.</span>`;
+                            info.className = 'form-text';
+                        }
+                    }
+                }
+            } else {
+                if (info) {
+                    info.textContent = '';
+                }
+                if (monthlyValueInput) {
+                    monthlyValueInput.value = '';
+                }
+            }
+        }
+
         // Máscaras de entrada
         document.getElementById('cnpj')?.addEventListener('input', function(e) {
             let value = e.target.value.replace(/\D/g, '');
@@ -234,32 +323,7 @@
         });
 
         // Atualizar informações do endereço selecionado e preencher valor anual automaticamente
-        document.getElementById('coworkingAddressId')?.addEventListener('change', function(e) {
-            const option = e.target.options[e.target.selectedIndex];
-            const info = document.getElementById('addressInfo');
-            const monthlyValueInput = document.getElementById('monthlyValue');
-            
-            if (option.value) {
-                const location = option.getAttribute('data-location');
-                const coworking = option.getAttribute('data-coworking');
-                const vacancies = option.getAttribute('data-vacancies');
-                const basePrice = option.getAttribute('data-base-price');
-                
-                // Atualizar informações do endereço
-                info.textContent = `${coworking} - ${location} (${vacancies} ${vacancies == 1 ? 'vaga disponível' : 'vagas disponíveis'})`;
-                info.className = 'form-text text-muted';
-                
-                // Preencher valor anual automaticamente com o preço base
-                if (basePrice && monthlyValueInput) {
-                    monthlyValueInput.value = parseFloat(basePrice).toFixed(2);
-                }
-            } else {
-                info.textContent = '';
-                if (monthlyValueInput) {
-                    monthlyValueInput.value = '';
-                }
-            }
-        });
+        document.getElementById('coworkingAddressId')?.addEventListener('change', updateMonthlyValue);
 
         // Formatar valor monetário
         document.getElementById('monthlyValue')?.addEventListener('blur', function(e) {
@@ -269,56 +333,143 @@
             }
         });
 
-        function submitForms() {
+        // Chamar ao carregar a página caso já haja um endereço selecionado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded - inicializando...');
+            console.log('submitForms está definida?', typeof submitForms);
+            console.log('window.submitForms está definida?', typeof window.submitForms);
+            
+            // Verificar se o botão existe e tem o onclick
+            const btn = document.querySelector('button[onclick="submitForms()"]');
+            console.log('Botão encontrado:', btn);
+            if (btn) {
+                console.log('onclick do botão:', btn.getAttribute('onclick'));
+            }
+            
+            updateMonthlyValue();
+        });
+
+        async function submitForms() {
+            console.log('submitForms() - função chamada!');
+            
             const clientForm = document.getElementById('clientForm');
             const contractForm = document.getElementById('contractForm');
             
+            console.log('clientForm:', clientForm);
+            console.log('contractForm:', contractForm);
+            
             // Validar formulário de cliente
+            console.log('Validando formulário de cliente...');
             if (!clientForm.checkValidity()) {
+                console.log('Formulário de cliente inválido');
                 clientForm.reportValidity();
                 return;
             }
+            console.log('Formulário de cliente válido');
 
             // Validar formulário de contrato
+            console.log('Validando formulário de contrato...');
             if (!contractForm.checkValidity()) {
+                console.log('Formulário de contrato inválido');
                 contractForm.reportValidity();
                 return;
             }
+            console.log('Formulário de contrato válido');
 
-            // Criar FormData combinando ambos os formulários
-            const formData = new FormData(clientForm);
-            const contractData = new FormData(contractForm);
-            
-            for (let [key, value] of contractData.entries()) {
-                formData.append(key, value);
+            // Validar endereço selecionado
+            const addressSelect = document.getElementById('coworkingAddressId');
+            if (!addressSelect.value) {
+                showValidationError('Endereço Obrigatório', 'Por favor, selecione um endereço fiscal disponível para continuar.');
+                addressSelect.focus();
+                return;
             }
 
-            // Criar um formulário temporário e submeter
-            const tempForm = document.createElement('form');
-            tempForm.method = 'POST';
-            tempForm.action = clientForm.action;
-            
-            // Adicionar token anti-forgery
-            const token = document.querySelector('input[name="__RequestVerificationToken"]');
-            if (token) {
-                const tokenInput = document.createElement('input');
-                tokenInput.type = 'hidden';
-                tokenInput.name = '__RequestVerificationToken';
-                tokenInput.value = token.value;
-                tempForm.appendChild(tokenInput);
+            // Validar valor anual
+            const monthlyValue = parseFloat(document.getElementById('monthlyValue').value);
+            console.log('monthlyValue:', monthlyValue);
+            if (isNaN(monthlyValue) || monthlyValue <= 0) {
+                console.log('Valor anual inválido');
+                showValidationError('Valor Inválido', 'O endereço selecionado não possui um valor definido. Por favor, informe o valor anual manualmente ou selecione outro endereço.');
+                document.getElementById('monthlyValue').focus();
+                return;
             }
+            console.log('Valor anual válido');
 
-            // Adicionar todos os campos
-            for (let [key, value] of formData.entries()) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = value;
-                tempForm.appendChild(input);
+            // Desabilitar botão durante o envio
+            const submitBtn = document.querySelector('button[onclick="submitForms()"]');
+            const originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cadastrando...';
+
+            try {
+                // Montar objeto de request para a API
+                const requestData = {
+                    contactEmail: document.getElementById('contactEmail').value,
+                    contactName: document.getElementById('contactName').value,
+                    razaoSocial: document.getElementById('razaoSocial').value || null,
+                    nomeFantasia: document.getElementById('nomeFantasia').value || null,
+                    cnpj: document.getElementById('cnpj').value || null,
+                    cpf: document.getElementById('cpf').value || null,
+                    contactPhone: document.getElementById('contactPhone').value || null,
+                    address: document.getElementById('address').value || null,
+                    city: document.getElementById('city').value || null,
+                    state: document.getElementById('state').value || null,
+                    zipCode: document.getElementById('zipCode').value || null,
+                    coworkingAddressId: parseInt(document.getElementById('coworkingAddressId').value),
+                    monthlyValue: monthlyValue,
+                    paymentMethod: document.getElementById('paymentMethod').value
+                };
+
+                // Chamar a nova API
+                const response = await fetch('/api/QuickClientApi/Register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                // Tratar resposta
+                let result;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    // Se não conseguir fazer parse do JSON, criar objeto de erro
+                    result = {
+                        success: false,
+                        message: `Erro no servidor (HTTP ${response.status}). Por favor, tente novamente.`
+                    };
+                }
+
+                if (response.ok && result.success) {
+                    // Redirecionar para página de sucesso com os dados do pagamento
+                    if (result.paymentId) {
+                        window.location.href = `/Admin/QuickClientRegistrationSuccess?paymentId=${result.paymentId}`;
+                    } else {
+                        // Se não houver pagamento, redirecionar para contratos
+                        alert(result.message || 'Cliente cadastrado com sucesso!');
+                        window.location.href = '/Admin/Contracts';
+                    }
+                } else {
+                    // Exibir erro com mensagem adequada
+                    const errorMessage = result.message || result.title || result.errors 
+                        ? (result.message || result.title || JSON.stringify(result.errors))
+                        : 'Erro desconhecido ao processar a requisição.';
+                    alert('Erro: ' + errorMessage);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            } catch (error) {
+                console.error('Erro ao cadastrar cliente:', error);
+                alert('Erro ao cadastrar cliente: ' + (error.message || 'Erro de conexão. Por favor, tente novamente.'));
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
             }
-
-            document.body.appendChild(tempForm);
-            tempForm.submit();
         }
+        
+        // Registrar função globalmente para garantir acesso via onclick
+        window.submitForms = submitForms;
+        console.log('submitForms registrada no window');
     </script>
 }

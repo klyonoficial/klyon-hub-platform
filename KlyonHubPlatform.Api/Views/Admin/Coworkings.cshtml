@@ -161,11 +161,12 @@
                                        title="Visualizar">
                                         <i class="bi bi-eye-fill"></i>
                                     </a>
-                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
-                                       class="btn btn-sm btn-primary" 
-                                       title="Gerenciar Serviços e Percentagens">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-primary" 
+                                            title="Gerenciar Serviços e Percentagens"
+                                            onclick="abrirModalPercentagem(@coworking.Id, '@(System.Net.WebUtility.HtmlEncode(coworking.Name ?? ""))')">
                                         <i class="bi bi-percent"></i>
-                                    </a>
+                                    </button>
                                     <button type="button" class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </button>
@@ -295,6 +296,81 @@
     </div>
 </div>
 
+<!-- Modal Percentagem do Serviço -->
+<div class="modal fade" id="modalPercentagem" tabindex="-1" aria-labelledby="modalPercentagemLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPercentagemLabel">
+                    <i class="bi bi-percent"></i> Serviços e Percentagens - <span id="percentagemCoworkingName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading -->
+                <div id="percentagemLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Carregando serviços...</p>
+                </div>
+
+                <!-- Conteúdo -->
+                <div id="percentagemContent" style="display: none;">
+                    <!-- Lista de serviços existentes -->
+                    <div id="servicosExistentes" class="mb-4">
+                        <h6 class="text-muted mb-3"><i class="bi bi-list-check"></i> Serviços Configurados</h6>
+                        <div id="listaServicos"></div>
+                        <div id="semServicos" class="alert alert-info" style="display: none;">
+                            <i class="bi bi-info-circle"></i> Nenhum serviço cadastrado para este parceiro.
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Formulário para adicionar/editar serviço -->
+                    <div id="formPercentagem">
+                        <h6 class="text-muted mb-3" id="formPercentagemTitulo">
+                            <i class="bi bi-plus-circle"></i> Adicionar Serviço
+                        </h6>
+                        <input type="hidden" id="percentagemCoworkingId" value="" />
+                        <input type="hidden" id="percentagemServiceId" value="0" />
+                        
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <label for="percentagemServicoSelect" class="form-label">Serviço <span class="text-danger">*</span></label>
+                                <select class="form-select" id="percentagemServicoSelect" required>
+                                    <option value="">Selecione um serviço...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="percentagemValor" class="form-label">Percentagem (%) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="percentagemValor" 
+                                       step="any" min="0" max="100" required placeholder="Ex: 10">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="button" class="btn btn-primary w-100" onclick="salvarPercentagem()">
+                                    <i class="bi bi-check-lg"></i> Salvar
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-2">Percentagem fechada em contrato (não pode ser alterada pelo parceiro)</small>
+                    </div>
+                </div>
+
+                <!-- Mensagem de erro -->
+                <div id="percentagemErro" class="alert alert-danger" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="btnVerDetalhes" class="btn btn-outline-primary">
+                    <i class="bi bi-eye"></i> Ver Detalhes Completos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function abrirReprovar(coworkingId) {
     document.getElementById('reprovarId').value = coworkingId;
@@ -345,4 +421,262 @@ function toggleStatus(coworkingId, coworkingName) {
         }
     });
 }
+
+// ========================
+// Modal de Percentagem
+// ========================
+var percentagemModal = null;
+var percentagemDadosAtuais = null;
+
+function abrirModalPercentagem(coworkingId, coworkingName) {
+    // Inicializar modal se necessário
+    if (!percentagemModal) {
+        percentagemModal = new bootstrap.Modal(document.getElementById('modalPercentagem'));
+    }
+
+    // Atualizar título e link
+    document.getElementById('percentagemCoworkingName').textContent = coworkingName;
+    document.getElementById('percentagemCoworkingId').value = coworkingId;
+    document.getElementById('btnVerDetalhes').href = '@Url.Action("ViewCoworking", "Admin")/' + coworkingId + '#servicos';
+
+    // Mostrar loading, esconder conteúdo
+    document.getElementById('percentagemLoading').style.display = 'block';
+    document.getElementById('percentagemContent').style.display = 'none';
+    document.getElementById('percentagemErro').style.display = 'none';
+
+    // Limpar formulário
+    resetarFormularioPercentagem();
+
+    // Abrir modal
+    percentagemModal.show();
+
+    // Carregar dados via AJAX
+    carregarServicosCoworking(coworkingId);
+}
+
+function carregarServicosCoworking(coworkingId) {
+    fetch('@Url.Action("GetCoworkingServicesJson", "Admin")?coworkingId=' + coworkingId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                percentagemDadosAtuais = data;
+                renderizarServicos(data);
+                document.getElementById('percentagemLoading').style.display = 'none';
+                document.getElementById('percentagemContent').style.display = 'block';
+            } else {
+                mostrarErroPercentagem(data.message || 'Erro ao carregar serviços.');
+            }
+        })
+        .catch(error => {
+            mostrarErroPercentagem('Erro de conexão: ' + error.message);
+        });
+}
+
+function renderizarServicos(data) {
+    var listaContainer = document.getElementById('listaServicos');
+    var semServicos = document.getElementById('semServicos');
+    var selectServico = document.getElementById('percentagemServicoSelect');
+
+    // Limpar lista atual
+    listaContainer.innerHTML = '';
+    selectServico.innerHTML = '<option value="">Selecione um serviço...</option>';
+
+    // Renderizar serviços existentes
+    if (data.partnerServices && data.partnerServices.length > 0) {
+        semServicos.style.display = 'none';
+        
+        var table = document.createElement('div');
+        table.className = 'table-responsive';
+        table.innerHTML = `
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Serviço</th>
+                        <th class="text-end">Percentagem</th>
+                        <th class="text-center" style="width: 120px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyServicos"></tbody>
+            </table>
+        `;
+        listaContainer.appendChild(table);
+
+        var tbody = document.getElementById('tbodyServicos');
+        data.partnerServices.forEach(function(ps) {
+            var tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <strong>${escapeHtml(ps.serviceName)}</strong>
+                    ${ps.serviceDescription ? '<br><small class="text-muted">' + escapeHtml(ps.serviceDescription) + '</small>' : ''}
+                </td>
+                <td class="text-end">
+                    <span class="badge bg-primary fs-6">${ps.percentage.toFixed(2)}%</span>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-warning me-1" onclick="editarPercentagem(${ps.id}, ${ps.serviceId}, '${escapeHtml(ps.serviceName)}', ${ps.percentage})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removerPercentagem(${ps.id}, '${escapeHtml(ps.serviceName)}')" title="Remover">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } else {
+        semServicos.style.display = 'block';
+    }
+
+    // Preencher select com serviços disponíveis
+    if (data.availableServices && data.availableServices.length > 0) {
+        data.availableServices.forEach(function(s) {
+            var option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = s.name;
+            selectServico.appendChild(option);
+        });
+    }
+}
+
+function editarPercentagem(id, serviceId, serviceName, percentage) {
+    document.getElementById('percentagemServiceId').value = id;
+    
+    // Adicionar o serviço atual como opção no dropdown (se não existir)
+    var selectServico = document.getElementById('percentagemServicoSelect');
+    var opcaoExiste = Array.from(selectServico.options).some(opt => opt.value == serviceId);
+    if (!opcaoExiste) {
+        var option = document.createElement('option');
+        option.value = serviceId;
+        option.textContent = serviceName;
+        selectServico.appendChild(option);
+    }
+    
+    selectServico.value = serviceId;
+    selectServico.disabled = true;
+    document.getElementById('percentagemValor').value = percentage;
+    document.getElementById('formPercentagemTitulo').innerHTML = '<i class="bi bi-pencil"></i> Editar Percentagem do Serviço';
+    
+    // Scroll para o formulário
+    document.getElementById('formPercentagem').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetarFormularioPercentagem() {
+    document.getElementById('percentagemServiceId').value = '0';
+    var selectServico = document.getElementById('percentagemServicoSelect');
+    selectServico.value = '';
+    selectServico.disabled = false;
+    document.getElementById('percentagemValor').value = '';
+    document.getElementById('formPercentagemTitulo').innerHTML = '<i class="bi bi-plus-circle"></i> Adicionar Serviço';
+    
+    // Recarregar opções do dropdown para remover serviços adicionados dinamicamente
+    if (percentagemDadosAtuais && percentagemDadosAtuais.availableServices) {
+        selectServico.innerHTML = '<option value="">Selecione um serviço...</option>';
+        percentagemDadosAtuais.availableServices.forEach(function(s) {
+            var option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = s.name;
+            selectServico.appendChild(option);
+        });
+    }
+}
+
+function salvarPercentagem() {
+    var coworkingId = parseInt(document.getElementById('percentagemCoworkingId').value);
+    var id = parseInt(document.getElementById('percentagemServiceId').value) || 0;
+    var serviceId = parseInt(document.getElementById('percentagemServicoSelect').value);
+    var percentage = parseFloat(document.getElementById('percentagemValor').value.replace(',', '.'));
+
+    // Validação
+    if (!serviceId || serviceId <= 0) {
+        showToast('Por favor, selecione um serviço.', 'warning');
+        return;
+    }
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+        showToast('A percentagem deve estar entre 0 e 100.', 'warning');
+        return;
+    }
+
+    var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+    fetch('@Url.Action("SavePartnerServiceJson", "Admin")', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': token
+        },
+        body: JSON.stringify({
+            id: id,
+            coworkingId: coworkingId,
+            serviceId: serviceId,
+            percentage: percentage
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            resetarFormularioPercentagem();
+            carregarServicosCoworking(coworkingId);
+        } else {
+            showToast(data.message || 'Erro ao salvar.', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Erro de conexão: ' + error.message, 'error');
+    });
+}
+
+function removerPercentagem(id, serviceName) {
+    showConfirm(
+        'Tem certeza que deseja remover o serviço "' + serviceName + '"?',
+        'Confirmar Remoção',
+        'warning'
+    ).then(confirmed => {
+        if (confirmed) {
+            var coworkingId = parseInt(document.getElementById('percentagemCoworkingId').value);
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            fetch('@Url.Action("DeletePartnerServiceJson", "Admin")', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ id: id })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    carregarServicosCoworking(coworkingId);
+                } else {
+                    showToast(data.message || 'Erro ao remover.', 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Erro de conexão: ' + error.message, 'error');
+            });
+        }
+    });
+}
+
+function mostrarErroPercentagem(mensagem) {
+    document.getElementById('percentagemLoading').style.display = 'none';
+    document.getElementById('percentagemContent').style.display = 'none';
+    var erroDiv = document.getElementById('percentagemErro');
+    erroDiv.textContent = mensagem;
+    erroDiv.style.display = 'block';
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Limpar formulário ao fechar modal
+document.getElementById('modalPercentagem')?.addEventListener('hidden.bs.modal', function() {
+    resetarFormularioPercentagem();
+    percentagemDadosAtuais = null;
+});
 </script>

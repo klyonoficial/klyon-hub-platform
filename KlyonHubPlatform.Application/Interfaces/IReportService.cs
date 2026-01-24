@@ -186,6 +186,15 @@ namespace KlyonHubPlatform.Application.Interfaces
         public List<ContractsByStatusDto> ContractsByStatus { get; set; } = new();
         public List<TopLocationDto> TopLocations { get; set; } = new();
         public List<Payment> RecentPayments { get; set; } = new();
+        
+        // Novos dados para gráficos melhorados
+        public List<MonthlyContractsDto> MonthlyContracts { get; set; } = new();
+        public List<TopCoworkingRevenueDto> TopCoworkingsByRevenue { get; set; } = new();
+        public List<PaymentsByMethodDto> PaymentsByMethod { get; set; } = new();
+        public List<MonthlyNewClientsDto> MonthlyNewClients { get; set; } = new();
+        public List<MonthlyRevenueBreakdownDto> MonthlyRevenueBreakdown { get; set; } = new();
+        public int CancelledContractsLast6Months { get; set; }
+        public int NewContractsLast6Months { get; set; }
     }
 
     public class MonthlyRevenueDto
@@ -211,5 +220,50 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         public string City { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
+    }
+
+    /// <summary>Novos contratos por mês (últimos 6 meses)</summary>
+    public class MonthlyContractsDto
+    {
+        public int Month { get; set; }
+        public int Year { get; set; }
+        public int NewContracts { get; set; }
+        public int CancelledContracts { get; set; }
+    }
+
+    /// <summary>Top coworkings por receita</summary>
+    public class TopCoworkingRevenueDto
+    {
+        public int CoworkingId { get; set; }
+        public string CoworkingName { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+        public int ContractsCount { get; set; }
+    }
+
+    /// <summary>Pagamentos por método</summary>
+    public class PaymentsByMethodDto
+    {
+        public string Method { get; set; } = string.Empty;
+        public string MethodDisplay { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+
+    /// <summary>Novos clientes por mês</summary>
+    public class MonthlyNewClientsDto
+    {
+        public int Month { get; set; }
+        public int Year { get; set; }
+        public int NewClients { get; set; }
+    }
+
+    /// <summary>Breakdown de receita mensal (bruta, líquida, comissão)</summary>
+    public class MonthlyRevenueBreakdownDto
+    {
+        public int Month { get; set; }
+        public int Year { get; set; }
+        public decimal GrossRevenue { get; set; }
+        public decimal PartnerRevenue { get; set; }
+        public decimal NetRevenue { get; set; }
     }
 }

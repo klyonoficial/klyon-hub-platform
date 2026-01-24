@@ -406,18 +406,35 @@ namespace KlyonHubPlatform.Application.Services
         {
             try
             {
-                var webhookSecret = await _systemConfigService.GetValueAsync("PagBank.WebhookSecret");
-                if (string.IsNullOrEmpty(webhookSecret))
+                // O PagBank usa o token de acesso da conta como chave para gerar a assinatura
+                // A assinatura é gerada usando SHA256 no formato: {token}-{payload}
+                var token = await _systemConfigService.GetValueAsync("PagBank.AccessToken");
+                if (string.IsNullOrEmpty(token))
                 {
-                    _logger.LogWarning("Webhook secret não configurado. Validação ignorada.");
+                    _logger.LogWarning("Token de acesso não configurado. Validação de webhook ignorada.");
                     return true; // Se não estiver configurado, aceitar (para desenvolvimento)
                 }
 
-                // Implementar validação de assinatura do webhook
-                // O PagBank envia um header com a assinatura que precisa ser validada
-                // Por enquanto, retornar true (implementar validação real depois)
-                // TODO: Implementar validação HMAC com o webhookSecret
-                return true;
+                if (string.IsNullOrEmpty(signature))
+                {
+                    _logger.LogWarning("Assinatura não enviada no webhook. Aceitando requisição (para desenvolvimento).");
+                    return true; // Aceitar se não houver assinatura (ambiente de desenvolvimento)
+                }
+
+                // Gerar hash SHA256 conforme documentação do PagBank: {token}-{payload}
+                var dataToHash = $"{token}-{payload}";
+                using var sha256 = System.Security.Cryptography.SHA256.Create();
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(dataToHash));
+                var computedSignature = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+                var isValid = string.Equals(computedSignature, signature, StringComparison.OrdinalIgnoreCase);
+                
+                if (!isValid)
+                {
+                    _logger.LogWarning($"Assinatura do webhook inválida. Esperado: {computedSignature.Substring(0, 20)}..., Recebido: {signature.Substring(0, Math.Min(20, signature.Length))}...");
+                }
+
+                return isValid;
             }
             catch (Exception ex)
             {

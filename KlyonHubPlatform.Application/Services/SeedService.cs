@@ -662,6 +662,24 @@ namespace KlyonHubPlatform.Application.Services
                         Category = "Platform",
                         IsSensitive = false,
                         IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Features.EnableCoworkingMenus",
+                        Value = "false",
+                        Description = "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false.",
+                        Category = "Features",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Payment.CreditCardFeePercentage",
+                        Value = "10",
+                        Description = "Percentual adicional a ser cobrado quando o pagamento for realizado com cartão de crédito. Exemplo: 2.5 para 2,5%.",
+                        Category = "Payment",
+                        IsSensitive = false,
+                        IsEncrypted = false
                     }
                     );
                     await _context.SaveChangesAsync();

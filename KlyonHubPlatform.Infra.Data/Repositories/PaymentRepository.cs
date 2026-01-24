@@ -69,5 +69,35 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Include(p => p.Subscription)
                 .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalPaymentId);
         }
+
+        public async Task<Payment?> FindPaymentByExternalIdOrReferenceAsync(string externalId, string? referenceId = null)
+        {
+            // Primeiro, tenta buscar pelo ExternalPaymentId exato (ID do pedido PagBank)
+            var payment = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalId);
+
+            if (payment != null)
+                return payment;
+
+            // Se não encontrou e temos um reference_id, buscar por ele
+            // O reference_id pode ser o ExternalPaymentId original gerado antes de criar o pedido no PagBank
+            if (!string.IsNullOrEmpty(referenceId))
+            {
+                payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                    .FirstOrDefaultAsync(p => p.ExternalPaymentId == referenceId);
+
+                if (payment != null)
+                    return payment;
+            }
+
+            // Busca alternativa: procurar pagamentos pendentes recentes com valor similar
+            // Isso é útil quando há inconsistência nos IDs
+            // Por segurança, não fazemos essa busca automática - apenas retornamos null
+            return null;
+        }
     }
 }

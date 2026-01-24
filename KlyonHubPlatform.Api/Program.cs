@@ -101,6 +101,7 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ICommissionRepository, CommissionRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IPagBankWebhookLogRepository, PagBankWebhookLogRepository>();
 
 // Services
 builder.Services.AddScoped<IEmailService, EmailService>();
