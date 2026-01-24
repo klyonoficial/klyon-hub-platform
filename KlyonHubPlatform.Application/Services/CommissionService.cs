@@ -37,7 +37,7 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não encontrado");
 
             int coworkingId;
-            string serviceName;
+            string serviceCode;
             int? serviceId = null;
 
             CoworkingAddress? address = null;
@@ -57,7 +57,7 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Endereço não encontrado");
 
                 coworkingId = address.CoworkingId;
-                serviceName = "Ofertar Endereço Fiscal";
+                serviceCode = FiscalAddressOffer;
             }
             else if (payment.ReservationId.HasValue && payment.Reservation != null)
             {
@@ -72,7 +72,7 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Endereço não encontrado");
 
                 coworkingId = address.CoworkingId;
-                serviceName = "Reservar Sala";
+                serviceCode = RoomReservation;
             }
             else
             {
@@ -92,7 +92,7 @@ namespace KlyonHubPlatform.Application.Services
                 // Para reservas ou contratos antigos sem snapshot, buscar valores atuais
                 // Buscar o ServiceId baseado no nome do serviço
                 var service = await _context.Services
-                    .FirstOrDefaultAsync(s => s.Name == serviceName && s.IsActive);
+                    .FirstOrDefaultAsync(s => s.Code == serviceCode && s.IsActive);
 
                 if (service != null)
                 {

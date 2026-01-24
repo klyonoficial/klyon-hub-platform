@@ -282,8 +282,8 @@ namespace KlyonHubPlatform.Application.Services
             foreach (var existingService in existingServices)
             {
                 var matchingService = servicesToAdd.FirstOrDefault(s =>
-                    s.Name.Equals(existingService.Name, StringComparison.OrdinalIgnoreCase) ||
-                    (existingService.Name == "Contratar Endereço Fiscal" && s.Name == "Ofertar Endereço Fiscal"));
+                    s.Code.Equals(existingService.Code, StringComparison.OrdinalIgnoreCase) ||
+                    (s.Code == FiscalAddressOffer));
                 
                 if (matchingService != null)
                 {
@@ -311,13 +311,6 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         existingService.Code = matchingService.Code;
                         needsRouteUpdate = true; // Reutilizando a flag para indicar que houve atualização
-                    }
-
-                    // Atualizar nome do serviço se for o antigo "Contratar Endereço Fiscal"
-                    if (existingService.Name == "Contratar Endereço Fiscal" && matchingService.Name == "Ofertar Endereço Fiscal")
-                    {
-                        existingService.Name = matchingService.Name;
-                        needsRouteUpdate = true;
                     }
                 }
             }

@@ -223,6 +223,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     new Domain.Entities.Service
                     {
                         Name = "Reservar Sala",
+                        Code = RoomReservation,
                         Description = "Reserve salas de coworking para reuniões e trabalho",
                         Route = marketplaceRoute,
                         DisplayOrder = 2,
@@ -252,7 +253,7 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!showCoworkingMenus)
             {
                 services = services
-                    .Where(s => s.Name == "Ofertar Endereço Fiscal")
+                    .Where(s => s.Code == FiscalAddressOffer)
                     .ToList();
             }
 

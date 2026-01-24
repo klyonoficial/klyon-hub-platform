@@ -3829,7 +3829,7 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!showCoworkingMenus)
             {
                 partnerServices = partnerServices
-                    .Where(ps => ps.Service != null && ps.Service.Name == "Ofertar Endereço Fiscal")
+                    .Where(ps => ps.Service != null && ps.Service.Code == FiscalAddressOffer)
                     .ToList();
             }
 
