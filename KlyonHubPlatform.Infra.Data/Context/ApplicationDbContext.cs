@@ -202,6 +202,13 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<PaymentHistory> PaymentHistories { get; set; }
         public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
 
+        // KlyonBoot Chatbot
+        public DbSet<ChatFaqItem> ChatFaqItems { get; set; }
+        public DbSet<ChatConversation> ChatConversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<ChatIntention> ChatIntentions { get; set; }
+        public DbSet<ChatUnansweredQuestion> ChatUnansweredQuestions { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -329,6 +336,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             modelBuilder.Entity<AuditLog>(entity =>
             {
                 entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd(); // Garantir que Id seja auto-increment
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.ActionDate);
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.SetNull);
@@ -795,6 +803,102 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
                 entity.HasIndex(e => e.CoworkingAddressId);
                 entity.HasIndex(e => e.Status);
+            });
+
+            // KlyonBoot Chatbot - ChatFaqItem configuration
+            modelBuilder.Entity<ChatFaqItem>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Question).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.Answer).IsRequired().HasMaxLength(5000);
+                entity.Property(e => e.Keywords).HasMaxLength(1000);
+                entity.Property(e => e.Intentions).HasMaxLength(500);
+                entity.HasIndex(e => e.Category);
+                entity.HasIndex(e => e.IsActive);
+            });
+
+            // ChatConversation configuration
+            modelBuilder.Entity<ChatConversation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.SessionId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.IpAddress).HasMaxLength(50);
+                entity.Property(e => e.UserAgent).HasMaxLength(500);
+                entity.HasIndex(e => e.SessionId);
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.StartedAt);
+            });
+
+            // ChatMessage configuration
+            modelBuilder.Entity<ChatMessage>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Conversation)
+                    .WithMany(c => c.Messages)
+                    .HasForeignKey(e => e.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.FaqItem)
+                    .WithMany()
+                    .HasForeignKey(e => e.FaqItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.MessageType).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Content).IsRequired().HasMaxLength(5000);
+                entity.Property(e => e.ConfidenceScore).HasColumnType("DECIMAL(5,4)");
+                entity.Property(e => e.Metadata).HasMaxLength(2000);
+                entity.HasIndex(e => e.ConversationId);
+                entity.HasIndex(e => e.SentAt);
+            });
+
+            // ChatIntention configuration
+            modelBuilder.Entity<ChatIntention>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Conversation)
+                    .WithMany(c => c.Intentions)
+                    .HasForeignKey(e => e.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Message)
+                    .WithMany()
+                    .HasForeignKey(e => e.MessageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.IntentionName).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Confidence).HasColumnType("DECIMAL(5,4)").IsRequired();
+                entity.Property(e => e.Entities).HasMaxLength(2000);
+                entity.HasIndex(e => e.IntentionName);
+                entity.HasIndex(e => e.Category);
+                entity.HasIndex(e => e.DetectedAt);
+            });
+
+            // ChatUnansweredQuestion configuration
+            modelBuilder.Entity<ChatUnansweredQuestion>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Conversation)
+                    .WithMany()
+                    .HasForeignKey(e => e.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Message)
+                    .WithMany()
+                    .HasForeignKey(e => e.MessageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReviewedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Question).IsRequired().HasMaxLength(1000);
+                entity.Property(e => e.DetectedIntention).HasMaxLength(100);
+                entity.Property(e => e.SuggestedCategory).HasMaxLength(100);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.ReviewNotes).HasMaxLength(2000);
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.Frequency);
+                entity.HasIndex(e => e.CreatedAt);
             });
         }
     }

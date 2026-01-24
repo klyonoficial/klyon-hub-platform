@@ -166,7 +166,7 @@
                                        title="Gerenciar Serviços e Percentagens">
                                         <i class="bi bi-percent"></i>
                                     </a>
-                                    <button class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
+                                    <button type="button" class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </button>
                                     @if (coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview)
@@ -342,6 +342,7 @@ function toggleStatus(coworkingId, coworkingName) {
         
         document.body.appendChild(form);
         form.submit();
-    }
+        }
+    });
 }
 </script>

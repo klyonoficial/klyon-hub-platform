@@ -97,122 +97,151 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<Payment> ProcessPaymentAsync(int paymentId)
         {
-            var payment = await _paymentRepository.GetByIdAsync(paymentId);
-            if (payment == null)
-                throw new InvalidOperationException("Pagamento não encontrado");
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            // TODO: Integrar com gateway de pagamento real (Stripe, PagSeguro, etc.)
-            // Por enquanto, simula processamento
-            payment.Status = PaymentStatus.Processing;
-            await _paymentRepository.UpdateAsync(payment);
-
-            // Simular processamento assíncrono
-            await Task.Delay(1000);
-
-            payment.Status = PaymentStatus.Paid;
-            payment.PaidAt = DateTime.UtcNow;
-            payment.TransactionId = Guid.NewGuid().ToString();
-            await _paymentRepository.UpdateAsync(payment);
-
-            // Atualizar assinatura
-            if (payment.SubscriptionId.HasValue)
+            return await strategy.ExecuteAsync(async () =>
             {
-                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
-                if (subscription != null)
-                {
-                subscription.LastBillingDate = DateTime.UtcNow;
-                subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
-                subscription.FailedPaymentAttempts = 0;
-                if (subscription.Status == SubscriptionStatus.PastDue)
-                {
-                    subscription.Status = SubscriptionStatus.Active;
-                }
-                await _subscriptionRepository.UpdateAsync(subscription);
+                await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                // Ativar contrato se for o primeiro pagamento
-                var contract = await _context.Contracts
-                    .Include(c => c.CoworkingAddress)
-                    .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-
-                if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
+                try
                 {
-                    // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
-                    var previousPaidPayments = await _context.Payments
-                        .Where(p => p.SubscriptionId == subscription.Id && 
-                                   p.Id != paymentId && 
-                                   p.Status == PaymentStatus.Paid)
-                        .CountAsync();
+                    var payment = await _paymentRepository.GetByIdAsync(paymentId);
+                    if (payment == null)
+                        throw new InvalidOperationException("Pagamento não encontrado");
 
-                    if (previousPaidPayments == 0)
+                    // TODO: Integrar com gateway de pagamento real (Stripe, PagSeguro, etc.)
+                    // Por enquanto, simula processamento
+                    payment.Status = PaymentStatus.Processing;
+                    payment.UpdatedAt = DateTime.UtcNow;
+                    _context.Payments.Update(payment);
+
+                    // Simular processamento assíncrono
+                    await Task.Delay(1000);
+
+                    payment.Status = PaymentStatus.Paid;
+                    payment.PaidAt = DateTime.UtcNow;
+                    payment.TransactionId = Guid.NewGuid().ToString();
+                    payment.UpdatedAt = DateTime.UtcNow;
+                    _context.Payments.Update(payment);
+
+                    // Atualizar assinatura
+                    if (payment.SubscriptionId.HasValue)
                     {
-                        // Guardar o status original antes de alterar
-                        var originalStatus = contract.Status;
-                        
-                        // Primeiro pagamento - ativar contrato e definir validade de 1 ano
-                        contract.Status = ContractStatus.Active;
-                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
-                        await _contractRepository.UpdateAsync(contract);
-
-                        // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
-                        // (contratos suspensos já foram contados anteriormente)
-                        if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
+                        var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                        if (subscription != null)
                         {
-                            contract.CoworkingAddress.CurrentContracts++;
-                            if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                            subscription.LastBillingDate = DateTime.UtcNow;
+                            subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
+                            subscription.FailedPaymentAttempts = 0;
+                            if (subscription.Status == SubscriptionStatus.PastDue)
                             {
-                                contract.CoworkingAddress.IsAvailable = false;
+                                subscription.Status = SubscriptionStatus.Active;
                             }
-                            await _coworkingRepository.UpdateAddressAsync(contract.CoworkingAddress);
-                        }
+                            subscription.UpdatedAt = DateTime.UtcNow;
+                            _context.Subscriptions.Update(subscription);
 
-                        // Gerar declaração automaticamente após o primeiro pagamento
-                        if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
-                        {
-                            try
+                            // Ativar contrato se for o primeiro pagamento
+                            var contract = await _context.Contracts
+                                .Include(c => c.CoworkingAddress)
+                                .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+
+                            if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                             {
-                                await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                                // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
+                                var previousPaidPayments = await _context.Payments
+                                    .Where(p => p.SubscriptionId == subscription.Id && 
+                                               p.Id != paymentId && 
+                                               p.Status == PaymentStatus.Paid)
+                                    .CountAsync();
+
+                                if (previousPaidPayments == 0)
+                                {
+                                    // Guardar o status original antes de alterar
+                                    var originalStatus = contract.Status;
+                                    
+                                    // Primeiro pagamento - ativar contrato e definir validade de 1 ano
+                                    contract.Status = ContractStatus.Active;
+                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
+                                    contract.UpdatedAt = DateTime.UtcNow;
+                                    _context.Contracts.Update(contract);
+
+                                    // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
+                                    // (contratos suspensos já foram contados anteriormente)
+                                    if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
+                                    {
+                                        contract.CoworkingAddress.CurrentContracts++;
+                                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                                        {
+                                            contract.CoworkingAddress.IsAvailable = false;
+                                        }
+                                        _context.CoworkingAddresses.Update(contract.CoworkingAddress);
+                                    }
+
+                                    // Gerar declaração automaticamente após o primeiro pagamento
+                                    if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
+                                    {
+                                        try
+                                        {
+                                            await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            // Log do erro mas não impede a confirmação do pagamento
+                                            System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Renovação - estender validade por mais 1 ano
+                                    if (contract.ExpiryDate.HasValue)
+                                    {
+                                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                                    }
+                                    else
+                                    {
+                                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                                    }
+                                    contract.UpdatedAt = DateTime.UtcNow;
+                                    _context.Contracts.Update(contract);
+                                }
                             }
-                            catch (Exception ex)
+                            else if (contract != null && contract.Status == ContractStatus.Active)
                             {
-                                // Log do erro mas não impede a confirmação do pagamento
-                                System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                                // Renovação de contrato ativo - estender validade por mais 1 ano
+                                if (contract.ExpiryDate.HasValue)
+                                {
+                                    contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                                }
+                                else
+                                {
+                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                                }
+                                contract.UpdatedAt = DateTime.UtcNow;
+                                _context.Contracts.Update(contract);
                             }
                         }
                     }
-                    else
+
+                    // Calcular e criar comissão (dentro da transação)
+                    var commission = await _commissionService.CreateCommissionAsync(payment.Id);
+                    if (commission != null)
                     {
-                        // Renovação - estender validade por mais 1 ano
-                        if (contract.ExpiryDate.HasValue)
-                        {
-                            contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                        }
-                        else
-                        {
-                            contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                        }
-                        await _contractRepository.UpdateAsync(contract);
+                        _context.Commissions.Update(commission);
                     }
+
+                    // Fazer commit de todas as alterações de uma vez
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return payment;
                 }
-                else if (contract != null && contract.Status == ContractStatus.Active)
+                catch
                 {
-                    // Renovação de contrato ativo - estender validade por mais 1 ano
-                    if (contract.ExpiryDate.HasValue)
-                    {
-                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                    }
-                    else
-                    {
-                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                    }
-                    await _contractRepository.UpdateAsync(contract);
+                    await transaction.RollbackAsync();
+                    throw;
                 }
-                }
-            }
-
-            // Calcular e criar comissão
-            await _commissionService.CreateCommissionAsync(payment.Id);
-
-            return payment;
+            });
         }
 
         public async Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null)
@@ -288,10 +317,40 @@ namespace KlyonHubPlatform.Application.Services
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
 
-            // Criar pedido no PagBank
+            // Validar e preparar dados do cliente antes de enviar ao PagBank
             var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            if (string.IsNullOrWhiteSpace(clientName))
+            {
+                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
+            }
+
             var clientEmail = client.ContactEmail ?? client.User.Email;
+            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+            {
+                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+            }
+
+            // Validar TaxId (CPF/CNPJ) - remover formatação e valores padrão inválidos
             var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            if (!string.IsNullOrWhiteSpace(clientTaxId))
+            {
+                // Remover formatação
+                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                
+                // Verificar se não são valores padrão inválidos
+                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
+                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
+                {
+                    clientTaxId = "";
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+            {
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+            }
+
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
             var orderResponse = await _pagBankService.CreateOrderAsync(
@@ -342,10 +401,40 @@ namespace KlyonHubPlatform.Application.Services
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
 
-            // Criar pedido no PagBank
+            // Validar e preparar dados do cliente antes de enviar ao PagBank
             var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            if (string.IsNullOrWhiteSpace(clientName))
+            {
+                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
+            }
+
             var clientEmail = client.ContactEmail ?? client.User.Email;
+            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+            {
+                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+            }
+
+            // Validar TaxId (CPF/CNPJ) - remover formatação e valores padrão inválidos
             var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            if (!string.IsNullOrWhiteSpace(clientTaxId))
+            {
+                // Remover formatação
+                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                
+                // Verificar se não são valores padrão inválidos
+                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
+                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
+                {
+                    clientTaxId = "";
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+            {
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+            }
+
             var clientPhone = client.ContactPhone ?? client.User.Phone;
             
             // Função auxiliar para validar e preencher campos
@@ -480,10 +569,40 @@ namespace KlyonHubPlatform.Application.Services
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
 
-            // Criar pedido no PagBank com cartão
+            // Validar e preparar dados do cliente antes de enviar ao PagBank
             var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
+            if (string.IsNullOrWhiteSpace(clientName))
+            {
+                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
+            }
+
             var clientEmail = client.ContactEmail ?? client.User.Email;
+            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+            {
+                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+            }
+
+            // Validar TaxId (CPF/CNPJ) - remover formatação e valores padrão inválidos
             var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            if (!string.IsNullOrWhiteSpace(clientTaxId))
+            {
+                // Remover formatação
+                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                
+                // Verificar se não são valores padrão inválidos
+                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
+                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
+                {
+                    clientTaxId = "";
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+            {
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+            }
+
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
             // Aplicar percentual de cartão de crédito se configurado
@@ -546,146 +665,177 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null)
         {
-            var payment = await _paymentRepository.GetByIdAsync(paymentId);
-            if (payment == null)
-                throw new InvalidOperationException("Pagamento não encontrado");
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            if (payment.Status == PaymentStatus.Paid)
-                return payment; // Já está pago
-
-            // Capturar valores antigos para auditoria
-            var oldStatus = payment.Status;
-            var oldPaidAt = payment.PaidAt;
-            var oldTransactionId = payment.TransactionId;
-
-            // Atualizar status para pago
-            payment.Status = PaymentStatus.Paid;
-            payment.PaidAt = DateTime.UtcNow;
-            if (!string.IsNullOrEmpty(transactionId))
+            return await strategy.ExecuteAsync(async () =>
             {
-                payment.TransactionId = transactionId;
-            }
-            await _paymentRepository.UpdateAsync(payment);
+                await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            // Log de auditoria: aprovação de pagamento
-            int? userId = null;
-            if (_httpContextAccessor?.HttpContext?.User != null)
-            {
-                var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+                try
                 {
-                    userId = parsedUserId;
-                }
-            }
+                    var payment = await _paymentRepository.GetByIdAsync(paymentId);
+                    if (payment == null)
+                        throw new InvalidOperationException("Pagamento não encontrado");
 
-            await LogAuditAsync(
-                userId,
-                "Pagamento aprovado",
-                "Payment",
-                payment.Id,
-                new { Status = oldStatus.ToString(), PaidAt = oldPaidAt, TransactionId = oldTransactionId },
-                new { Status = payment.Status.ToString(), PaidAt = payment.PaidAt, TransactionId = payment.TransactionId, Amount = payment.Amount }
-            );
-
-            // Atualizar assinatura
-            if (payment.SubscriptionId.HasValue)
-            {
-                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
-                if (subscription != null)
-                {
-                subscription.LastBillingDate = DateTime.UtcNow;
-                subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
-                subscription.FailedPaymentAttempts = 0;
-                if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
-                {
-                    subscription.Status = SubscriptionStatus.Active;
-                }
-                await _subscriptionRepository.UpdateAsync(subscription);
-
-                // Ativar contrato se for o primeiro pagamento
-                var contract = await _context.Contracts
-                    .Include(c => c.CoworkingAddress)
-                    .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-
-                if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
-                {
-                    // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
-                    var previousPaidPayments = await _context.Payments
-                        .Where(p => p.SubscriptionId == subscription.Id && 
-                                   p.Id != paymentId && 
-                                   p.Status == PaymentStatus.Paid)
-                        .CountAsync();
-
-                    if (previousPaidPayments == 0)
+                    if (payment.Status == PaymentStatus.Paid)
                     {
-                        // Guardar o status original antes de alterar
-                        var originalStatus = contract.Status;
-                        
-                        // Primeiro pagamento - ativar contrato e definir validade de 1 ano
-                        contract.Status = ContractStatus.Active;
-                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
-                        await _contractRepository.UpdateAsync(contract);
+                        await transaction.CommitAsync();
+                        return payment; // Já está pago
+                    }
 
-                        // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
-                        // (contratos suspensos já foram contados anteriormente)
-                        if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
+                    // Capturar valores antigos para auditoria
+                    var oldStatus = payment.Status;
+                    var oldPaidAt = payment.PaidAt;
+                    var oldTransactionId = payment.TransactionId;
+
+                    // Atualizar status para pago
+                    payment.Status = PaymentStatus.Paid;
+                    payment.PaidAt = DateTime.UtcNow;
+                    if (!string.IsNullOrEmpty(transactionId))
+                    {
+                        payment.TransactionId = transactionId;
+                    }
+                    payment.UpdatedAt = DateTime.UtcNow;
+                    _context.Payments.Update(payment);
+
+                    // Log de auditoria: aprovação de pagamento
+                    int? userId = null;
+                    if (_httpContextAccessor?.HttpContext?.User != null)
+                    {
+                        var userIdClaim = _httpContextAccessor.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
                         {
-                            contract.CoworkingAddress.CurrentContracts++;
-                            if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                            userId = parsedUserId;
+                        }
+                    }
+
+                    await LogAuditAsync(
+                        userId,
+                        "Pagamento aprovado",
+                        "Payment",
+                        payment.Id,
+                        new { Status = oldStatus.ToString(), PaidAt = oldPaidAt, TransactionId = oldTransactionId },
+                        new { Status = payment.Status.ToString(), PaidAt = payment.PaidAt, TransactionId = payment.TransactionId, Amount = payment.Amount }
+                    );
+
+                    // Atualizar assinatura
+                    if (payment.SubscriptionId.HasValue)
+                    {
+                        var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                        if (subscription != null)
+                        {
+                            subscription.LastBillingDate = DateTime.UtcNow;
+                            subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
+                            subscription.FailedPaymentAttempts = 0;
+                            if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
                             {
-                                contract.CoworkingAddress.IsAvailable = false;
+                                subscription.Status = SubscriptionStatus.Active;
                             }
-                            await _coworkingRepository.UpdateAddressAsync(contract.CoworkingAddress);
-                        }
+                            subscription.UpdatedAt = DateTime.UtcNow;
+                            _context.Subscriptions.Update(subscription);
 
-                        // Gerar declaração automaticamente após o primeiro pagamento
-                        if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
-                        {
-                            try
+                            // Ativar contrato se for o primeiro pagamento
+                            var contract = await _context.Contracts
+                                .Include(c => c.CoworkingAddress)
+                                .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+
+                            if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                             {
-                                await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                                // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
+                                var previousPaidPayments = await _context.Payments
+                                    .Where(p => p.SubscriptionId == subscription.Id && 
+                                               p.Id != paymentId && 
+                                               p.Status == PaymentStatus.Paid)
+                                    .CountAsync();
+
+                                if (previousPaidPayments == 0)
+                                {
+                                    // Guardar o status original antes de alterar
+                                    var originalStatus = contract.Status;
+                                    
+                                    // Primeiro pagamento - ativar contrato e definir validade de 1 ano
+                                    contract.Status = ContractStatus.Active;
+                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1); // Validade de 1 ano a partir do pagamento
+                                    contract.UpdatedAt = DateTime.UtcNow;
+                                    _context.Contracts.Update(contract);
+
+                                    // Atualizar contador de contratos do endereço apenas se estava aguardando pagamento
+                                    // (contratos suspensos já foram contados anteriormente)
+                                    if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
+                                    {
+                                        contract.CoworkingAddress.CurrentContracts++;
+                                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                                        {
+                                            contract.CoworkingAddress.IsAvailable = false;
+                                        }
+                                        _context.CoworkingAddresses.Update(contract.CoworkingAddress);
+                                    }
+
+                                    // Gerar declaração automaticamente após o primeiro pagamento
+                                    if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
+                                    {
+                                        try
+                                        {
+                                            await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            // Log do erro mas não impede a confirmação do pagamento
+                                            System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Renovação - estender validade por mais 1 ano
+                                    if (contract.ExpiryDate.HasValue)
+                                    {
+                                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                                    }
+                                    else
+                                    {
+                                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                                    }
+                                    contract.UpdatedAt = DateTime.UtcNow;
+                                    _context.Contracts.Update(contract);
+                                }
                             }
-                            catch (Exception ex)
+                            else if (contract != null && contract.Status == ContractStatus.Active)
                             {
-                                // Log do erro mas não impede a confirmação do pagamento
-                                System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
+                                // Renovação de contrato ativo - estender validade por mais 1 ano
+                                if (contract.ExpiryDate.HasValue)
+                                {
+                                    contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                                }
+                                else
+                                {
+                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                                }
+                                contract.UpdatedAt = DateTime.UtcNow;
+                                _context.Contracts.Update(contract);
                             }
                         }
                     }
-                    else
+
+                    // Calcular e criar comissão (dentro da transação)
+                    var commission = await _commissionService.CreateCommissionAsync(payment.Id);
+                    if (commission != null)
                     {
-                        // Renovação - estender validade por mais 1 ano
-                        if (contract.ExpiryDate.HasValue)
-                        {
-                            contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                        }
-                        else
-                        {
-                            contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                        }
-                        await _contractRepository.UpdateAsync(contract);
+                        _context.Commissions.Update(commission);
                     }
+
+                    // Fazer commit de todas as alterações de uma vez
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    return payment;
                 }
-                else if (contract != null && contract.Status == ContractStatus.Active)
+                catch
                 {
-                    // Renovação de contrato ativo - estender validade por mais 1 ano
-                    if (contract.ExpiryDate.HasValue)
-                    {
-                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                    }
-                    else
-                    {
-                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                    }
-                    await _contractRepository.UpdateAsync(contract);
+                    await transaction.RollbackAsync();
+                    throw;
                 }
-                }
-            }
-
-            // Calcular e criar comissão
-            await _commissionService.CreateCommissionAsync(payment.Id);
-
-            return payment;
+            });
         }
 
         public async Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId)

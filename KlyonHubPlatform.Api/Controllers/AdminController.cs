@@ -31,6 +31,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ICoworkingService _coworkingService;
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
+        private readonly ICommissionService _commissionService;
 
         public AdminController(
             IUserService userService,
@@ -46,7 +47,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IContractService contractService,
             ICoworkingService coworkingService,
             IAuthService authService,
-            IEmailService emailService)
+            IEmailService emailService,
+            ICommissionService commissionService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -62,6 +64,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _coworkingService = coworkingService;
             _authService = authService;
             _emailService = emailService;
+            _commissionService = commissionService;
         }
 
         public IActionResult Index()
@@ -213,7 +216,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Log error silently
             }
@@ -1112,6 +1115,49 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> GetAuditLogDetails(int id)
+        {
+            var log = await _context.AuditLogs
+                .Include(l => l.User)
+                .FirstOrDefaultAsync(l => l.Id == id);
+
+            if (log == null)
+            {
+                return Json(new { success = false, message = "Log não encontrado." });
+            }
+
+            var actionLabel = log.Action switch
+            {
+                "Submitted" => "Cadastro enviado",
+                "ApprovalStatusChange" => "Mudança de status",
+                "ResubmitForApproval" => "Reenviado para análise",
+                "ReturnedToReview" => "Retornou para análise",
+                _ => log.Action
+            };
+
+            return Json(new
+            {
+                success = true,
+                log = new
+                {
+                    id = log.Id,
+                    action = log.Action,
+                    actionLabel = actionLabel,
+                    entityType = log.EntityType,
+                    entityId = log.EntityId,
+                    actionDate = log.ActionDate.ToString("dd/MM/yyyy HH:mm:ss"),
+                    userId = log.UserId,
+                    userName = log.User?.FullName ?? "Sistema",
+                    userEmail = log.User?.Email,
+                    ipAddress = log.IpAddress,
+                    userAgent = log.UserAgent,
+                    oldValues = log.OldValues,
+                    newValues = log.NewValues
+                }
+            });
+        }
+
+        [HttpGet]
         public async Task<IActionResult> EditCoworking(int id)
         {
             var coworking = await _context.Coworkings
@@ -1128,6 +1174,117 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return View(coworking);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateCoworking(
+            int Id,
+            string Name,
+            string CNPJ,
+            string? TradeName,
+            string? ContactEmail,
+            string? ContactPhone,
+            string? SecondaryEmail,
+            string? SecondaryPhone,
+            string? BankName,
+            string? BankAgency,
+            string? BankAccount,
+            string? BankAccountType,
+            string? BankPixKey,
+            string? Description,
+            string? Website,
+            string? Instagram,
+            string? Facebook,
+            string? LinkedIn,
+            string? Address,
+            string? AddressNumber,
+            string? AddressComplement,
+            string? AddressNeighborhood,
+            string? AddressCity,
+            string? AddressState,
+            string? AddressZipCode,
+            bool IsActive,
+            bool IsPartner,
+            CoworkingApprovalStatus ApprovalStatus,
+            string? RejectionReason)
+        {
+            try
+            {
+                var coworking = await _context.Coworkings.FindAsync(Id);
+                if (coworking == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("Coworkings");
+                }
+
+                // Validar CNPJ se foi alterado
+                if (!string.IsNullOrEmpty(CNPJ) && CNPJ != coworking.CNPJ)
+                {
+                    var cnpjClean = CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                    if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
+                    {
+                        TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
+                        return RedirectToAction("EditCoworking", new { id = Id });
+                    }
+
+                    // Verificar se o CNPJ já está cadastrado em outro coworking
+                    var existingCNPJ = await _context.Coworkings
+                        .Where(c => c.Id != Id && c.CNPJ != null && 
+                            c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
+                        .FirstOrDefaultAsync();
+                    
+                    if (existingCNPJ != null)
+                    {
+                        TempData["Error"] = $"O CNPJ {CNPJ} já está cadastrado para outro coworking.";
+                        return RedirectToAction("EditCoworking", new { id = Id });
+                    }
+
+                    // Formatar CNPJ com máscara
+                    CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
+                }
+
+                // Atualizar campos
+                coworking.Name = Name;
+                coworking.CNPJ = CNPJ;
+                coworking.TradeName = TradeName;
+                coworking.ContactEmail = ContactEmail;
+                coworking.ContactPhone = ContactPhone;
+                coworking.SecondaryEmail = SecondaryEmail;
+                coworking.SecondaryPhone = SecondaryPhone;
+                coworking.BankName = BankName;
+                coworking.BankAgency = BankAgency;
+                coworking.BankAccount = BankAccount;
+                coworking.BankAccountType = BankAccountType;
+                coworking.BankPixKey = BankPixKey;
+                coworking.Description = Description;
+                coworking.Website = Website;
+                coworking.Instagram = Instagram;
+                coworking.Facebook = Facebook;
+                coworking.LinkedIn = LinkedIn;
+                coworking.Address = Address;
+                coworking.AddressNumber = AddressNumber;
+                coworking.AddressComplement = AddressComplement;
+                coworking.AddressNeighborhood = AddressNeighborhood;
+                coworking.AddressCity = AddressCity;
+                coworking.AddressState = AddressState;
+                coworking.AddressZipCode = AddressZipCode;
+                coworking.IsActive = IsActive;
+                coworking.IsPartner = IsPartner;
+                coworking.ApprovalStatus = ApprovalStatus;
+                coworking.RejectionReason = RejectionReason;
+                coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = $"Coworking '{coworking.Name}' atualizado com sucesso.";
+                return RedirectToAction("ViewCoworking", new { id = Id });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao atualizar coworking: {ex.Message}";
+                return RedirectToAction("EditCoworking", new { id = Id });
+            }
         }
 
         [HttpPost]
@@ -2077,7 +2234,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
 
-                // Registrar histórico
+                // Confirmar pagamento (usa transação interna)
+                await _paymentService.ConfirmPaymentAsync(paymentId, Guid.NewGuid().ToString());
+
+                // Registrar histórico após confirmação (commit separado para evitar deadlock)
                 var history = new PaymentHistory
                 {
                     PaymentId = paymentId,
@@ -2086,9 +2246,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     ActionAt = DateTimeHelper.GetBrazilianTime()
                 };
                 _context.PaymentHistories.Add(history);
-
-                // Confirmar pagamento
-                await _paymentService.ConfirmPaymentAsync(paymentId, Guid.NewGuid().ToString());
+                await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Pagamento aprovado com sucesso!";
             }
@@ -2125,24 +2283,38 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
 
-                // Registrar histórico
-                var history = new PaymentHistory
+                // Usar transação única para evitar deadlocks
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    PaymentId = paymentId,
-                    Action = "Rejected",
-                    RejectionReason = rejectionReason,
-                    ActionBy = userId,
-                    ActionAt = DateTimeHelper.GetBrazilianTime()
-                };
-                _context.PaymentHistories.Add(history);
+                    // Registrar histórico dentro da transação
+                    var history = new PaymentHistory
+                    {
+                        PaymentId = paymentId,
+                        Action = "Rejected",
+                        RejectionReason = rejectionReason,
+                        ActionBy = userId,
+                        ActionAt = DateTimeHelper.GetBrazilianTime()
+                    };
+                    _context.PaymentHistories.Add(history);
 
-                // Voltar status para Pending
-                payment.Status = PaymentStatus.Pending;
-                payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                payment.ReceiptFilePath = null; // Limpar comprovante para permitir novo envio
-                await _context.SaveChangesAsync();
+                    // Voltar status para Pending
+                    payment.Status = PaymentStatus.Pending;
+                    payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                    payment.ReceiptFilePath = null; // Limpar comprovante para permitir novo envio
+                    _context.Payments.Update(payment);
 
-                TempData["Success"] = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
+                    // Commit de tudo junto
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    TempData["Success"] = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
@@ -2674,65 +2846,6 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
-        /// Adiciona Status e RejectionReason na tabela CoworkingDocuments (status por documento: Em análise / Aprovado / Rejeitado).
-        /// Usa apenas ALTER TABLE / ADD COLUMN. Documentos existentes recebem Status = 'Approved' via DEFAULT.
-        /// </summary>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddDocumentStatusColumns()
-        {
-            try
-            {
-                var connection = _context.Database.GetDbConnection();
-                var wasOpen = connection.State == System.Data.ConnectionState.Open;
-                if (!wasOpen) await connection.OpenAsync();
-
-                var statusExists = false;
-                var rejectionExists = false;
-                try
-                {
-                    await using (var cmdStatus = connection.CreateCommand())
-                    {
-                        cmdStatus.CommandText = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'CoworkingDocuments' AND column_name = 'Status'";
-                        statusExists = Convert.ToInt32(await cmdStatus.ExecuteScalarAsync()) > 0;
-                    }
-                    await using (var cmdRejection = connection.CreateCommand())
-                    {
-                        cmdRejection.CommandText = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'CoworkingDocuments' AND column_name = 'RejectionReason'";
-                        rejectionExists = Convert.ToInt32(await cmdRejection.ExecuteScalarAsync()) > 0;
-                    }
-                }
-                catch { }
-                finally { if (!wasOpen) await connection.CloseAsync(); }
-
-                if (statusExists && rejectionExists)
-                {
-                    TempData["Info"] = "As colunas CoworkingDocuments.Status e RejectionReason já existem. Nenhuma alteração feita.";
-                    return RedirectToAction("DatabaseManager");
-                }
-
-                if (!statusExists)
-                {
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE CoworkingDocuments ADD COLUMN Status VARCHAR(50) NOT NULL DEFAULT 'Approved'");
-                }
-                if (!rejectionExists)
-                {
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE CoworkingDocuments ADD COLUMN RejectionReason VARCHAR(2000) NULL");
-                }
-
-                TempData["Success"] = "Colunas Status e RejectionReason adicionadas em CoworkingDocuments. Documentos existentes foram considerados aprovados.";
-            }
-            catch (Exception ex)
-            {
-                var msg = ex.Message;
-                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
-                TempData["Error"] = "Erro ao adicionar colunas em CoworkingDocuments: " + msg;
-            }
-
-            return RedirectToAction("DatabaseManager");
-        }
-
-        /// <summary>
         /// Cria índices de desempenho no banco (MySQL). Idempotente: ignora índices que já existem.
         /// Melhora consultas em Reservations, CreditPurchases, ClientCredits, Payments, Contracts, Coworkings, etc.
         /// </summary>
@@ -3097,12 +3210,26 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                             using var deleteCmd = connection.CreateCommand();
                             deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
                             var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
+                            
+                            // Resetar AUTO_INCREMENT após DELETE para evitar problemas com IDs
+                            try
+                            {
+                                using var resetCmd = connection.CreateCommand();
+                                resetCmd.CommandText = $"ALTER TABLE `{tableName}` AUTO_INCREMENT = 1;";
+                                await resetCmd.ExecuteNonQueryAsync();
+                            }
+                            catch (Exception resetEx)
+                            {
+                                // Algumas tabelas podem não ter AUTO_INCREMENT, ignorar erro
+                                System.Diagnostics.Debug.WriteLine($"Aviso: Não foi possível resetar AUTO_INCREMENT da tabela {tableName}: {resetEx.Message}");
+                            }
+                            
                             clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
                         }
                     }
                     catch (Exception ex)
                     {
-                        // Tentar TRUNCATE se DELETE falhar
+                        // Tentar TRUNCATE se DELETE falhar (TRUNCATE já reseta AUTO_INCREMENT automaticamente)
                         try
                         {
                             using var truncateCmd = connection.CreateCommand();
@@ -3158,6 +3285,51 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     {
                         errors.Add($"Users/UserRoles: {ex.Message}");
                     }
+                }
+
+                // Resetar AUTO_INCREMENT de todas as tabelas importantes ANTES de reabilitar foreign keys
+                // Isso garante que os IDs comecem do 1 após a limpeza
+                var tablesToResetAutoIncrement = new[] { "AuditLogs", "Users", "Roles", "Clients", "Coworkings", "Contracts", "Payments", "Subscriptions", "Locations", "Services", "SystemConfigurations", "Languages", "LocationCommissions", "UserRoles" };
+                var wasConnectionOpen = connection.State == System.Data.ConnectionState.Open;
+                if (!wasConnectionOpen) await connection.OpenAsync();
+                
+                try
+                {
+                    foreach (var tableName in tablesToResetAutoIncrement)
+                    {
+                        try
+                        {
+                            // Verificar se a tabela existe e tem coluna Id com AUTO_INCREMENT
+                            // Nomes das tabelas são hardcoded no array, então não há risco de SQL injection
+                            using var checkCmd = connection.CreateCommand();
+                            var escapedTableName = tableName.Replace("`", "``"); // Escapar backticks para evitar problemas
+                            checkCmd.CommandText = $@"
+                                SELECT COUNT(*) 
+                                FROM information_schema.columns 
+                                WHERE table_schema = DATABASE() 
+                                AND table_name = '{escapedTableName}' 
+                                AND column_name = 'Id' 
+                                AND extra LIKE '%auto_increment%'";
+                            
+                            var hasAutoIncrement = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                            
+                            if (hasAutoIncrement)
+                            {
+                                using var resetCmd = connection.CreateCommand();
+                                resetCmd.CommandText = $"ALTER TABLE `{escapedTableName}` AUTO_INCREMENT = 1;";
+                                await resetCmd.ExecuteNonQueryAsync();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Ignorar erros ao resetar AUTO_INCREMENT (algumas tabelas podem não ter)
+                            System.Diagnostics.Debug.WriteLine($"Aviso: Não foi possível resetar AUTO_INCREMENT da tabela {tableName}: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    if (!wasConnectionOpen) await connection.CloseAsync();
                 }
 
                 // Reabilitar foreign keys
@@ -4634,6 +4806,182 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 TempData["Error"] = $"Erro ao processar emissão de NF: {ex.Message}";
                 return RedirectToAction("CommissionFiscalNotes");
             }
+        }
+
+        /// <summary>
+        /// Lista solicitações de repasse (Transfers) com paginação e filtros para o administrador aprovar.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> Transfers(
+            int page = 1,
+            int pageSize = 15,
+            int? coworkingId = null,
+            TransferStatus? status = null,
+            DateTime? dateFrom = null,
+            DateTime? dateTo = null)
+        {
+            var query = _context.Transfers
+                .Include(t => t.Coworking)
+                .AsQueryable();
+
+            if (coworkingId.HasValue)
+                query = query.Where(t => t.CoworkingId == coworkingId.Value);
+
+            if (status.HasValue)
+                query = query.Where(t => t.Status == status.Value);
+
+            if (dateFrom.HasValue)
+                query = query.Where(t => t.CreatedAt >= dateFrom.Value);
+
+            if (dateTo.HasValue)
+            {
+                var endOfDay = dateTo.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(t => t.CreatedAt <= endOfDay);
+            }
+
+            var totalItems = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            if (totalPages == 0) totalPages = 1;
+            if (page > totalPages) page = totalPages;
+
+            var transfers = await query
+                .OrderByDescending(t => t.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            ViewBag.CoworkingId = coworkingId;
+            ViewBag.Status = status;
+            ViewBag.DateFrom = dateFrom;
+            ViewBag.DateTo = dateTo;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.TotalItems = totalItems;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+            ViewBag.PendingCount = await _context.Transfers.CountAsync(t => t.Status == TransferStatus.Pending);
+
+            return View(transfers);
+        }
+
+        /// <summary>
+        /// Aprova e processa uma solicitação de repasse (chama ProcessTransferAsync).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveTransfer(int transferId)
+        {
+            try
+            {
+                var transfer = await _context.Transfers.FindAsync(transferId);
+                if (transfer == null)
+                {
+                    TempData["Error"] = "Solicitação de repasse não encontrada.";
+                    return RedirectToAction("Transfers");
+                }
+
+                if (transfer.Status != TransferStatus.Pending)
+                {
+                    TempData["Error"] = "Apenas repasses com status \"Pendente\" podem ser aprovados.";
+                    return RedirectToAction("Transfers");
+                }
+
+                await _commissionService.ProcessTransferAsync(transferId);
+                TempData["Success"] = $"Repasse de R$ {transfer.Amount:N2} aprovado e processado com sucesso.";
+                return RedirectToAction("Transfers");
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Transfers");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar repasse: {ex.Message}";
+                return RedirectToAction("Transfers");
+            }
+        }
+
+        /// <summary>
+        /// Exibe todos os detalhes de uma transferência, incluindo comissões, pagamentos e clientes relacionados.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> TransferDetails(int id)
+        {
+            var transfer = await _context.Transfers
+                .Include(t => t.Coworking)
+                .Include(t => t.Reservation)
+                    .ThenInclude(r => r.Client)
+                        .ThenInclude(c => c.User)
+                .Include(t => t.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (transfer == null)
+            {
+                TempData["Error"] = "Transferência não encontrada.";
+                return RedirectToAction("Transfers");
+            }
+
+            // Buscar comissões relacionadas (transferidas no mesmo período e mesmo coworking)
+            // Buscar comissões que foram transferidas próximo ao momento da criação do transfer
+            // Usar um intervalo maior para capturar comissões relacionadas (até 1 hora antes e depois)
+            var transferDateStart = transfer.CreatedAt.AddHours(-1);
+            var transferDateEnd = transfer.CreatedAt.AddHours(1);
+
+            var relatedCommissions = await _context.Commissions
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.Client)
+                                .ThenInclude(cl => cl.User)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                            .ThenInclude(cl => cl.User)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                .Where(c => c.CoworkingId == transfer.CoworkingId 
+                    && c.IsTransferred 
+                    && c.TransferredAt.HasValue
+                    && c.TransferredAt >= transferDateStart 
+                    && c.TransferredAt <= transferDateEnd)
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
+
+            // Se não encontrou comissões pelo período, buscar pelo ReservationId (caso seja repasse automático)
+            if (!relatedCommissions.Any() && transfer.ReservationId.HasValue)
+            {
+                var reservationPayment = await _context.Payments
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                            .ThenInclude(c => c.User)
+                    .Include(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(p => p.ReservationId == transfer.ReservationId);
+
+                if (reservationPayment != null)
+                {
+                    var commission = await _context.Commissions
+                        .Include(c => c.Payment)
+                            .ThenInclude(p => p.Reservation)
+                                .ThenInclude(r => r.Client)
+                                    .ThenInclude(cl => cl.User)
+                        .Include(c => c.Payment)
+                            .ThenInclude(p => p.Reservation)
+                                .ThenInclude(r => r.CoworkingAddress)
+                        .FirstOrDefaultAsync(c => c.PaymentId == reservationPayment.Id && c.CoworkingId == transfer.CoworkingId);
+
+                    if (commission != null)
+                    {
+                        relatedCommissions.Add(commission);
+                    }
+                }
+            }
+
+            ViewBag.RelatedCommissions = relatedCommissions;
+            return View(transfer);
         }
 
         [HttpGet]

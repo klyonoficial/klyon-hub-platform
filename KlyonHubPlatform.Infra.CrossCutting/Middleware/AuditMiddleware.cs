@@ -23,19 +23,31 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             await _next(context);
 
             // Log apenas ações importantes
-            if (context.Request.Method != "GET" && userId != null)
+            // Não criar logs para operações de manutenção do banco de dados (podem falhar se a tabela foi limpa)
+            var isDatabaseMaintenance = context.Request.Path.StartsWithSegments("/Admin/ClearDatabase") ||
+                                       context.Request.Path.StartsWithSegments("/Admin/DatabaseManager");
+            
+            if (context.Request.Method != "GET" && userId != null && !isDatabaseMaintenance)
             {
-                int? userIdInt = int.TryParse(userId, out var id) ? id : null;
-                await auditService.LogActionAsync(
-                    userIdInt,
-                    action,
-                    "HTTP",
-                    null,
-                    null,
-                    $"Status: {context.Response.StatusCode}",
-                    ipAddress,
-                    userAgent
-                );
+                try
+                {
+                    int? userIdInt = int.TryParse(userId, out var id) ? id : null;
+                    await auditService.LogActionAsync(
+                        userIdInt,
+                        action,
+                        "HTTP",
+                        null,
+                        null,
+                        $"Status: {context.Response.StatusCode}",
+                        ipAddress,
+                        userAgent
+                    );
+                }
+                catch
+                {
+                    // Se houver erro ao criar log (ex: tabela AuditLogs foi limpa), ignorar silenciosamente
+                    // O tratamento de erro no AuditService já deve ter capturado isso, mas garantimos aqui também
+                }
             }
         }
     }

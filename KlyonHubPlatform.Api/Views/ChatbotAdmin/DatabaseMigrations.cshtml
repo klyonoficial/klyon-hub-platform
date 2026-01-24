@@ -1,0 +1,524 @@
+@{
+    ViewData["Title"] = "Migrations - KlyonBoot Admin";
+}
+
+<style>
+    .migration-page {
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    .migration-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 30px;
+    }
+
+    .migration-header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2D3436;
+        margin: 0;
+    }
+
+    .warning-banner {
+        background: #FFF3CD;
+        border-left: 4px solid #FF9800;
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .warning-banner h3 {
+        margin: 0 0 8px 0;
+        color: #856404;
+        font-size: 16px;
+    }
+
+    .warning-banner p {
+        margin: 4px 0;
+        color: #856404;
+        font-size: 14px;
+    }
+
+    .status-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+
+    .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+    }
+
+    .status-item {
+        padding: 16px;
+        background: #F8F9FA;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .status-label {
+        font-size: 13px;
+        color: #636E72;
+        margin-bottom: 8px;
+    }
+
+    .status-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #2D3436;
+    }
+
+    .status-value.success {
+        color: #00B894;
+    }
+
+    .status-value.warning {
+        color: #FF9800;
+    }
+
+    .status-value.error {
+        color: #FF7675;
+    }
+
+    .migration-list {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+
+    .migration-list h3 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        color: #2D3436;
+    }
+
+    .migration-item {
+        padding: 12px;
+        background: #F8F9FA;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .migration-item.pending {
+        background: #FFF3CD;
+        border-left: 4px solid #FF9800;
+    }
+
+    .migration-item.applied {
+        background: #D4EDDA;
+        border-left: 4px solid #00B894;
+    }
+
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge.pending {
+        background: #FF9800;
+        color: white;
+    }
+
+    .badge.applied {
+        background: #00B894;
+        color: white;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+
+    .btn-primary {
+        background: #6C5CE7;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #5B4BC9;
+    }
+
+    .btn-primary:disabled {
+        background: #B2BEC3;
+        cursor: not-allowed;
+    }
+
+    .btn-danger {
+        background: #FF7675;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #FF6B6A;
+    }
+
+    .btn-secondary {
+        background: #DFE6E9;
+        color: #2D3436;
+    }
+
+    .btn-secondary:hover {
+        background: #B2BEC3;
+    }
+
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+
+    .loading.active {
+        display: block;
+    }
+
+    .spinner {
+        border: 4px solid #F5F5F5;
+        border-top: 4px solid #6C5CE7;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .result-box {
+        display: none;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+
+    .result-box.show {
+        display: block;
+    }
+
+    .result-box.success {
+        background: #D4EDDA;
+        border-left: 4px solid #00B894;
+    }
+
+    .result-box.error {
+        background: #FFE8E8;
+        border-left: 4px solid #FF7675;
+    }
+
+    .confirmation-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .confirmation-modal.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        max-width: 500px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-content h3 {
+        margin: 0 0 16px 0;
+        color: #FF7675;
+    }
+
+    .modal-content p {
+        margin: 8px 0;
+        color: #2D3436;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+</style>
+
+<div class="migration-page">
+    <div class="migration-header">
+        <a href="/admin/chatbot/dashboard" style="color: #6C5CE7; text-decoration: none; font-size: 24px;">←</a>
+        <div>
+            <h1>🗄️ Gerenciamento de Migrations</h1>
+            <p style="color: #636E72; margin: 4px 0 0 0;">Controle e execute migrations do banco de dados</p>
+        </div>
+    </div>
+
+    <!-- Warning Banner -->
+    <div class="warning-banner">
+        <h3>⚠️ ATENÇÃO: Operação Crítica</h3>
+        <p>• Executar migrations modifica a estrutura do banco de dados</p>
+        <p>• Recomendado apenas em ambientes de desenvolvimento/staging</p>
+        <p>• Sempre faça backup antes de executar em produção</p>
+        <p>• Operação irreversível - não há desfazer</p>
+    </div>
+
+    <!-- Status do Banco -->
+    <div class="status-card">
+        <h2 style="margin: 0 0 16px 0; font-size: 18px;">📊 Status do Banco de Dados</h2>
+        <div id="status-loading" class="loading active">
+            <div class="spinner"></div>
+            <p>Carregando status...</p>
+        </div>
+        <div id="status-content" style="display: none;">
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-label">Conexão</div>
+                    <div class="status-value" id="status-connection">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Total de Migrations</div>
+                    <div class="status-value" id="status-total">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Aplicadas</div>
+                    <div class="status-value success" id="status-applied">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Pendentes</div>
+                    <div class="status-value warning" id="status-pending">-</div>
+                </div>
+            </div>
+            <p style="margin-top: 16px; color: #636E72; font-size: 13px;">
+                Última migration: <strong id="status-last">-</strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- Migrations Pendentes -->
+    <div class="migration-list" id="pending-migrations-box" style="display: none;">
+        <h3>⏳ Migrations Pendentes</h3>
+        <div id="pending-migrations-list"></div>
+    </div>
+
+    <!-- Migrations Aplicadas -->
+    <div class="migration-list">
+        <h3>✅ Migrations Aplicadas</h3>
+        <div id="applied-migrations-list">
+            <p style="color: #636E72;">Carregando...</p>
+        </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="action-buttons">
+        <button class="btn btn-primary" id="btn-execute" onclick="showConfirmation()" disabled>
+            🚀 Executar Migrations Pendentes
+        </button>
+        <button class="btn btn-secondary" onclick="refreshStatus()">
+            🔄 Atualizar Status
+        </button>
+    </div>
+
+    <!-- Resultado -->
+    <div id="result-box" class="result-box"></div>
+
+    <!-- Loading durante execução -->
+    <div id="execution-loading" class="loading">
+        <div class="spinner"></div>
+        <p>Executando migrations... Por favor, aguarde.</p>
+        <p style="font-size: 13px; color: #636E72;">Isso pode levar alguns instantes.</p>
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div id="confirmation-modal" class="confirmation-modal">
+    <div class="modal-content">
+        <h3>⚠️ Confirmar Execução de Migrations</h3>
+        <p>Você está prestes a executar <strong id="pending-count-modal">X</strong> migration(s) no banco de dados.</p>
+        <p><strong>Esta operação é irreversível!</strong></p>
+        <p>Você fez backup do banco de dados?</p>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="hideConfirmation()">Cancelar</button>
+            <button class="btn btn-danger" onclick="executeMigrations()">Sim, Executar!</button>
+        </div>
+    </div>
+</div>
+
+@@section Scripts {
+    <script>
+        let dbStatus = null;
+
+        // Carregar status ao iniciar
+        window.addEventListener('DOMContentLoaded', () => {
+            loadDatabaseStatus();
+        });
+
+        async function loadDatabaseStatus() {
+            try {
+                const response = await fetch('/api/admin/database/status');
+                dbStatus = await response.json();
+
+                document.getElementById('status-loading').classList.remove('active');
+                document.getElementById('status-content').style.display = 'block';
+
+                // Atualizar status
+                document.getElementById('status-connection').textContent = dbStatus.canConnect ? '✅ Conectado' : '❌ Falha';
+                document.getElementById('status-total').textContent = dbStatus.totalMigrations;
+                document.getElementById('status-applied').textContent = dbStatus.appliedMigrations;
+                document.getElementById('status-pending').textContent = dbStatus.pendingMigrations;
+                document.getElementById('status-last').textContent = dbStatus.lastMigration || 'Nenhuma';
+
+                // Mostrar migrations pendentes
+                if (dbStatus.pendingMigrations > 0) {
+                    document.getElementById('pending-migrations-box').style.display = 'block';
+                    renderPendingMigrations(dbStatus.pendingMigrationsList);
+                    document.getElementById('btn-execute').disabled = false;
+                    document.getElementById('pending-count-modal').textContent = dbStatus.pendingMigrations;
+                }
+
+                // Mostrar migrations aplicadas
+                renderAppliedMigrations(dbStatus.appliedMigrationsList);
+
+            } catch (error) {
+                console.error('Erro ao carregar status:', error);
+                showResult('error', 'Erro ao carregar status do banco de dados: ' + error.message);
+            }
+        }
+
+        function renderPendingMigrations(migrations) {
+            const list = document.getElementById('pending-migrations-list');
+            list.innerHTML = '';
+
+            if (!migrations || migrations.length === 0) {
+                list.innerHTML = '<p style="color: #00B894;">Nenhuma migration pendente! ✅</p>';
+                return;
+            }
+
+            migrations.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'migration-item pending';
+                item.innerHTML = `
+                    <span>${m}</span>
+                    <span class="badge pending">Pendente</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function renderAppliedMigrations(migrations) {
+            const list = document.getElementById('applied-migrations-list');
+            list.innerHTML = '';
+
+            if (!migrations || migrations.length === 0) {
+                list.innerHTML = '<p style="color: #636E72;">Nenhuma migration aplicada ainda.</p>';
+                return;
+            }
+
+            migrations.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'migration-item applied';
+                item.innerHTML = `
+                    <span>${m}</span>
+                    <span class="badge applied">Aplicada</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function showConfirmation() {
+            document.getElementById('confirmation-modal').classList.add('show');
+        }
+
+        function hideConfirmation() {
+            document.getElementById('confirmation-modal').classList.remove('show');
+        }
+
+        async function executeMigrations() {
+            hideConfirmation();
+            document.getElementById('execution-loading').classList.add('active');
+            document.getElementById('result-box').classList.remove('show');
+            document.getElementById('btn-execute').disabled = true;
+
+            try {
+                const response = await fetch('/api/admin/database/migrations/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmed: true })
+                });
+
+                const result = await response.json();
+
+                document.getElementById('execution-loading').classList.remove('active');
+
+                if (result.success) {
+                    showResult('success', 
+                        `${result.message}<br><br>` +
+                        `Migrations aplicadas: ${result.appliedMigrations.length}<br>` +
+                        `Duração: ${Math.round((result.durationSeconds || 0) * 10) / 10}s<br><br>` +
+                        `<strong>Migrations:</strong><br>` +
+                        result.appliedMigrations.map(m => `• ${m}`).join('<br>')
+                    );
+                    
+                    // Recarregar status
+                    setTimeout(() => loadDatabaseStatus(), 2000);
+                } else {
+                    showResult('error', 
+                        `${result.message}<br><br>` +
+                        `<strong>Erros:</strong><br>` +
+                        result.errors.map(e => `• ${e}`).join('<br>')
+                    );
+                }
+
+            } catch (error) {
+                document.getElementById('execution-loading').classList.remove('active');
+                showResult('error', 'Erro ao executar migrations: ' + error.message);
+            }
+        }
+
+        function showResult(type, message) {
+            const box = document.getElementById('result-box');
+            box.className = `result-box show ${type}`;
+            box.innerHTML = message;
+        }
+
+        function refreshStatus() {
+            document.getElementById('status-loading').classList.add('active');
+            document.getElementById('status-content').style.display = 'none';
+            loadDatabaseStatus();
+        }
+    </script>
+}

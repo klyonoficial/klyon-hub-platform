@@ -589,14 +589,60 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
             ViewBag.Locations = locations;
 
+            // Verificar contratos ativos para cada endereço
+            var addressIds = addresses.Select(a => a.Id).ToList();
+            var activeContractsByAddress = await _context.Contracts
+                .Where(c => addressIds.Contains(c.CoworkingAddressId) && c.Status == ContractStatus.Active)
+                .GroupBy(c => c.CoworkingAddressId)
+                .ToDictionaryAsync(g => g.Key, g => g.Count());
+            
+            ViewBag.ActiveContractsByAddress = activeContractsByAddress;
+
+            // Só pode adicionar endereço se ainda não tiver nenhum endereço fiscal cadastrado
+            var hasFiscalAddress = await _context.CoworkingAddresses.AnyAsync(a => a.CoworkingId == coworkingEntity.Id);
+            ViewBag.CanAddAddress = !hasFiscalAddress;
+
             return View(addresses);
         }
 
         [HttpGet]
         public async Task<IActionResult> AddAddress()
         {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity != null)
+            {
+                var hasFiscalAddress = await _context.CoworkingAddresses.AnyAsync(a => a.CoworkingId == coworkingEntity.Id);
+                if (hasFiscalAddress)
+                {
+                    TempData["Error"] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
+                    return RedirectToAction("MyAddresses");
+                }
+            }
+
+            // Verificar se o coworking tem o produto RoomRental ativo
+            bool hasRoomRental = false;
+            if (coworkingEntity != null)
+            {
+                try
+                {
+                    hasRoomRental = await _context.CoworkingProducts
+                        .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                      p.ProductType == "RoomRental" && 
+                                      p.IsActive);
+                }
+                catch
+                {
+                    // Se a tabela não existir, assume false
+                    hasRoomRental = false;
+                }
+            }
+
             var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
             ViewBag.Locations = locations;
+            ViewBag.HasRoomRental = hasRoomRental;
             return View();
         }
 
@@ -616,13 +662,33 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Register");
                 }
 
+                var hasFiscalAddress = await _context.CoworkingAddresses.AnyAsync(a => a.CoworkingId == coworkingEntity.Id);
+                if (hasFiscalAddress)
+                {
+                    TempData["Error"] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
+                    return RedirectToAction("MyAddresses");
+                }
+
                 // Validar se a localidade existe
                 var location = await _context.Locations.FindAsync(locationId);
                 if (location == null)
                 {
                     TempData["Error"] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    bool hasRoomRental = false;
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
                     ViewBag.Locations = locations;
+                    ViewBag.HasRoomRental = hasRoomRental;
                     return View(locations);
                 }
 
@@ -631,7 +697,20 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["Error"] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    bool hasRoomRental = false;
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
                     ViewBag.Locations = locations;
+                    ViewBag.HasRoomRental = hasRoomRental;
                     return View(locations);
                 }
 
@@ -662,8 +741,27 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao cadastrar endereço: {ex.Message}";
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+                bool hasRoomRental = false;
+                if (coworkingEntity != null)
+                {
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
+                }
                 var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                 ViewBag.Locations = locations;
+                ViewBag.HasRoomRental = hasRoomRental;
                 return View(locations);
             }
         }
@@ -698,9 +796,31 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("MyAddresses");
             }
 
+            // Verificar se o coworking tem o produto RoomRental ativo
+            bool hasRoomRental = false;
+            try
+            {
+                hasRoomRental = await _context.CoworkingProducts
+                    .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                  p.ProductType == "RoomRental" && 
+                                  p.IsActive);
+            }
+            catch
+            {
+                // Se a tabela não existir, assume false
+                hasRoomRental = false;
+            }
+
+            // Verificar se há contratos ativos para este endereço
+            var hasActiveContracts = await _context.Contracts
+                .AnyAsync(c => c.CoworkingAddressId == address.Id && c.Status == ContractStatus.Active);
+            
+            ViewBag.HasActiveContracts = hasActiveContracts;
+
             var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
             ViewBag.Locations = locations;
             ViewBag.Address = address;
+            ViewBag.HasRoomRental = hasRoomRental;
 
             return View(address);
         }
@@ -733,14 +853,37 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("MyAddresses");
                 }
 
+                // Verificar se há contratos ativos - não permitir edição se houver
+                var hasActiveContracts = await _context.Contracts
+                    .AnyAsync(c => c.CoworkingAddressId == existingAddress.Id && c.Status == ContractStatus.Active);
+
+                if (hasActiveContracts)
+                {
+                    TempData["Error"] = "Não é possível editar um endereço que possui contrato(s) ativo(s).";
+                    return RedirectToAction("MyAddresses");
+                }
+
                 // Validar se a localidade existe
                 var location = await _context.Locations.FindAsync(locationId);
                 if (location == null)
                 {
                     TempData["Error"] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    bool hasRoomRental = false;
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
                     ViewBag.Locations = locations;
                     ViewBag.Address = existingAddress;
+                    ViewBag.HasRoomRental = hasRoomRental;
                     return View(existingAddress);
                 }
 
@@ -754,8 +897,21 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["Error"] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    bool hasRoomRental = false;
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
                     ViewBag.Locations = locations;
                     ViewBag.Address = existingAddress;
+                    ViewBag.HasRoomRental = hasRoomRental;
                     return View(existingAddress);
                 }
 
@@ -764,8 +920,21 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["Error"] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+                    bool hasRoomRental = false;
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
                     ViewBag.Locations = locations;
                     ViewBag.Address = existingAddress;
+                    ViewBag.HasRoomRental = hasRoomRental;
                     return View(existingAddress);
                 }
 
@@ -795,8 +964,27 @@ namespace KlyonHubPlatform.Api.Controllers
                 var existingAddress = await _context.CoworkingAddresses
                     .Include(a => a.Location)
                     .FirstOrDefaultAsync(a => a.Id == id);
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+                bool hasRoomRental = false;
+                if (coworkingEntity != null)
+                {
+                    try
+                    {
+                        hasRoomRental = await _context.CoworkingProducts
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
+                                          p.ProductType == "RoomRental" && 
+                                          p.IsActive);
+                    }
+                    catch
+                    {
+                        hasRoomRental = false;
+                    }
+                }
                 var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                 ViewBag.Locations = locations;
+                ViewBag.HasRoomRental = hasRoomRental;
                 ViewBag.Address = existingAddress;
                 return View(existingAddress);
             }
@@ -1180,6 +1368,75 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.PaymentHistories = historiesByPaymentId;
 
             return View(contract);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadDeclaration(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Dashboard");
+            }
+
+            var declaration = await _context.AddressDeclarations
+                .Include(d => d.Contract)
+                    .ThenInclude(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(d => d.Id == id);
+
+            if (declaration == null || declaration.Contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+            {
+                return Forbid();
+            }
+
+            var pdfBytes = await _addressDeclarationService.GetDeclarationPdfAsync(id);
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                return NotFound();
+            }
+
+            var fileName = $"{declaration.DeclarationNumber}.pdf";
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadContractDocument(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Dashboard");
+            }
+
+            var document = await _context.Documents
+                .Include(d => d.Contract)
+                    .ThenInclude(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(d => d.Id == id);
+
+            if (document == null || document.Contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+            {
+                return Forbid();
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(document.FilePath);
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                return NotFound();
+            }
+
+            var fileName = !string.IsNullOrEmpty(document.FileName) ? document.FileName : Path.GetFileName(document.FilePath);
+            if (string.IsNullOrEmpty(fileName))
+            {
+                fileName = $"documento-{document.Id}.pdf";
+            }
+
+            var contentType = fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" : "application/octet-stream";
+            return File(fileBytes, contentType, fileName);
         }
 
         [HttpGet]
@@ -1627,14 +1884,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
 
             // Criar um dicionário para mapear comissões para transferências
-            // Como não há relação direta, vamos usar uma heurística baseada em:
-            // 1. Data de transferência próxima (dentro de 1 hora)
-            // 2. Agrupar comissões que foram transferidas na mesma data/hora
             var commissionTransferMap = new Dictionary<int, Transfer?>();
             
-            // Agrupar comissões transferidas por data/hora aproximada
+            // Primeiro, mapear usando os IDs armazenados no Description do Transfer (método mais confiável)
+            foreach (var transfer in transfers)
+            {
+                if (!string.IsNullOrEmpty(transfer.Description) && transfer.Description.Contains("CommissionIds:"))
+                {
+                    var idsPart = transfer.Description.Split("CommissionIds:")[1];
+                    if (!string.IsNullOrEmpty(idsPart))
+                    {
+                        var ids = idsPart.Split(',');
+                        foreach (var idStr in ids)
+                        {
+                            if (int.TryParse(idStr.Trim(), out var commissionId))
+                            {
+                                // Verificar se a comissão existe na lista
+                                if (commissions.Any(c => c.Id == commissionId))
+                                {
+                                    commissionTransferMap[commissionId] = transfer;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Depois, usar heurística para comissões transferidas que não foram mapeadas (casos antigos)
             var transferredCommissions = commissions
-                .Where(c => c.IsTransferred && c.TransferredAt.HasValue)
+                .Where(c => c.IsTransferred && c.TransferredAt.HasValue && !commissionTransferMap.ContainsKey(c.Id))
                 .GroupBy(c => new 
                 { 
                     Date = c.TransferredAt.Value.Date,
@@ -1650,6 +1928,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Encontrar transferência que corresponde a este grupo
                 var matchingTransfer = transfers
                     .Where(t => 
+                        !commissionTransferMap.Values.Contains(t) && // Não usar transfers já mapeados
                         t.CreatedAt.Date == group.Key.Date &&
                         Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 && // Dentro de 1 hora
                         Math.Abs(t.Amount - totalCreditado) < 0.01m) // Valor deve ser muito próximo (tolerância de 1 centavo)
@@ -1661,6 +1940,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     matchingTransfer = transfers
                         .Where(t => 
+                            !commissionTransferMap.Values.Contains(t) &&
                             t.CreatedAt.Date == group.Key.Date &&
                             Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 &&
                             t.Amount >= totalCreditado * 0.95m && // Pelo menos 95% do valor
@@ -1672,7 +1952,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Mapear todas as comissões do grupo para a mesma transferência
                 foreach (var commission in groupCommissions)
                 {
-                    commissionTransferMap[commission.Id] = matchingTransfer;
+                    if (!commissionTransferMap.ContainsKey(commission.Id))
+                    {
+                        commissionTransferMap[commission.Id] = matchingTransfer;
+                    }
                 }
             }
 
@@ -1965,11 +2248,13 @@ namespace KlyonHubPlatform.Api.Controllers
                         coworkingEntity.AddressState = coworking.AddressState;
                         break;
                     case "bank":
-                        coworkingEntity.BankName = coworking.BankName;
-                        coworkingEntity.BankAgency = coworking.BankAgency;
-                        coworkingEntity.BankAccount = coworking.BankAccount;
-                        coworkingEntity.BankAccountType = coworking.BankAccountType;
-                        coworkingEntity.BankPixKey = coworking.BankPixKey;
+                        // Chave PIX preenchida dispensa Banco, Agência, Conta e Tipo de Conta.
+                        string? ToNull(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+                        coworkingEntity.BankName = ToNull(coworking.BankName);
+                        coworkingEntity.BankAgency = ToNull(coworking.BankAgency);
+                        coworkingEntity.BankAccount = ToNull(coworking.BankAccount);
+                        coworkingEntity.BankAccountType = ToNull(coworking.BankAccountType);
+                        coworkingEntity.BankPixKey = ToNull(coworking.BankPixKey);
                         break;
                     case "social":
                         coworkingEntity.Website = coworking.Website;

@@ -32,7 +32,7 @@ else
             <div class="card border-info">
                 <div class="card-body">
                     <h6 class="card-title text-info">Processando</h6>
-                    <h4>R$ @Model.Where(p => p.Status == PaymentStatus.Processing).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h4>R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("N2")</h4>
                 </div>
             </div>
         </div>

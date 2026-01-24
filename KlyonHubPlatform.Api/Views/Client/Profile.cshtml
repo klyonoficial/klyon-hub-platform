@@ -66,10 +66,12 @@
                 <div class="col-md-6 mb-3">
                     <label for="CNPJ" class="form-label">CNPJ</label>
                     <input type="text" class="form-control" id="CNPJ" name="CNPJ" value="@Model.CNPJ" placeholder="00.000.000/0000-00" maxlength="18">
+                    <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="CPF" class="form-label">CPF (se pessoa física)</label>
                     <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14">
+                    <div class="invalid-feedback"></div>
                 </div>
             </div>
             <div class="row">

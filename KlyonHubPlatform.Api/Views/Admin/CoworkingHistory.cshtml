@@ -7,6 +7,30 @@
 
 @{
     var cow = ViewBag.Coworking as KlyonHubPlatform.Domain.Entities.Coworking;
+    
+    // Função helper para traduzir ApprovalStatus
+    string TranslateApprovalStatus(string? value)
+    {
+        return value switch
+        {
+            "UnderReview" => "Em análise",
+            "AwaitingAdjustment" => "Aguardando ajuste",
+            "Approved" => "Aprovado",
+            _ => value ?? ""
+        };
+    }
+    
+    // Função helper para traduzir nomes de campos
+    string TranslateFieldName(string fieldName)
+    {
+        return fieldName switch
+        {
+            "ApprovalStatus" => "Status de Aprovação",
+            "Reason" => "Motivo",
+            "RejectionReason" => "Motivo da Rejeição",
+            _ => fieldName
+        };
+    }
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -33,7 +57,7 @@
                     <tbody>
                         @foreach (var log in Model)
                         {
-                            <tr>
+                            <tr class="cursor-pointer" style="cursor: pointer;" onclick="showLogDetails(@log.Id)" data-log-id="@log.Id">
                                 <td>@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td>
                                     @{
@@ -72,10 +96,9 @@
                                                     <li><strong>Usuário:</strong> @log.User.FullName</li>
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        if (p.Name != "ApprovalStatus")
-                                                        {
-                                                            <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
-                                                        }
+                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
                                             }
@@ -84,7 +107,9 @@
                                                 <ul class="list-unstyled mb-0">
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
                                             }
@@ -117,10 +142,9 @@
                                                     <li><strong>Usuário:</strong> @log.User.FullName</li>
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        if (p.Name != "ApprovalStatus")
-                                                        {
-                                                            <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
-                                                        }
+                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
                                             }
@@ -129,7 +153,9 @@
                                                 <ul class="list-unstyled mb-0">
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        <li><strong>@p.Name:</strong> @(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString())</li>
+                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
                                             }
@@ -150,3 +176,301 @@
         }
     </div>
 </div>
+
+<!-- Modal de Detalhes do Log -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-labelledby="logDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="logDetailsModalLabel">
+                    <i class="bi bi-info-circle"></i> Detalhes do Histórico
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="logDetailsContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .cursor-pointer:hover {
+        background-color: #f8f9fa !important;
+    }
+    .diff-added {
+        background-color: #d4edda;
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+    .diff-removed {
+        background-color: #f8d7da;
+        padding: 2px 4px;
+        border-radius: 3px;
+        text-decoration: line-through;
+    }
+    .diff-unchanged {
+        color: #6c757d;
+    }
+    .json-key {
+        font-weight: 600;
+        color: #0d6efd;
+    }
+    .json-value {
+        color: #198754;
+    }
+    .json-value-null {
+        color: #dc3545;
+    }
+</style>
+
+<script>
+    async function showLogDetails(logId) {
+        const modal = new bootstrap.Modal(document.getElementById('logDetailsModal'));
+        const contentDiv = document.getElementById('logDetailsContent');
+        
+        // Mostrar loading
+        contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+        modal.show();
+        
+        try {
+            const response = await fetch(`@Url.Action("GetAuditLogDetails", "Admin")?id=${logId}`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                contentDiv.innerHTML = `<div class="alert alert-danger">${data.message || 'Erro ao carregar detalhes do log.'}</div>`;
+                return;
+            }
+            
+            const log = data.log;
+            let html = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2"><i class="bi bi-calendar-event"></i> Data/Hora</h6>
+                        <p class="mb-0">${log.actionDate}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2"><i class="bi bi-tag"></i> Ação</h6>
+                        <p class="mb-0"><span class="badge bg-secondary">${log.actionLabel}</span></p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2"><i class="bi bi-person"></i> Usuário</h6>
+                        <p class="mb-0">${log.userName}${log.userEmail ? ` <small class="text-muted">(${log.userEmail})</small>` : ''}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2"><i class="bi bi-globe"></i> IP Address</h6>
+                        <p class="mb-0">${log.ipAddress || '<span class="text-muted">Não disponível</span>'}</p>
+                    </div>
+                </div>
+            `;
+            
+            if (log.userAgent) {
+                html += `
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <h6 class="text-muted mb-2"><i class="bi bi-browser-chrome"></i> User Agent</h6>
+                            <p class="mb-0 small text-muted">${log.userAgent}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Comparação de valores
+            html += '<hr class="my-4">';
+            html += '<h5 class="mb-3"><i class="bi bi-arrow-left-right"></i> Comparação de Alterações</h5>';
+            
+            if (log.oldValues || log.newValues) {
+                html += '<div class="row">';
+                
+                // Coluna "Antes"
+                html += '<div class="col-md-6">';
+                html += '<h6 class="text-danger mb-3"><i class="bi bi-arrow-left"></i> Valores Anteriores</h6>';
+                if (log.oldValues) {
+                    try {
+                        const oldJson = JSON.parse(log.oldValues);
+                        html += formatJsonForDisplay(oldJson, 'old');
+                    } catch (e) {
+                        html += `<pre class="bg-light p-3 rounded small">${escapeHtml(log.oldValues)}</pre>`;
+                    }
+                } else {
+                    html += '<p class="text-muted"><em>Nenhum valor anterior</em></p>';
+                }
+                html += '</div>';
+                
+                // Coluna "Depois"
+                html += '<div class="col-md-6">';
+                html += '<h6 class="text-success mb-3"><i class="bi bi-arrow-right"></i> Valores Novos</h6>';
+                if (log.newValues) {
+                    try {
+                        const newJson = JSON.parse(log.newValues);
+                        html += formatJsonForDisplay(newJson, 'new');
+                    } catch (e) {
+                        html += `<pre class="bg-light p-3 rounded small">${escapeHtml(log.newValues)}</pre>`;
+                    }
+                } else {
+                    html += '<p class="text-muted"><em>Nenhum valor novo</em></p>';
+                }
+                html += '</div>';
+                
+                html += '</div>';
+                
+                // Análise de diferenças
+                if (log.oldValues && log.newValues) {
+                    try {
+                        const oldJson = JSON.parse(log.oldValues);
+                        const newJson = JSON.parse(log.newValues);
+                        html += '<hr class="my-4">';
+                        html += '<h5 class="mb-3"><i class="bi bi-list-check"></i> Resumo das Alterações</h5>';
+                        html += generateDiffSummary(oldJson, newJson);
+                    } catch (e) {
+                        // Ignorar erros de parsing
+                    }
+                }
+            } else {
+                html += '<p class="text-muted">Nenhuma alteração de valores registrada.</p>';
+            }
+            
+            contentDiv.innerHTML = html;
+        } catch (error) {
+            console.error('Erro ao carregar detalhes:', error);
+            contentDiv.innerHTML = '<div class="alert alert-danger">Erro ao carregar os detalhes do log. Por favor, tente novamente.</div>';
+        }
+    }
+    
+    function translateApprovalStatus(value) {
+        const translations = {
+            'UnderReview': 'Em análise',
+            'AwaitingAdjustment': 'Aguardando ajuste',
+            'Approved': 'Aprovado'
+        };
+        return translations[value] || value;
+    }
+    
+    function translateFieldName(fieldName) {
+        const translations = {
+            'ApprovalStatus': 'Status de Aprovação',
+            'Reason': 'Motivo',
+            'RejectionReason': 'Motivo da Rejeição'
+        };
+        return translations[fieldName] || fieldName;
+    }
+    
+    function formatJsonForDisplay(obj, type) {
+        let html = '<div class="json-display">';
+        
+        function formatValue(value, key) {
+            if (value === null) {
+                return `<span class="json-value-null">null</span>`;
+            } else if (typeof value === 'object' && !Array.isArray(value)) {
+                return `<code>${escapeHtml(JSON.stringify(value, null, 2))}</code>`;
+            } else if (Array.isArray(value)) {
+                return `<code>${escapeHtml(JSON.stringify(value, null, 2))}</code>`;
+            } else if (typeof value === 'string') {
+                // Traduzir ApprovalStatus se for o campo
+                if (key === 'ApprovalStatus') {
+                    const translated = translateApprovalStatus(value);
+                    return `<span class="json-value">"${escapeHtml(translated)}"</span>`;
+                }
+                return `<span class="json-value">"${escapeHtml(value)}"</span>`;
+            } else {
+                return `<span class="json-value">${escapeHtml(String(value))}</span>`;
+            }
+        }
+        
+        for (const [key, value] of Object.entries(obj)) {
+            html += `<div style="margin-bottom: 12px; padding: 8px; background-color: #f8f9fa; border-radius: 4px; border-left: 3px solid #0d6efd;">`;
+            html += `<div style="margin-bottom: 4px;"><span class="json-key">${escapeHtml(translateFieldName(key))}</span></div>`;
+            html += `<div style="margin-left: 16px;">${formatValue(value, key)}</div>`;
+            html += `</div>`;
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    function generateDiffSummary(oldObj, newObj) {
+        const changes = [];
+        const added = [];
+        const removed = [];
+        const modified = [];
+        
+        // Encontrar campos removidos ou modificados
+        for (const key in oldObj) {
+            if (!(key in newObj)) {
+                removed.push({ key, oldValue: oldObj[key] });
+            } else if (JSON.stringify(oldObj[key]) !== JSON.stringify(newObj[key])) {
+                modified.push({ key, oldValue: oldObj[key], newValue: newObj[key] });
+            }
+        }
+        
+        // Encontrar campos adicionados
+        for (const key in newObj) {
+            if (!(key in oldObj)) {
+                added.push({ key, newValue: newObj[key] });
+            }
+        }
+        
+        let html = '<div class="list-group">';
+        
+        if (added.length > 0) {
+            html += '<div class="list-group-item list-group-item-success"><strong><i class="bi bi-plus-circle"></i> Campos Adicionados:</strong><ul class="mb-0 mt-2">';
+            added.forEach(item => {
+                const translatedKey = translateFieldName(item.key);
+                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(JSON.stringify(item.newValue))}</code></li>`;
+            });
+            html += '</ul></div>';
+        }
+        
+        if (removed.length > 0) {
+            html += '<div class="list-group-item list-group-item-danger"><strong><i class="bi bi-dash-circle"></i> Campos Removidos:</strong><ul class="mb-0 mt-2">';
+            removed.forEach(item => {
+                const translatedKey = translateFieldName(item.key);
+                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(JSON.stringify(item.oldValue))}</code></li>`;
+            });
+            html += '</ul></div>';
+        }
+        
+        if (modified.length > 0) {
+            html += '<div class="list-group-item list-group-item-warning"><strong><i class="bi bi-arrow-left-right"></i> Campos Modificados:</strong><ul class="mb-0 mt-2">';
+            modified.forEach(item => {
+                const translatedKey = translateFieldName(item.key);
+                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <br>`;
+                // Traduzir ApprovalStatus
+                let oldValueDisplay = item.oldValue;
+                let newValueDisplay = item.newValue;
+                if (item.key === 'ApprovalStatus') {
+                    oldValueDisplay = translateApprovalStatus(item.oldValue);
+                    newValueDisplay = translateApprovalStatus(item.newValue);
+                }
+                html += `&nbsp;&nbsp;<span class="text-danger">Antes:</span> <code>${escapeHtml(JSON.stringify(oldValueDisplay))}</code><br>`;
+                html += `&nbsp;&nbsp;<span class="text-success">Depois:</span> <code>${escapeHtml(JSON.stringify(newValueDisplay))}</code></li>`;
+            });
+            html += '</ul></div>';
+        }
+        
+        if (added.length === 0 && removed.length === 0 && modified.length === 0) {
+            html += '<div class="list-group-item"><em class="text-muted">Nenhuma alteração detectada nos valores.</em></div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>

@@ -117,6 +117,22 @@ namespace KlyonHubPlatform.Application.Services
                 await _context.SaveChangesAsync();
             }
 
+            // IMPORTANTE: NÃO criar Client nem Contract automaticamente durante o registro.
+            // O cliente deve ser criado separadamente através de /Client/RegisterClient
+            // e os contratos devem ser criados apenas quando o cliente escolher um endereço fiscal.
+            // Verificar se por algum motivo um Client foi criado (não deveria acontecer)
+            var clientCheck = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (clientCheck != null)
+            {
+                // Se um cliente foi criado, verificar se há contratos associados
+                var contractsCheck = await _context.Contracts.Where(c => c.ClientId == clientCheck.Id).CountAsync();
+                if (contractsCheck > 0)
+                {
+                    // Log de erro: contratos foram criados automaticamente durante o registro (não deveria acontecer)
+                    throw new InvalidOperationException($"ERRO: Contratos foram criados automaticamente durante o registro do usuário {email}. Isso não deveria acontecer. Verifique triggers no banco de dados ou código que cria contratos automaticamente.");
+                }
+            }
+
             // Send verification email
             try
             {

@@ -32,20 +32,30 @@ namespace KlyonHubPlatform.Application.Services
         /// <param name="userAgent">User Agent do navegador/cliente</param>
         public async Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null, string? ipAddress = null, string? userAgent = null)
         {
-            var log = new AuditLog
+            try
             {
-                UserId = userId,
-                Action = action,
-                EntityType = entityType,
-                EntityId = entityId,
-                OldValues = oldValues,
-                NewValues = newValues,
-                IpAddress = ipAddress,
-                UserAgent = userAgent,
-                ActionDate = DateTime.UtcNow
-            };
+                var log = new AuditLog
+                {
+                    UserId = userId,
+                    Action = action,
+                    EntityType = entityType,
+                    EntityId = entityId,
+                    OldValues = oldValues,
+                    NewValues = newValues,
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent,
+                    ActionDate = DateTime.UtcNow
+                };
 
-            await _auditLogRepository.CreateAsync(log);
+                await _auditLogRepository.CreateAsync(log);
+            }
+            catch (Exception ex)
+            {
+                // Se houver erro ao criar o log de auditoria (ex: tabela foi limpa, AUTO_INCREMENT não resetado),
+                // não quebrar a aplicação. Apenas logar o erro silenciosamente.
+                // Em produção, considere usar um logger adequado aqui.
+                System.Diagnostics.Debug.WriteLine($"Erro ao criar log de auditoria: {ex.Message}");
+            }
         }
 
         public async Task<List<AuditLog>> GetLogsByEntityAsync(string entityType, int entityId)

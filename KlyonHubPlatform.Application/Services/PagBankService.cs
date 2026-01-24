@@ -450,18 +450,33 @@ namespace KlyonHubPlatform.Application.Services
 
             if (messages.Count > 0)
                 return string.Join(" ", messages);
-            return "Os dados do cartão estão incorretos. Verifique número, validade, CVV e nome e tente novamente.";
+            
+            // Mensagem genérica mais apropriada - pode ser dados do cliente ou do cartão
+            return "Dados inválidos. Verifique se todos os dados obrigatórios estão preenchidos corretamente em 'Meu Perfil' (CPF/CNPJ, Nome, Email).";
         }
 
         private static string? MapPagBankParameterToFriendly(string? parameterName)
         {
             if (string.IsNullOrWhiteSpace(parameterName)) return null;
             var s = parameterName.ToLowerInvariant();
+            
+            // Erros relacionados a dados do cliente (não do cartão)
+            if (s.Contains("tax_id") || s.Contains("taxid") || s.Contains("cpf") || s.Contains("cnpj"))
+                return "CPF ou CNPJ inválido. Verifique os dados em 'Meu Perfil'.";
+            if (s.Contains("customer") && (s.Contains("name") || s.Contains("email")))
+                return "Dados do cliente inválidos. Complete seu cadastro em 'Meu Perfil'.";
+            if (s.Contains("email") && !s.Contains("card"))
+                return "Email inválido. Verifique o email em 'Meu Perfil'.";
+            if (s.Contains("phone"))
+                return "Telefone inválido. Verifique o telefone em 'Meu Perfil'.";
+            
+            // Erros relacionados a cartão de crédito
             if (s.Contains("security_code")) return "Código de segurança (CVV) inválido. Confira os 3 ou 4 dígitos no verso do cartão.";
             if (s.Contains("number") && s.Contains("card")) return "Número do cartão inválido.";
             if (s.Contains("exp_month") || s.Contains("exp_year") || s.Contains("expiration")) return "Data de validade inválida. Confira mês e ano.";
             if (s.Contains("holder") || (s.Contains("name") && s.Contains("card"))) return "Nome no cartão inválido.";
             if (s.Contains("card")) return "Dados do cartão inválidos. Verifique número, validade, CVV e nome.";
+            
             return null;
         }
 

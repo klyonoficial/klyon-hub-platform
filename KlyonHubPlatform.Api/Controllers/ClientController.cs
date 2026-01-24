@@ -55,6 +55,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IEmailService _emailService;
         private readonly ILogger<ClientController> _logger;
         private readonly ISystemConfigurationService _systemConfig;
+        private readonly IClientMenuService _clientMenuService;
 
         public ClientController(
             IContractService contractService,
@@ -68,7 +69,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IReservationTransferService reservationTransferService,
             IEmailService emailService,
             ILogger<ClientController> logger,
-            ISystemConfigurationService systemConfig)
+            ISystemConfigurationService systemConfig,
+            IClientMenuService clientMenuService)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -82,6 +84,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _emailService = emailService;
             _logger = logger;
             _systemConfig = systemConfig;
+            _clientMenuService = clientMenuService;
         }
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
@@ -94,6 +97,16 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Services()
         {
+            // Verificar se o cliente tem um contrato ativo
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var hasActiveContract = await _clientMenuService.ClientHasActiveContractAsync(userId);
+            
+            // Se tiver contrato ativo, não mostrar nenhum serviço
+            if (hasActiveContract)
+            {
+                return View(new List<Domain.Entities.Service>());
+            }
+
             var marketplaceRoute = Url.Action("Marketplace", "Home") ?? "/Home/Marketplace";
             var chooseLocationRoute = Url.Action("ChooseLocation", "Client") ?? "/Client/ChooseLocation";
 
@@ -103,12 +116,59 @@ namespace KlyonHubPlatform.Api.Controllers
                 .OrderBy(s => s.DisplayOrder)
                 .ToListAsync();
 
-            // Corrigir rotas incorretas de serviços relacionados a salas
+            // Remover duplicatas - manter apenas o primeiro serviço de cada nome
+            var uniqueServices = services
+                .GroupBy(s => s.Name)
+                .Select(g => g.First())
+                .OrderBy(s => s.DisplayOrder)
+                .ToList();
+
+            // Se houver duplicatas, remover as duplicadas do banco
+            if (services.Count != uniqueServices.Count)
+            {
+                var duplicates = services.Except(uniqueServices).ToList();
+                foreach (var duplicate in duplicates)
+                {
+                    duplicate.IsActive = false;
+                    duplicate.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                }
+                await _context.SaveChangesAsync();
+                services = uniqueServices;
+            }
+            else
+            {
+                services = uniqueServices;
+            }
+
+            // Corrigir rotas incorretas e descrições inadequadas para cliente
             var roomServiceKeywords = new[] { "Sala", "Auditório", "Aluguel" };
             var needsUpdate = false;
 
             foreach (var service in services)
             {
+                // Corrigir descrições inadequadas para perfil de cliente
+                if (service.Name.Contains("Endereço Fiscal") || service.Name.Contains("Endereco Fiscal"))
+                {
+                    // Descrições que não fazem sentido para cliente (voltadas para parceiro)
+                    var partnerDescriptions = new[] { 
+                        "Ofereça", "amplie", "receita", "rede", 
+                        "Oferecer", "ampliar", "ganhe"
+                    };
+                    
+                    if (partnerDescriptions.Any(desc => service.Description.Contains(desc, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        service.Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura";
+                        service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                        needsUpdate = true;
+                    }
+                    else if (string.IsNullOrWhiteSpace(service.Description))
+                    {
+                        service.Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura";
+                        service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                        needsUpdate = true;
+                    }
+                }
+
                 // Se o serviço é relacionado a salas e tem rota incorreta, corrigir
                 if (roomServiceKeywords.Any(keyword => service.Name.Contains(keyword)) && 
                     service.Route != marketplaceRoute && 
@@ -134,6 +194,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(s => s.IsActive)
                     .OrderBy(s => s.DisplayOrder)
                     .ToListAsync();
+                
+                // Remover duplicatas novamente após atualização
+                services = services
+                    .GroupBy(s => s.Name)
+                    .Select(g => g.First())
+                    .OrderBy(s => s.DisplayOrder)
+                    .ToList();
             }
 
             // Se não houver serviços cadastrados, criar os serviços padrão
@@ -144,7 +211,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     new Domain.Entities.Service
                     {
                         Name = "Contratar Endereço Fiscal",
-                        Description = "Contrate um endereço fiscal para sua empresa",
+                        Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
                         Route = chooseLocationRoute,
                         DisplayOrder = 1,
                         IsActive = true,
@@ -187,6 +254,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ToList();
             }
 
+            ViewBag.HasActiveContract = hasActiveContract;
             return View(services);
         }
 
@@ -318,17 +386,22 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Profile");
                 }
 
-                // Remover máscaras do CNPJ e CPF para validação
-                // Tratar caso onde o campo pode vir como null ou string vazia
+                // Validar CPF e CNPJ usando DocumentValidator
                 var cnpjInput = string.IsNullOrWhiteSpace(client.CNPJ) ? null : client.CNPJ;
-                var cnpjClean = cnpjInput?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 var cpfInput = string.IsNullOrWhiteSpace(client.CPF) ? null : client.CPF;
-                var cpfClean = cpfInput?.Replace(".", "").Replace("-", "").Trim();
 
                 // Validar CNPJ se informado
-                if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length == 14)
+                if (!string.IsNullOrWhiteSpace(cnpjInput))
                 {
+                    var cnpjValidation = DocumentValidator.ValidateCPForCNPJ(cnpjInput);
+                    if (!cnpjValidation.isValid || cnpjValidation.type != "CNPJ")
+                    {
+                        TempData["Error"] = cnpjValidation.message;
+                        return RedirectToAction("Profile");
+                    }
+
                     // Verificar se outro cliente já possui este CNPJ
+                    var cnpjClean = cnpjInput.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                     var allClients = await _context.Clients
                         .Where(c => c.CNPJ != null && c.Id != existingClient.Id)
                         .ToListAsync();
@@ -341,28 +414,29 @@ namespace KlyonHubPlatform.Api.Controllers
                         TempData["Error"] = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
                         return RedirectToAction("Profile");
                     }
+                    
                     // Salvar CNPJ com máscara
                     existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
-                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
                     _context.Entry(existingClient).Property(c => c.CNPJ).IsModified = true;
-                }
-                else if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length != 14)
-                {
-                    TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos.";
-                    return RedirectToAction("Profile");
                 }
                 else
                 {
-                    // Se o CNPJ vier vazio/null, limpar o CNPJ existente
                     existingClient.CNPJ = null;
-                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
                     _context.Entry(existingClient).Property(c => c.CNPJ).IsModified = true;
                 }
 
                 // Validar CPF se informado
-                if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length == 11)
+                if (!string.IsNullOrWhiteSpace(cpfInput))
                 {
+                    var cpfValidation = DocumentValidator.ValidateCPForCNPJ(cpfInput);
+                    if (!cpfValidation.isValid || cpfValidation.type != "CPF")
+                    {
+                        TempData["Error"] = cpfValidation.message;
+                        return RedirectToAction("Profile");
+                    }
+
                     // Verificar se outro cliente já possui este CPF
+                    var cpfClean = cpfInput.Replace(".", "").Replace("-", "").Trim();
                     var allClients = await _context.Clients
                         .Where(c => c.CPF != null && c.Id != existingClient.Id)
                         .ToListAsync();
@@ -375,22 +449,22 @@ namespace KlyonHubPlatform.Api.Controllers
                         TempData["Error"] = $"O CPF {client.CPF} já está cadastrado no sistema.";
                         return RedirectToAction("Profile");
                     }
+                    
                     // Salvar CPF com máscara
                     existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
-                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
                     _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
-                }
-                else if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length != 11)
-                {
-                    TempData["Error"] = "CPF inválido. O CPF deve conter 11 dígitos.";
-                    return RedirectToAction("Profile");
                 }
                 else
                 {
-                    // Se o CPF vier vazio/null, limpar o CPF existente
                     existingClient.CPF = null;
-                    // Marcar explicitamente como modificado para garantir que o EF detecte a mudança
                     _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
+                }
+
+                // Verificar se pelo menos um está preenchido
+                if (string.IsNullOrWhiteSpace(existingClient.CNPJ) && string.IsNullOrWhiteSpace(existingClient.CPF))
+                {
+                    TempData["Error"] = "É necessário informar CPF ou CNPJ.";
+                    return RedirectToAction("Profile");
                 }
 
                 // Atualizar campos (exceto ContactEmail que sempre vem do usuário)
@@ -556,12 +630,18 @@ namespace KlyonHubPlatform.Api.Controllers
                         existingClient.ContactEmail = client.ContactEmail;
                     }
                     
-                    // Validar e atualizar CNPJ/CPF
-                    var cnpjClean = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                    var cpfClean = client.CPF?.Replace(".", "").Replace("-", "").Trim();
-                    
-                    if (!string.IsNullOrEmpty(cnpjClean) && cnpjClean.Length == 14)
+                    // Validar e atualizar CNPJ/CPF usando DocumentValidator
+                    if (!string.IsNullOrWhiteSpace(client.CNPJ))
                     {
+                        var cnpjValidation = DocumentValidator.ValidateCPForCNPJ(client.CNPJ);
+                        if (!cnpjValidation.isValid || cnpjValidation.type != "CNPJ")
+                        {
+                            TempData["Error"] = cnpjValidation.message;
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+
+                        var cnpjClean = client.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                         // Verificar se outro cliente já possui este CNPJ
                         var allClients = await _context.Clients
                             .Where(c => c.CNPJ != null && c.Id != existingClient.Id)
@@ -578,13 +658,22 @@ namespace KlyonHubPlatform.Api.Controllers
                         }
                         existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
                     }
-                    else if (!string.IsNullOrEmpty(cnpjClean))
+                    else
                     {
                         existingClient.CNPJ = null;
                     }
                     
-                    if (!string.IsNullOrEmpty(cpfClean) && cpfClean.Length == 11)
+                    if (!string.IsNullOrWhiteSpace(client.CPF))
                     {
+                        var cpfValidation = DocumentValidator.ValidateCPForCNPJ(client.CPF);
+                        if (!cpfValidation.isValid || cpfValidation.type != "CPF")
+                        {
+                            TempData["Error"] = cpfValidation.message;
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+
+                        var cpfClean = client.CPF.Replace(".", "").Replace("-", "").Trim();
                         // Verificar se outro cliente já possui este CPF
                         var allClients = await _context.Clients
                             .Where(c => c.CPF != null && c.Id != existingClient.Id)
@@ -601,9 +690,17 @@ namespace KlyonHubPlatform.Api.Controllers
                         }
                         existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
                     }
-                    else if (!string.IsNullOrEmpty(cpfClean))
+                    else
                     {
                         existingClient.CPF = null;
+                    }
+
+                    // Verificar se pelo menos um está preenchido
+                    if (string.IsNullOrWhiteSpace(existingClient.CNPJ) && string.IsNullOrWhiteSpace(existingClient.CPF))
+                    {
+                        TempData["Error"] = "É necessário informar CPF ou CNPJ.";
+                        ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                        return View(existingClient);
                     }
                     
                     // Remover máscaras do telefone e CEP
@@ -635,13 +732,18 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Dashboard");
                 }
 
-                // Remover máscaras do CNPJ e CPF para validação
-                var cnpjCleanNew = client.CNPJ?.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                var cpfCleanNew = client.CPF?.Replace(".", "").Replace("-", "").Trim();
-
-                // Validar CNPJ se informado
-                if (!string.IsNullOrEmpty(cnpjCleanNew) && cnpjCleanNew.Length == 14)
+                // Validar CNPJ e CPF usando DocumentValidator
+                if (!string.IsNullOrWhiteSpace(client.CNPJ))
                 {
+                    var cnpjValidation = DocumentValidator.ValidateCPForCNPJ(client.CNPJ);
+                    if (!cnpjValidation.isValid || cnpjValidation.type != "CNPJ")
+                    {
+                        TempData["Error"] = cnpjValidation.message;
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+
+                    var cnpjCleanNew = client.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                     // Buscar todos os clientes e comparar CNPJ sem máscara
                     var allClients = await _context.Clients.Where(c => c.CNPJ != null).ToListAsync();
                     var existingCNPJ = allClients.FirstOrDefault(c => 
@@ -657,16 +759,23 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Salvar CNPJ com máscara
                     client.CNPJ = $"{cnpjCleanNew.Substring(0, 2)}.{cnpjCleanNew.Substring(2, 3)}.{cnpjCleanNew.Substring(5, 3)}/{cnpjCleanNew.Substring(8, 4)}-{cnpjCleanNew.Substring(12, 2)}";
                 }
-                else if (!string.IsNullOrEmpty(cnpjCleanNew) && cnpjCleanNew.Length != 14)
+                else
                 {
-                    TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos.";
-                    ViewBag.UserEmail = userEmail;
-                    return View(client);
+                    client.CNPJ = null;
                 }
 
                 // Validar CPF se informado
-                if (!string.IsNullOrEmpty(cpfCleanNew) && cpfCleanNew.Length == 11)
+                if (!string.IsNullOrWhiteSpace(client.CPF))
                 {
+                    var cpfValidation = DocumentValidator.ValidateCPForCNPJ(client.CPF);
+                    if (!cpfValidation.isValid || cpfValidation.type != "CPF")
+                    {
+                        TempData["Error"] = cpfValidation.message;
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+
+                    var cpfCleanNew = client.CPF.Replace(".", "").Replace("-", "").Trim();
                     // Buscar todos os clientes e comparar CPF sem máscara
                     var allClients = await _context.Clients.Where(c => c.CPF != null).ToListAsync();
                     var existingCPF = allClients.FirstOrDefault(c => 
@@ -682,9 +791,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Salvar CPF com máscara
                     client.CPF = $"{cpfCleanNew.Substring(0, 3)}.{cpfCleanNew.Substring(3, 3)}.{cpfCleanNew.Substring(6, 3)}-{cpfCleanNew.Substring(9, 2)}";
                 }
-                else if (!string.IsNullOrEmpty(cpfCleanNew) && cpfCleanNew.Length != 11)
+                else
                 {
-                    TempData["Error"] = "CPF inválido. O CPF deve conter 11 dígitos.";
+                    client.CPF = null;
+                }
+
+                // Verificar se pelo menos um está preenchido
+                if (string.IsNullOrWhiteSpace(client.CNPJ) && string.IsNullOrWhiteSpace(client.CPF))
+                {
+                    TempData["Error"] = "É necessário informar CPF ou CNPJ.";
                     ViewBag.UserEmail = userEmail;
                     return View(client);
                 }
@@ -729,6 +844,17 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ChooseLocation(string? region = null, string? state = null, int page = 1)
         {
+            // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo (status "Ativo" em Meus Contratos).
+            if (User.IsInRole("Client"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                if (await _clientMenuService.ClientHasActiveContractAsync(userId))
+                {
+                    TempData["Info"] = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+                    return RedirectToAction("MyContracts");
+                }
+            }
+
             const int pageSize = 6;
             
             // Query base: localidades ativas
@@ -795,6 +921,32 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> AvailableAddresses(int locationId)
         {
+            // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo.
+            if (User.IsInRole("Client"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                if (await _clientMenuService.ClientHasActiveContractAsync(userId))
+                {
+                    TempData["Info"] = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+                    return RedirectToAction("MyContracts");
+                }
+            }
+
+            // Validar se o locationId é válido
+            if (locationId <= 0)
+            {
+                TempData["Error"] = "Localidade inválida.";
+                return RedirectToAction("ChooseLocation");
+            }
+
+            // Verificar se a localidade existe
+            var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == locationId);
+            if (location == null)
+            {
+                TempData["Error"] = "Localidade não encontrada.";
+                return RedirectToAction("ChooseLocation");
+            }
+
             var addresses = await _coworkingService.GetAvailableAddressesAsync(locationId);
             
             // Buscar foto principal de cada coworking
@@ -825,6 +977,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             
             ViewBag.LocationId = locationId;
+            ViewBag.Location = location;
             ViewBag.MainPhotos = mainPhotos;
             
             return View(addresses);
@@ -879,21 +1032,31 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
-                // Verificar se o cliente já tem um contrato ativo para este endereço
-                var existingActiveContract = await _context.Contracts
+                // Verificar se o cliente já tem um contrato ativo ou pendente de pagamento para este endereço
+                var existingContractForAddress = await _context.Contracts
                     .Include(c => c.CoworkingAddress)
                     .Where(c => c.ClientId == client.Id 
                         && c.CoworkingAddressId == coworkingAddressId 
-                        && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended))
+                        && c.Status != ContractStatus.Cancelled
+                        && (c.Status == ContractStatus.Active 
+                            || c.Status == ContractStatus.Suspended 
+                            || c.Status == ContractStatus.PendingPayment))
                     .FirstOrDefaultAsync();
 
-                if (existingActiveContract != null)
+                if (existingContractForAddress != null)
                 {
-                    TempData["Error"] = $"Você já possui um contrato {(existingActiveContract.Status == ContractStatus.Active ? "ativo" : "suspenso")} para este endereço. Número do contrato: {existingActiveContract.ContractNumber}";
+                    var statusMsg = existingContractForAddress.Status switch
+                    {
+                        ContractStatus.Active => "ativo",
+                        ContractStatus.Suspended => "suspenso",
+                        ContractStatus.PendingPayment => "pendente de pagamento",
+                        _ => "para este endereço"
+                    };
+                    TempData["Error"] = $"Você já possui um contrato {statusMsg} para este endereço. Número do contrato: {existingContractForAddress.ContractNumber}";
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
-                // Verificar se o cliente já tem um contrato ativo na mesma localidade
+                // Verificar se o cliente já tem um contrato ativo na mesma localidade (exceto cancelados e pendentes de pagamento)
                 var existingContractInLocation = await _context.Contracts
                     .Include(c => c.CoworkingAddress)
                         .ThenInclude(a => a.Location)
@@ -1111,6 +1274,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
+            ViewBag.HasActiveContract = await _clientMenuService.ClientHasActiveContractAsync(userId);
 
             return View(contracts);
         }
@@ -1309,6 +1473,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     // PagBank não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
                     TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
                 }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
+                {
+                    // Dados do cliente faltando ou inválidos - redirecionar para o perfil
+                    TempData["Error"] = ex.Message;
+                    return RedirectToAction("Profile");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Outros erros de operação inválida
+                    TempData["Error"] = ex.Message;
+                }
             }
 
             // Gerar código PIX ou Boleto se necessário
@@ -1334,6 +1509,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     // PagBank não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
                     TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
                     // Continuar para mostrar a página mesmo sem o código gerado
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
+                {
+                    // Dados do cliente faltando ou inválidos - redirecionar para o perfil
+                    TempData["Error"] = ex.Message;
+                    return RedirectToAction("Profile");
                 }
                 catch (Exception ex)
                 {

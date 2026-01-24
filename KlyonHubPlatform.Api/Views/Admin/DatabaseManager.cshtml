@@ -1,5 +1,6 @@
 @using System.Linq
 @using System.Collections.Generic
+@using System
 @{
     ViewData["Title"] = "Gerenciador de Banco de Dados";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -86,6 +87,9 @@
                 
                 @if (pendingMigrations.Any())
                 {
+                    var klyonBootMigrations = pendingMigrations.Where(m => m.Contains("KlyonBoot", StringComparison.OrdinalIgnoreCase) || m.Contains("Chatbot", StringComparison.OrdinalIgnoreCase) || m.Contains("Chat", StringComparison.OrdinalIgnoreCase)).ToList();
+                    var otherMigrations = pendingMigrations.Except(klyonBootMigrations).ToList();
+                    
                     <div class="alert alert-warning mb-4 border-warning">
                         <div class="d-flex align-items-start">
                             <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
@@ -96,12 +100,40 @@
                                 <p class="mb-2">
                                     As seguintes alterações de estrutura estão aguardando execução:
                                 </p>
-                                <ul class="mb-3">
-                                    @foreach (var m in pendingMigrations)
-                                    {
-                                        <li><code class="bg-light p-1 rounded">@m</code></li>
-                                    }
-                                </ul>
+                                
+                                @if (klyonBootMigrations.Any())
+                                {
+                                    <div class="mb-3">
+                                        <h6 class="text-primary mb-2">
+                                            <i class="bi bi-robot"></i> Migrations do KlyonBoot (@klyonBootMigrations.Count):
+                                        </h6>
+                                        <ul class="mb-2">
+                                            @foreach (var m in klyonBootMigrations)
+                                            {
+                                                <li>
+                                                    <code class="bg-primary text-white p-1 rounded">@m</code>
+                                                    <span class="badge bg-primary ms-2">KlyonBoot</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                                
+                                @if (otherMigrations.Any())
+                                {
+                                    <div class="mb-3">
+                                        @if (klyonBootMigrations.Any())
+                                        {
+                                            <h6 class="text-secondary mb-2">Outras Migrations (@otherMigrations.Count):</h6>
+                                        }
+                                        <ul class="mb-2">
+                                            @foreach (var m in otherMigrations)
+                                            {
+                                                <li><code class="bg-light p-1 rounded">@m</code></li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
                                 <form id="form-run-migrations" method="post" action="@Url.Action("RunMigrations", "Admin")" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <button type="button" class="btn btn-warning btn-lg" 
@@ -157,31 +189,6 @@
                         </div>
                     </details>
                 }
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card border-info">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios – Status por documento</h5>
-            </div>
-            <div class="card-body">
-                <p class="mb-2">
-                    Adiciona as colunas <strong>Status</strong> e <strong>RejectionReason</strong> na tabela <code>CoworkingDocuments</code>.
-                    Permite exibir por documento: ⏳ Em análise, ✅ Aprovado, ❌ Rejeitado (com motivo).
-                </p>
-                <p class="mb-3 text-muted small">
-                    Usa apenas <code>ALTER TABLE</code> / <code>ADD COLUMN</code>. Documentos existentes recebem Status = &apos;Approved&apos;.
-                </p>
-                <form method="post" action="@Url.Action("AddDocumentStatusColumns", "Admin")" class="d-inline">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-info" onclick="event.preventDefault(); handleAddDocumentStatusColumns(this);">
-                        <i class="bi bi-plus-circle"></i> Adicionar Status e RejectionReason em CoworkingDocuments
-                    </button>
-                </form>
             </div>
         </div>
     </div>
@@ -590,18 +597,6 @@
             }
         }
 
-        async function handleAddDocumentStatusColumns(button) {
-            const confirmed = await showConfirm(
-                'Adicionar as colunas Status e RejectionReason na tabela CoworkingDocuments?\n\nSerão executados apenas ALTER TABLE / ADD COLUMN. Documentos existentes receberão Status = \'Approved\'.',
-                'Adicionar Status em Documentos Obrigatórios',
-                'info'
-            );
-            if (confirmed) {
-                const form = button.closest('form');
-                if (form) form.submit();
-            }
-        }
-        
         // Garantir que as funções estejam disponíveis globalmente
         window.copyToEditor = copyToEditor;
         window.handleExecuteMigrations = handleExecuteMigrations;
@@ -610,6 +605,5 @@
         window.handleClearTestData = handleClearTestData;
         window.handleClearDatabase = handleClearDatabase;
         window.handleExecuteQuery = handleExecuteQuery;
-        window.handleAddDocumentStatusColumns = handleAddDocumentStatusColumns;
     </script>
 }

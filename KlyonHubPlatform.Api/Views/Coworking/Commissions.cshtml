@@ -79,13 +79,13 @@
                                         var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
                                         var transfer = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
                                         
-                                        if (commission.IsTransferred && transfer != null)
+                                        if (transfer != null)
                                         {
                                             // Exibir status baseado no status real da transferência
                                             switch (transfer.Status)
                                             {
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending:
-                                                    <span class="badge bg-info"><i class="bi bi-clock-history"></i> Repasse Solicitado</span>
+                                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> Pendente</span>
                                                     break;
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Processing:
                                                     <span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Em Processamento</span>
@@ -100,13 +100,13 @@
                                                     <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Repasse Cancelado</span>
                                                     break;
                                                 default:
-                                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Repasse Realizado</span>
+                                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> Pendente</span>
                                                     break;
                                             }
                                         }
                                         else if (commission.IsTransferred)
                                         {
-                                            // Se está marcado como transferido mas não encontrou a transferência, assumir como realizado
+                                            // Se está marcado como transferido mas não encontrou a transferência, assumir como realizado (casos antigos)
                                             <span class="badge bg-success"><i class="bi bi-check-circle"></i> Repasse Realizado</span>
                                         }
                                         else
@@ -116,15 +116,27 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (commission.TransferredAt.HasValue)
-                                    {
-                                        <span class="text-success">
-                                            <i class="bi bi-calendar-check"></i> @commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
+                                    @{
+                                        var transferMap2 = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
+                                        var transfer2 = transferMap2 != null && transferMap2.ContainsKey(commission.Id) ? transferMap2[commission.Id] : null;
+                                        
+                                        if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer2.ProcessedAt.HasValue)
+                                        {
+                                            <span class="text-success">
+                                                <i class="bi bi-calendar-check"></i> @transfer2.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                            </span>
+                                        }
+                                        else if (commission.TransferredAt.HasValue)
+                                        {
+                                            // Casos antigos onde a comissão já foi marcada como transferida
+                                            <span class="text-success">
+                                                <i class="bi bi-calendar-check"></i> @commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
                                     }
                                 </td>
                             </tr>
@@ -133,7 +145,28 @@
                 </table>
             </div>
 
-            @if (Model.Any(c => !c.IsTransferred))
+            @{
+                var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
+                var hasEligibleCommission = Model.Any(c =>
+                {
+                    if (transferMap != null && transferMap.ContainsKey(c.Id) && transferMap[c.Id] != null)
+                    {
+                        var transfer = transferMap[c.Id];
+                        var status = transfer.Status;
+                        // Verifica se o status é diferente de Pendente e Repasse Realizado
+                        return status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
+                               status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed;
+                    }
+                    else if (!c.IsTransferred)
+                    {
+                        // Se não tem transferência associada e não está transferido, está aguardando repasse
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            
+            @if (hasEligibleCommission)
             {
                 var totalPendente = Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount);
                 <div class="mt-4 p-3 bg-light rounded">

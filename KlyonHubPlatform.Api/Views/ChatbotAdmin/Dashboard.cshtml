@@ -1,0 +1,513 @@
+@{
+    ViewData["Title"] = "KlyonBoot - Dashboard";
+}
+
+<style>
+    .klyonboot-admin {
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    .klyonboot-admin-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 30px;
+    }
+
+    .klyonboot-admin-header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2D3436;
+        margin: 0;
+    }
+
+    .klyonboot-admin-header .badge {
+        background: linear-gradient(135deg, #6C5CE7, #A29BFE);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .stat-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .stat-card-title {
+        font-size: 14px;
+        color: #636E72;
+        font-weight: 500;
+    }
+
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .stat-card-icon.purple { background: #F0ECFF; color: #6C5CE7; }
+    .stat-card-icon.green { background: #E8F8F5; color: #00B894; }
+    .stat-card-icon.red { background: #FFE8E8; color: #FF7675; }
+    .stat-card-icon.blue { background: #E3F2FD; color: #2196F3; }
+
+    .stat-card-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #2D3436;
+        margin-bottom: 4px;
+    }
+
+    .stat-card-change {
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .stat-card-change.positive { color: #00B894; }
+    .stat-card-change.negative { color: #FF7675; }
+
+    .section {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #2D3436;
+        margin: 0;
+    }
+
+    .date-filter {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .date-filter input {
+        padding: 8px 12px;
+        border: 1px solid #DFE6E9;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    .date-filter button {
+        padding: 8px 16px;
+        background: #6C5CE7;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .date-filter button:hover {
+        background: #5B4BC9;
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table th {
+        text-align: left;
+        padding: 12px;
+        border-bottom: 2px solid #DFE6E9;
+        color: #636E72;
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .table td {
+        padding: 12px;
+        border-bottom: 1px solid #F5F5F5;
+        color: #2D3436;
+        font-size: 14px;
+    }
+
+    .table tr:hover {
+        background: #F8F9FA;
+    }
+
+    .badge-status {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .badge-status.pending { background: #FFF3CD; color: #856404; }
+    .badge-status.under_review { background: #D1ECF1; color: #0C5460; }
+    .badge-status.resolved { background: #D4EDDA; color: #155724; }
+    .badge-status.added_to_faq { background: #E2D9F3; color: #4A148C; }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #636E72;
+    }
+
+    .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #636E72;
+    }
+
+    .spinner {
+        border: 3px solid #F5F5F5;
+        border-top: 3px solid #6C5CE7;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .quick-actions a {
+        padding: 12px 24px;
+        background: #6C5CE7;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .quick-actions a:hover {
+        background: #5B4BC9;
+    }
+
+    .quick-actions a.secondary {
+        background: #DFE6E9;
+        color: #2D3436;
+    }
+
+    .quick-actions a.secondary:hover {
+        background: #B2BEC3;
+    }
+</style>
+
+<div class="klyonboot-admin">
+    <div class="klyonboot-admin-header">
+        <h1>🤖 KlyonBoot Dashboard</h1>
+        <span class="badge">Assistente Oficial</span>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Total de Conversas</span>
+                <div class="stat-card-icon purple">💬</div>
+            </div>
+            <div class="stat-card-value" id="stat-total-conversations">-</div>
+            <div class="stat-card-change positive">+12% vs. último período</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Taxa de Resolução</span>
+                <div class="stat-card-icon green">✅</div>
+            </div>
+            <div class="stat-card-value" id="stat-resolution-rate">-</div>
+            <div class="stat-card-change positive">+5.2% vs. último período</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Perguntas Não Respondidas</span>
+                <div class="stat-card-icon red">❓</div>
+            </div>
+            <div class="stat-card-value" id="stat-unanswered">-</div>
+            <div class="stat-card-change negative">Requer atenção</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span class="stat-card-title">Redirecionados p/ Humano</span>
+                <div class="stat-card-icon blue">🤝</div>
+            </div>
+            <div class="stat-card-value" id="stat-redirected">-</div>
+            <div class="stat-card-change positive">-3% vs. último período</div>
+        </div>
+    </div>
+
+    <!-- Filtro de Data -->
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Filtrar por Período</h2>
+        </div>
+        <div class="date-filter">
+            <label>De:</label>
+            <input type="date" id="date-from" />
+            <label>Até:</label>
+            <input type="date" id="date-to" />
+            <button onclick="applyDateFilter()">Aplicar Filtro</button>
+        </div>
+    </div>
+
+    <!-- Perguntas Não Respondidas -->
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Perguntas Não Respondidas (Top 10)</h2>
+            <a href="/admin/chatbot/unanswered-questions" style="color: #6C5CE7; text-decoration: none; font-weight: 500;">Ver todas →</a>
+        </div>
+
+        <div id="unanswered-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Carregando dados...</p>
+        </div>
+
+        <div id="unanswered-content" style="display: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Pergunta</th>
+                        <th>Frequência</th>
+                        <th>Categoria Sugerida</th>
+                        <th>Status</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="unanswered-table-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="unanswered-empty" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">🎉</div>
+            <h3>Nenhuma pergunta não respondida!</h3>
+            <p>Todas as perguntas estão sendo respondidas com sucesso.</p>
+        </div>
+    </div>
+
+    <!-- Top Intenções -->
+    <div class="section">
+        <div class="section-header">
+            <h2 class="section-title">Top Intenções Detectadas</h2>
+        </div>
+
+        <div id="intentions-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Carregando dados...</p>
+        </div>
+
+        <div id="intentions-content" style="display: none;">
+            <canvas id="intentions-chart" style="max-height: 300px;"></canvas>
+        </div>
+    </div>
+
+    <!-- Ações Rápidas -->
+    <div class="quick-actions">
+        <a href="/admin/chatbot/unanswered-questions">📋 Ver Todas Perguntas Não Respondidas</a>
+        <a href="/admin/chatbot/intentions">🎯 Análise de Intenções</a>
+        <a href="/admin/chatbot/metrics" class="secondary">📊 Métricas Detalhadas</a>
+        <a href="/admin/chatbot/migrations" class="secondary">🗄️ Gerenciar Migrations</a>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let statsData = null;
+        let intentionsData = null;
+
+        // Carregar estatísticas ao carregar a página
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/chatbot/admin/statistics');
+                statsData = await response.json();
+                updateStatistics();
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+            }
+        }
+
+        function updateStatistics() {
+            document.getElementById('stat-total-conversations').textContent = statsData.totalConversations.toLocaleString('pt-BR');
+            document.getElementById('stat-resolution-rate').textContent = statsData.resolutionRate + '%';
+            document.getElementById('stat-unanswered').textContent = statsData.unansweredQuestions.toLocaleString('pt-BR');
+            document.getElementById('stat-redirected').textContent = statsData.redirectedToHuman.toLocaleString('pt-BR');
+        }
+
+        // Carregar perguntas não respondidas
+        async function loadUnansweredQuestions() {
+            try {
+                const response = await fetch('/api/chatbot/admin/unanswered-questions?status=pending');
+                const questions = await response.json();
+
+                document.getElementById('unanswered-loading').style.display = 'none';
+
+                if (questions.length === 0) {
+                    document.getElementById('unanswered-empty').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('unanswered-content').style.display = 'block';
+                const tbody = document.getElementById('unanswered-table-body');
+                tbody.innerHTML = '';
+
+                questions.slice(0, 10).forEach(q => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${q.question}</td>
+                        <td><strong>${q.frequency}x</strong></td>
+                        <td>${q.suggestedCategory || '-'}</td>
+                        <td><span class="badge-status ${q.status}">${getStatusLabel(q.status)}</span></td>
+                        <td>${new Date(q.createdAt).toLocaleDateString('pt-BR')}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar perguntas não respondidas:', error);
+            }
+        }
+
+        // Carregar top intenções
+        async function loadTopIntentions() {
+            try {
+                const response = await fetch('/api/chatbot/admin/top-intentions?top=10');
+                intentionsData = await response.json();
+
+                document.getElementById('intentions-loading').style.display = 'none';
+                document.getElementById('intentions-content').style.display = 'block';
+
+                renderIntentionsChart();
+            } catch (error) {
+                console.error('Erro ao carregar intenções:', error);
+            }
+        }
+
+        function renderIntentionsChart() {
+            const ctx = document.getElementById('intentions-chart').getContext('2d');
+            const labels = Object.keys(intentionsData);
+            const data = Object.values(intentionsData);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Quantidade',
+                        data: data,
+                        backgroundColor: '#6C5CE7',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function getStatusLabel(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'under_review': 'Em Revisão',
+                'resolved': 'Resolvido',
+                'added_to_faq': 'Adicionado ao FAQ'
+            };
+            return labels[status] || status;
+        }
+
+        // Aplicar filtro de data
+        async function applyDateFilter() {
+            const from = document.getElementById('date-from').value;
+            const to = document.getElementById('date-to').value;
+
+            let url = '/api/chatbot/admin/statistics';
+            if (from || to) {
+                const params = new URLSearchParams();
+                if (from) params.append('from', from);
+                if (to) params.append('to', to);
+                url += '?' + params.toString();
+            }
+
+            try {
+                const response = await fetch(url);
+                statsData = await response.json();
+                updateStatistics();
+            } catch (error) {
+                console.error('Erro ao aplicar filtro:', error);
+            }
+        }
+
+        // Inicializar
+        window.addEventListener('DOMContentLoaded', () => {
+            loadStatistics();
+            loadUnansweredQuestions();
+            loadTopIntentions();
+
+            // Definir data padrão (últimos 30 dias)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+            document.getElementById('date-from').valueAsDate = thirtyDaysAgo;
+            document.getElementById('date-to').valueAsDate = today;
+        });
+    </script>
+}
