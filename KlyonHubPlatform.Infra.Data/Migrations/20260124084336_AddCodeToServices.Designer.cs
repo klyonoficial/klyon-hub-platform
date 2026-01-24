@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KlyonHubPlatform.Infra.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260123181417_AddMustChangePasswordToUsers")]
-    partial class AddMustChangePasswordToUsers
+    [Migration("20260124084336_AddCodeToServices")]
+    partial class AddCodeToServices
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -160,6 +160,319 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("BlockedDates");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CapacityChangeRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Justification")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("PreviousCapacity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("RequestedCapacity")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ReviewedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("CapacityChangeRequests");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatConversation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("WasRedirectedToHuman")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool?>("WasResolved")
+                        .HasColumnType("tinyint(1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("StartedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChatConversations");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatFaqItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("varchar(5000)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Intentions")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Keywords")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("ChatFaqItems");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatIntention", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("Confidence")
+                        .HasColumnType("DECIMAL(5,4)");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DetectedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Entities")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("IntentionName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("MessageId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("DetectedAt");
+
+                    b.HasIndex("IntentionName");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("ChatIntentions");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ConfidenceScore")
+                        .HasColumnType("DECIMAL(5,4)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("varchar(5000)");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FaqItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Metadata")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("UsedAI")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("WasAnswered")
+                        .HasColumnType("tinyint(1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("FaqItemId");
+
+                    b.HasIndex("SentAt");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatUnansweredQuestion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DetectedIntention")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MessageId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ReviewedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("SuggestedCategory")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Frequency");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ChatUnansweredQuestions");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Client", b =>
                 {
                     b.Property<int>("Id")
@@ -300,6 +613,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    b.Property<int?>("AssistedSaleAdminId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("CancellationApprovedAt")
                         .HasColumnType("datetime(6)");
 
@@ -343,6 +659,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<bool>("IsAssistedSale")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<DateTime?>("LastExpiryNotificationSent")
                         .HasColumnType("datetime(6)");
 
@@ -355,6 +674,25 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("SignedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("SnapshotAddress")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("SnapshotCapacityConsumed")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SnapshotCommissionPercentage")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SnapshotCoworkingCommissionPercentage")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SnapshotMonthlyValue")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SnapshotPlatformCommissionPercentage")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime(6)");
 
@@ -366,6 +704,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AssistedSaleAdminId");
 
                     b.HasIndex("ClientId");
 
@@ -447,6 +787,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("Facebook")
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("HasPendingStatusNotification")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("Instagram")
                         .HasColumnType("longtext");
 
@@ -455,6 +798,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<bool>("IsPartner")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("LastNotifiedStatus")
+                        .HasColumnType("int");
 
                     b.Property<string>("LinkedIn")
                         .HasColumnType("longtext");
@@ -515,8 +861,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
+                    b.Property<int>("AddressStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ApprovedFiscalCapacity")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("decimal(65,30)");
+
+                    b.Property<int>("CapacityApprovalStatus")
+                        .HasColumnType("int");
 
                     b.Property<string>("City")
                         .IsRequired()
@@ -562,6 +917,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<decimal?>("PrivateRoomPricePerHour")
                         .HasColumnType("decimal(65,30)");
+
+                    b.Property<int>("RequestedFiscalCapacity")
+                        .HasColumnType("int");
 
                     b.Property<int?>("SharedRoomMaxSeats")
                         .HasColumnType("int");
@@ -618,6 +976,15 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<bool>("IsValid")
                         .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -687,6 +1054,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<string>("Email")
                         .HasColumnType("longtext");
+
+                    b.Property<bool>("IsContractSigner")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<bool>("IsPrincipal")
                         .HasColumnType("tinyint(1)");
@@ -892,6 +1262,107 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingRoomId");
 
                     b.ToTable("CoworkingRoomPhotos");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingSefazConfiguration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("ApiKey")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ApiToken")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CertificateContent")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CertificatePassword")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CertificatePath")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("CoworkingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("HomologationUrl")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("ISSAliquot")
+                        .HasColumnType("DECIMAL(5,2)");
+
+                    b.Property<string>("ISSMunicipality")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PartnerCNAE")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("PartnerCNPJ")
+                        .IsRequired()
+                        .HasMaxLength(18)
+                        .HasColumnType("varchar(18)");
+
+                    b.Property<string>("PartnerMunicipalRegistration")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("ProductionUrl")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ServiceCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("ServiceDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("varchar(2)");
+
+                    b.Property<string>("TaxRegime")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingId", "State", "Environment")
+                        .IsUnique();
+
+                    b.ToTable("CoworkingSefazConfigurations");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditCard", b =>
@@ -1148,6 +1619,10 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<DateTime>("IssueDate")
                         .HasColumnType("datetime(6)");
 
@@ -1200,6 +1675,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId");
 
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
                     b.HasIndex("PaymentId");
 
                     b.HasIndex("ReservationId");
@@ -1207,6 +1685,59 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Type", "ReservationId", "ContractId");
 
                     b.ToTable("FiscalNotes");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalNoteScriptExecution", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ErrorDetails")
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)");
+
+                    b.Property<int>("ErrorsCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ExecutedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ExecutedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExecutedByUserName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("NoteType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("NotesCreated")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NotesEmitted")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UnsupportedStatesCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutedAt");
+
+                    b.HasIndex("ExecutedByUserId");
+
+                    b.ToTable("FiscalNoteScriptExecutions");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Interest", b =>
@@ -1382,6 +1913,88 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("LocationCommissions");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PagBankWebhookLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int?>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ProcessingAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("RawPayload")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ReceivedSignature")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("ReferenceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ResourceStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("SignatureValid")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("SourceIp")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("PaymentId");
+
+                    b.HasIndex("ProcessingStatus");
+
+                    b.HasIndex("ReceivedAt");
+
+                    b.HasIndex("ReferenceId");
+
+                    b.HasIndex("ResourceId");
+
+                    b.ToTable("PagBankWebhookLogs");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PartnerService", b =>
                 {
                     b.Property<int>("Id")
@@ -1396,6 +2009,23 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<decimal>("Percentage")
                         .HasColumnType("DECIMAL(5,2)");
+
+                    b.Property<string>("RemovalRejectionReason")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("RemovalRequestStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("RemovalRequestedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("RemovalReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("RemovalReviewedBy")
+                        .HasColumnType("int");
 
                     b.Property<int>("ServiceId")
                         .HasColumnType("int");
@@ -2110,6 +2740,97 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Coworking");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CapacityChangeRequest", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany("CapacityChangeRequests")
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "Reviewer")
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CoworkingAddress");
+
+                    b.Navigation("Reviewer");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatConversation", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatIntention", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatConversation", "Conversation")
+                        .WithMany("Intentions")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatFaqItem", "FaqItem")
+                        .WithMany()
+                        .HasForeignKey("FaqItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("FaqItem");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatUnansweredQuestion", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatConversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.ChatMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "Reviewer")
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Message");
+
+                    b.Navigation("Reviewer");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Client", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.User", "User")
@@ -2153,6 +2874,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Contract", b =>
                 {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "AssistedSaleAdmin")
+                        .WithMany()
+                        .HasForeignKey("AssistedSaleAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
                         .WithMany("Contracts")
                         .HasForeignKey("ClientId")
@@ -2164,6 +2890,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasForeignKey("CoworkingAddressId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("AssistedSaleAdmin");
 
                     b.Navigation("Client");
 
@@ -2295,6 +3023,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("CoworkingRoom");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingSefazConfiguration", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
+                        .WithMany()
+                        .HasForeignKey("CoworkingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Coworking");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditCard", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
@@ -2378,6 +3117,16 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Reservation");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalNoteScriptExecution", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "ExecutedByUser")
+                        .WithMany()
+                        .HasForeignKey("ExecutedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ExecutedByUser");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Interest", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.User", "ContactedByUser")
@@ -2405,6 +3154,16 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PagBankWebhookLog", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Payment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Payment");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PartnerService", b =>
@@ -2562,6 +3321,13 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatConversation", b =>
+                {
+                    b.Navigation("Intentions");
+
+                    b.Navigation("Messages");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Client", b =>
                 {
                     b.Navigation("Contracts");
@@ -2591,6 +3357,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingAddress", b =>
                 {
+                    b.Navigation("CapacityChangeRequests");
+
                     b.Navigation("Rooms");
                 });
 
