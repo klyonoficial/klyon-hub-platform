@@ -271,6 +271,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Coworking).WithMany(c => c.Addresses).HasForeignKey(e => e.CoworkingId);
                 entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId);
                 entity.HasIndex(e => new { e.CoworkingId, e.Address }).IsUnique();
+                entity.Property(e => e.MaxContractsApprovalStatus).HasConversion<string>().HasMaxLength(50);
             });
 
             // Client configuration
