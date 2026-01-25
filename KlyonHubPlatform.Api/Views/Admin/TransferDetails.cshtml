@@ -46,8 +46,11 @@
                             case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending:
                                 <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> Pendente</span>
                                 break;
+                            case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice:
+                                <span class="badge bg-info"><i class="bi bi-file-earmark-check"></i> Aguardando NF</span>
+                                break;
                             case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Processing:
-                                <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Processando</span>
+                                <span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Processando</span>
                                 break;
                             case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed:
                                 <span class="badge bg-success"><i class="bi bi-check-circle"></i> Concluído</span>

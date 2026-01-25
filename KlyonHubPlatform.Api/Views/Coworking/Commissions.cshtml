@@ -90,6 +90,9 @@
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Processing:
                                                     <span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Em Processamento</span>
                                                     break;
+                                                case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice:
+                                                    <span class="badge bg-info"><i class="bi bi-file-earmark-check"></i> Aguardando NF</span>
+                                                    break;
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed:
                                                     <span class="badge bg-success"><i class="bi bi-check-circle"></i> Repasse Realizado</span>
                                                     break;
@@ -119,7 +122,13 @@
                                     @{
                                         var transfer2 = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
                                         
-                                        if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer2.ProcessedAt.HasValue)
+                                        if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice && transfer2.ScheduledDate != default)
+                                        {
+                                            <span class="text-info" title="Repasse agendado">
+                                                <i class="bi bi-calendar-event"></i> @transfer2.ScheduledDate.ToString("dd/MM/yyyy")
+                                            </span>
+                                        }
+                                        else if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer2.ProcessedAt.HasValue)
                                         {
                                             <span class="text-success">
                                                 <i class="bi bi-calendar-check"></i> @transfer2.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
@@ -159,9 +168,11 @@
                     if (transfer != null)
                     {
                         var status = transfer.Status;
-                        // Verifica se o status é diferente de Pendente e Repasse Realizado
+                        // Elegível para solicitar repasse: apenas quando não tem transfer ou está realmente pendente (sem transfer)
+                        // Pendente, Aguardando NF e Repasse Realizado não exibem o botão "Solicitar Repasse Agora"
                         if (status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending &&
-                            status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed)
+                            status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed &&
+                            status != KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice)
                         {
                             hasEligibleCommission = true;
                             break;

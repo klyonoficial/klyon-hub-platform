@@ -101,6 +101,65 @@ namespace KlyonHubPlatform.Api.Controllers
             await _auditService.LogActionAsync(userId, "ReturnedToReview", "Coworking", c.Id, "{\"ApprovalStatus\":\"Approved\"}", "{\"ApprovalStatus\":\"UnderReview\",\"Reason\":" + reasonEsc + "}");
         }
 
+        private async Task<List<object>> BuildAdministrativeAlertsAsync(Coworking coworkingEntity)
+        {
+            var alerts = new List<object>();
+            if (coworkingEntity.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
+            {
+                alerts.Add(new { Type = "danger", Icon = "bi-exclamation-triangle-fill", Title = "Cadastro Aguardando Ajuste", Message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) ? coworkingEntity.RejectionReason : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Perfil" });
+            }
+            var rejectedDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected).OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt).ToListAsync();
+            foreach (var doc in rejectedDocs)
+            {
+                var docTypeName = doc.Type switch { CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço", CoworkingDocumentType.AddressProof => "Comprovante de Endereço", CoworkingDocumentType.CNPJCard => "Cartão CNPJ", CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização", CoworkingDocumentType.UtilityBill => "Conta de Utilidade", _ => doc.Type.ToString() };
+                alerts.Add(new { Type = "danger", Icon = "bi-file-earmark-x-fill", Title = $"Documento Rejeitado: {docTypeName}", Message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Documentos" });
+            }
+            var pendingDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending).CountAsync();
+            if (pendingDocs > 0) alerts.Add(new { Type = "info", Icon = "bi-file-earmark-check", Title = "Documentos Em Análise", Message = $"{pendingDocs} documento(s) aguardando análise administrativa.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Documentos" });
+            var pendingNf = 0;
+            try
+            {
+                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
+                // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+                pendingNf = await _context.Payments
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) || 
+                                (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .Where(p => !_context.FiscalNotes.Any(fn => 
+                        fn.PaymentId == p.Id && 
+                        fn.Type == "Servico" && 
+                        (fn.Status == "Emitida" || fn.Status == "Importada")
+                    ))
+                    .CountAsync();
+            }
+            catch { }
+            if (pendingNf > 0) alerts.Add(new { Type = "warning", Icon = "bi-receipt", Title = "NF de Serviço Não Emitidas", Message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir NF" });
+            var rejectedNf = 0;
+            try 
+            { 
+                // Contar apenas notas rejeitadas que não têm uma NF aprovada (Emitida ou Importada) posteriormente para o mesmo PaymentId
+                // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+                rejectedNf = await _context.FiscalNotes
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == "Rejeitada")
+                    .Where(fn => !_context.FiscalNotes.Any(fn2 => 
+                        fn2.PaymentId == fn.PaymentId && 
+                        fn2.Type == "Servico" && 
+                        (fn2.Status == "Emitida" || fn2.Status == "Importada") &&
+                        fn2.Id != fn.Id
+                    ))
+                    .CountAsync(); 
+            } 
+            catch { }
+            if (rejectedNf > 0) alerts.Add(new { Type = "danger", Icon = "bi-x-circle-fill", Title = "NF Importadas Rejeitadas", Message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir / Importar NF" });
+            var addrs = await _context.CoworkingAddresses.Where(a => a.CoworkingId == coworkingEntity.Id && (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected)).ToListAsync();
+            foreach (var a in addrs)
+            {
+                if (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending) alerts.Add(new { Type = "warning", Icon = "bi-clock-history", Title = "Capacidade Fiscal Aguardando Aprovação", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} está aguardando aprovação administrativa.", ActionUrl = Url.Action("MyAddresses", "Coworking"), ActionText = "Ver Endereços" });
+                else alerts.Add(new { Type = "danger", Icon = "bi-x-circle-fill", Title = "Capacidade Fiscal Rejeitada", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} foi rejeitada.", ActionUrl = Url.Action("MyAddresses", "Coworking"), ActionText = "Ver Endereços" });
+            }
+            return alerts;
+        }
+
         public async Task<IActionResult> Dashboard()
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -167,108 +226,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 pendingReservationsCount = 0;
             }
 
-            // Buscar alertas administrativos (pendências)
-            var administrativeAlerts = new List<object>();
-
-            // 1. Verificar status de aprovação do cadastro (apenas se aguardando ajuste - "Em Análise" já é mostrado no topo)
-            if (coworkingEntity.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
-            {
-                administrativeAlerts.Add(new
-                {
-                    Type = "danger",
-                    Icon = "bi-exclamation-triangle-fill",
-                    Title = "Cadastro Aguardando Ajuste",
-                    Message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) 
-                        ? coworkingEntity.RejectionReason 
-                        : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.",
-                    ActionUrl = Url.Action("Profile", "Coworking"),
-                    ActionText = "Ver Perfil"
-                });
-            }
-
-            // 2. Buscar documentos rejeitados
-            var rejectedDocuments = await _context.CoworkingDocuments
-                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected)
-                .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
-                .ToListAsync();
-
-            foreach (var doc in rejectedDocuments)
-            {
-                var docTypeName = doc.Type switch
-                {
-                    CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço",
-                    CoworkingDocumentType.AddressProof => "Comprovante de Endereço",
-                    CoworkingDocumentType.CNPJCard => "Cartão CNPJ",
-                    CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização",
-                    CoworkingDocumentType.UtilityBill => "Conta de Utilidade",
-                    _ => doc.Type.ToString()
-                };
-
-                administrativeAlerts.Add(new
-                {
-                    Type = "danger",
-                    Icon = "bi-file-earmark-x-fill",
-                    Title = $"Documento Rejeitado: {docTypeName}",
-                    Message = !string.IsNullOrEmpty(doc.RejectionReason)
-                        ? doc.RejectionReason
-                        : "Este documento foi rejeitado e requer correção.",
-                    ActionUrl = Url.Action("Profile", "Coworking"),
-                    ActionText = "Ver Documentos"
-                });
-            }
-
-            // 3. Buscar documentos pendentes (opcional - apenas informativo)
-            var pendingDocuments = await _context.CoworkingDocuments
-                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending)
-                .CountAsync();
-
-            if (pendingDocuments > 0)
-            {
-                administrativeAlerts.Add(new
-                {
-                    Type = "info",
-                    Icon = "bi-file-earmark-check",
-                    Title = "Documentos Em Análise",
-                    Message = $"{pendingDocuments} documento(s) aguardando análise administrativa.",
-                    ActionUrl = Url.Action("Profile", "Coworking"),
-                    ActionText = "Ver Documentos"
-                });
-            }
-
-            // 4. Buscar endereços com capacidade pendente ou rejeitada
-            var addressesWithCapacityIssues = await _context.CoworkingAddresses
-                .Where(a => a.CoworkingId == coworkingEntity.Id && 
-                    (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || 
-                     a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected))
-                .ToListAsync();
-
-            foreach (var address in addressesWithCapacityIssues)
-            {
-                if (address.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
-                {
-                    administrativeAlerts.Add(new
-                    {
-                        Type = "warning",
-                        Icon = "bi-clock-history",
-                        Title = $"Capacidade Fiscal Aguardando Aprovação",
-                        Message = $"A alteração de capacidade do endereço {address.Address}, {address.City} está aguardando aprovação administrativa.",
-                        ActionUrl = Url.Action("MyAddresses", "Coworking"),
-                        ActionText = "Ver Endereços"
-                    });
-                }
-                else if (address.CapacityApprovalStatus == CapacityApprovalStatus.Rejected)
-                {
-                    administrativeAlerts.Add(new
-                    {
-                        Type = "danger",
-                        Icon = "bi-x-circle-fill",
-                        Title = $"Capacidade Fiscal Rejeitada",
-                        Message = $"A alteração de capacidade do endereço {address.Address}, {address.City} foi rejeitada.",
-                        ActionUrl = Url.Action("MyAddresses", "Coworking"),
-                        ActionText = "Ver Endereços"
-                    });
-                }
-            }
+            var administrativeAlerts = await BuildAdministrativeAlertsAsync(coworkingEntity);
+            var pendenciasTotal = administrativeAlerts.Count;
+            var pendingNfCount = 0;
+            try 
+            { 
+                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
+                // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+                pendingNfCount = await _context.Payments
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) || 
+                                (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .Where(p => !_context.FiscalNotes.Any(fn => 
+                        fn.PaymentId == p.Id && 
+                        fn.Type == "Servico" && 
+                        (fn.Status == "Emitida" || fn.Status == "Importada")
+                    ))
+                    .CountAsync(); 
+            } 
+            catch { }
 
             // Verificar se há notificação de mudança de status
             var coworkingForNotification = coworkingWithAddresses ?? coworkingEntity;
@@ -290,6 +266,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.PendingPaymentsCount = pendingPaymentsCount;
             ViewBag.PendingReservationsCount = pendingReservationsCount;
             ViewBag.AdministrativeAlerts = administrativeAlerts;
+            ViewBag.PendingFiscalNotesCount = pendingNfCount;
+            ViewBag.PendenciasTotal = pendenciasTotal;
 
             return View();
         }
@@ -732,7 +710,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     ZipCode = zipCode,
                     BasePrice = basePrice,
                     MaxContracts = maxContracts,
-                    IsAvailable = true,
+                    IsAvailable = false, // Não disponível até aprovação
+                    AddressStatus = AddressStatus.PendingApproval, // Aguardando aprovação
                     CurrentContracts = 0
                 };
 
@@ -953,7 +932,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingAddress.ZipCode = zipCode;
                 existingAddress.BasePrice = basePrice;
                 existingAddress.MaxContracts = maxContracts;
-                existingAddress.IsAvailable = isAvailable;
+                existingAddress.IsAvailable = false; // Não disponível até nova aprovação
+                existingAddress.AddressStatus = AddressStatus.PendingApproval; // Volta para pendente após atualização
                 existingAddress.UpdatedAt = DateTime.UtcNow;
 
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço atualizado");
@@ -989,6 +969,154 @@ namespace KlyonHubPlatform.Api.Controllers
                 var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                 ViewBag.Locations = locations;
                 ViewBag.HasRoomRental = hasRoomRental;
+                ViewBag.Address = existingAddress;
+                return View(existingAddress);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditMaxContracts(int? id)
+        {
+            if (!id.HasValue || id.Value <= 0)
+            {
+                TempData["Error"] = "ID do endereço inválido.";
+                return RedirectToAction("MyAddresses");
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                return RedirectToAction("Register");
+            }
+
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Location)
+                .Include(a => a.MaxContractsChangeRequests)
+                .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
+
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                return RedirectToAction("MyAddresses");
+            }
+
+            // Verificar se há contratos ativos - necessário para editar MaxContracts
+            var hasActiveContracts = await _context.Contracts
+                .AnyAsync(c => c.CoworkingAddressId == address.Id && c.Status == ContractStatus.Active);
+
+            if (!hasActiveContracts)
+            {
+                TempData["Error"] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos. Use a edição normal do endereço.";
+                return RedirectToAction("MyAddresses");
+            }
+
+            ViewBag.Address = address;
+            return View(address);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditMaxContracts(int id, int maxContracts, string? justification)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction("Register");
+                }
+
+                // Buscar o endereço existente
+                var existingAddress = await _context.CoworkingAddresses
+                    .Include(a => a.MaxContractsChangeRequests)
+                    .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
+
+                if (existingAddress == null)
+                {
+                    TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                    return RedirectToAction("MyAddresses");
+                }
+
+                // Verificar se há contratos ativos
+                var hasActiveContracts = await _context.Contracts
+                    .AnyAsync(c => c.CoworkingAddressId == existingAddress.Id && c.Status == ContractStatus.Active);
+
+                if (!hasActiveContracts)
+                {
+                    TempData["Error"] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos.";
+                    return RedirectToAction("MyAddresses");
+                }
+
+                // Validar que o novo valor seja pelo menos 20% maior que o atual
+                var minRequired = (int)Math.Ceiling(existingAddress.MaxContracts * 1.2m);
+                if (maxContracts < minRequired)
+                {
+                    TempData["Error"] = $"O novo valor de contratos máximos ({maxContracts}) deve ser pelo menos 20% maior que o valor atual ({existingAddress.MaxContracts}). O valor mínimo permitido é {minRequired}.";
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                // Validar que não seja menor que contratos ativos
+                if (maxContracts < existingAddress.CurrentContracts)
+                {
+                    TempData["Error"] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                // Verificar se já existe solicitação pendente
+                if (existingAddress.MaxContractsApprovalStatus == CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Já existe uma solicitação de alteração de quantidade máxima pendente para este endereço.";
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                // Validar justificativa
+                if (string.IsNullOrWhiteSpace(justification))
+                {
+                    TempData["Error"] = "A justificativa é obrigatória para solicitar alteração de quantidade máxima.";
+                    ViewBag.Address = existingAddress;
+                    return View(existingAddress);
+                }
+
+                // Criar solicitação de alteração
+                var maxContractsRequest = new MaxContractsChangeRequest
+                {
+                    CoworkingAddressId = existingAddress.Id,
+                    RequestedMaxContracts = maxContracts,
+                    PreviousMaxContracts = existingAddress.MaxContracts,
+                    Status = CapacityApprovalStatus.Pending,
+                    Justification = justification.Trim(),
+                    CreatedAt = DateTimeHelper.GetBrazilianTime()
+                };
+
+                _context.MaxContractsChangeRequests.Add(maxContractsRequest);
+
+                // Atualizar status do endereço
+                existingAddress.RequestedMaxContracts = maxContracts;
+                existingAddress.MaxContractsApprovalStatus = CapacityApprovalStatus.Pending;
+                existingAddress.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Solicitação de alteração de quantidade máxima enviada com sucesso! Aguardando aprovação administrativa.";
+                return RedirectToAction("MyAddresses");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao processar solicitação: {ex.Message}";
+                var existingAddress = await _context.CoworkingAddresses
+                    .Include(a => a.Location)
+                    .FirstOrDefaultAsync(a => a.Id == id);
                 ViewBag.Address = existingAddress;
                 return View(existingAddress);
             }
@@ -1981,15 +2109,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
-            // Validar se os dados bancários estão cadastrados
-            var hasBankData = !string.IsNullOrWhiteSpace(coworkingEntity.BankName) &&
-                             !string.IsNullOrWhiteSpace(coworkingEntity.BankAgency) &&
-                             (!string.IsNullOrWhiteSpace(coworkingEntity.BankAccount) || 
-                              !string.IsNullOrWhiteSpace(coworkingEntity.BankPixKey));
+            // Validar se os dados bancários estão cadastrados:
+            // - Chave PIX preenchida OU
+            // - Conta Corrente completa (Banco, Agência, Conta e Tipo de conta)
+            var hasPixKey = !string.IsNullOrWhiteSpace(coworkingEntity.BankPixKey);
+            var hasContaCorrente = !string.IsNullOrWhiteSpace(coworkingEntity.BankName) &&
+                                  !string.IsNullOrWhiteSpace(coworkingEntity.BankAgency) &&
+                                  !string.IsNullOrWhiteSpace(coworkingEntity.BankAccount) &&
+                                  !string.IsNullOrWhiteSpace(coworkingEntity.BankAccountType);
+            var hasBankData = hasPixKey || hasContaCorrente;
 
             if (!hasBankData)
             {
-                TempData["Error"] = "Para solicitar repasse, é necessário cadastrar os dados bancários (Banco, Agência e Conta ou Chave PIX). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
+                TempData["Error"] = "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
                 return RedirectToAction("Dashboard");
             }
 
@@ -2146,6 +2278,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Email principal vem da tabela Users (somente leitura na tela)
             ViewBag.UserEmail = user?.Email ?? User.FindFirstValue(ClaimTypes.Email);
+
+            var alerts = await BuildAdministrativeAlertsAsync(coworkingWithDetails ?? coworkingEntity);
+            ViewBag.AdministrativeAlerts = alerts;
+            ViewBag.PendenciasTotal = alerts.Count;
 
             return View(coworkingWithDetails ?? coworkingEntity);
         }
@@ -4085,7 +4221,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
-            // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço emitida
+            // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço aprovada
+            // Se existe uma NF aprovada (Emitida ou Importada) para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
             var query = _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
@@ -4107,7 +4244,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 )
                 .Where(p => p.Status == PaymentStatus.Paid)
                 .Where(p => !_context.FiscalNotes.Any(fn => 
-                    fn.PaymentId == p.Id && fn.Type == "Servico" && fn.Status == "Emitida"
+                    fn.PaymentId == p.Id && 
+                    fn.Type == "Servico" && 
+                    (fn.Status == "Emitida" || fn.Status == "Importada")
                 ))
                 .AsQueryable();
 
@@ -4231,17 +4370,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("ServiceFiscalNotes");
                 }
 
-                // Calcular valor líquido (valor total - comissão)
-                var commission = await _context.Commissions
-                    .FirstOrDefaultAsync(c => c.PaymentId == payment.Id);
-                
-                decimal netAmount = payment.Amount;
-                if (commission != null)
-                {
-                    netAmount = payment.Amount - commission.Amount;
-                }
-
-                // Criar registro de NF com valor líquido
+                // Criar registro de NF com valor total (com percentagem)
                 var fiscalNote = new FiscalNote
                 {
                     Type = "Servico",
@@ -4250,8 +4379,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
                     ContractId = payment.Subscription?.ContractId,
                     ReservationId = payment.ReservationId,
-                    Amount = netAmount, // Valor líquido (sem comissão)
-                    ServiceAmount = netAmount,
+                    Amount = payment.Amount, // Valor total (com percentagem)
+                    ServiceAmount = payment.Amount,
                     IssueDate = DateTime.UtcNow,
                     Status = "Pendente",
                     CreatedAt = DateTime.UtcNow
@@ -4287,10 +4416,99 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
+        /// Importa NF de serviço (upload manual) para um pagamento. Útil quando o contador emite a NF.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ImportServiceFiscalNote(int paymentId, IFormFile pdfFile, IFormFile? xmlFile)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Parceiro não encontrado.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription).ThenInclude(s => s.Contract).ThenInclude(c => c.CoworkingAddress)
+                    .Include(p => p.Reservation).ThenInclude(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+                if (payment == null)
+                {
+                    TempData["Error"] = "Pagamento não encontrado.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                var belongsToCoworking = (payment.Subscription?.Contract?.CoworkingAddress != null && payment.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
+                    || (payment.Reservation?.CoworkingAddress != null && payment.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id);
+                if (!belongsToCoworking)
+                {
+                    TempData["Error"] = "Este pagamento não pertence ao seu coworking.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                var existing = await _context.FiscalNotes
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada"));
+                if (existing != null)
+                {
+                    TempData["Error"] = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                if (pdfFile == null || pdfFile.Length == 0)
+                {
+                    TempData["Error"] = "Selecione o arquivo PDF da nota fiscal.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+                if (!pdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    TempData["Error"] = "O arquivo deve ser um PDF.";
+                    return RedirectToAction("ServiceFiscalNotes");
+                }
+
+                var storage = await _storageFactory.GetStorageServiceAsync();
+                var pdfFileName = $"imported_payment_{paymentId}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+                using var ms = new MemoryStream();
+                await pdfFile.CopyToAsync(ms);
+                var pdfPath = await storage.SaveFileAsync(ms.ToArray(), pdfFileName, $"invoices/imported/{coworkingEntity.Id}");
+
+                var fiscalNote = new FiscalNote
+                {
+                    Type = "Servico",
+                    PaymentId = payment.Id,
+                    CoworkingId = coworkingEntity.Id,
+                    ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
+                    ContractId = payment.Subscription?.ContractId,
+                    ReservationId = payment.ReservationId,
+                    Amount = payment.Amount, // Valor total (com percentagem)
+                    ServiceAmount = payment.Amount,
+                    IssueDate = DateTime.UtcNow,
+                    Status = "Importada",
+                    PdfUrl = pdfPath,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.FiscalNotes.Add(fiscalNote);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "NF importada com sucesso! Aguardando validação do administrador.";
+                return RedirectToAction("ServiceFiscalNotes");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao importar NF: {ex.Message}";
+                return RedirectToAction("ServiceFiscalNotes");
+            }
+        }
+
+        /// <summary>
         /// Lista notas fiscais de serviço emitidas pelo parceiro
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
+        public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null, string? noteNumber = null, string? client = null)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -4316,9 +4534,27 @@ namespace KlyonHubPlatform.Api.Controllers
                 .AsQueryable();
 
             // Aplicar filtros
-            if (!string.IsNullOrEmpty(status))
+            if (!string.IsNullOrWhiteSpace(status))
             {
                 query = query.Where(fn => fn.Status == status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(noteNumber))
+            {
+                var num = noteNumber.Trim();
+                query = query.Where(fn => fn.Number != null && fn.Number.Contains(num));
+            }
+
+            if (!string.IsNullOrWhiteSpace(client))
+            {
+                var c = client.Trim();
+                query = query.Where(fn => fn.Client != null && (
+                    (fn.Client.RazaoSocial != null && fn.Client.RazaoSocial.Contains(c)) ||
+                    (fn.Client.NomeFantasia != null && fn.Client.NomeFantasia.Contains(c)) ||
+                    (fn.Client.CNPJ != null && fn.Client.CNPJ.Contains(c)) ||
+                    (fn.Client.CPF != null && fn.Client.CPF.Contains(c)) ||
+                    (fn.Client.User != null && fn.Client.User.FullName != null && fn.Client.User.FullName.Contains(c))
+                ));
             }
 
             var totalItems = await query.CountAsync();
@@ -4337,8 +4573,46 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             ViewBag.Status = status;
+            ViewBag.NoteNumber = noteNumber;
+            ViewBag.Client = client;
 
             return View(fiscalNotes);
+        }
+
+        /// <summary>
+        /// Download do PDF da nota fiscal
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+
+            if (coworkingEntity == null)
+            {
+                return RedirectToAction("Register");
+            }
+
+            var fn = await _context.FiscalNotes
+                .FirstOrDefaultAsync(f => f.Id == fiscalNoteId && f.CoworkingId == coworkingEntity.Id);
+
+            if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
+            {
+                return NotFound();
+            }
+
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(fn.PdfUrl);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var fileName = Path.GetFileName(fn.PdfUrl) ?? $"nota_fiscal_{fn.Id}.pdf";
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            return File(fileBytes, "application/pdf");
         }
 
         /// <summary>

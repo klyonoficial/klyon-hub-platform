@@ -42,11 +42,8 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total para Emitir</h6>
-                <h2 class="mb-0">R$ @(Model.Sum(p => {
-                    var commission = commissionDict.ContainsKey(p.Id) ? commissionDict[p.Id] : null;
-                    return commission != null ? p.Amount - commission.Amount : p.Amount;
-                }).ToString("N2"))</h2>
-                <small class="text-white-50">Valor líquido (após comissão)</small>
+                <h2 class="mb-0">R$ @(Model.Sum(p => p.Amount).ToString("N2"))</h2>
+                <small class="text-white-50">Valor total (com percentagem)</small>
             </div>
         </div>
     </div>
@@ -77,10 +74,6 @@
                             var serviceName = payment.Subscription?.Contract != null ? "Endereço Fiscal" : "Reserva de Sala";
                             var location = payment.Subscription?.Contract?.CoworkingAddress?.Location ?? payment.Reservation?.CoworkingAddress?.Location;
                             
-                            // Calcular valor líquido (valor total - comissão)
-                            var commission = commissionDict.ContainsKey(payment.Id) ? commissionDict[payment.Id] : null;
-                            var netAmount = commission != null ? payment.Amount - commission.Amount : payment.Amount;
-                            
                             <tr>
                                 <td>#@payment.Id</td>
                                 <td>
@@ -108,8 +101,8 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @netAmount.ToString("N2")</strong>
-                                    <input type="hidden" class="net-amount" value="@netAmount.ToString("F2")" />
+                                    <strong>R$ @payment.Amount.ToString("N2")</strong>
+                                    <input type="hidden" class="net-amount" value="@payment.Amount.ToString("F2")" />
                                 </td>
                                 <td>
                                     @if (payment.PaidAt.HasValue)
@@ -123,13 +116,17 @@
                                     }
                                 </td>
                                 <td>
-                                    <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required">
+                                    <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="paymentId" value="@payment.Id" />
-                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @netAmount.ToString("N2")?');">
+                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @payment.Amount.ToString("N2")?');">
                                             <i class="bi bi-file-earmark-check"></i> Emitir NF
                                         </button>
                                     </form>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-1" data-bs-toggle="modal" data-bs-target="#importNfModal" 
+                                            data-payment-id="@payment.Id" data-net-amount="@payment.Amount.ToString("F2")" data-client-name="@(client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? "—")">
+                                        <i class="bi bi-upload"></i> Importar NF
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -180,3 +177,49 @@
         }
     </div>
 </div>
+
+<!-- Modal Importar NF -->
+<div class="modal fade" id="importNfModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("ImportServiceFiscalNote", "Coworking")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" id="importNfPaymentId" value="" />
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload"></i> Importar NF de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Use quando a NF foi emitida pelo contador. Envie o PDF da nota para validação do administrador.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Pagamento / Cliente</label>
+                        <p class="form-control-plaintext fw-bold" id="importNfClientInfo">—</p>
+                    </div>
+                    <div class="mb-3">
+                        <label for="importNfPdf" class="form-label">PDF da NF <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="importNfPdf" name="pdfFile" accept=".pdf" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById('importNfModal').addEventListener('show.bs.modal', function (e) {
+        var btn = e.relatedTarget;
+        if (!btn) return;
+        var paymentId = btn.getAttribute('data-payment-id');
+        var netAmount = btn.getAttribute('data-net-amount');
+        var clientName = btn.getAttribute('data-client-name');
+        document.getElementById('importNfPaymentId').value = paymentId || '';
+        document.getElementById('importNfClientInfo').textContent = (clientName || '—') + (netAmount ? ' — Valor total: R$ ' + parseFloat(netAmount).toFixed(2) : '');
+        document.getElementById('importNfPdf').value = '';
+    });
+</script>
+}

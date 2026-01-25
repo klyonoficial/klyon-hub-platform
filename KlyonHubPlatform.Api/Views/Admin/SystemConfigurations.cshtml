@@ -21,6 +21,20 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear"></i> Configurações do Sistema</h2>
+    <div class="d-flex gap-2">
+        <form method="post" action="@Url.Action("ConfigurePagBankSandbox", "Admin")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-dark" title="Configurar credenciais do PagBank Sandbox automaticamente">
+                <i class="bi bi-credit-card"></i> Configurar PagBank Sandbox
+            </button>
+        </form>
+        <form method="post" action="@Url.Action("TestPagBankConnection", "Admin")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-primary" title="Testar conexão com PagBank">
+                <i class="bi bi-wifi"></i> Testar Conexão PagBank
+            </button>
+        </form>
+    </div>
 </div>
 
 <div class="card">
@@ -76,11 +90,17 @@
                                                     }
                                                 </td>
                                                 <td>
-                                                    @if (config.IsSensitive)
+                                                    @if (string.IsNullOrEmpty(config.Value))
+                                                    {
+                                                        <span class="text-muted">
+                                                            <i class="bi bi-dash-circle"></i> Não definido
+                                                        </span>
+                                                    }
+                                                    else if (config.IsSensitive)
                                                     {
                                                         <span class="text-muted">
                                                             <i class="bi bi-lock"></i> 
-                                                            @(config.Value.Length > 0 ? new string('*', Math.Min(config.Value.Length, 20)) : "Não definido")
+                                                            @(new string('*', Math.Min(config.Value.Length, 20)))
                                                         </span>
                                                     }
                                                     else

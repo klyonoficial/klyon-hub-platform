@@ -39,18 +39,55 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
         </form>
     </div>
 }
-else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved)
+else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPendingStatusNotification)
 {
-    <div class="alert alert-success mb-4">
-        <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
-        @if (showCoworkingMenus)
-        {
-            <text>Seu espaço está no marketplace. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
-        }
-        else
-        {
-            <text>Você já pode cadastrar endereços fiscais e receber clientes. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
-        }
+    @* Mostra uma vez após o admin aprovar; ao clicar "Entendi", dispensa e não exibe mais. *@
+    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-check-circle"></i> Cadastro aprovado.</h5>
+        <p class="mb-3">
+            @if (showCoworkingMenus)
+            {
+                <text>Seu espaço está no marketplace. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
+            }
+            else
+            {
+                <text>Você já pode cadastrar endereços fiscais e receber clientes. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
+            }
+        </p>
+        <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check"></i> Entendi</button>
+        </form>
+    </div>
+}
+
+@if (ViewBag.AdministrativeAlerts != null && ((List<object>)ViewBag.AdministrativeAlerts).Any())
+{
+    <div class="card border-warning shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Pendências</h5>
+            <span class="badge bg-dark">@(((List<object>)ViewBag.AdministrativeAlerts).Count) pendência(s)</span>
+        </div>
+        <div class="card-body">
+            <div class="list-group list-group-flush">
+                @foreach (dynamic alert in (List<object>)ViewBag.AdministrativeAlerts)
+                {
+                    <div class="list-group-item border-start border-@alert.Type border-3 px-3 py-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi @alert.Icon text-@alert.Type me-3 mt-1" style="font-size: 1.3rem;"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-bold">@alert.Title</h6>
+                                <p class="mb-2 text-muted small">@alert.Message</p>
+                                @if (alert.ActionUrl != null)
+                                {
+                                    <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1"><i class="bi bi-arrow-right"></i> @alert.ActionText</a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 }
 

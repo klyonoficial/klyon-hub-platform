@@ -2,6 +2,7 @@
     ViewData["Title"] = "Meus Endereços";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
+@using KlyonHubPlatform.Domain.Core.Enums
 
 @model List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>
 
@@ -20,6 +21,42 @@
         </button>
     }
 </div>
+
+@{
+    // Verificar endereços que estão próximos do limite (faltando 10% ou menos)
+    var addressesNearLimit = Model.Where(a => 
+        a.MaxContracts > 0 && 
+        a.CurrentContracts >= Math.Ceiling(a.MaxContracts * 0.9m) &&
+        a.CurrentContracts < a.MaxContracts &&
+        a.AddressStatus == AddressStatus.Active
+    ).ToList();
+}
+
+@if (addressesNearLimit.Any())
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <h5 class="alert-heading">
+            <i class="bi bi-exclamation-triangle-fill"></i> Atenção: Capacidade Próxima do Limite
+        </h5>
+        <p class="mb-2">Os seguintes endereços estão próximos da capacidade máxima (faltando 10% ou menos):</p>
+        <ul class="mb-2">
+            @foreach (var address in addressesNearLimit)
+            {
+                var percentageUsed = address.MaxContracts > 0 ? (address.CurrentContracts * 100.0 / address.MaxContracts) : 0;
+                var remaining = address.MaxContracts - address.CurrentContracts;
+                <li>
+                    <strong>@address.Address, @address.City/@address.State</strong> - 
+                    @address.CurrentContracts de @address.MaxContracts contratos 
+                    (@percentageUsed.ToString("F1")% utilizado, faltam @remaining)
+                    <a href="/Parceiro/EditMaxContracts?id=@address.Id" class="btn btn-sm btn-warning ms-2">
+                        <i class="bi bi-pencil"></i> Ajustar Quantidade
+                    </a>
+                </li>
+            }
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
 
 <!-- Filtros -->
 <div class="card mb-4">
@@ -127,24 +164,70 @@
                                 </td>
                                 <td><strong>R$ @address.BasePrice.ToString("F2")</strong></td>
                                 <td>
-                                    <span class="badge bg-@(address.CurrentContracts >= address.MaxContracts ? "danger" : "secondary")">
+                                    @{
+                                        var warningThreshold = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9) : 0;
+                                        var badgeColor = address.CurrentContracts >= address.MaxContracts ? "danger" 
+                                            : (address.CurrentContracts >= warningThreshold ? "warning" : "secondary");
+                                    }
+                                    <span class="badge bg-@badgeColor">
                                         @address.CurrentContracts / @address.MaxContracts
+                                        @if (address.CurrentContracts >= address.MaxContracts)
+                                        {
+                                            <i class="bi bi-exclamation-triangle-fill ms-1" title="Capacidade máxima atingida"></i>
+                                        }
+                                        else if (address.CurrentContracts >= warningThreshold)
+                                        {
+                                            <i class="bi bi-exclamation-triangle-fill ms-1" title="Próximo da capacidade máxima (faltando 10%)"></i>
+                                        }
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-@(address.IsAvailable ? "success" : "danger")">
-                                        @(address.IsAvailable ? "Disponível" : "Indisponível")
+                                    @{
+                                        var addressStatusLabel = address.AddressStatus switch
+                                        {
+                                            AddressStatus.PendingApproval => "Em análise",
+                                            AddressStatus.Active => address.IsAvailable ? "Disponível" : "Indisponível",
+                                            AddressStatus.Suspended => "Suspenso",
+                                            AddressStatus.Removed => "Removido",
+                                            _ => "Indisponível"
+                                        };
+                                        var addressStatusBadge = address.AddressStatus switch
+                                        {
+                                            AddressStatus.PendingApproval => "warning",
+                                            AddressStatus.Active => address.IsAvailable ? "success" : "danger",
+                                            AddressStatus.Suspended => "warning",
+                                            AddressStatus.Removed => "secondary",
+                                            _ => "danger"
+                                        };
+                                    }
+                                    <span class="badge bg-@addressStatusBadge" title="@(address.AddressStatus == AddressStatus.PendingApproval ? "Aguardando aprovação do administrador" : "")">
+                                        @if (address.AddressStatus == AddressStatus.PendingApproval)
+                                        {
+                                            <i class="bi bi-clock-history"></i>
+                                        }
+                                        @addressStatusLabel
                                     </span>
                                 </td>
                                 <td>
                                     @{
                                         var activeContractsDict = ViewBag.ActiveContractsByAddress as Dictionary<int, int> ?? new Dictionary<int, int>();
                                         var hasActiveContracts = activeContractsDict.ContainsKey(address.Id) && activeContractsDict[address.Id] > 0;
+                                        var warningThresholdActions = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9m) : 0;
+                                        var isNearLimit = address.MaxContracts > 0 && 
+                                                          address.CurrentContracts >= warningThresholdActions && 
+                                                          address.CurrentContracts < address.MaxContracts &&
+                                                          address.AddressStatus == AddressStatus.Active;
                                     }
                                     @if (!hasActiveContracts)
                                     {
                                         <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
                                             <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                    }
+                                    else if (isNearLimit)
+                                    {
+                                        <a href="/Parceiro/EditMaxContracts?id=@address.Id" class="btn btn-sm btn-warning" title="Ajustar quantidade máxima de contratos">
+                                            <i class="bi bi-pencil"></i> Ajustar Quantidade
                                         </a>
                                     }
                                     else

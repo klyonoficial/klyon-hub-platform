@@ -90,23 +90,10 @@ else
             </form>
         </div>
     }
+    @* Approved: mensagem "Cadastro aprovado" só é exibida uma vez, via notificação (Parabéns!) acima. Após "Entendi", não mostrar mais. *@
     else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
     {
-        @* Só mostra esta mensagem se não houver uma notificação especial de aprovação sendo exibida acima *@
-        @if (!(ViewBag.HasStatusNotification == true && (KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus)ViewBag.StatusNotificationType == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved))
-        {
-            <div class="alert alert-success mb-4">
-                <i class="bi bi-check-circle"></i> <strong>Cadastro aprovado.</strong> 
-                @if (showCoworkingMenus)
-                {
-                    <text>Seu espaço está disponível no marketplace para que clientes possam alugar.</text>
-                }
-                else
-                {
-                    <text>Você já pode cadastrar endereços fiscais e receber clientes.</text>
-                }
-            </div>
-        }
+        @* Nada aqui - a mensagem aparece apenas na notificação HasPendingStatusNotification (bloco "Parabéns!"), que é dispensável. *@
     }
 
     @* Seção de Alertas Administrativos *@
@@ -189,11 +176,11 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card text-white bg-success" data-drilldown="@Url.Action("Commissions", "Parceiro")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-trophy-fill"></i> Ganhos Pendentes</h5>
-                    <h2 class="mb-0" style="font-size: 2.2rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
+                    <h2 class="mb-0" style="font-size: 1.75rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
                 </div>
             </div>
         </div>
@@ -202,6 +189,24 @@ else
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>
                     <h2 class="display-4">@(ViewBag.TotalAddresses ?? 0)</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white @((ViewBag.PendenciasTotal ?? 0) > 0 ? "bg-warning" : "bg-secondary")" data-drilldown="@Url.Action("Profile", "Parceiro")">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-exclamation-triangle"></i> Pendências</h5>
+                    <h2 class="display-4">@(ViewBag.PendenciasTotal ?? 0)</h2>
+                    @if ((ViewBag.PendenciasTotal ?? 0) > 0)
+                    {
+                        <a href="@Url.Action("Profile", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
+                            <i class="bi bi-list-check"></i> Verificar
+                        </a>
+                    }
+                    else
+                    {
+                        <small class="text-white-50 mt-2 d-block">Nada pendente</small>
+                    }
                 </div>
             </div>
         </div>

@@ -153,15 +153,27 @@
                                 @foreach (var address in Model.Addresses)
                                 {
                                     var addrStatus = address.AddressStatus;
-                                    var (badge, label) = addrStatus == AddressStatus.Active ? ("success", "Ativo")
-                                        : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") : ("secondary", "Removido");
+                                    var (badge, label) = addrStatus == AddressStatus.PendingApproval ? ("warning", "Pendente aprovação")
+                                        : addrStatus == AddressStatus.Active ? ("success", "Ativo")
+                                        : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") 
+                                        : ("secondary", "Removido");
                                     <tr>
                                         <td>@address.Address, @address.Number</td>
                                         <td>@address.City</td>
                                         <td>@address.State</td>
                                         <td>
-                                            <span class="badge bg-@badge">@label</span>
-                                            @if (addrStatus != AddressStatus.Active)
+                                            <span class="badge bg-@badge">
+                                                @if (addrStatus == AddressStatus.PendingApproval)
+                                                {
+                                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                                }
+                                                @label
+                                            </span>
+                                            @if (addrStatus == AddressStatus.PendingApproval)
+                                            {
+                                                <small class="text-muted d-block">Aguardando aprovação do administrador</small>
+                                            }
+                                            else if (addrStatus != AddressStatus.Active)
                                             {
                                                 <small class="text-muted d-block">Contratos ativos seguem válidos</small>
                                             }
@@ -171,13 +183,55 @@
                                                 @(address.IsAvailable ? "Sim" : "Não")
                                             </span>
                                         </td>
-                                        <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                        <td>
+                                            @{
+                                                // Calcular 90% da capacidade (quando falta 10%)
+                                                var warningThresholdContracts = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9) : 0;
+                                                var warningThresholdFiscal = address.ApprovedFiscalCapacity > 0 ? Math.Ceiling(address.ApprovedFiscalCapacity * 0.9) : 0;
+                                                
+                                                var isAtMaxContracts = address.MaxContracts > 0 && address.CurrentContracts >= address.MaxContracts;
+                                                var isAtMaxFiscalCapacity = address.ApprovedFiscalCapacity > 0 && address.CurrentContracts >= address.ApprovedFiscalCapacity;
+                                                var isNearMaxContracts = address.MaxContracts > 0 && address.CurrentContracts >= warningThresholdContracts && address.CurrentContracts < address.MaxContracts;
+                                                var isNearMaxFiscalCapacity = address.ApprovedFiscalCapacity > 0 && address.CurrentContracts >= warningThresholdFiscal && address.CurrentContracts < address.ApprovedFiscalCapacity;
+                                                
+                                                var isAtMaxCapacity = isAtMaxContracts || isAtMaxFiscalCapacity;
+                                                var isNearMaxCapacity = isNearMaxContracts || isNearMaxFiscalCapacity;
+                                            }
+                                            <div>
+                                                <span class="@(isAtMaxCapacity ? "text-danger fw-bold" : isNearMaxCapacity ? "text-warning fw-bold" : "")">
+                                                    @address.CurrentContracts / @address.MaxContracts
+                                                </span>
+                                                @if (isAtMaxCapacity)
+                                                {
+                                                    <i class="bi bi-exclamation-triangle-fill text-danger" title="Capacidade máxima atingida"></i>
+                                                }
+                                                else if (isNearMaxCapacity)
+                                                {
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning" title="Próximo da capacidade máxima (faltando 10%)"></i>
+                                                }
+                                            </div>
+                                            @if (address.ApprovedFiscalCapacity > 0 && address.ApprovedFiscalCapacity != address.MaxContracts)
+                                            {
+                                                <small class="text-muted d-block">
+                                                    Fiscal: @address.CurrentContracts / @address.ApprovedFiscalCapacity
+                                                    @if (isAtMaxFiscalCapacity)
+                                                    {
+                                                        <span class="text-danger">(Máx. fiscal atingida)</span>
+                                                    }
+                                                    else if (isNearMaxFiscalCapacity)
+                                                    {
+                                                        <span class="text-warning">(Próximo do limite fiscal - faltando 10%)</span>
+                                                    }
+                                                </small>
+                                            }
+                                        </td>
                                         <td class="text-end">
                                             <form asp-action="SetAddressStatus" asp-controller="Admin" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="addressId" value="@address.Id" />
                                                 <input type="hidden" name="coworkingId" value="@Model.Id" />
                                                 <select name="status" class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="this.form.submit()">
+                                                    @if (addrStatus == AddressStatus.PendingApproval) { <option value="PendingApproval" selected>Pendente aprovação</option> } else { <option value="PendingApproval">Pendente aprovação</option> }
                                                     @if (addrStatus == AddressStatus.Active) { <option value="Active" selected>Ativo</option> } else { <option value="Active">Ativo</option> }
                                                     @if (addrStatus == AddressStatus.Suspended) { <option value="Suspended" selected>Suspenso</option> } else { <option value="Suspended">Suspenso</option> }
                                                     @if (addrStatus == AddressStatus.Removed) { <option value="Removed" selected>Removido</option> } else { <option value="Removed">Removido</option> }

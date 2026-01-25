@@ -14,6 +14,9 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         Suspended = 1,
 
         /// <summary>Endereço removido – não afeta contratos existentes; bloqueia novas vendas</summary>
-        Removed = 2
+        Removed = 2,
+
+        /// <summary>Endereço aguardando aprovação administrativa – não aceita novos contratos até ser aprovado</summary>
+        PendingApproval = 3
     }
 }
