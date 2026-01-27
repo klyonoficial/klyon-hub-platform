@@ -112,7 +112,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _authService.UpdateUserAsync(user);
                 
                 HttpContext.Session.SetString("MustChangePassword", "true");
-                HttpContext.Session.SetString("ChangePasswordReturnUrl", returnUrl ?? "/Client/Dashboard");
+                HttpContext.Session.SetString("ChangePasswordReturnUrl", returnUrl ?? "/Client/DashboardDetails");
                 
                 return RedirectToAction("ChangePasswordRequired");
             }

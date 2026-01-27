@@ -97,7 +97,7 @@
                             }
                             else if (isClient && !isAdmin && !isCoworking)
                             {
-                                <a class="nav-link" href="@Url.Action("Dashboard", "Client")">
+                                <a class="nav-link" href="@Url.Action("DashboardDetails", "Client")">
                                     <i class="bi bi-speedometer2"></i> Dashboard
                                 </a>
                             }
@@ -376,13 +376,10 @@
                                 <i class="bi bi-file-earmark-text"></i> Contrato de Endereço Fiscal
                             </a>
                             
-                            @* Só exibir "Localidades Disponíveis" se o cliente NÃO tiver endereço ativo (contrato com status Ativo em Meus Contratos) *@
-                            @if (!clientHasActiveContract)
-                            {
-                                <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
-                                    <i class="bi bi-geo-alt"></i> Localidades Disponíveis
-                                </a>
-                            }
+                            @* "Localidades Disponíveis" sempre visível para o cliente (contratar novo endereço mesmo tendo contrato ativo) *@
+                            <a class="nav-link" href="@Url.Action("ChooseLocation", "Client")">
+                                <i class="bi bi-geo-alt"></i> Localidades Disponíveis
+                            </a>
                             
                             @* Menu Financeiro com submenu *@
                             <div class="sidebar-dropdown" id="financeiroDropdown">

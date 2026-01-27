@@ -457,6 +457,14 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     foreach (var item in arr.EnumerateArray())
                     {
+                        var code = item.TryGetProperty("code", out var c) ? c.GetString() : null;
+                        var description = item.TryGetProperty("description", out var d) ? d.GetString() : null;
+                        // Erro 40002: e-mail do comprador igual ao do comerciante
+                        if ((!string.IsNullOrEmpty(description) && description.Contains("buyer email", StringComparison.OrdinalIgnoreCase) && description.Contains("merchant email", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            messages.Add("O endereço de e-mail do comprador não pode ser igual ao endereço de e-mail do comerciante.");
+                            continue;
+                        }
                         var p = item.TryGetProperty("parameter_name", out var pn) ? pn.GetString() : null;
                         var msg = MapPagBankParameterToFriendly(p);
                         if (!string.IsNullOrEmpty(msg)) messages.Add(msg);

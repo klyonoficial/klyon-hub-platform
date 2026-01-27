@@ -25,11 +25,13 @@
                 <div class="col-md-2">
                     <label for="status" class="form-label">Status</label>
                     <select class="form-select" id="status" name="status">
-                        <option value="">Todos</option>
-                        <option value="Active" selected="@(ViewBag.Status == "Active")">Ativo</option>
-                        <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspenso</option>
-                        <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelado</option>
-                        <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirado</option>
+                        <option value="" selected="@(string.IsNullOrEmpty(ViewBag.Status as string))">Todos</option>
+                        <option value="Active" selected="@(ViewBag.Status as string == "Active")">Ativo</option>
+                        <option value="Suspended" selected="@(ViewBag.Status as string == "Suspended")">Suspenso</option>
+                        <option value="PendingPayment" selected="@(ViewBag.Status as string == "PendingPayment")">Aguardando Pagamento</option>
+                        <option value="PendingCancellation" selected="@(ViewBag.Status as string == "PendingCancellation")">Cancelamento Pendente</option>
+                        <option value="Cancelled" selected="@(ViewBag.Status as string == "Cancelled")">Cancelado</option>
+                        <option value="Expired" selected="@(ViewBag.Status as string == "Expired")">Expirado</option>
                     </select>
                 </div>
                 <div class="col-md-2">

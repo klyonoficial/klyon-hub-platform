@@ -98,8 +98,26 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Services()
         {
-            // Verificar se o cliente tem um contrato ativo
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            
+            // Cliente recém-cadastrado deve completar CPF, Nome Completo e Estado em RegisterClient antes de acessar os serviços
+            if (User.IsInRole("Client") && !User.IsInRole("Administrator"))
+            {
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
+                {
+                    TempData["Info"] = "Complete seu cadastro para continuar.";
+                    return RedirectToAction("RegisterClient");
+                }
+                var missingRequired = string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State);
+                if (missingRequired)
+                {
+                    TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo e Estado) para continuar.";
+                    return RedirectToAction("RegisterClient");
+                }
+            }
+            
+            // Verificar se o cliente tem um contrato ativo
             var hasActiveContract = await _clientMenuService.ClientHasActiveContractAsync(userId);
             
             // Se tiver contrato ativo, não mostrar nenhum serviço
@@ -204,15 +222,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ToList();
             }
 
-            // Se não houver serviços cadastrados, criar os serviços padrão
+            // Se não houver serviços cadastrados, criar os serviços padrão (visão cliente)
             if (!services.Any())
             {
                 var defaultServices = new[]
                 {
                     new Domain.Entities.Service
                     {
-                        Name = "Ofertar Endereço Fiscal",
-                        Code = FiscalAddressOffer,
+                        Name = "Contratar Endereço Fiscal",
+                        Code = FiscalAddressContracting,
                         Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
                         Route = chooseLocationRoute,
                         DisplayOrder = 1,
@@ -249,11 +267,18 @@ namespace KlyonHubPlatform.Api.Controllers
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Ofertar Endereço Fiscal"
+            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
             if (!showCoworkingMenus)
             {
                 services = services
-                    .Where(s => s.Code == FiscalAddressOffer)
+                    .Where(s => s.Code == FiscalAddressContracting)
+                    .ToList();
+            }
+            else
+            {
+                // Na visão cliente não exibir "Ofertar Endereço Fiscal"
+                services = services
+                    .Where(s => s.Code != FiscalAddressOffer)
                     .ToList();
             }
 
@@ -463,10 +488,24 @@ namespace KlyonHubPlatform.Api.Controllers
                     _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
                 }
 
-                // Verificar se pelo menos um está preenchido
-                if (string.IsNullOrWhiteSpace(existingClient.CNPJ) && string.IsNullOrWhiteSpace(existingClient.CPF))
+                // CPF é obrigatório (mesmo padrão da tela RegisterClient)
+                if (string.IsNullOrWhiteSpace(client.CPF))
                 {
-                    TempData["Error"] = "É necessário informar CPF ou CNPJ.";
+                    TempData["Error"] = "O CPF é obrigatório.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Estado é obrigatório (mesmo padrão da tela RegisterClient)
+                if (string.IsNullOrWhiteSpace(client.State))
+                {
+                    TempData["Error"] = "O Estado é obrigatório.";
+                    return RedirectToAction("Profile");
+                }
+
+                // Telefone é obrigatório (mesmo padrão da tela RegisterClient)
+                if (string.IsNullOrWhiteSpace(client.ContactPhone))
+                {
+                    TempData["Error"] = "O Telefone é obrigatório.";
                     return RedirectToAction("Profile");
                 }
 
@@ -614,7 +653,23 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (!isAdmin && existingClient.UserId != userId)
                     {
                         TempData["Error"] = "Você não tem permissão para editar este cliente.";
-                        return RedirectToAction("Dashboard");
+                        return RedirectToAction("DashboardDetails");
+                    }
+                    
+                    // Nome Completo é obrigatório
+                    if (string.IsNullOrWhiteSpace(client.ContactName))
+                    {
+                        TempData["Error"] = "O Nome Completo é obrigatório.";
+                        ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                        return View(existingClient);
+                    }
+                    
+                    // Telefone é obrigatório
+                    if (string.IsNullOrWhiteSpace(client.ContactPhone))
+                    {
+                        TempData["Error"] = "O Telefone é obrigatório.";
+                        ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                        return View(existingClient);
                     }
                     
                     // Atualizar campos
@@ -723,7 +778,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         return RedirectToAction("Contracts", "Admin");
                     }
-                    return RedirectToAction("Dashboard");
+                    return RedirectToAction("DashboardDetails");
                 }
                 
                 // Se não houver ID, é um novo cadastro
@@ -732,7 +787,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (userClient != null && !isAdmin)
                 {
                     TempData["Error"] = "Você já possui um cadastro de cliente. Acesse seu perfil para editar as informações.";
-                    return RedirectToAction("Dashboard");
+                    return RedirectToAction("DashboardDetails");
+                }
+
+                // Nome Completo é obrigatório
+                if (string.IsNullOrWhiteSpace(client.ContactName))
+                {
+                    TempData["Error"] = "O Nome Completo é obrigatório.";
+                    ViewBag.UserEmail = userEmail;
+                    return View(client);
                 }
 
                 // Validar CNPJ e CPF usando DocumentValidator
@@ -799,10 +862,18 @@ namespace KlyonHubPlatform.Api.Controllers
                     client.CPF = null;
                 }
 
-                // Verificar se pelo menos um está preenchido
-                if (string.IsNullOrWhiteSpace(client.CNPJ) && string.IsNullOrWhiteSpace(client.CPF))
+                // CPF é obrigatório no cadastro de cliente
+                if (string.IsNullOrWhiteSpace(client.CPF))
                 {
-                    TempData["Error"] = "É necessário informar CPF ou CNPJ.";
+                    TempData["Error"] = "O CPF é obrigatório.";
+                    ViewBag.UserEmail = userEmail;
+                    return View(client);
+                }
+
+                // Telefone é obrigatório no cadastro de cliente
+                if (string.IsNullOrWhiteSpace(client.ContactPhone))
+                {
+                    TempData["Error"] = "O Telefone é obrigatório.";
                     ViewBag.UserEmail = userEmail;
                     return View(client);
                 }
@@ -826,7 +897,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Cadastro realizado com sucesso!";
-                return RedirectToAction("Dashboard");
+                return RedirectToAction("DashboardDetails");
             }
             catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Message.Contains("Duplicate entry"))
             {
@@ -847,14 +918,19 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ChooseLocation(string? region = null, string? state = null, int page = 1)
         {
-            // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo (status "Ativo" em Meus Contratos).
-            if (User.IsInRole("Client"))
+            if (User.IsInRole("Client") && !User.IsInRole("Administrator"))
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                if (await _clientMenuService.ClientHasActiveContractAsync(userId))
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
                 {
-                    TempData["Info"] = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
-                    return RedirectToAction("MyContracts");
+                    TempData["Info"] = "Complete seu cadastro para continuar.";
+                    return RedirectToAction("RegisterClient");
+                }
+                if (string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State))
+                {
+                    TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo e Estado) para continuar.";
+                    return RedirectToAction("RegisterClient");
                 }
             }
 
@@ -924,17 +1000,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> AvailableAddresses(int locationId)
         {
-            // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo.
-            if (User.IsInRole("Client"))
-            {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                if (await _clientMenuService.ClientHasActiveContractAsync(userId))
-                {
-                    TempData["Info"] = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
-                    return RedirectToAction("MyContracts");
-                }
-            }
-
             // Validar se o locationId é válido
             if (locationId <= 0)
             {
@@ -951,6 +1016,29 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var addresses = await _coworkingService.GetAvailableAddressesAsync(locationId);
+            
+            // IDs de endereços que o cliente já possui contrato (ativo, suspenso, pendente de pagamento ou pendente de cancelamento)
+            var contractedAddressIds = new HashSet<int>();
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var client = await _context.Clients.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client != null)
+                {
+                    var ids = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id
+                            && c.Status != ContractStatus.Cancelled
+                            && c.Status != ContractStatus.Expired
+                            && (c.Status == ContractStatus.Active
+                                || c.Status == ContractStatus.Suspended
+                                || c.Status == ContractStatus.PendingCancellation))
+                        .Select(c => c.CoworkingAddressId)
+                        .ToListAsync();
+                    contractedAddressIds = new HashSet<int>(ids);
+                }
+            }
+            ViewBag.ContractedAddressIds = contractedAddressIds;
             
             // Buscar foto principal de cada coworking
             // Se não houver foto principal, buscar a primeira foto disponível
@@ -990,13 +1078,16 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateContract(int coworkingAddressId)
         {
+            var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
                 if (client == null)
                 {
-                    TempData["Error"] = "Cliente não encontrado. Complete seu cadastro primeiro.";
+                    var msg = "Cliente não encontrado. Complete seu cadastro primeiro.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("RegisterClient") });
+                    TempData["Error"] = msg;
                     return RedirectToAction("RegisterClient");
                 }
 
@@ -1007,31 +1098,41 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (addressEntity == null)
                 {
-                    TempData["Error"] = "Endereço não encontrado.";
+                    var msg = "Endereço não encontrado.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("ChooseLocation") });
+                    TempData["Error"] = msg;
                     return RedirectToAction("ChooseLocation");
                 }
 
                 if (!addressEntity.Coworking.IsActive)
                 {
-                    TempData["Error"] = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
+                    var msg = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
                 if (addressEntity.AddressStatus != AddressStatus.Active)
                 {
-                    TempData["Error"] = "Este endereço não está ativo para novas vendas no momento.";
+                    var msg = "Este endereço não está ativo para novas vendas no momento.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
                 if (!addressEntity.IsAvailable)
                 {
-                    TempData["Error"] = "Este endereço não está mais disponível.";
+                    var msg = "Este endereço não está mais disponível.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
                 if (addressEntity.CurrentContracts >= addressEntity.MaxContracts)
                 {
-                    TempData["Error"] = "Este endereço atingiu o limite máximo de contratos.";
+                    var msg = "Este endereço atingiu o limite máximo de contratos.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
@@ -1055,7 +1156,18 @@ namespace KlyonHubPlatform.Api.Controllers
                         ContractStatus.PendingPayment => "pendente de pagamento",
                         _ => "para este endereço"
                     };
-                    TempData["Error"] = $"Você já possui um contrato {statusMsg} para este endereço. Número do contrato: {existingContractForAddress.ContractNumber}";
+                    var msg = $"Você já possui um contrato {statusMsg} para este endereço. Número do contrato: {existingContractForAddress.ContractNumber}";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
+                    return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
+                }
+
+                // Cliente já possui contrato ativo em outro endereço — não pode adicionar outro sem cancelar/encerrar o atual
+                if (await _clientMenuService.ClientHasActiveContractAsync(userId))
+                {
+                    var msg = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Info"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
@@ -1073,7 +1185,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     var locationInfo = existingContractInLocation.CoworkingAddress?.Location != null 
                         ? $"{existingContractInLocation.CoworkingAddress.Location.City}/{existingContractInLocation.CoworkingAddress.Location.State}"
                         : $"{addressEntity.City}/{addressEntity.State}";
-                    TempData["Error"] = $"Você já possui um contrato {(existingContractInLocation.Status == ContractStatus.Active ? "ativo" : "suspenso")} nesta localidade ({locationInfo}). Número do contrato: {existingContractInLocation.ContractNumber}";
+                    var msg = $"Você já possui um contrato {(existingContractInLocation.Status == ContractStatus.Active ? "ativo" : "suspenso")} nesta localidade ({locationInfo}). Número do contrato: {existingContractInLocation.ContractNumber}";
+                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
+                    TempData["Error"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
@@ -1107,24 +1221,69 @@ namespace KlyonHubPlatform.Api.Controllers
                         _context.PaymentHistories.Add(history);
                         await _context.SaveChangesAsync();
                         
+                        // Validar dados do cliente necessários para gerar PIX/Boleto antes de redirecionar para PaymentDetails.
+                        // Evita o fluxo "Contrato criado!" -> abre PaymentDetails -> erro "Dados do cliente inválidos" -> Profile.
+                        var clientForPayment = await _context.Clients
+                            .Include(c => c.User)
+                            .FirstOrDefaultAsync(c => c.Id == client.Id);
+                        if (clientForPayment != null)
+                        {
+                            var clientName = clientForPayment.RazaoSocial ?? clientForPayment.NomeFantasia ?? clientForPayment.ContactName ?? clientForPayment.User?.FullName;
+                            var clientEmail = clientForPayment.ContactEmail ?? clientForPayment.User?.Email;
+                            var clientTaxId = (clientForPayment.CNPJ ?? clientForPayment.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                            if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                                clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
+                                clientTaxId = "";
+
+                            if (string.IsNullOrWhiteSpace(clientName))
+                            {
+                                var msg = "Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome Completo. Seu contrato já foi criado.";
+                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("Profile") });
+                                TempData["Error"] = msg;
+                                return RedirectToAction("Profile");
+                            }
+                            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+                            {
+                                var msg = "Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido. Seu contrato já foi criado.";
+                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("Profile") });
+                                TempData["Error"] = msg;
+                                return RedirectToAction("Profile");
+                            }
+                            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+                            {
+                                var msg = "CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido. Seu contrato já foi criado.";
+                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("Profile") });
+                                TempData["Error"] = msg;
+                                return RedirectToAction("Profile");
+                            }
+                        }
+
+                        if (isAjax) return Json(new { success = true, redirectUrl = Url.Action("PaymentDetails", new { id = payment.Id }) });
                         TempData["Success"] = "Contrato criado com sucesso!";
                         return RedirectToAction("PaymentDetails", new { id = payment.Id });
                     }
                 }
 
+                if (isAjax) return Json(new { success = true, redirectUrl = Url.Action("ContractDetails", new { id = contract.Id }) });
                 TempData["Success"] = "Contrato criado com sucesso!";
                 return RedirectToAction("ContractDetails", new { id = contract.Id });
             }
             catch (Exception ex)
             {
                 // Se houver qualquer erro, o contrato NÃO foi criado (transação foi revertida)
-                TempData["Error"] = $"Erro ao criar contrato: {ex.Message}";
+                var errMsg = $"Erro ao criar contrato: {ex.Message}";
                 var addressEntity = await _context.CoworkingAddresses
                     .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
-                if (addressEntity != null)
+                if (isAjax)
                 {
-                    return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
+                    var redirectUrl = addressEntity != null
+                        ? Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId })
+                        : Url.Action("ChooseLocation");
+                    return Json(new { success = false, message = errMsg, redirectUrl });
                 }
+                TempData["Error"] = errMsg;
+                if (addressEntity != null)
+                    return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 return RedirectToAction("ChooseLocation");
             }
         }
@@ -1478,7 +1637,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
                 {
-                    // Dados do cliente faltando ou inválidos - redirecionar para o perfil
+                    // Erro na API de pagamento (dados do cliente ou PagBank): redirecionar para Profile.
+                    // Manter TempData["Success"] para exibir "Contrato criado com sucesso!" quando o contrato foi criado.
                     TempData["Error"] = ex.Message;
                     return RedirectToAction("Profile");
                 }
@@ -1515,7 +1675,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
                 {
-                    // Dados do cliente faltando ou inválidos - redirecionar para o perfil
+                    // Erro na API de pagamento: redirecionar para Profile. Manter Success se o contrato foi criado.
                     TempData["Error"] = ex.Message;
                     return RedirectToAction("Profile");
                 }
@@ -2224,7 +2384,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             // Sistema de créditos removido - redirecionar para dashboard
             TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
-            return RedirectToAction("Dashboard");
+            return RedirectToAction("DashboardDetails");
         }
 
         [HttpGet]
@@ -2232,7 +2392,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             // Sistema de créditos removido
             TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
-            return RedirectToAction("Dashboard");
+            return RedirectToAction("DashboardDetails");
         }
 
         [HttpPost]
@@ -2860,7 +3020,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (client == null)
                 {
                     TempData["Error"] = "Cliente não encontrado.";
-                    return RedirectToAction("Dashboard");
+                    return RedirectToAction("DashboardDetails");
                 }
 
                 var query = _context.Reservations
@@ -2951,7 +3111,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao carregar reservas: {ex.Message}";
-                return RedirectToAction("Dashboard");
+                return RedirectToAction("DashboardDetails");
             }
         }
 

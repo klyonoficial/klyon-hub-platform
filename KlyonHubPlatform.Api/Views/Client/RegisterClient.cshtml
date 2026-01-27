@@ -34,18 +34,18 @@
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="CPF" class="form-label">CPF (se pessoa física)</label>
-                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF">
+                    <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" required>
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactName" class="form-label">Nome do Contato</label>
+                    <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="ContactName" name="ContactName" value="@client.ContactName" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="ContactEmail" class="form-label">Email de Contato</label>
+                    <label for="ContactEmail" class="form-label">Email de Contato <span class="text-danger">*</span></label>
                     <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
                            value="@(Model?.ContactEmail ?? ViewBag.UserEmail)" @(Model == null ? "readonly" : "") required>
                     <small class="form-text text-muted">@(Model == null ? "Este email é o mesmo do seu cadastro e não pode ser alterado." : "")</small>
@@ -53,8 +53,8 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactPhone" class="form-label">Telefone</label>
-                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15" value="@client.ContactPhone">
+                    <label for="ContactPhone" class="form-label">Telefone <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15" value="@client.ContactPhone" required>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ZipCode" class="form-label">CEP</label>

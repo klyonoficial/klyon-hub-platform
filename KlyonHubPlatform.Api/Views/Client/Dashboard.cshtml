@@ -95,7 +95,7 @@ else
     <div class="card">
         <div class="card-header">
             <h5><i class="bi bi-file-earmark-text"></i> Meus Contratos de Endereço Fiscal</h5>
-            <small class="text-muted">Exibindo contratos ativos e pendentes de pagamento</small>
+            <small class="text-white">Exibindo contratos ativos e pendentes de pagamento</small>
         </div>
         <div class="card-body">
             @if (activeContracts.Any())
@@ -119,29 +119,44 @@ else
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
                                     <td>R$ @contract.MonthlyValue.ToString("F2")</td>
                                     <td>
-                                        @{
-                                            var statusText = contract.Status switch
-                                            {
-                                                ContractStatus.Active => "Ativo",
-                                                ContractStatus.Suspended => "Suspenso",
-                                                ContractStatus.PendingPayment => "Pendente",
-                                                ContractStatus.PendingCancellation => "Cancelamento Pendente",
-                                                ContractStatus.Cancelled => "Cancelado",
-                                                ContractStatus.Expired => "Expirado",
-                                                _ => contract.Status.ToString()
-                                            };
-                                            var statusBadgeClass = contract.Status switch
-                                            {
-                                                ContractStatus.Active => "bg-success",
-                                                ContractStatus.PendingPayment => "bg-warning",
-                                                ContractStatus.Suspended => "bg-secondary",
-                                                ContractStatus.PendingCancellation => "bg-info",
-                                                ContractStatus.Cancelled => "bg-danger",
-                                                ContractStatus.Expired => "bg-dark",
-                                                _ => "bg-secondary"
-                                            };
+                                        @switch (contract.Status)
+                                        {
+                                            case ContractStatus.Active:
+                                                <span class="badge bg-active">
+                                                    <i class="bi bi-check-circle-fill me-1"></i> Ativo
+                                                </span>
+                                                break;
+                                            case ContractStatus.Suspended:
+                                                <span class="badge bg-suspended">
+                                                    <i class="bi bi-pause-circle-fill me-1"></i> Suspenso
+                                                </span>
+                                                break;
+                                            case ContractStatus.PendingPayment:
+                                                <span class="badge bg-pending-payment">
+                                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                                </span>
+                                                break;
+                                            case ContractStatus.PendingCancellation:
+                                                <span class="badge bg-pending-cancellation">
+                                                    <i class="bi bi-clock-history me-1"></i> Cancelamento Pendente
+                                                </span>
+                                                break;
+                                            case ContractStatus.Cancelled:
+                                                <span class="badge bg-cancelled">
+                                                    <i class="bi bi-x-circle-fill me-1"></i> Cancelado
+                                                </span>
+                                                break;
+                                            case ContractStatus.Expired:
+                                                <span class="badge bg-expired">
+                                                    <i class="bi bi-calendar-x-fill me-1"></i> Expirado
+                                                </span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-expired">
+                                                    <i class="bi bi-question-circle-fill me-1"></i> @contract.Status
+                                                </span>
+                                                break;
                                         }
-                                        <span class="badge @statusBadgeClass">@statusText</span>
                                     </td>
                                     <td>
                                         <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" class="btn btn-sm btn-primary">
@@ -159,7 +174,7 @@ else
                 <div class="alert alert-info">
                     <p>Você ainda não possui contratos ativos de endereço fiscal.</p>
                     <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Ofertar Endereço Fiscal
+                        <i class="bi bi-plus-circle"></i> Contratar Endereço Fiscal
                     </a>
                 </div>
             }

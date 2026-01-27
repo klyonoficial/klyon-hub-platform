@@ -1082,7 +1082,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
-            // Query base - por padrão mostra apenas ativos se não houver filtro de status
+            // Query base: contratos cujo endereço pertence ao coworking do parceiro
             var query = _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.CoworkingAddress)
@@ -1091,12 +1091,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Where(c => c.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                 .AsQueryable();
 
-            // Se não houver filtro de status, mostrar apenas ativos por padrão
-            if (string.IsNullOrEmpty(status))
-            {
-                query = query.Where(c => c.Status == ContractStatus.Active);
-            }
-            else if (Enum.TryParse<ContractStatus>(status, out var contractStatus))
+            // Filtro de status: se informado, filtra; se "Todos" (vazio), mostra todos os contratos
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<ContractStatus>(status, out var contractStatus))
             {
                 query = query.Where(c => c.Status == contractStatus);
             }
@@ -3864,9 +3860,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 "Reservar Sala" 
             };
 
-            // Buscar todos os serviços disponíveis
+            // Buscar todos os serviços disponíveis (excluir "Contratar Endereço Fiscal", que é apenas para clientes)
             var allServicesQuery = _context.Services
-                .Where(s => s.IsActive);
+                .Where(s => s.IsActive && s.Code != FiscalAddressContracting);
 
             // Se a flag de coworking não estiver habilitada, filtrar os serviços de coworking
             if (!showCoworkingMenus)
@@ -3891,6 +3887,9 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var partnerServices = await partnerServicesQuery.ToListAsync();
+
+            // Não exibir "Contratar Endereço Fiscal" (serviço só do cliente) na tela do parceiro
+            partnerServices = partnerServices.Where(ps => ps.Service?.Code != FiscalAddressContracting).ToList();
 
             var partnerServiceIds = partnerServices.Select(ps => ps.ServiceId).ToHashSet();
 

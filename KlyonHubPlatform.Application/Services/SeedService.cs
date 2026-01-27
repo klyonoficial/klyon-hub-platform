@@ -251,9 +251,19 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     Name = "Ofertar Endereço Fiscal",
                     Code = FiscalAddressOffer,
-                    Description = "Contratação de endereço fiscal para empresas",
+                    Description = "Ofereça endereço fiscal para empresas em sua unidade",
                     Route = "/Client/ChooseLocation",
                     DisplayOrder = 4,
+                    IsActive = true,
+                    ImageUrl = "/images/services/endereco-fiscal.svg"
+                },
+                new Service
+                {
+                    Name = "Contratar Endereço Fiscal",
+                    Code = FiscalAddressContracting,
+                    Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
+                    Route = "/Client/ChooseLocation",
+                    DisplayOrder = 0,
                     IsActive = true,
                     ImageUrl = "/images/services/endereco-fiscal.svg"
                 }
@@ -283,7 +293,8 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var matchingService = servicesToAdd.FirstOrDefault(s =>
                     s.Code.Equals(existingService.Code, StringComparison.OrdinalIgnoreCase) ||
-                    (s.Code == FiscalAddressOffer));
+                    (s.Code == FiscalAddressOffer) ||
+                    (s.Code == FiscalAddressContracting));
                 
                 if (matchingService != null)
                 {

@@ -14,6 +14,8 @@
 
 @{
     var mainPhotos = ViewBag.MainPhotos as Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto> ?? new Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
+    var contractedAddressIds = ViewBag.ContractedAddressIds as HashSet<int> ?? new HashSet<int>();
+    var clientHasActiveContract = contractedAddressIds.Count > 0;
 }
 
 @if (Model.Any())
@@ -26,6 +28,7 @@
     <div class="row">
         @foreach (var address in Model)
         {
+            var alreadyContracted = contractedAddressIds.Contains(address.Id);
             var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
             var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
             var yearlyPrice = address.BasePrice;
@@ -95,13 +98,22 @@
                                         <i class="bi bi-tag-fill"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
                                     </div>
                                 </div>
-                                <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form" onsubmit="return handleContractSubmit(this)">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="coworkingAddressId" value="@address.Id">
-                                    <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
-                                        <i class="bi bi-check2-all"></i> Garantir vaga
+                                @if (alreadyContracted)
+                                {
+                                    <button type="button" class="btn btn-secondary rounded-pill px-4" disabled>
+                                        <i class="bi bi-check2-all"></i> Já Contratado!
                                     </button>
-                                </form>
+                                }
+                                else
+                                {
+                                    <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form no-loading" data-already-contracted="@(alreadyContracted ? "true" : "false")" data-client-has-active-contract="@(clientHasActiveContract ? "true" : "false")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="coworkingAddressId" value="@address.Id">
+                                        <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                            <i class="bi bi-check2-all"></i> Contratar
+                                        </button>
+                                    </form>
+                                }
                             </div>
                             @if (vacancies > 0 && vacancies <= 5)
                             {
@@ -122,27 +134,52 @@ else
 }
 
 <script>
-function handleContractSubmit(form) {
-    const button = form.querySelector('.contract-btn');
-    if (button.disabled) {
-        return false; // Já está processando
+var msgJaContratado = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+// Regra: já tem contrato ativo → só toast, sem loading. Pode contratar → Ajax + loading (fetch aciona o loading do layout).
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM' || !form.classList.contains('contract-form')) return;
+    var alreadyContracted = form.getAttribute('data-already-contracted') === 'true';
+    var clientHasActiveContract = form.getAttribute('data-client-has-active-contract') === 'true';
+    if (alreadyContracted || clientHasActiveContract) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof showToast === 'function') showToast(msgJaContratado, 'info', 6000);
+        return;
     }
-    
-    // Desabilitar o botão para evitar múltiplos cliques
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
-    
-    // Permitir o submit
-    return true;
-}
-
-// Reabilitar botões se houver erro (página recarregada)
+    // Pode contratar: mostrar loading, enviar via Ajax e esconder loading ao terminar
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var btn = form.querySelector('.contract-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    }
+    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
+    var formData = new FormData(form);
+    fetch(form.action, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.redirectUrl) {
+                window.location.href = data.redirectUrl;
+                window.KlyonLoading.show();
+                return;
+            }
+            if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar.', 'error', 5000);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+        })
+        .catch(function() {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
+            if (typeof showToast === 'function') showToast('Erro de conexão. Tente novamente.', 'error', 5000);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+        });
+}, true);
 document.addEventListener('DOMContentLoaded', function() {
-    const errorAlert = document.querySelector('.alert-danger');
+    var errorAlert = document.querySelector('.alert-danger');
     if (errorAlert) {
-        document.querySelectorAll('.contract-btn').forEach(btn => {
+        document.querySelectorAll('.contract-btn').forEach(function(btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-check-circle"></i> Contratar';
+            btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar';
         });
     }
 });

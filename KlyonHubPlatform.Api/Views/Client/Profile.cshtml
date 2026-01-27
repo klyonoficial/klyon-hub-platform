@@ -69,18 +69,18 @@
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="CPF" class="form-label">CPF (se pessoa física)</label>
-                    <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14">
+                    <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14" required>
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactName" class="form-label">Nome do Contato</label>
+                    <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="ContactName" name="ContactName" value="@Model.ContactName" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="ContactEmail" class="form-label">Email de Contato</label>
+                    <label for="ContactEmail" class="form-label">Email de Contato <span class="text-danger">*</span></label>
                     <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
                            value="@ViewBag.UserEmail" readonly required>
                     <small class="form-text text-muted">Este email é o mesmo do seu cadastro e não pode ser alterado.</small>
@@ -88,7 +88,7 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactPhone" class="form-label">Telefone</label>
+                    <label for="ContactPhone" class="form-label">Telefone <span class="text-danger">*</span></label>
                     @{
                         var phoneValue = Model.ContactPhone;
                         if (!string.IsNullOrEmpty(phoneValue) && phoneValue.Length >= 10)
@@ -103,7 +103,7 @@
                             }
                         }
                     }
-                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" value="@phoneValue" placeholder="(00) 00000-0000" maxlength="15">
+                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" value="@phoneValue" placeholder="(00) 00000-0000" maxlength="15" required>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ZipCode" class="form-label">CEP</label>
@@ -129,8 +129,8 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="State" class="form-label">Estado</label>
-                    <select class="form-select" id="State" name="State">
+                    <label for="State" class="form-label">Estado <span class="text-danger">*</span></label>
+                    <select class="form-select" id="State" name="State" required>
                         <option value="">Selecione o estado</option>
                         @if (Model.State == "AC") { <option value="AC" selected>AC - Acre</option> } else { <option value="AC">AC - Acre</option> }
                         @if (Model.State == "AL") { <option value="AL" selected>AL - Alagoas</option> } else { <option value="AL">AL - Alagoas</option> }
@@ -166,7 +166,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> Salvar Alterações
                 </button>
-                <a href="@Url.Action("Dashboard", "Client")" class="btn btn-secondary">
+                <a href="@Url.Action("DashboardDetails", "Client")" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
             </div>

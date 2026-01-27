@@ -460,7 +460,7 @@
                     <div class="alert alert-info">
                         <i class="bi bi-clock-history"></i> 
                         <strong>Comprovante Enviado!</strong><br>
-                        Seu comprovante está aguardando validação pelo coworking.
+                        Nossa equipe vai validar tudo rapidinho. Fique de olho no seu e-mail/notificações.
                     </div>
 
                     @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
@@ -755,7 +755,7 @@
             showToast('Linha digitável copiada!', 'success', 3000);
         }
 
-        async function updatePaymentMethod(selectElement) {
+        window.updatePaymentMethod = async function(selectElement) {
             // Armazenar o valor anterior antes de mostrar o confirm
             const previousValue = selectElement.dataset.previousValue || selectElement.value;
             
@@ -919,13 +919,13 @@
                             updatedSelect.value = currentSelectValue;
                             updatedSelect.dataset.previousValue = currentSelectValue;
                             // Reatachar o event listener para manter a funcionalidade
-                            updatedSelect.onchange = function() { updatePaymentMethod(this); };
+                            updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
                         }
                     } else {
                         // Se não havia select antes, ainda precisamos anexar o event listener ao novo select
                         const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
                         if (updatedSelect) {
-                            updatedSelect.onchange = function() { updatePaymentMethod(this); };
+                            updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
                         }
                     }
                 }
@@ -1274,6 +1274,7 @@
 
         // ============================================================
         // POLLING AUTOMÁTICO - Atualiza página quando pagamento mudar
+        // Intervalo maior e limite de tentativas para evitar chamadas desnecessárias.
         // ============================================================
         @if (isPending || Model.Status == PaymentStatus.Processing)
         {
@@ -1281,13 +1282,21 @@
             (function() {
                 const currentStatus = '@Model.Status.ToString()';
                 const paymentId = @Model.Id;
-                const pollInterval = 5000; // 5 segundos
+                const pollIntervalMs = 20000; // 20 segundos (evita chamadas frequentes)
+                const maxAttempts = 90;       // máx. ~30 min (90 x 20s)
+                const initialDelayMs = 15000; // primeira chamada só após 15s na página
                 let pollingTimer = null;
                 let isPolling = false;
+                let attemptCount = 0;
 
                 async function checkPaymentStatus() {
                     if (isPolling) return;
+                    if (attemptCount >= maxAttempts) {
+                        stopPolling();
+                        return;
+                    }
                     isPolling = true;
+                    attemptCount += 1;
 
                     try {
                         const response = await fetch('@Url.Action("GetPaymentStatus", "Client")?paymentId=' + paymentId + '&_=' + Date.now(), {
@@ -1300,29 +1309,18 @@
 
                         if (response.ok) {
                             const data = await response.json();
-                            
-                            // Se o status mudou, atualizar a página
                             if (data.status && data.status !== currentStatus) {
-                                console.log('Status mudou de', currentStatus, 'para', data.status);
-                                
-                                // Mostrar toast de notificação
                                 if (data.status === 'Paid') {
-                                    showToast('🎉 Pagamento confirmado! Atualizando página...', 'success', 3000);
+                                    if (typeof showToast === 'function') showToast('🎉 Pagamento confirmado! Atualizando página...', 'success', 3000);
                                 } else if (data.status === 'Processing') {
-                                    showToast('⏳ Pagamento em processamento...', 'info', 3000);
+                                    if (typeof showToast === 'function') showToast('⏳ Pagamento em processamento...', 'info', 3000);
                                 } else if (data.status === 'Failed') {
-                                    showToast('❌ Pagamento falhou. Atualizando página...', 'error', 3000);
+                                    if (typeof showToast === 'function') showToast('❌ Pagamento falhou. Atualizando página...', 'error', 3000);
                                 } else {
-                                    showToast('Status atualizado! Atualizando página...', 'info', 3000);
+                                    if (typeof showToast === 'function') showToast('Status atualizado! Atualizando página...', 'info', 3000);
                                 }
-
-                                // Parar polling
                                 stopPolling();
-
-                                // Recarregar página após 1 segundo
-                                setTimeout(() => {
-                                    window.location.reload();
-                                }, 1000);
+                                setTimeout(function() { window.location.reload(); }, 1000);
                             }
                         }
                     } catch (error) {
@@ -1334,32 +1332,33 @@
 
                 function startPolling() {
                     if (pollingTimer) return;
-                    console.log('Iniciando polling de status do pagamento...');
-                    pollingTimer = setInterval(checkPaymentStatus, pollInterval);
-                    // Verificar imediatamente também
-                    checkPaymentStatus();
+                    pollingTimer = setInterval(checkPaymentStatus, pollIntervalMs);
                 }
 
                 function stopPolling() {
                     if (pollingTimer) {
                         clearInterval(pollingTimer);
                         pollingTimer = null;
-                        console.log('Polling de status interrompido.');
                     }
                 }
 
-                // Iniciar polling quando a página carregar
-                document.addEventListener('DOMContentLoaded', startPolling);
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Primeira chamada só após initialDelayMs; depois a cada pollIntervalMs
+                    setTimeout(function() {
+                        if (document.hidden) return;
+                        checkPaymentStatus();
+                        startPolling();
+                    }, initialDelayMs);
+                });
 
-                // Parar polling quando a página for fechada/navegada
                 window.addEventListener('beforeunload', stopPolling);
 
-                // Pausar polling quando a aba não estiver visível (economia de recursos)
                 document.addEventListener('visibilitychange', function() {
                     if (document.hidden) {
                         stopPolling();
                     } else {
-                        startPolling();
+                        @* Razor interpreta "<" como tag HTML; @Html.Raw("<") emite o caractere sem encoding *@
+                        if (attemptCount @(Html.Raw("<")) maxAttempts) startPolling();
                     }
                 });
             })();
