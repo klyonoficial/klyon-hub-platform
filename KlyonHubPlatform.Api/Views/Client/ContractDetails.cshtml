@@ -172,15 +172,19 @@
                             };
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>@documentTypeText</span>
-                                @if (Model.Status == ContractStatus.Active)
+                                @if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
                                 {
                                     <a href="@Url.Action("DownloadDocument", "Client", new { documentId = doc.Id })" class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 }
-                                else
+                                else if (Model.Status == ContractStatus.PendingPayment)
                                 {
                                     <span class="text-muted small">Disponível após pagamento</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">—</span>
                                 }
                             </li>
                         }

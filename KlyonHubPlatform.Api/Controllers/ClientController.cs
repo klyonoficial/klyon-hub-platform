@@ -1298,11 +1298,12 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            if (contract.Client.UserId != userId && !User.IsInRole("Administrator"))
+            if (contract.Client?.UserId != userId && !User.IsInRole("Administrator"))
             {
                 return Forbid();
             }
 
+            // Exibir o contrato em qualquer status (incl. PendingCancellation, Cancelled, Expired) para o dono visualizar detalhes e documentos
             return View(contract);
         }
 
