@@ -142,10 +142,16 @@
                                     <form method="post" action="@Url.Action("IssueCommissionFiscalNote", "Admin")" style="display: inline;" class="confirm-required">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="commissionId" value="@commission.Id" />
-                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de comissão para esta comissão?');">
+                                        <button type="submit" class="btn btn-sm btn-success mb-1" onclick="return confirm('Tem certeza que deseja emitir a NF de comissão para esta comissão?');">
                                             <i class="bi bi-file-earmark-check"></i> Emitir NF
                                         </button>
                                     </form>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importNfModal" 
+                                            data-commission-id="@commission.Id" 
+                                            data-commission-amount="@commission.Amount.ToString("N2")"
+                                            data-client-name="@(client != null ? (client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName ?? "N/A") : "N/A")">
+                                        <i class="bi bi-upload"></i> Importar NF
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -197,6 +203,41 @@
     </div>
 </div>
 
+<!-- Modal Importar NF -->
+<div class="modal fade" id="importNfModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("ImportCommissionFiscalNote", "Admin")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="commissionId" id="importNfCommissionId" value="" />
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload"></i> Importar NF de Comissão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Importe a NF de comissão já emitida. Esta ação não requer validação.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Comissão / Cliente</label>
+                        <p class="form-control-plaintext fw-bold" id="importNfCommissionInfo">—</p>
+                    </div>
+                    <div class="mb-3">
+                        <label for="importNfPdf" class="form-label">PDF da NF <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="importNfPdf" name="pdfFile" accept=".pdf" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="importNfXml" class="form-label">XML da NF (opcional)</label>
+                        <input type="file" class="form-control" id="importNfXml" name="xmlFile" accept=".xml" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         $(document).ready(function() {
@@ -240,6 +281,19 @@
                 },
                 minimumInputLength: 0,
                 width: '100%'
+            });
+
+            // Configurar modal de importação
+            document.getElementById('importNfModal').addEventListener('show.bs.modal', function (e) {
+                var btn = e.relatedTarget;
+                if (!btn) return;
+                var commissionId = btn.getAttribute('data-commission-id');
+                var commissionAmount = btn.getAttribute('data-commission-amount');
+                var clientName = btn.getAttribute('data-client-name');
+                document.getElementById('importNfCommissionId').value = commissionId || '';
+                document.getElementById('importNfCommissionInfo').textContent = (clientName || '—') + (commissionAmount ? ' — Valor: R$ ' + commissionAmount : '');
+                document.getElementById('importNfPdf').value = '';
+                document.getElementById('importNfXml').value = '';
             });
         });
     </script>

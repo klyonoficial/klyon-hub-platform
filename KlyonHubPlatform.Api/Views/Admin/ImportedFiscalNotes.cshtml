@@ -1,0 +1,411 @@
+@model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
+@{
+    ViewData["Title"] = "NF Importadas – Validação";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var list = Model ?? new List<KlyonHubPlatform.Domain.Entities.FiscalNote>();
+    var currentPage = (int)(ViewBag.CurrentPage ?? 1);
+    var totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var totalItems = (int)(ViewBag.TotalItems ?? 0);
+    var pageSize = (int)(ViewBag.PageSize ?? 20);
+    var coworkingId = ViewBag.CoworkingId as int?;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-upload"></i> NF Importadas – Validação</h2>
+    <div>
+        <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-outline-primary me-2">
+            <i class="bi bi-file-earmark-text"></i> Notas Fiscais
+        </a>
+        <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Notas fiscais de serviço importadas pelos parceiros (ex.: emitidas pelo contador). Valide e aprove ou rejeite.
+</p>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Filtro -->
+<form method="get" action="@Url.Action("ImportedFiscalNotes", "Admin")" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <label for="coworkingId" class="form-label">Parceiro</label>
+        <select class="form-select" id="coworkingId" name="coworkingId">
+            <option value="">Todos</option>
+            @foreach (var c in (ViewBag.Coworkings as List<KlyonHubPlatform.Domain.Entities.Coworking>) ?? new List<KlyonHubPlatform.Domain.Entities.Coworking>())
+            {
+                <option value="@c.Id" selected="@(coworkingId == c.Id)">@c.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        @if (list.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Cliente</th>
+                            <th>Valor NF</th>
+                            <th>Pagamento</th>
+                            <th>Data importação</th>
+                            <th>PDF</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fn in list)
+                        {
+                            var clientName = fn.Client?.RazaoSocial ?? fn.Client?.NomeFantasia ?? fn.Client?.User?.FullName ?? "—";
+                            <tr>
+                                <td>
+                                    <strong>@(fn.Coworking?.Name ?? "—")</strong>
+                                    @if (fn.Coworking?.CNPJ != null) { <br /><small class="text-muted">@fn.Coworking.CNPJ</small> }
+                                </td>
+                                <td>@clientName</td>
+                                <td><strong class="text-success">R$ @fn.Amount.ToString("N2")</strong></td>
+                                <td>#@(fn.PaymentId ?? 0)</td>
+                                <td>@fn.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(fn.PdfUrl))
+                                    {
+                                        <a href="@Url.Action("DownloadFiscalNotePdf", "Admin", new { fiscalNoteId = fn.Id })" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-file-pdf"></i> PDF
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal" data-fn-id="@fn.Id" onclick="loadFiscalNoteDetails(@fn.Id)">
+                                            <i class="bi bi-info-circle"></i> Detalhes
+                                        </button>
+                                        <div class="d-flex gap-1">
+                                            <form method="post" action="@Url.Action("ApproveImportedFiscalNote", "Admin")" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="fiscalNoteId" value="@fn.Id" />
+                                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Aprovar esta NF importada?');">
+                                                    <i class="bi bi-check-circle"></i> Aprovar
+                                                </button>
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal" data-fn-id="@fn.Id">
+                                                <i class="bi bi-x-circle"></i> Rejeitar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <nav aria-label="Paginação" class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        @if (currentPage > 1)
+                        {
+                            <li class="page-item"><a class="page-link" href="@Url.Action("ImportedFiscalNotes", new { page = currentPage - 1, pageSize, coworkingId })">Anterior</a></li>
+                        }
+                        @for (var i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")"><a class="page-link" href="@Url.Action("ImportedFiscalNotes", new { page = i, pageSize, coworkingId })">@i</a></li>
+                        }
+                        @if (currentPage < totalPages)
+                        {
+                            <li class="page-item"><a class="page-link" href="@Url.Action("ImportedFiscalNotes", new { page = currentPage + 1, pageSize, coworkingId })">Próximo</a></li>
+                        }
+                    </ul>
+                </nav>
+            }
+            <p class="text-muted text-center small mb-0">@totalItems NF(s) importada(s)</p>
+        }
+        else
+        {
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> Nenhuma NF importada aguardando validação.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Modal Detalhes -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Detalhes da Nota Fiscal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsModalBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Rejeitar -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("RejectImportedFiscalNote", "Admin")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="fiscalNoteId" id="rejectFnId" value="" />
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-x-circle"></i> Rejeitar NF importada</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="rejectReason" class="form-label">Motivo da rejeição <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="rejectReason" name="rejectionReason" rows="3" required placeholder="Ex.: Valor divergente do esperado; CNPJ não confere."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Rejeitar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById('rejectModal').addEventListener('show.bs.modal', function (e) {
+        var btn = e.relatedTarget;
+        if (btn) {
+            document.getElementById('rejectFnId').value = btn.getAttribute('data-fn-id') || '';
+            document.getElementById('rejectReason').value = '';
+        }
+    });
+
+    function loadFiscalNoteDetails(fiscalNoteId) {
+        var modalBody = document.getElementById('detailsModalBody');
+        modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+
+        fetch('@Url.Action("GetFiscalNoteDetails", "Admin")?fiscalNoteId=' + fiscalNoteId)
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    modalBody.innerHTML = '<div class="alert alert-danger">' + (data.message || 'Erro ao carregar detalhes') + '</div>';
+                    return;
+                }
+
+                var fn = data.fiscalNote;
+                var client = data.client;
+                var coworking = data.coworking;
+                var payment = data.payment;
+
+                var html = '<div class="row">';
+                
+                // Informações da Nota Fiscal
+                html += '<div class="col-md-6 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-receipt"></i> Informações da Nota Fiscal</h6>';
+                html += '<table class="table table-sm">';
+                html += '<tr><th width="40%">Número:</th><td>' + (fn.number || '—') + '</td></tr>';
+                html += '<tr><th>Chave de Acesso:</th><td><small>' + (fn.accessKey || '—') + '</small></td></tr>';
+                html += '<tr><th>Código de Verificação:</th><td>' + (fn.verificationCode || '—') + '</td></tr>';
+                html += '<tr><th>Valor:</th><td><strong class="text-success">R$ ' + parseFloat(fn.amount).toFixed(2).replace('.', ',') + '</strong></td></tr>';
+                html += '<tr><th>Status:</th><td><span class="badge bg-' + (fn.status === 'Emitida' ? 'success' : fn.status === 'Rejeitada' ? 'danger' : 'warning') + '">' + fn.status + '</span></td></tr>';
+                html += '<tr><th>Data de Emissão:</th><td>' + (fn.issueDate ? new Date(fn.issueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
+                html += '<tr><th>Data de Vencimento:</th><td>' + (fn.dueDate ? new Date(fn.dueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
+                html += '<tr><th>Protocolo:</th><td>' + (fn.authorizationProtocol || '—') + '</td></tr>';
+                if (fn.errorMessage) {
+                    html += '<tr><th>Mensagem de Erro:</th><td class="text-danger">' + fn.errorMessage + '</td></tr>';
+                }
+                html += '</table>';
+                html += '</div>';
+
+                // Informações do Cliente
+                html += '<div class="col-md-6 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-person"></i> Cliente</h6>';
+                if (client) {
+                    html += '<table class="table table-sm">';
+                    html += '<tr><th width="40%">Razão Social:</th><td>' + (client.razaoSocial || '—') + '</td></tr>';
+                    html += '<tr><th>Nome Fantasia:</th><td>' + (client.nomeFantasia || '—') + '</td></tr>';
+                    html += '<tr><th>CNPJ/CPF:</th><td>' + (client.cnpj !== '—' ? client.cnpj : client.cpf) + '</td></tr>';
+                    html += '<tr><th>Contato:</th><td>' + (client.contactName || '—') + '</td></tr>';
+                    html += '<tr><th>Email:</th><td>' + (client.contactEmail || '—') + '</td></tr>';
+                    html += '<tr><th>Telefone:</th><td>' + (client.contactPhone || '—') + '</td></tr>';
+                    html += '</table>';
+                } else {
+                    html += '<p class="text-muted">Cliente não informado</p>';
+                }
+                html += '</div>';
+
+                // Informações do Parceiro
+                html += '<div class="col-md-6 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-building"></i> Parceiro</h6>';
+                if (coworking) {
+                    html += '<table class="table table-sm">';
+                    html += '<tr><th width="40%">Nome:</th><td>' + (coworking.name || '—') + '</td></tr>';
+                    html += '<tr><th>CNPJ:</th><td>' + (coworking.cnpj || '—') + '</td></tr>';
+                    html += '</table>';
+                } else {
+                    html += '<p class="text-muted">Parceiro não informado</p>';
+                }
+                html += '</div>';
+
+                // Informações do Pagamento
+                html += '<div class="col-md-6 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-credit-card"></i> Pagamento</h6>';
+                if (payment) {
+                    html += '<table class="table table-sm">';
+                    html += '<tr><th width="40%">ID:</th><td>#' + payment.id + '</td></tr>';
+                    html += '<tr><th>Valor Pago:</th><td><strong class="text-success">R$ ' + parseFloat(payment.amount).toFixed(2).replace('.', ',') + '</strong></td></tr>';
+                    html += '<tr><th>Status:</th><td><span class="badge bg-' + (payment.status === 'Paid' ? 'success' : payment.status === 'Pending' ? 'warning' : 'danger') + '">' + payment.status + '</span></td></tr>';
+                    html += '<tr><th>Método:</th><td>' + payment.method + '</td></tr>';
+                    html += '<tr><th>Vencimento:</th><td>' + (payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
+                    html += '<tr><th>Pago em:</th><td>' + (payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('pt-BR') + ' ' + new Date(payment.paidAt).toLocaleTimeString('pt-BR') : '—') + '</td></tr>';
+                    html += '</table>';
+                } else {
+                    html += '<p class="text-muted">Pagamento não informado</p>';
+                }
+                html += '</div>';
+
+                // Informações do Serviço
+                html += '<div class="col-md-12 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-briefcase"></i> Serviço</h6>';
+                html += '<table class="table table-sm">';
+                html += '<tr><th width="20%">Tipo:</th><td>' + (data.serviceType || '—') + '</td></tr>';
+                html += '<tr><th>Detalhes:</th><td>' + (data.serviceDetails || '—') + '</td></tr>';
+                html += '</table>';
+                html += '</div>';
+
+                // Resumo Financeiro
+                html += '<div class="col-md-12 mb-4">';
+                html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-calculator"></i> Resumo Financeiro</h6>';
+                html += '<div class="row">';
+                html += '<div class="col-md-3"><div class="card"><div class="card-body text-center"><h6 class="text-muted mb-1">Valor Pago</h6><h4 class="text-success mb-0">R$ ' + parseFloat(data.valorPago).toFixed(2).replace('.', ',') + '</h4></div></div></div>';
+                html += '<div class="col-md-3"><div class="card"><div class="card-body text-center"><h6 class="text-muted mb-1">Valor Faturado</h6><h4 class="text-primary mb-0">R$ ' + parseFloat(data.valorFaturado).toFixed(2).replace('.', ',') + '</h4></div></div></div>';
+                html += '<div class="col-md-3"><div class="card"><div class="card-body text-center"><h6 class="text-muted mb-1">Total Comissões</h6><h4 class="text-warning mb-0">R$ ' + parseFloat(data.totalComissoes).toFixed(2).replace('.', ',') + '</h4></div></div></div>';
+                html += '<div class="col-md-3"><div class="card"><div class="card-body text-center"><h6 class="text-muted mb-1">Valor Líquido</h6><h4 class="text-info mb-0">R$ ' + parseFloat(data.valorLiquido).toFixed(2).replace('.', ',') + '</h4></div></div></div>';
+                html += '</div>';
+                html += '</div>';
+
+                // Comissões
+                if (data.commissions && data.commissions.length > 0) {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-percent"></i> Comissões</h6>';
+                    html += '<div class="table-responsive"><table class="table table-sm table-hover">';
+                    html += '<thead><tr><th>ID</th><th>Parceiro</th><th>Valor</th><th>Percentual</th><th>Valor Total Pagamento</th><th>Repassado</th><th>Data Repasse</th></tr></thead>';
+                    html += '<tbody>';
+                    data.commissions.forEach(function(c) {
+                        html += '<tr>';
+                        html += '<td>#' + c.id + '</td>';
+                        html += '<td>' + c.coworkingName + '</td>';
+                        html += '<td><strong>R$ ' + parseFloat(c.amount).toFixed(2).replace('.', ',') + '</strong></td>';
+                        html += '<td>' + parseFloat(c.percentage).toFixed(2).replace('.', ',') + '%</td>';
+                        html += '<td>R$ ' + parseFloat(c.totalPaymentAmount).toFixed(2).replace('.', ',') + '</td>';
+                        html += '<td><span class="badge bg-' + (c.isTransferred ? 'success' : 'warning') + '">' + (c.isTransferred ? 'Sim' : 'Não') + '</span></td>';
+                        html += '<td>' + (c.transferredAt ? new Date(c.transferredAt).toLocaleDateString('pt-BR') + ' ' + new Date(c.transferredAt).toLocaleTimeString('pt-BR') : '—') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-percent"></i> Comissões</h6>';
+                    html += '<p class="text-muted">Nenhuma comissão encontrada</p>';
+                    html += '</div>';
+                }
+
+                // Repasses
+                if (data.transfers && data.transfers.length > 0) {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-arrow-left-right"></i> Repasses</h6>';
+                    html += '<div class="table-responsive"><table class="table table-sm table-hover">';
+                    html += '<thead><tr><th>ID</th><th>Valor</th><th>Status</th><th>Data Agendada</th><th>Data Processado</th><th>Descrição</th><th>Motivo Falha</th></tr></thead>';
+                    html += '<tbody>';
+                    data.transfers.forEach(function(t) {
+                        var statusClass = t.status === 'Completed' || t.status === 'Processed' ? 'success' : 
+                                         t.status === 'Failed' ? 'danger' : 'warning';
+                        html += '<tr>';
+                        html += '<td>#' + t.id + '</td>';
+                        html += '<td><strong>R$ ' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></td>';
+                        html += '<td><span class="badge bg-' + statusClass + '">' + t.status + '</span></td>';
+                        html += '<td>' + (t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString('pt-BR') : '—') + '</td>';
+                        html += '<td>' + (t.processedAt ? new Date(t.processedAt).toLocaleDateString('pt-BR') + ' ' + new Date(t.processedAt).toLocaleTimeString('pt-BR') : '—') + '</td>';
+                        html += '<td>' + (t.description || '—') + '</td>';
+                        html += '<td>' + (t.failureReason || '—') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    html += '<p class="text-muted small mt-2"><strong>Total Repassado:</strong> R$ ' + parseFloat(data.totalRepassado).toFixed(2).replace('.', ',') + '</p>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-arrow-left-right"></i> Repasses</h6>';
+                    html += '<p class="text-muted">Nenhum repasse encontrado</p>';
+                    html += '</div>';
+                }
+
+                // Histórico
+                if (data.history && data.history.length > 0) {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-clock-history"></i> Histórico</h6>';
+                    html += '<div class="table-responsive"><table class="table table-sm table-hover">';
+                    html += '<thead><tr><th>Data/Hora</th><th>Ação</th><th>Usuário</th><th>Detalhes</th></tr></thead>';
+                    html += '<tbody>';
+                    data.history.forEach(function(h) {
+                        html += '<tr>';
+                        html += '<td>' + new Date(h.createdAt).toLocaleDateString('pt-BR') + ' ' + new Date(h.createdAt).toLocaleTimeString('pt-BR') + '</td>';
+                        html += '<td>' + h.action + '</td>';
+                        html += '<td>' + h.user + '</td>';
+                        html += '<td>' + (h.details || '—') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="col-md-12 mb-4">';
+                    html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-clock-history"></i> Histórico</h6>';
+                    html += '<p class="text-muted">Nenhum histórico encontrado</p>';
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                modalBody.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Erro ao carregar detalhes:', error);
+                modalBody.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes da nota fiscal. Tente novamente.</div>';
+            });
+    }
+</script>
+}

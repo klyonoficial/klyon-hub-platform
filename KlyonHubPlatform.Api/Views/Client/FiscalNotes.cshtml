@@ -8,29 +8,118 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2><i class="bi bi-receipt-cutoff"></i> Notas Fiscais</h2>
-        <p class="text-muted mb-0">Visualize as notas fiscais dos serviços que você pagou</p>
+        <p class="text-muted mb-0">Visualize as notas fiscais aprovadas e emitidas para você</p>
     </div>
 </div>
 
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" class="row g-3">
+        <form method="get" class="row g-3" id="filterForm">
             <div class="col-md-3">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="status" onchange="this.form.submit()">
+                <label class="form-label">Tipo</label>
+                <select class="form-select" name="type">
                     <option value="">Todos</option>
-                    <option value="Pendente" selected="@(ViewBag.Status == "Pendente")">Pendente</option>
-                    <option value="Emitida" selected="@(ViewBag.Status == "Emitida")">Emitida</option>
-                    <option value="Cancelada" selected="@(ViewBag.Status == "Cancelada")">Cancelada</option>
-                    <option value="Erro" selected="@(ViewBag.Status == "Erro")">Erro</option>
+                    @if (ViewBag.Type == "Intermediacao")
+                    {
+                        <option value="Intermediacao" selected>Intermediação</option>
+                    }
+                    else
+                    {
+                        <option value="Intermediacao">Intermediação</option>
+                    }
+                    @if (ViewBag.Type == "Servico")
+                    {
+                        <option value="Servico" selected>Serviço</option>
+                    }
+                    else
+                    {
+                        <option value="Servico">Serviço</option>
+                    }
                 </select>
             </div>
-            <div class="col-md-6 d-flex align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Parceiro</label>
+                <select class="form-select" name="coworkingId">
+                    <option value="">Todos</option>
+                    @if (ViewBag.Coworkings != null)
+                    {
+                        foreach (var coworking in ViewBag.Coworkings)
+                        {
+                            var isSelected = ViewBag.CoworkingId != null && Convert.ToInt32(ViewBag.CoworkingId) == coworking.Id;
+                            if (isSelected)
+                            {
+                                <option value="@coworking.Id" selected>@coworking.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@coworking.Id">@coworking.Name</option>
+                            }
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" name="startDate" value="@(ViewBag.StartDate?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Final</label>
+                <input type="date" class="form-control" name="endDate" value="@(ViewBag.EndDate?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Buscar (Número ou Chave de Acesso)</label>
+                <input type="text" class="form-control" name="search" value="@ViewBag.Search" placeholder="Digite o número da NF ou chave de acesso" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Itens por Página</label>
+                <select class="form-select" name="pageSize">
+                    @{
+                        var pageSizeValue = ViewBag.PageSize as int? ?? 20;
+                    }
+                    @if (pageSizeValue == 10)
+                    {
+                        <option value="10" selected>10</option>
+                    }
+                    else
+                    {
+                        <option value="10">10</option>
+                    }
+                    @if (pageSizeValue == 20)
+                    {
+                        <option value="20" selected>20</option>
+                    }
+                    else
+                    {
+                        <option value="20">20</option>
+                    }
+                    @if (pageSizeValue == 50)
+                    {
+                        <option value="50" selected>50</option>
+                    }
+                    else
+                    {
+                        <option value="50">50</option>
+                    }
+                    @if (pageSizeValue == 100)
+                    {
+                        <option value="100" selected>100</option>
+                    }
+                    else
+                    {
+                        <option value="100">100</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
                 <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-outline-secondary">
-                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                    <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
+            <input type="hidden" name="page" value="1" />
         </form>
     </div>
 </div>
@@ -76,7 +165,27 @@
                                 location = $"{note.Reservation.CoworkingAddress.Location.City}/{note.Reservation.CoworkingAddress.Location.State}";
                             }
                             
-                            <tr>
+                            <tr class="fiscal-note-row" style="cursor: pointer;" 
+                                data-note-id="@note.Id"
+                                data-note-number="@(note.Number ?? "")"
+                                data-note-access-key="@(note.AccessKey ?? "")"
+                                data-note-verification-code="@(note.VerificationCode ?? "")"
+                                data-note-amount="@note.Amount.ToString("F2")"
+                                data-note-service-amount="@(note.ServiceAmount?.ToString("F2") ?? "")"
+                                data-note-commission-amount="@(note.CommissionAmount?.ToString("F2") ?? "")"
+                                data-note-status="@note.Status"
+                                data-note-issue-date="@note.IssueDate.ToString("dd/MM/yyyy")"
+                                data-note-due-date="@(note.DueDate?.ToString("dd/MM/yyyy") ?? "")"
+                                data-note-authorized-at="@(note.AuthorizedAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-authorization-protocol="@(note.AuthorizationProtocol ?? "")"
+                                data-note-cancelled-at="@(note.CancelledAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-cancellation-reason="@(note.CancellationReason ?? "")"
+                                data-note-error-message="@(note.ErrorMessage ?? "")"
+                                data-note-view-url="@(note.ViewUrl ?? "")"
+                                data-note-pdf-url="@(note.PdfUrl ?? "")"
+                                data-coworking-name="@(note.Coworking?.Name ?? "")"
+                                data-service-name="@serviceName"
+                                data-location="@location">
                                 <td>
                                     @if (!string.IsNullOrEmpty(note.Number))
                                     {
@@ -130,18 +239,24 @@
                                     <span class="badge bg-@statusClass">@statusText</span>
                                 </td>
                                 <td>
-                                    @if (!string.IsNullOrEmpty(note.AccessKey))
-                                    {
-                                        <a href="@note.ViewUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Visualizar NF">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
+                                    <div class="d-flex gap-1">
+                                        @if (!string.IsNullOrEmpty(note.AccessKey) && !string.IsNullOrEmpty(note.ViewUrl))
+                                        {
+                                            <a href="@note.ViewUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Visualizar NF" onclick="event.stopPropagation();">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        }
                                         @if (!string.IsNullOrEmpty(note.PdfUrl))
                                         {
-                                            <a href="@note.PdfUrl" target="_blank" class="btn btn-sm btn-outline-danger" title="Download PDF">
+                                            <a href="@Url.Action("DownloadFiscalNotePdf", "Client", new { fiscalNoteId = note.Id })" target="_blank" class="btn btn-sm btn-outline-danger" title="Download PDF" onclick="event.stopPropagation();">
                                                 <i class="bi bi-file-pdf"></i>
                                             </a>
                                         }
-                                    }
+                                        @if (string.IsNullOrEmpty(note.AccessKey) && string.IsNullOrEmpty(note.PdfUrl))
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -152,12 +267,39 @@
             <!-- Paginação -->
             @if (totalPages > 1)
             {
+                var routeValues = new Dictionary<string, object>
+                {
+                    { "pageSize", pageSize }
+                };
+                
+                if (!string.IsNullOrEmpty(ViewBag.Type as string))
+                {
+                    routeValues["type"] = ViewBag.Type;
+                }
+                if (!string.IsNullOrEmpty(ViewBag.Search as string))
+                {
+                    routeValues["search"] = ViewBag.Search;
+                }
+                if (ViewBag.CoworkingId != null)
+                {
+                    routeValues["coworkingId"] = Convert.ToInt32(ViewBag.CoworkingId);
+                }
+                if (ViewBag.StartDate != null)
+                {
+                    routeValues["startDate"] = ((DateTime)ViewBag.StartDate).ToString("yyyy-MM-dd");
+                }
+                if (ViewBag.EndDate != null)
+                {
+                    routeValues["endDate"] = ((DateTime)ViewBag.EndDate).ToString("yyyy-MM-dd");
+                }
+
                 <nav aria-label="Paginação">
                     <ul class="pagination justify-content-center">
                         @if (currentPage > 1)
                         {
+                            routeValues["page"] = currentPage - 1;
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage - 1, pageSize, status = ViewBag.Status })">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
                             </li>
@@ -165,15 +307,17 @@
 
                         @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                         {
+                            routeValues["page"] = i;
                             <li class="page-item @(i == currentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = i, pageSize, status = ViewBag.Status })">@i</a>
+                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">@i</a>
                             </li>
                         }
 
                         @if (currentPage < totalPages)
                         {
+                            routeValues["page"] = currentPage + 1;
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", new { page = currentPage + 1, pageSize, status = ViewBag.Status })">
+                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
                             </li>
@@ -194,3 +338,263 @@
         }
     </div>
 </div>
+
+<!-- Modal de Detalhes da Nota Fiscal -->
+<div class="modal fade" id="fiscalNoteDetailModal" tabindex="-1" aria-labelledby="fiscalNoteDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fiscalNoteDetailModalLabel">
+                    <i class="bi bi-receipt-cutoff"></i> Detalhes da Nota Fiscal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Informações Básicas -->
+                    <div class="col-12 mb-4">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-info-circle"></i> Informações Básicas</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Número da NF:</label>
+                                <p class="mb-0" id="modal-note-number">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Status:</label>
+                                <p class="mb-0" id="modal-note-status">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Data de Emissão:</label>
+                                <p class="mb-0" id="modal-note-issue-date">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Data de Vencimento:</label>
+                                <p class="mb-0" id="modal-note-due-date">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Chave de Acesso:</label>
+                                <p class="mb-0 text-break" id="modal-note-access-key">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Código de Verificação:</label>
+                                <p class="mb-0" id="modal-note-verification-code">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Valores -->
+                    <div class="col-12 mb-4">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-currency-dollar"></i> Valores</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Valor Total:</label>
+                                <p class="mb-0 fs-5 text-primary" id="modal-note-amount">-</p>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Valor do Serviço:</label>
+                                <p class="mb-0" id="modal-note-service-amount">-</p>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Valor da Comissão:</label>
+                                <p class="mb-0" id="modal-note-commission-amount">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Parceiro -->
+                    <div class="col-12 mb-4">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-building"></i> Parceiro</h6>
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Nome do Parceiro:</label>
+                                <p class="mb-0" id="modal-coworking-name">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Serviço -->
+                    <div class="col-12 mb-4">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-briefcase"></i> Serviço</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Tipo de Serviço:</label>
+                                <p class="mb-0" id="modal-service-name">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Localização:</label>
+                                <p class="mb-0" id="modal-location">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Autorização -->
+                    <div class="col-12 mb-4" id="modal-authorization-section" style="display: none;">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-check-circle"></i> Autorização</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Data de Autorização:</label>
+                                <p class="mb-0" id="modal-note-authorized-at">-</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Protocolo de Autorização:</label>
+                                <p class="mb-0 text-break" id="modal-note-authorization-protocol">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cancelamento -->
+                    <div class="col-12 mb-4" id="modal-cancellation-section" style="display: none;">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-x-circle"></i> Cancelamento</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Data de Cancelamento:</label>
+                                <p class="mb-0" id="modal-note-cancelled-at">-</p>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Motivo do Cancelamento:</label>
+                                <p class="mb-0" id="modal-note-cancellation-reason">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Erro -->
+                    <div class="col-12 mb-4" id="modal-error-section" style="display: none;">
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-exclamation-triangle"></i> Erro</h6>
+                        <div class="alert alert-danger mb-0">
+                            <p class="mb-0" id="modal-note-error-message">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div id="modal-actions" class="w-100">
+                    <a id="modal-view-url" href="#" target="_blank" class="btn btn-primary" style="display: none;">
+                        <i class="bi bi-eye"></i> Visualizar NF
+                    </a>
+                    <a id="modal-pdf-url" href="#" target="_blank" class="btn btn-danger" style="display: none;">
+                        <i class="bi bi-file-pdf"></i> Download PDF
+                    </a>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Resetar página para 1 quando os filtros mudarem
+            const filterForm = document.getElementById('filterForm');
+            if (filterForm) {
+                const filterInputs = filterForm.querySelectorAll('select, input[type="text"], input[type="date"]');
+                filterInputs.forEach(input => {
+                    input.addEventListener('change', function() {
+                        const pageInput = filterForm.querySelector('input[name="page"]');
+                        if (pageInput) {
+                            pageInput.value = '1';
+                        }
+                    });
+                });
+            }
+
+            const rows = document.querySelectorAll('.fiscal-note-row');
+            const modal = new bootstrap.Modal(document.getElementById('fiscalNoteDetailModal'));
+            const downloadPdfBaseUrl = '@Url.Action("DownloadFiscalNotePdf", "Client")';
+
+            rows.forEach(row => {
+                row.addEventListener('click', function(e) {
+                    // Não abrir modal se clicar em botões de ação
+                    if (e.target.closest('a, button')) {
+                        return;
+                    }
+
+                    // Preencher dados do modal
+                    document.getElementById('modal-note-number').textContent = row.dataset.noteNumber || '-';
+                    
+                    // Status com badge
+                    const status = row.dataset.noteStatus || '-';
+                    const statusClass = status === 'Emitida' ? 'success' : 
+                                       status === 'Pendente' ? 'warning' : 
+                                       status === 'Cancelada' || status === 'Erro' ? 'danger' : 'secondary';
+                    document.getElementById('modal-note-status').innerHTML = status !== '-' 
+                        ? `<span class="badge bg-${statusClass}">${status}</span>` 
+                        : '-';
+                    
+                    document.getElementById('modal-note-issue-date').textContent = row.dataset.noteIssueDate || '-';
+                    document.getElementById('modal-note-due-date').textContent = row.dataset.noteDueDate || '-';
+                    document.getElementById('modal-note-access-key').textContent = row.dataset.noteAccessKey || '-';
+                    document.getElementById('modal-note-verification-code').textContent = row.dataset.noteVerificationCode || '-';
+                    
+                    // Valores
+                    document.getElementById('modal-note-amount').textContent = row.dataset.noteAmount ? `R$ ${row.dataset.noteAmount}` : '-';
+                    document.getElementById('modal-note-service-amount').textContent = row.dataset.noteServiceAmount ? `R$ ${row.dataset.noteServiceAmount}` : '-';
+                    document.getElementById('modal-note-commission-amount').textContent = row.dataset.noteCommissionAmount ? `R$ ${row.dataset.noteCommissionAmount}` : '-';
+                    
+                    // Parceiro
+                    document.getElementById('modal-coworking-name').textContent = row.dataset.coworkingName || '-';
+                    
+                    // Serviço
+                    document.getElementById('modal-service-name').textContent = row.dataset.serviceName || '-';
+                    document.getElementById('modal-location').textContent = row.dataset.location || '-';
+                    
+                    // Autorização
+                    const authorizedAt = row.dataset.noteAuthorizedAt;
+                    const authProtocol = row.dataset.noteAuthorizationProtocol;
+                    if (authorizedAt || authProtocol) {
+                        document.getElementById('modal-authorization-section').style.display = 'block';
+                        document.getElementById('modal-note-authorized-at').textContent = authorizedAt || '-';
+                        document.getElementById('modal-note-authorization-protocol').textContent = authProtocol || '-';
+                    } else {
+                        document.getElementById('modal-authorization-section').style.display = 'none';
+                    }
+                    
+                    // Cancelamento
+                    const cancelledAt = row.dataset.noteCancelledAt;
+                    const cancellationReason = row.dataset.noteCancellationReason;
+                    if (cancelledAt || cancellationReason) {
+                        document.getElementById('modal-cancellation-section').style.display = 'block';
+                        document.getElementById('modal-note-cancelled-at').textContent = cancelledAt || '-';
+                        document.getElementById('modal-note-cancellation-reason').textContent = cancellationReason || '-';
+                    } else {
+                        document.getElementById('modal-cancellation-section').style.display = 'none';
+                    }
+                    
+                    // Erro
+                    const errorMessage = row.dataset.noteErrorMessage;
+                    if (errorMessage) {
+                        document.getElementById('modal-error-section').style.display = 'block';
+                        document.getElementById('modal-note-error-message').textContent = errorMessage;
+                    } else {
+                        document.getElementById('modal-error-section').style.display = 'none';
+                    }
+                    
+                    // Links de ação
+                    const viewUrl = row.dataset.noteViewUrl;
+                    const pdfUrl = row.dataset.notePdfUrl;
+                    
+                    const viewLink = document.getElementById('modal-view-url');
+                    const pdfLink = document.getElementById('modal-pdf-url');
+                    
+                    if (viewUrl) {
+                        viewLink.href = viewUrl;
+                        viewLink.style.display = 'inline-block';
+                    } else {
+                        viewLink.style.display = 'none';
+                    }
+                    
+                    if (pdfUrl) {
+                        const noteId = row.dataset.noteId;
+                        pdfLink.href = `${downloadPdfBaseUrl}?fiscalNoteId=${noteId}`;
+                        pdfLink.style.display = 'inline-block';
+                    } else {
+                        pdfLink.style.display = 'none';
+                    }
+                    
+                    // Abrir modal
+                    modal.show();
+                });
+            });
+        });
+    </script>
+}

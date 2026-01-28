@@ -23,6 +23,10 @@
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" action="@Url.Action("Coworkings", "Admin")" class="row g-3">
+            @if (ViewBag.CapacityAlert == true)
+            {
+                <input type="hidden" name="capacityAlert" value="true" />
+            }
             <div class="col-md-4">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
@@ -65,6 +69,22 @@
     </div>
 </div>
 
+@if (ViewBag.CapacityAlert == true)
+{
+    <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+        <h5 class="alert-heading">
+            <i class="bi bi-exclamation-triangle-fill"></i> 
+            <strong>Alerta de Capacidade Máxima</strong>
+        </h5>
+        <p class="mb-0">
+            Os coworkings destacados abaixo possuem <strong>pelo menos um endereço</strong> que atingiu a capacidade máxima 
+            (seja por <strong>MaxContracts</strong> ou por <strong>Capacidade Fiscal Aprovada</strong>). 
+            Clique em "Visualizar" para ver os detalhes de cada endereço e identificar qual(is) está(ão) na capacidade máxima.
+        </p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
 <!-- Informações de paginação -->
 @if (ViewBag.TotalItems != null)
 {
@@ -102,31 +122,55 @@
                     <tbody>
                         @foreach (var coworking in Model)
                         {
-                            <tr>
+                            var hasMaxCapacity = ViewBag.HasMaxCapacity as Dictionary<int, bool> ?? new Dictionary<int, bool>();
+                            var isAtMaxCapacity = hasMaxCapacity.ContainsKey(coworking.Id) && hasMaxCapacity[coworking.Id];
+                            <tr class="@(isAtMaxCapacity ? "table-warning" : "")">
                                 <td>@coworking.Id</td>
-                                <td>@coworking.Name</td>
+                                <td>
+                                    @coworking.Name
+                                    @if (isAtMaxCapacity)
+                                    {
+                                        <span class="badge bg-danger ms-2" title="Este coworking possui endereços com capacidade máxima">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Capacidade Máxima
+                                        </span>
+                                    }
+                                </td>
                                 <td>@coworking.CNPJ</td>
                                 <td>@((coworking.ContactEmail ?? coworking.User?.Email) ?? "-")</td>
                                 <td>@(coworking.ContactPhone ?? "-")</td>
                                 <td>
                                     <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#enderecos" 
-                                       class="badge bg-info text-decoration-none" 
-                                       title="Clique para ver os endereços deste coworking">
+                                       class="badge bg-@(isAtMaxCapacity ? "danger" : "info") text-decoration-none" 
+                                       title="@(isAtMaxCapacity ? "Este coworking possui endereços com capacidade máxima - Clique para ver detalhes" : "Clique para ver os endereços deste coworking")">
                                         @(coworking.Addresses?.Count ?? 0) endereço(s)
+                                        @if (isAtMaxCapacity)
+                                        {
+                                            <i class="bi bi-exclamation-triangle-fill ms-1"></i>
+                                        }
                                     </a>
                                 </td>
                                 <td>
                                     @{
                                         var servicesCount = ViewBag.ServicesCount as Dictionary<int, int> ?? new Dictionary<int, int>();
+                                        var hasPendingPercentages = ViewBag.HasPendingPercentages as Dictionary<int, bool> ?? new Dictionary<int, bool>();
                                         var count = servicesCount.ContainsKey(coworking.Id) ? servicesCount[coworking.Id] : 0;
+                                        var hasPending = hasPendingPercentages.ContainsKey(coworking.Id) && hasPendingPercentages[coworking.Id];
                                     }
                                     @if (count > 0)
                                     {
-                                        <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
-                                           class="badge bg-success text-decoration-none" 
-                                           title="Clique para gerenciar serviços e percentagens">
-                                            <i class="bi bi-grid"></i> @count serviço(s)
-                                        </a>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                               class="badge bg-@(hasPending ? "warning" : "success") text-decoration-none" 
+                                               title="Clique para gerenciar serviços e percentagens">
+                                                <i class="bi bi-grid"></i> @count serviço(s)
+                                            </a>
+                                            @if (hasPending)
+                                            {
+                                                <span class="badge bg-danger" title="Este coworking possui serviços com percentagem aguardando definição">
+                                                    <i class="bi bi-exclamation-triangle-fill"></i> Pendente
+                                                </span>
+                                            }
+                                        </div>
                                     }
                                     else
                                     {
@@ -144,10 +188,25 @@
                                 </td>
                                 <td>
                                     @{
-                                        var aprovaçãoLabel = coworking.ApprovalStatus switch { CoworkingApprovalStatus.UnderReview => "Em análise", CoworkingApprovalStatus.AwaitingAdjustment => "Aguardando ajuste", _ => "Aprovado" };
-                                        var aprovaçãoBadge = coworking.ApprovalStatus switch { CoworkingApprovalStatus.UnderReview => "warning", CoworkingApprovalStatus.AwaitingAdjustment => "danger", _ => "success" };
+                                        var aprovaçãoLabel = coworking.ApprovalStatus switch { 
+                                            CoworkingApprovalStatus.UnderReview => "Pendente aprovação", 
+                                            CoworkingApprovalStatus.AwaitingAdjustment => "Pendente reprovação", 
+                                            _ => "Aprovado" 
+                                        };
+                                        var aprovaçãoBadge = coworking.ApprovalStatus switch { 
+                                            CoworkingApprovalStatus.UnderReview => "warning", 
+                                            CoworkingApprovalStatus.AwaitingAdjustment => "danger", 
+                                            _ => "success" 
+                                        };
+                                        var isPendingApproval = coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview || coworking.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment;
                                     }
-                                    <span class="badge bg-@aprovaçãoBadge">@aprovaçãoLabel</span>
+                                    <span class="badge bg-@aprovaçãoBadge" title="@(isPendingApproval ? "Este coworking está aguardando ação do administrador" : "")">
+                                        @if (isPendingApproval)
+                                        {
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                        }
+                                        @aprovaçãoLabel
+                                    </span>
                                 </td>
                                 <td>
                                     <span class="badge bg-@(coworking.IsPartner ? "primary" : "secondary")">
@@ -161,18 +220,28 @@
                                        title="Visualizar">
                                         <i class="bi bi-eye-fill"></i>
                                     </a>
+                                    @{
+                                        var hasPendingPercentagesBtn = ViewBag.HasPendingPercentages as Dictionary<int, bool> ?? new Dictionary<int, bool>();
+                                        var hasPendingBtn = hasPendingPercentagesBtn.ContainsKey(coworking.Id) && hasPendingPercentagesBtn[coworking.Id];
+                                    }
                                     <button type="button" 
-                                            class="btn btn-sm btn-primary" 
-                                            title="Gerenciar Serviços e Percentagens"
+                                            class="btn btn-sm btn-@(hasPendingBtn ? "warning" : "primary") position-relative" 
+                                            title="@(hasPendingBtn ? "Gerenciar Serviços e Percentagens - Há percentagens pendentes" : "Gerenciar Serviços e Percentagens")"
                                             onclick="abrirModalPercentagem(@coworking.Id, '@(System.Net.WebUtility.HtmlEncode(coworking.Name ?? ""))')">
                                         <i class="bi bi-percent"></i>
+                                        @if (hasPendingBtn)
+                                        {
+                                            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+                                                <span class="visually-hidden">Percentagens pendentes</span>
+                                            </span>
+                                        }
                                     </button>
                                     <button type="button" class="btn btn-sm btn-warning" onclick="editCoworking(@coworking.Id)" title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </button>
                                     @if (coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview)
                                     {
-                                        <form method="post" action="@Url.Action("ApproveCoworking", "Admin")" class="d-inline">
+                                        <form method="post" action="@Url.Action("ApproveCoworking", "Admin")" class="d-inline position-relative">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@coworking.Id" />
                                             <input type="hidden" name="search" value="@ViewBag.Search" />
@@ -180,10 +249,18 @@
                                             <input type="hidden" name="isPartner" value="@ViewBag.IsPartner" />
                                             <input type="hidden" name="approvalStatus" value="@ViewBag.ApprovalStatus" />
                                             <input type="hidden" name="page" value="@ViewBag.CurrentPage" />
-                                            <button type="submit" class="btn btn-sm btn-success" title="Aprovar"><i class="bi bi-check-circle-fill"></i></button>
+                                            <button type="submit" class="btn btn-sm btn-success position-relative" title="Aprovar coworking - Pendente aprovação">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+                                                    <span class="visually-hidden">Pendente aprovação</span>
+                                                </span>
+                                            </button>
                                         </form>
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="abrirReprovar(@coworking.Id)" title="Reprovar">
+                                        <button type="button" class="btn btn-sm btn-danger position-relative" onclick="abrirReprovar(@coworking.Id)" title="Reprovar coworking - Pendente aprovação">
                                             <i class="bi bi-x-octagon-fill"></i>
+                                            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+                                                <span class="visually-hidden">Pendente aprovação</span>
+                                            </span>
                                         </button>
                                     }
                                     @if (coworking.IsActive)
@@ -217,7 +294,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
-                                    approvalStatus = ViewBag.ApprovalStatus, 
+                                    approvalStatus = ViewBag.ApprovalStatus,
+                                    capacityAlert = ViewBag.CapacityAlert == true ? "true" : null,
                                     page = ViewBag.CurrentPage - 1 
                                 })">
                                     <i class="bi bi-chevron-left"></i> Anterior
@@ -232,7 +310,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
-                                    approvalStatus = ViewBag.ApprovalStatus, 
+                                    approvalStatus = ViewBag.ApprovalStatus,
+                                    capacityAlert = ViewBag.CapacityAlert == true ? "true" : null,
                                     page = i 
                                 })">
                                     @i
@@ -247,7 +326,8 @@
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
-                                    approvalStatus = ViewBag.ApprovalStatus, 
+                                    approvalStatus = ViewBag.ApprovalStatus,
+                                    capacityAlert = ViewBag.CapacityAlert == true ? "true" : null,
                                     page = ViewBag.CurrentPage + 1 
                                 })">
                                     Próxima <i class="bi bi-chevron-right"></i>

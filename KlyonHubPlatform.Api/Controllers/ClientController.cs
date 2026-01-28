@@ -301,6 +301,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenInclude(ct => ct.CoworkingAddress)
                 .Include(c => c.Contracts)
                     .ThenInclude(ct => ct.Subscription)
+                        .ThenInclude(s => s.Payments)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             // Sistema de créditos removido - não buscamos mais créditos
@@ -322,9 +323,47 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
 
+            // Verificar pendências financeiras
+            bool hasFinancialPending = false;
+            if (client != null && client.Contracts != null)
+            {
+                var contractIds = client.Contracts.Select(c => c.Id).ToList();
+                var subscriptionIds = client.Contracts
+                    .Where(c => c.Subscription != null)
+                    .Select(c => c.Subscription!.Id)
+                    .ToList();
+
+                if (subscriptionIds.Any())
+                {
+                    hasFinancialPending = await _context.Payments
+                        .Where(p => subscriptionIds.Contains(p.SubscriptionId ?? 0) &&
+                                   (p.Status == PaymentStatus.Pending ||
+                                    p.Status == PaymentStatus.Processing ||
+                                    p.Status == PaymentStatus.AwaitingValidation))
+                        .AnyAsync();
+                }
+            }
+
+            // Verificar se há certificado próximo de vencer (30 dias)
+            bool hasCertificateExpiring = false;
+            if (client != null && client.Contracts != null)
+            {
+                var today = DateTime.UtcNow.Date;
+                var expiryThreshold = today.AddDays(30);
+                
+                hasCertificateExpiring = client.Contracts
+                    .Any(c => c.Status == ContractStatus.Active &&
+                             c.ExpiryDate.HasValue &&
+                             c.ExpiryDate.Value.Date >= today &&
+                             c.ExpiryDate.Value.Date <= expiryThreshold);
+            }
+
             ViewBag.Client = client;
             // ViewBag.AvailableCredits removido - sistema não usa mais créditos
             ViewBag.ReservationsCount = reservationsCount;
+            ViewBag.HasPending = hasFinancialPending || hasCertificateExpiring;
+            ViewBag.HasFinancialPending = hasFinancialPending;
+            ViewBag.HasCertificateExpiring = hasCertificateExpiring;
             return View("Dashboard");
         }
 
@@ -1597,8 +1636,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Forbid();
             }
             
-            // Usar o serviço para gerar códigos se necessário
-            if (payment.Status == PaymentStatus.Pending)
+            // Verificar se o PagBank está configurado antes de tentar gerar códigos
+            var pagBankToken = await _systemConfig.GetValueAsync("PagBank.AccessToken");
+            var isPagBankConfigured = !string.IsNullOrEmpty(pagBankToken);
+            
+            if (!isPagBankConfigured)
+            {
+                TempData["Warning"] = "Atenção: Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
+            }
+            
+            // Usar o serviço para gerar códigos se necessário (apenas se PagBank estiver configurado)
+            if (payment.Status == PaymentStatus.Pending && isPagBankConfigured)
             {
                 try
                 {
@@ -1633,7 +1681,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
                 {
-                    // PagBank não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
+                    // PagBank não configurado ou token inválido - mostrar mensagem amigável mas permitir visualizar o pagamento
                     TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
@@ -3145,7 +3193,8 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
+        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null, 
+            string? search = null, int? coworkingId = null, DateTime? startDate = null, DateTime? endDate = null)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -3154,7 +3203,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("RegisterClient");
             }
 
-            // Clientes visualizam apenas notas fiscais de tipo "Intermediação" (serviços que pagaram)
+            // Clientes visualizam apenas notas fiscais aprovadas (status "Emitida")
+            // de tipo "Intermediação" (serviços que pagaram) 
+            // e também notas fiscais de tipo "Servico" emitidas pelo parceiro para o cliente
             var query = _context.FiscalNotes
                 .Include(fn => fn.Client)
                     .ThenInclude(c => c.User)
@@ -3166,12 +3217,40 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ThenInclude(c => c.CoworkingAddress)
                         .ThenInclude(ca => ca.Location)
                 .Include(fn => fn.Payment)
-                .Where(fn => fn.ClientId == client.Id && fn.Type == "Intermediacao")
+                .Where(fn => fn.ClientId == client.Id 
+                    && (fn.Type == "Intermediacao" || fn.Type == "Servico")
+                    && fn.Status == "Emitida") // Apenas notas aprovadas/emitidas
                 .AsQueryable();
 
-            if (!string.IsNullOrEmpty(status))
+            // Filtro por tipo
+            if (!string.IsNullOrEmpty(type))
             {
-                query = query.Where(fn => fn.Status == status);
+                query = query.Where(fn => fn.Type == type);
+            }
+
+            // Filtro por busca (número da NF ou chave de acesso)
+            if (!string.IsNullOrEmpty(search))
+            {
+                query = query.Where(fn => 
+                    (fn.Number != null && fn.Number.Contains(search)) ||
+                    (fn.AccessKey != null && fn.AccessKey.Contains(search)));
+            }
+
+            // Filtro por parceiro (coworking)
+            if (coworkingId.HasValue)
+            {
+                query = query.Where(fn => fn.CoworkingId == coworkingId.Value);
+            }
+
+            // Filtro por data de emissão
+            if (startDate.HasValue)
+            {
+                query = query.Where(fn => fn.IssueDate >= startDate.Value);
+            }
+
+            if (endDate.HasValue)
+            {
+                query = query.Where(fn => fn.IssueDate <= endDate.Value.AddDays(1).AddSeconds(-1));
             }
 
             var totalItems = await query.CountAsync();
@@ -3180,19 +3259,73 @@ namespace KlyonHubPlatform.Api.Controllers
             if (page > totalPages) page = totalPages;
 
             var fiscalNotes = await query
-                .OrderByDescending(fn => fn.CreatedAt)
+                .OrderByDescending(fn => fn.IssueDate)
+                .ThenByDescending(fn => fn.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
-            ViewBag.Status = status;
+            // Buscar lista de parceiros para o filtro
+            var coworkings = await _context.FiscalNotes
+                .Include(fn => fn.Coworking)
+                .Where(fn => fn.ClientId == client.Id 
+                    && (fn.Type == "Intermediacao" || fn.Type == "Servico")
+                    && fn.Status == "Emitida"
+                    && fn.CoworkingId != null
+                    && fn.Coworking != null)
+                .Select(fn => fn.Coworking)
+                .Distinct()
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+
             ViewBag.Type = type;
+            ViewBag.Search = search;
+            ViewBag.CoworkingId = coworkingId;
+            ViewBag.StartDate = startDate;
+            ViewBag.EndDate = endDate;
+            ViewBag.Coworkings = coworkings;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
 
             return View(fiscalNotes);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (client == null)
+            {
+                return RedirectToAction("RegisterClient");
+            }
+
+            var fn = await _context.FiscalNotes
+                .FirstOrDefaultAsync(f => f.Id == fiscalNoteId 
+                    && f.ClientId == client.Id 
+                    && (f.Type == "Intermediacao" || f.Type == "Servico")
+                    && f.Status == "Emitida"); // Apenas notas aprovadas/emitidas
+
+            if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
+            {
+                return NotFound();
+            }
+
+            var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
+            var storageService = await storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(fn.PdfUrl);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var fileName = Path.GetFileName(fn.PdfUrl) ?? $"nota_fiscal_{fn.Id}.pdf";
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            return File(fileBytes, "application/pdf");
         }
 
         [HttpGet]

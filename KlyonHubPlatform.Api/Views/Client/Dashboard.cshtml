@@ -10,7 +10,25 @@
 @model KlyonHubPlatform.Domain.Entities.Client
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+    <h2>
+        <i class="bi bi-speedometer2"></i> Dashboard
+        @if (ViewBag.HasPending == true)
+        {
+            var pendingMessages = new List<string>();
+            if (ViewBag.HasFinancialPending == true)
+            {
+                pendingMessages.Add("Pendência financeira");
+            }
+            if (ViewBag.HasCertificateExpiring == true)
+            {
+                pendingMessages.Add("Certificado próximo de vencer (30 dias)");
+            }
+            var tooltipText = string.Join(" e ", pendingMessages);
+            <span class="badge bg-warning text-dark ms-2" title="@tooltipText" data-bs-toggle="tooltip" data-bs-placement="top">
+                <i class="bi bi-exclamation-triangle-fill"></i> Pendência
+            </span>
+        }
+    </h2>
 </div>
 
 @if (ViewBag.Client == null)

@@ -201,6 +201,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<FiscalNoteScriptExecution> FiscalNoteScriptExecutions { get; set; }
         public DbSet<PaymentHistory> PaymentHistories { get; set; }
         public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
+        public DbSet<MaxContractsChangeRequest> MaxContractsChangeRequests { get; set; }
 
         // KlyonBoot Chatbot
         public DbSet<ChatFaqItem> ChatFaqItems { get; set; }
@@ -270,6 +271,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Coworking).WithMany(c => c.Addresses).HasForeignKey(e => e.CoworkingId);
                 entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId);
                 entity.HasIndex(e => new { e.CoworkingId, e.Address }).IsUnique();
+                entity.Property(e => e.MaxContractsApprovalStatus).HasConversion<string>().HasMaxLength(50);
             });
 
             // Client configuration
@@ -803,6 +805,25 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.CoworkingAddress)
                     .WithMany(a => a.CapacityChangeRequests)
+                    .HasForeignKey(e => e.CoworkingAddressId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReviewedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Justification).HasMaxLength(2000);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.HasIndex(e => e.CoworkingAddressId);
+                entity.HasIndex(e => e.Status);
+            });
+
+            // MaxContractsChangeRequest configuration
+            modelBuilder.Entity<MaxContractsChangeRequest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany(a => a.MaxContractsChangeRequests)
                     .HasForeignKey(e => e.CoworkingAddressId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.Reviewer)

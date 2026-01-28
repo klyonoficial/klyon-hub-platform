@@ -1,0 +1,136 @@
+@{
+    ViewData["Title"] = "Programação de Repasses";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var byCoworking = ViewBag.ByCoworking as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
+    var totalAmount = ViewBag.TotalAmount as decimal? ?? 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar-event"></i> Programação de Repasses</h2>
+    <div>
+        <a href="@Url.Action("Transfers", "Admin")" class="btn btn-outline-primary me-2">
+            <i class="bi bi-arrow-left-right"></i> Solicitações de Repasse
+        </a>
+        <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Repasses com status <strong>Aguardando NF</strong>, agendados para o último dia do mês subsequente. Clique em um repasse para ver os detalhes.
+</p>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="card-title text-muted"><i class="bi bi-calendar-check"></i> Total agendado</h6>
+                <h3 class="mb-0 text-success">R$ @totalAmount.ToString("N2")</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Por parceiro</h5>
+    </div>
+    <div class="card-body">
+        @if (byCoworking != null && byCoworking.Any())
+        {
+            @foreach (var g in byCoworking)
+            {
+                var cow = g.Coworking as KlyonHubPlatform.Domain.Entities.Coworking;
+                var trans = (g.Transfers as List<KlyonHubPlatform.Domain.Entities.Transfer>) ?? new List<KlyonHubPlatform.Domain.Entities.Transfer>();
+                var groupTotal = trans.Sum(t => t.Amount);
+                <div class="mb-4">
+                    <h6 class="text-primary border-bottom pb-2">
+                        <i class="bi bi-building"></i> @(cow?.Name ?? "—")
+                        @if (!string.IsNullOrEmpty(cow?.CNPJ)) { <small class="text-muted">@cow.CNPJ</small> }
+                        <span class="badge bg-success ms-2">R$ @groupTotal.ToString("N2")</span>
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Id</th>
+                                    <th>Data agendada</th>
+                                    <th>Valor</th>
+                                    <th>Solicitação</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in trans)
+                                {
+                                    <tr class="clickable-schedule-row" data-id="@t.Id" style="cursor: pointer;">
+                                        <td>#@t.Id</td>
+                                        <td>@t.ScheduledDate.ToString("dd/MM/yyyy")</td>
+                                        <td><strong class="text-success">R$ @t.Amount.ToString("N2")</strong></td>
+                                        <td>@t.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-primary btn-detail" data-id="@t.Id" onclick="event.stopPropagation(); openDetail(@t.Id);">
+                                                <i class="bi bi-eye"></i> Detalhes
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> Nenhum repasse agendado (Aguardando NF) no momento.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Detalhes do repasse</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 mb-0">Carregando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function openDetail(id) {
+        var modal = new bootstrap.Modal(document.getElementById('detailModal'));
+        var body = document.getElementById('detailModalBody');
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 mb-0">Carregando...</p></div>';
+        modal.show();
+        fetch('@Url.Action("TransferDetailPartial", "Admin")?id=' + id)
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                body.innerHTML = html;
+            })
+            .catch(function() {
+                body.innerHTML = '<div class="alert alert-danger">Erro ao carregar detalhes.</div>';
+            });
+    }
+
+    document.querySelectorAll('.clickable-schedule-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+            var id = parseInt(row.getAttribute('data-id'), 10);
+            if (!isNaN(id)) openDetail(id);
+        });
+    });
+</script>
+}

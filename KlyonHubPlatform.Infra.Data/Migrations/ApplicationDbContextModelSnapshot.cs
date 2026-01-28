@@ -895,6 +895,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<int>("MaxContracts")
                         .HasColumnType("int");
 
+                    b.Property<int>("MaxContractsApprovalStatus")
+                        .HasColumnType("int");
+
                     b.Property<string>("Neighborhood")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -916,6 +919,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("decimal(65,30)");
 
                     b.Property<int>("RequestedFiscalCapacity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequestedMaxContracts")
                         .HasColumnType("int");
 
                     b.Property<int?>("SharedRoomMaxSeats")
@@ -1999,6 +2005,57 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("LocationId");
 
                     b.ToTable("LocationCommissions");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MaxContractsChangeRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Justification")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("PreviousMaxContracts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("RequestedMaxContracts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ReviewedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("MaxContractsChangeRequests");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MonthlySettlement", b =>
@@ -3497,6 +3554,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Location");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MaxContractsChangeRequest", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany("MaxContractsChangeRequests")
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "Reviewer")
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CoworkingAddress");
+
+                    b.Navigation("Reviewer");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MonthlySettlement", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.User", "ApprovedByUser")
@@ -3762,6 +3837,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingAddress", b =>
                 {
                     b.Navigation("CapacityChangeRequests");
+
+                    b.Navigation("MaxContractsChangeRequests");
 
                     b.Navigation("Rooms");
                 });

@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         Processing,
         Completed,
         Failed,
-        Cancelled
+        Cancelled,
+        /// <summary>Aprovado pelo admin; aguardando NF do parceiro para executar repasse.</summary>
+        AwaitingInvoice
     }
 }

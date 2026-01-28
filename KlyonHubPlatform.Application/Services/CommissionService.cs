@@ -236,10 +236,11 @@ namespace KlyonHubPlatform.Application.Services
             // Buscar comissões que não foram transferidas
             var allPending = await _commissionRepository.GetPendingTransfersAsync(coworkingId);
             
-            // Buscar transfers pendentes ou em processamento do mesmo coworking
+            // Buscar transfers pendentes, em processamento ou aguardando NF do mesmo coworking
             var pendingTransfers = await _context.Transfers
                 .Where(t => t.CoworkingId == coworkingId && 
-                           (t.Status == TransferStatus.Pending || t.Status == TransferStatus.Processing))
+                           (t.Status == TransferStatus.Pending || t.Status == TransferStatus.Processing || 
+                            t.Status == TransferStatus.AwaitingInvoice))
                 .ToListAsync();
             
             // Extrair IDs de comissões que estão em transfers pendentes
@@ -295,19 +296,49 @@ namespace KlyonHubPlatform.Application.Services
                 Amount = totalAmount,
                 Status = TransferStatus.Pending,
                 ScheduledDate = DateTime.UtcNow,
-                Description = $"Repasse de {commissions.Count} comissões",
                 ExternalTransferId = Guid.NewGuid().ToString()
             };
 
-            // Armazenar IDs das comissões no Description para poder recuperá-las depois
-            var commissionIdsStr = string.Join(",", commissionIds);
-            transfer.Description = $"Repasse de {commissions.Count}";
+            // Armazenar IDs das comissões efetivamente incluídas no Description para recuperar depois
+            var includedIds = commissions.Select(c => c.Id).ToList();
+            var commissionIdsStr = string.Join(",", includedIds);
+            transfer.Description = $"Repasse de {commissions.Count}|CommissionIds:{commissionIdsStr}";
 
             _context.Transfers.Add(transfer);
             await _context.SaveChangesAsync();
 
             // NÃO marcar comissões como transferidas aqui - apenas quando o repasse for aprovado e processado
             // As comissões serão marcadas como transferidas no ProcessTransferAsync quando o status for Completed
+
+            return transfer;
+        }
+
+        /// <summary>
+        /// Aprova solicitação de repasse: define status Aguardando NF e agenda transferência para o último dia do mês subsequente.
+        /// Não marca comissões como transferidas; o repasse só será executado após emissão/validação da NF (ProcessTransferAsync).
+        /// </summary>
+        public async Task<Transfer> ApproveTransferAsync(int transferId)
+        {
+            var transfer = await _context.Transfers
+                .Include(t => t.Coworking)
+                .FirstOrDefaultAsync(t => t.Id == transferId);
+
+            if (transfer == null)
+                throw new InvalidOperationException("Transferência não encontrada");
+
+            if (transfer.Status != TransferStatus.Pending)
+                throw new InvalidOperationException("Apenas repasses com status Pendente podem ser aprovados.");
+
+            var now = DateTime.UtcNow;
+            var nextMonth = now.Month == 12 ? 1 : now.Month + 1;
+            var nextYear = now.Month == 12 ? now.Year + 1 : now.Year;
+            var lastDay = DateTime.DaysInMonth(nextYear, nextMonth);
+            var scheduledDate = new DateTime(nextYear, nextMonth, lastDay, 23, 59, 59, DateTimeKind.Utc);
+
+            transfer.Status = TransferStatus.AwaitingInvoice;
+            transfer.ScheduledDate = scheduledDate;
+            transfer.UpdatedAt = now;
+            await _context.SaveChangesAsync();
 
             return transfer;
         }
