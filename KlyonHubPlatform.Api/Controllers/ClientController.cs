@@ -1416,6 +1416,31 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Forbid();
             }
 
+            // Sincronizar exibição com status do pagamento: se o contrato está "Aguardando Pagamento" mas há pagamento "Aguardando Validação", exibir "Aguardando Validação" na visão do cliente
+            var hasPaymentAwaitingValidation = false;
+            int? paymentAwaitingValidationId = null;
+            if (contract.Status == ContractStatus.PendingPayment)
+            {
+                var subscriptionIds = await _context.Subscriptions
+                    .Where(s => s.ContractId == id)
+                    .Select(s => s.Id)
+                    .ToListAsync();
+                if (subscriptionIds.Any())
+                {
+                    var paymentAwaiting = await _context.Payments
+                        .Where(p => p.SubscriptionId.HasValue && subscriptionIds.Contains(p.SubscriptionId.Value) && p.Status == PaymentStatus.AwaitingValidation)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .FirstOrDefaultAsync();
+                    if (paymentAwaiting != null)
+                    {
+                        hasPaymentAwaitingValidation = true;
+                        paymentAwaitingValidationId = paymentAwaiting.Id;
+                    }
+                }
+            }
+            ViewBag.HasPaymentAwaitingValidation = hasPaymentAwaitingValidation;
+            ViewBag.PaymentAwaitingValidationId = paymentAwaitingValidationId;
+
             // Exibir o contrato em qualquer status (incl. PendingCancellation, Cancelled, Expired) para o dono visualizar detalhes e documentos
             return View(contract);
         }

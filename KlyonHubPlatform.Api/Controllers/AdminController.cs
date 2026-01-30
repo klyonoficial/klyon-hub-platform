@@ -133,16 +133,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Select(g => new { productType = g.Key, count = g.Count() })
                     .ToListAsync();
                 ViewBag.ProductsByType = productsStats;
-                
+
                 // Estatísticas de reservas (apenas se EnableCoworkingMenus estiver habilitado)
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
-                
+
                 if (showCoworkingMenus)
                 {
                     var totalReservations = await _context.Reservations.CountAsync();
                     ViewBag.TotalReservations = totalReservations;
-                    
+
                     var reservationsByStatus = await _context.Reservations
                         .GroupBy(r => r.Status)
                         .Select(g => new { status = g.Key, count = g.Count() })
@@ -171,12 +171,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Select(ps => ps.CoworkingId)
                     .Distinct()
                     .CountAsync();
-                
+
                 // Contar total de serviços aguardando definição de percentagem
                 var servicesAwaitingPercentage = await _context.PartnerServices
                     .Where(ps => ps.Percentage == 0)
                     .CountAsync();
-                
+
                 ViewBag.PartnersWithoutPercentage = partnersWithoutPercentage;
                 ViewBag.ServicesAwaitingPercentage = servicesAwaitingPercentage;
             }
@@ -192,7 +192,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var pendingRemovalRequests = await _context.PartnerServices
                     .Where(ps => ps.RemovalRequestStatus == RemovalRequestStatus.Pending)
                     .CountAsync();
-                
+
                 ViewBag.PendingRemovalRequests = pendingRemovalRequests;
             }
             catch
@@ -202,24 +202,24 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Alertas administrativos
             var alerts = new List<dynamic>();
-            
+
             try
             {
                 // 1. Comissões pendentes há mais de X dias (padrão: 30 dias)
                 var commissionAlertDays = await _systemConfigurationService.GetValueAsync("Alerts.CommissionPendingDays");
                 var daysThreshold = int.TryParse(commissionAlertDays, out var parsedDays) ? parsedDays : 30;
                 var thresholdDate = DateTime.UtcNow.AddDays(-daysThreshold);
-                
+
                 var pendingCommissionsCount = await _context.Commissions
                     .Where(c => !c.IsTransferred && c.CreatedAt < thresholdDate)
                     .CountAsync();
-                
+
                 if (pendingCommissionsCount > 0)
                 {
                     var pendingCommissionsAmount = await _context.Commissions
                         .Where(c => !c.IsTransferred && c.CreatedAt < thresholdDate)
                         .SumAsync(c => c.Amount);
-                    
+
                     alerts.Add(new
                     {
                         Type = "warning",
@@ -236,7 +236,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Log error silently
             }
-            
+
             try
             {
                 // 2. Pagamentos atrasados
@@ -246,13 +246,13 @@ namespace KlyonHubPlatform.Api.Controllers
                             .ThenInclude(c => c.Client)
                     .Where(p => p.Status == PaymentStatus.Pending && p.DueDate < DateTime.UtcNow)
                     .ToListAsync();
-                
+
                 if (overduePayments.Any())
                 {
                     var overdueAmount = overduePayments.Sum(p => p.Amount);
                     var oldestOverdue = overduePayments.OrderBy(p => p.DueDate).First();
                     var daysOverdue = (DateTime.UtcNow - oldestOverdue.DueDate).Days;
-                    
+
                     alerts.Add(new
                     {
                         Type = "danger",
@@ -269,26 +269,26 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Log error silently
             }
-            
+
             try
             {
                 // 3. Capacidade próxima do limite (80% ou mais)
                 var capacityThreshold = 0.8m; // 80% da capacidade
-                
+
                 var addressesNearCapacity = await _context.CoworkingAddresses
                     .Include(a => a.Coworking)
                     .Include(a => a.Location)
-                    .Where(a => a.AddressStatus == AddressStatus.Active && 
+                    .Where(a => a.AddressStatus == AddressStatus.Active &&
                                ((a.MaxContracts > 0 && (decimal)a.CurrentContracts / a.MaxContracts >= capacityThreshold) ||
                                 (a.ApprovedFiscalCapacity > 0 && (decimal)a.CurrentContracts / a.ApprovedFiscalCapacity >= capacityThreshold)))
                     .ToListAsync();
-                
+
                 if (addressesNearCapacity.Any())
                 {
-                    var atCapacityCount = addressesNearCapacity.Count(a => 
+                    var atCapacityCount = addressesNearCapacity.Count(a =>
                         (a.MaxContracts > 0 && a.CurrentContracts >= a.MaxContracts) ||
                         (a.ApprovedFiscalCapacity > 0 && a.CurrentContracts >= a.ApprovedFiscalCapacity));
-                    
+
                     alerts.Add(new
                     {
                         Type = "info",
@@ -305,12 +305,12 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Log error silently
             }
-            
+
             try
             {
                 // 4. Coworkings com alterações recentes aguardando análise
                 var recentUpdateThreshold = DateTime.UtcNow.AddHours(-24); // Últimas 24 horas
-                
+
                 var coworkingsWithRecentUpdates = await _context.Coworkings
                     .Include(c => c.User)
                     .Where(c => c.ApprovalStatus == CoworkingApprovalStatus.UnderReview &&
@@ -318,21 +318,21 @@ namespace KlyonHubPlatform.Api.Controllers
                                c.SubmittedAt.Value >= recentUpdateThreshold)
                     .OrderByDescending(c => c.SubmittedAt)
                     .ToListAsync();
-                
+
                 if (coworkingsWithRecentUpdates.Any())
                 {
                     var coworkingNames = coworkingsWithRecentUpdates
                         .Take(3)
                         .Select(c => c.Name)
                         .ToList();
-                    
+
                     var moreCount = coworkingsWithRecentUpdates.Count - coworkingNames.Count;
                     var message = $"{coworkingsWithRecentUpdates.Count} parceiro(s) fizeram alterações recentes e estão aguardando análise: {string.Join(", ", coworkingNames)}";
                     if (moreCount > 0)
                     {
                         message += $" e mais {moreCount} outro(s)";
                     }
-                    
+
                     alerts.Add(new
                     {
                         Type = "warning",
@@ -349,7 +349,48 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Log error silently
             }
-            
+
+            try
+            {
+                // 5. Comprovantes de pagamento aguardando validação (status "Aguardando Validação" na tela Client/PaymentDetails)
+                var paymentsAwaitingValidation = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s!.Contract)
+                    .Where(p => p.Status == PaymentStatus.AwaitingValidation)
+                    .ToListAsync();
+
+                if (paymentsAwaitingValidation.Any())
+                {
+                    var distinctClientsCount = paymentsAwaitingValidation
+                        .Where(p => p.Subscription?.Contract?.ClientId != null)
+                        .Select(p => p.Subscription!.Contract!.ClientId)
+                        .Distinct()
+                        .Count();
+                    var paymentCount = paymentsAwaitingValidation.Count;
+                    var count = distinctClientsCount > 0 ? distinctClientsCount : paymentCount;
+                    var message = distinctClientsCount == 0
+                        ? $"{paymentCount} pagamento(s) aguardando validação do comprovante."
+                        : (distinctClientsCount == 1
+                            ? "1 cliente aguardando validação do comprovante de pagamento."
+                            : $"{distinctClientsCount} clientes aguardando validação do comprovante de pagamento ({paymentCount} pagamento(s)).");
+
+                    alerts.Add(new
+                    {
+                        Type = "danger",
+                        Icon = "bi-cash-coin",
+                        Title = "Comprovantes de Pagamento Aguardando Validação",
+                        Message = message,
+                        Count = count,
+                        ActionUrl = Url.Action("Payments", "Admin", new { status = "AwaitingValidation" }),
+                        ActionText = "Ver Pagamentos"
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Log error silently
+            }
+
             ViewBag.AdminAlerts = alerts;
 
             return View();
@@ -367,7 +408,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     case "users":
                         var usersQuery = _context.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).AsQueryable();
-                        
+
                         if (filter == "inactive")
                         {
                             usersQuery = usersQuery.Where(u => !u.IsActive);
@@ -446,8 +487,8 @@ namespace KlyonHubPlatform.Api.Controllers
                             id = c.Id,
                             contractNumber = c.ContractNumber,
                             clientName = c.Client?.RazaoSocial ?? c.Client?.NomeFantasia ?? c.Client?.ContactName ?? "N/A",
-                            location = c.CoworkingAddress?.Location != null 
-                                ? $"{c.CoworkingAddress.Location.City}/{c.CoworkingAddress.Location.State}" 
+                            location = c.CoworkingAddress?.Location != null
+                                ? $"{c.CoworkingAddress.Location.City}/{c.CoworkingAddress.Location.State}"
                                 : "N/A",
                             status = c.Status.ToString(),
                             statusDisplay = c.Status == ContractStatus.Active ? "Ativo" :
@@ -500,8 +541,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         data = payments.Select(p => new
                         {
                             id = p.Id,
-                            clientName = p.Subscription?.Contract?.Client?.RazaoSocial ?? 
-                                       p.Subscription?.Contract?.Client?.NomeFantasia ?? 
+                            clientName = p.Subscription?.Contract?.Client?.RazaoSocial ??
+                                       p.Subscription?.Contract?.Client?.NomeFantasia ??
                                        p.Subscription?.Contract?.Client?.ContactName ?? "N/A",
                             amount = p.Amount,
                             status = p.Status.ToString(),
@@ -558,7 +599,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var users = await _adminService.GetUsersFilteredAsync(search, role, status, emailVerified, page, pageSize);
             var totalItems = await _adminService.GetUsersFilteredCountAsync(search, role, status, emailVerified);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            
+
             ViewBag.Search = search;
             ViewBag.SelectedRole = role;
             ViewBag.Status = status;
@@ -591,13 +632,13 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return NotFound();
             }
-            
+
             var allRoles = await _context.Roles.ToListAsync();
             var userRoles = user.UserRoles.Select(ur => ur.RoleId).ToList();
-            
+
             ViewBag.AllRoles = allRoles;
             ViewBag.UserRoles = userRoles;
-            
+
             return View(user);
         }
 
@@ -639,9 +680,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     var existingUserRoles = await _context.UserRoles
                         .Where(ur => ur.UserId == id)
                         .ToListAsync();
-                    
+
                     _context.UserRoles.RemoveRange(existingUserRoles);
-                    
+
                     foreach (var roleId in roleIds)
                     {
                         var role = await _context.Roles.FindAsync(roleId);
@@ -655,7 +696,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             newRoleNames.Add(role.Name);
                         }
                     }
-                    
+
                     await _context.SaveChangesAsync();
                 }
 
@@ -663,7 +704,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
                 var userAgent = Request.Headers["User-Agent"].ToString();
-                
+
                 await _auditService.LogActionAsync(
                     userId,
                     "Usuário editado (ação administrativa)",
@@ -763,14 +804,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var coworkings = await _adminService.GetCoworkingsFilteredAsync(search, status, isPartner, approvalStatus, page, pageSize);
             var totalItems = await _adminService.GetCoworkingsFilteredCountAsync(search, status, isPartner, approvalStatus);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            
+
             // Carregar contagem de serviços para cada coworking
             Dictionary<int, int> servicesCount = new Dictionary<int, int>();
             // Carregar coworkings com percentagens pendentes (Percentage <= 0)
             Dictionary<int, bool> hasPendingPercentages = new Dictionary<int, bool>();
             // Carregar coworkings com capacidade máxima
             Dictionary<int, bool> hasMaxCapacity = new Dictionary<int, bool>();
-            
+
             if (coworkings != null && coworkings.Any())
             {
                 var coworkingIds = coworkings.Select(c => c.Id).ToList();
@@ -779,34 +820,34 @@ namespace KlyonHubPlatform.Api.Controllers
                     .GroupBy(ps => ps.CoworkingId)
                     .Select(g => new { CoworkingId = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.CoworkingId, x => x.Count);
-                
+
                 // Verificar quais coworkings têm serviços com percentagem pendente (<= 0)
                 var coworkingsWithPendingPercentages = await _context.PartnerServices
                     .Where(ps => coworkingIds.Contains(ps.CoworkingId) && ps.Percentage <= 0)
                     .Select(ps => ps.CoworkingId)
                     .Distinct()
                     .ToListAsync();
-                
+
                 hasPendingPercentages = coworkingIds
                     .ToDictionary(id => id, id => coworkingsWithPendingPercentages.Contains(id));
-                
+
                 // Se veio do alerta de capacidade, identificar coworkings com capacidade máxima
                 if (capacityAlert == "true")
                 {
                     var coworkingsAtMaxCapacity = await _context.CoworkingAddresses
-                        .Where(a => a.AddressStatus == AddressStatus.Active && 
+                        .Where(a => a.AddressStatus == AddressStatus.Active &&
                                    coworkingIds.Contains(a.CoworkingId) &&
                                    ((a.MaxContracts > 0 && a.CurrentContracts >= a.MaxContracts) ||
                                     (a.ApprovedFiscalCapacity > 0 && a.CurrentContracts >= a.ApprovedFiscalCapacity)))
                         .Select(a => a.CoworkingId)
                         .Distinct()
                         .ToListAsync();
-                    
+
                     hasMaxCapacity = coworkingIds
                         .ToDictionary(id => id, id => coworkingsAtMaxCapacity.Contains(id));
                 }
             }
-            
+
             ViewBag.ServicesCount = servicesCount;
             ViewBag.HasPendingPercentages = hasPendingPercentages;
             ViewBag.HasMaxCapacity = hasMaxCapacity;
@@ -900,7 +941,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _context.Coworkings.FindAsync(id);
             if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
-            
+
             // Verificar se tem percentagem configurada antes de aprovar
             var fiscalAddressService = await _context.Services
                 .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
@@ -908,8 +949,8 @@ namespace KlyonHubPlatform.Api.Controllers
             if (fiscalAddressService != null)
             {
                 var partnerService = await _context.PartnerServices
-                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id 
-                        && ps.ServiceId == fiscalAddressService.Id 
+                    .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id
+                        && ps.ServiceId == fiscalAddressService.Id
                         && ps.Percentage > 0);
 
                 if (partnerService == null)
@@ -917,7 +958,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Warning"] = $"Atenção: O coworking '{coworking.Name}' foi aprovado, mas não possui percentagem configurada para o serviço 'Ofertar Endereço Fiscal'. Configure a percentagem para que os endereços fiquem disponíveis para compra.";
                 }
             }
-            
+
             var oldStatus = coworking.ApprovalStatus;
             coworking.ApprovalStatus = CoworkingApprovalStatus.Approved;
             coworking.ApprovedAt = DateTimeHelper.GetBrazilianTime();
@@ -926,27 +967,27 @@ namespace KlyonHubPlatform.Api.Controllers
             coworking.RejectedAt = null;
             coworking.RejectedBy = null;
             coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-            
+
             // Marcar notificação de mudança de status
             coworking.HasPendingStatusNotification = true;
             coworking.LastNotifiedStatus = CoworkingApprovalStatus.Approved;
-            
+
             // Aprovar automaticamente todos os endereços pendentes deste coworking
             var pendingAddresses = await _context.CoworkingAddresses
                 .Where(a => a.CoworkingId == coworking.Id && a.AddressStatus == AddressStatus.PendingApproval)
                 .ToListAsync();
-            
+
             foreach (var address in pendingAddresses)
             {
                 address.AddressStatus = AddressStatus.Active;
                 address.IsAvailable = true;
                 address.UpdatedAt = DateTime.UtcNow;
-                
+
                 // Log de auditoria para cada endereço aprovado
                 await _auditService.LogActionAsync(userId, "AddressStatusChanged", "CoworkingAddress", address.Id,
                     $"{{\"AddressStatus\":\"PendingApproval\"}}", $"{{\"AddressStatus\":\"Active\",\"Reason\":\"Aprovado automaticamente ao aprovar coworking\"}}");
             }
-            
+
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"Approved\"}");
             TempData["Success"] = $"Cadastro de '{coworking.Name}' aprovado. O espaço já está disponível no marketplace.";
@@ -969,11 +1010,11 @@ namespace KlyonHubPlatform.Api.Controllers
             coworking.RejectedAt = DateTimeHelper.GetBrazilianTime();
             coworking.RejectedBy = userId;
             coworking.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-            
+
             // Marcar notificação de mudança de status
             coworking.HasPendingStatusNotification = true;
             coworking.LastNotifiedStatus = CoworkingApprovalStatus.AwaitingAdjustment;
-            
+
             await _context.SaveChangesAsync();
             await _auditService.LogActionAsync(userId, "ApprovalStatusChange", "Coworking", id, "{\"ApprovalStatus\":\"" + oldStatus + "\"}", "{\"ApprovalStatus\":\"AwaitingAdjustment\",\"RejectionReason\":" + System.Text.Json.JsonSerializer.Serialize(coworking.RejectionReason) + "}");
             TempData["Success"] = "Cadastro reprovado. O coworking foi notificado e poderá reenviar após os ajustes.";
@@ -1267,7 +1308,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("ViewCoworking", new { id = coworkingId });
             }
             var oldStatus = address.AddressStatus;
-            
+
             // Quando aprovar (mudar para Active), tornar disponível
             if (newStatus == AddressStatus.Active)
             {
@@ -1284,18 +1325,18 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 address.AddressStatus = newStatus;
             }
-            
+
             address.UpdatedAt = DateTime.UtcNow;
-            
+
             await _context.SaveChangesAsync();
 
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             await _auditService.LogActionAsync(userId, "AddressStatusChanged", "CoworkingAddress", addressId,
                 $"{{\"AddressStatus\":\"{oldStatus}\"}}", $"{{\"AddressStatus\":\"{newStatus}\"}}");
 
-            var label = newStatus == AddressStatus.PendingApproval ? "Pendente aprovação" 
-                : newStatus == AddressStatus.Active ? "Ativo" 
-                : newStatus == AddressStatus.Suspended ? "Suspenso" 
+            var label = newStatus == AddressStatus.PendingApproval ? "Pendente aprovação"
+                : newStatus == AddressStatus.Active ? "Ativo"
+                : newStatus == AddressStatus.Suspended ? "Suspenso"
                 : "Removido";
             TempData["Success"] = $"Status do endereço alterado para {label}.";
             return RedirectToAction("ViewCoworking", new { id = coworkingId });
@@ -1427,10 +1468,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     // Verificar se o CNPJ já está cadastrado em outro coworking
                     var existingCNPJ = await _context.Coworkings
-                        .Where(c => c.Id != Id && c.CNPJ != null && 
+                        .Where(c => c.Id != Id && c.CNPJ != null &&
                             c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
                         .FirstOrDefaultAsync();
-                    
+
                     if (existingCNPJ != null)
                     {
                         TempData["Error"] = $"O CNPJ {CNPJ} já está cadastrado para outro coworking.";
@@ -1509,14 +1550,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         // Verificar se existe PartnerService com percentagem > 0
                         var partnerService = await _context.PartnerServices
-                            .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id 
-                                && ps.ServiceId == fiscalAddressService.Id 
+                            .FirstOrDefaultAsync(ps => ps.CoworkingId == coworking.Id
+                                && ps.ServiceId == fiscalAddressService.Id
                                 && ps.Percentage > 0);
 
                         if (partnerService == null)
                         {
                             TempData["Error"] = $"Não é possível ativar o coworking '{coworking.Name}' porque não possui percentagem informada para o serviço 'Ofertar Endereço Fiscal'. Configure a percentagem antes de ativar.";
-                            return RedirectToAction("Coworkings", new { 
+                            return RedirectToAction("Coworkings", new
+                            {
                                 search = Request.Query["search"],
                                 status = Request.Query["status"],
                                 isPartner = Request.Query["isPartner"],
@@ -1534,7 +1576,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 var statusText = coworking.IsActive ? "ativado" : "inativado";
                 TempData["Success"] = $"Coworking '{coworking.Name}' foi {statusText} com sucesso.";
 
-                return RedirectToAction("Coworkings", new { 
+                return RedirectToAction("Coworkings", new
+                {
                     search = Request.Query["search"],
                     status = Request.Query["status"],
                     isPartner = Request.Query["isPartner"],
@@ -1642,7 +1685,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao criar localidade: {ex.Message}";
-                
+
                 // Recarregar ViewBag para não perder os dados ao retornar a view
                 ViewBag.States = new List<string>
                 {
@@ -1654,7 +1697,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     "Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"
                 };
-                
+
                 return View();
             }
         }
@@ -1894,9 +1937,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     startTime = reservation.StartTime?.ToString(@"hh\:mm"),
                     endTime = reservation.EndTime?.ToString(@"hh\:mm"),
                     roomType = reservation.RoomType,
-                    roomTypeDisplay = reservation.RoomType == "Shared" ? "Sala compartilhada" 
-                        : reservation.RoomType == "Private" ? "Sala privativa" 
-                        : reservation.RoomType == "Auditorium" ? "Auditório" 
+                    roomTypeDisplay = reservation.RoomType == "Shared" ? "Sala compartilhada"
+                        : reservation.RoomType == "Private" ? "Sala privativa"
+                        : reservation.RoomType == "Auditorium" ? "Auditório"
                         : reservation.RoomType,
                     clientConfirmedAt = reservation.ClientConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
                     coworkingConfirmedAt = reservation.CoworkingConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
@@ -2036,22 +2079,22 @@ namespace KlyonHubPlatform.Api.Controllers
                     updatedBy: User.Identity?.Name
                 );
             }
-            
+
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
-            
+
             // Obter o provedor de storage atual
             var currentProvider = await _systemConfigurationService.GetValueAsync("Storage.Provider") ?? "AWS";
-            
+
             // D4Sign: considerar configurado quando TokenAPI e SafeUuid preenchidos
             var d4Token = await _systemConfigurationService.GetValueAsync("D4Sign.TokenAPI");
             var d4Safe = await _systemConfigurationService.GetValueAsync("D4Sign.SafeUuid");
             ViewBag.D4SignConfigured = !string.IsNullOrWhiteSpace(d4Token) && !string.IsNullOrWhiteSpace(d4Safe);
-            
+
             ViewBag.GroupedConfigurations = groupedByCategory;
             ViewBag.Categories = groupedByCategory.Select(g => g.Key).ToList();
             ViewBag.CurrentStorageProvider = currentProvider;
-            
+
             return View(configurations);
         }
 
@@ -2064,7 +2107,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData["Error"] = "Configuração não encontrada.";
                 return RedirectToAction("SystemConfigurations");
             }
-            
+
             return View(configuration);
         }
 
@@ -2140,7 +2183,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     var existing = await _context.SystemConfigurations
                         .FirstOrDefaultAsync(c => c.Key == config.Key);
-                    
+
                     if (existing != null)
                     {
                         existing.Value = config.Value;
@@ -2280,7 +2323,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Credenciais Sandbox fornecidas pelo usuário
                 // Email: hudsonlope@gmail.com (usado apenas para login no painel, não na API)
                 // Token: db3453dd-8c96-46c8-9c91-b5549372ed51c6e68eb54829b960fbe67c1d261e73a27c75-0f2a-47d9-9fbe-da8211abbff4
-                
+
                 // Atualizar configurações do PagBank para Sandbox
                 var configs = new Dictionary<string, string>
                 {
@@ -2292,7 +2335,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     var existing = await _context.SystemConfigurations
                         .FirstOrDefaultAsync(c => c.Key == config.Key);
-                    
+
                     if (existing != null)
                     {
                         existing.Value = config.Value;
@@ -2344,16 +2387,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Verificar se as configurações estão definidas
                 var accessToken = await _systemConfigurationService.GetValueAsync("PagBank.AccessToken");
                 var useSandbox = await _systemConfigurationService.GetValueAsync("PagBank.UseSandbox");
-                
+
                 if (string.IsNullOrEmpty(accessToken))
                 {
                     TempData["Error"] = "Token de acesso PagBank não configurado. Configure primeiro em 'Configurar PagBank Sandbox'.";
                     return RedirectToAction("SystemConfigurations");
                 }
-                
+
                 var isSandbox = useSandbox?.ToLower() == "true";
                 var environment = isSandbox ? "Sandbox (Testes)" : "Produção";
-                
+
                 // Tentar fazer uma requisição simples para testar a conexão
                 // Vamos tentar criar um pedido de teste muito pequeno (R$ 0,01)
                 var testOrder = await _pagBankService.CreateOrderAsync(
@@ -2386,7 +2429,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     errorMessage = "Token sem permissões suficientes. Verifique as permissões do token no painel do PagBank.";
                 }
-                
+
                 TempData["Error"] = $"❌ Erro ao validar conexão PagBank: {errorMessage}";
                 return RedirectToAction("SystemConfigurations");
             }
@@ -2408,7 +2451,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Filtro de busca
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(p => 
+                query = query.Where(p =>
                     p.ExternalPaymentId.Contains(search) ||
                     (p.TransactionId != null && p.TransactionId.Contains(search)) ||
                     p.Subscription.Contract.ContractNumber.Contains(search) ||
@@ -2701,14 +2744,14 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var msg = ex.Message;
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
-                
+
                 // Tratamento específico para erro de tabela já existente
                 if (msg.Contains("already exists") || msg.Contains("Table") && msg.Contains("exists"))
                 {
                     // Tentar identificar qual migration causou o erro e marcá-la como aplicada
                     var pending = await _context.Database.GetPendingMigrationsAsync();
                     var pendingList = pending.ToList();
-                    
+
                     // Se o erro menciona CreditPlans, marcar a migration correspondente
                     if (msg.Contains("creditplans", StringComparison.OrdinalIgnoreCase) || msg.Contains("CreditPlans"))
                     {
@@ -2724,7 +2767,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         }
                     }
                 }
-                
+
                 TempData["Error"] = "Erro ao executar migrations: " + msg;
             }
             return RedirectToAction("DatabaseManager");
@@ -2972,9 +3015,9 @@ namespace KlyonHubPlatform.Api.Controllers
                                 FROM information_schema.tables 
                                 WHERE table_schema = DATABASE() 
                                 AND table_name = '{tableName}'";
-                            
+
                             var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                            
+
                             if (exists)
                             {
                                 // Contar registros antes de limpar
@@ -2986,7 +3029,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                 using var deleteCmd = connection.CreateCommand();
                                 deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
                                 var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
-                                
+
                                 clearedTables.Add($"{tableName} ({rowsDeleted} registro(s) removido(s))");
                             }
                         }
@@ -3225,7 +3268,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Verificar se a tabela já existe
                 var connection = _context.Database.GetDbConnection();
                 await connection.OpenAsync();
-                
+
                 bool tableExists = false;
                 try
                 {
@@ -3235,7 +3278,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         FROM information_schema.tables 
                         WHERE table_schema = DATABASE() 
                         AND table_name = 'Interests'";
-                    
+
                     var result = await checkCommand.ExecuteScalarAsync();
                     tableExists = Convert.ToInt32(result) > 0;
                 }
@@ -3300,7 +3343,7 @@ CREATE TABLE IF NOT EXISTS Interests (
                 // Verificar se a tabela já existe
                 var connection = _context.Database.GetDbConnection();
                 await connection.OpenAsync();
-                
+
                 bool tableExists = false;
                 try
                 {
@@ -3310,7 +3353,7 @@ CREATE TABLE IF NOT EXISTS Interests (
                         FROM information_schema.tables 
                         WHERE table_schema = DATABASE() 
                         AND table_name = 'CoworkingProducts'";
-                    
+
                     var result = await checkCommand.ExecuteScalarAsync();
                     tableExists = Convert.ToInt32(result) > 0;
                 }
@@ -3434,20 +3477,20 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 // Preservar apenas o usuário admin e seus roles antes de limpar
                 var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com");
                 var adminUserRolePairs = new List<(int UserId, int RoleId)>();
-                
+
                 if (adminUser != null)
                 {
                     var adminRoles = await _context.UserRoles
                         .Where(ur => ur.UserId == adminUser.Id)
                         .ToListAsync();
-                    
+
                     adminUserRolePairs = adminRoles.Select(ur => (ur.UserId, ur.RoleId)).ToList();
                 }
 
                 // Limpar todas as tabelas usando uma abordagem mais robusta
                 var connection = _context.Database.GetDbConnection();
                 await connection.OpenAsync();
-                
+
                 foreach (var tableName in tablesToClear)
                 {
                     try
@@ -3459,16 +3502,16 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                             FROM information_schema.tables 
                             WHERE table_schema = DATABASE() 
                             AND table_name = '{tableName}'";
-                        
+
                         var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                        
+
                         if (exists)
                         {
                             // Limpar dados da tabela usando DELETE (mais seguro que TRUNCATE com foreign keys)
                             using var deleteCmd = connection.CreateCommand();
                             deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
                             var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
-                            
+
                             // Resetar AUTO_INCREMENT após DELETE para evitar problemas com IDs
                             try
                             {
@@ -3481,7 +3524,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                                 // Algumas tabelas podem não ter AUTO_INCREMENT, ignorar erro
                                 System.Diagnostics.Debug.WriteLine($"Aviso: Não foi possível resetar AUTO_INCREMENT da tabela {tableName}: {resetEx.Message}");
                             }
-                            
+
                             clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
                         }
                     }
@@ -3502,7 +3545,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                         }
                     }
                 }
-                
+
                 await connection.CloseAsync();
 
                 // Limpar UserRoles e Users preservando o admin
@@ -3519,7 +3562,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     {
                         errors.Add($"UserRoles: {ex.Message}");
                     }
-                    
+
                     // Remover todos os usuários exceto o admin
                     try
                     {
@@ -3550,7 +3593,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 var tablesToResetAutoIncrement = new[] { "AuditLogs", "Users", "Roles", "Clients", "Coworkings", "Contracts", "Payments", "Subscriptions", "Locations", "Services", "SystemConfigurations", "Languages", "LocationCommissions", "UserRoles" };
                 var wasConnectionOpen = connection.State == System.Data.ConnectionState.Open;
                 if (!wasConnectionOpen) await connection.OpenAsync();
-                
+
                 try
                 {
                     foreach (var tableName in tablesToResetAutoIncrement)
@@ -3568,9 +3611,9 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                                 AND table_name = '{escapedTableName}' 
                                 AND column_name = 'Id' 
                                 AND extra LIKE '%auto_increment%'";
-                            
+
                             var hasAutoIncrement = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                            
+
                             if (hasAutoIncrement)
                             {
                                 using var resetCmd = connection.CreateCommand();
@@ -3642,7 +3685,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
 
             // Validações de segurança básicas
             var upperQuery = sqlQuery.ToUpper().Trim();
-            
+
             // Bloquear operações perigosas
             var blockedKeywords = new[] { "DROP DATABASE", "DROP TABLE", "TRUNCATE", "DELETE FROM", "UPDATE", "ALTER DATABASE" };
             if (blockedKeywords.Any(keyword => upperQuery.Contains(keyword)))
@@ -3650,7 +3693,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 TempData["Error"] = "Operações perigosas não são permitidas. Use apenas ALTER TABLE, CREATE TABLE, ADD COLUMN ou SELECT.";
                 return RedirectToAction("DatabaseManager");
             }
-            
+
             // Permitir apenas operações seguras
             var allowedKeywords = new[] { "ALTER TABLE", "CREATE TABLE", "CREATE INDEX", "ADD COLUMN", "ADD", "SELECT", "SHOW", "DESCRIBE", "DESC" };
             if (!allowedKeywords.Any(keyword => upperQuery.Contains(keyword)))
@@ -3672,13 +3715,13 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 var rowsAffected = 0;
 
                 // Verificar se é uma query SELECT, SHOW ou DESCRIBE
-                if (upperQuery.TrimStart().StartsWith("SELECT") || 
-                    upperQuery.TrimStart().StartsWith("SHOW") || 
+                if (upperQuery.TrimStart().StartsWith("SELECT") ||
+                    upperQuery.TrimStart().StartsWith("SHOW") ||
                     upperQuery.TrimStart().StartsWith("DESCRIBE") ||
                     upperQuery.TrimStart().StartsWith("DESC"))
                 {
                     using var reader = await command.ExecuteReaderAsync();
-                    
+
                     if (reader.HasRows)
                     {
                         // Cabeçalho das colunas
@@ -3708,7 +3751,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                             result.AppendLine(string.Join(" | ", row));
                             rowCount++;
                         }
-                        
+
                         if (rowCount >= 1000)
                         {
                             result.AppendLine($"\n... (limitado a 1000 linhas)");
@@ -3750,7 +3793,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             {
                 var connection = _context.Database.GetDbConnection();
                 await connection.OpenAsync();
-                
+
                 bool tableExists = false;
                 try
                 {
@@ -3760,7 +3803,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                         FROM information_schema.tables 
                         WHERE table_schema = DATABASE() 
                         AND table_name = 'CoworkingRatings'";
-                    
+
                     var result = await checkCommand.ExecuteScalarAsync();
                     tableExists = Convert.ToInt32(result) > 0;
                 }
@@ -3989,9 +4032,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             WHERE TABLE_SCHEMA = DATABASE() 
                             AND TABLE_NAME = 'CoworkingAddresses' 
                             AND COLUMN_NAME = '{columnName}'";
-                        
+
                         var exists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
-                        
+
                         if (!exists)
                         {
                             using var addCommand = connection.CreateCommand();
@@ -4046,9 +4089,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             WHERE TABLE_SCHEMA = DATABASE() 
                             AND TABLE_NAME = 'Reservations' 
                             AND COLUMN_NAME = '{columnName}'";
-                        
+
                         var exists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
-                        
+
                         if (!exists)
                         {
                             using var addCommand = connection.CreateCommand();
@@ -4263,8 +4306,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 await _context.SaveChangesAsync();
 
                 // Registrar no audit log
-                await _auditService.LogActionAsync(userId, "ServiceRemovalApproved", "PartnerService", partnerServiceId, 
-                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}", 
+                await _auditService.LogActionAsync(userId, "ServiceRemovalApproved", "PartnerService", partnerServiceId,
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}",
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Approved\",\"Removed\":true}}");
 
                 TempData["Success"] = $"Remoção do serviço '{serviceName}' do parceiro '{coworkingName}' aprovada e executada com sucesso!";
@@ -4320,8 +4363,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 await _context.SaveChangesAsync();
 
                 // Registrar no audit log
-                await _auditService.LogActionAsync(userId, "ServiceRemovalRejected", "PartnerService", partnerServiceId, 
-                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}", 
+                await _auditService.LogActionAsync(userId, "ServiceRemovalRejected", "PartnerService", partnerServiceId,
+                    $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}",
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Rejected\",\"Reason\":\"{rejectionReason}\"}}");
 
                 TempData["Success"] = $"Solicitação de remoção do serviço '{serviceName}' do parceiro '{coworkingName}' rejeitada.";
@@ -5113,7 +5156,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
 
                 var result = await _sefazService.CancelFiscalNoteAsync(fiscalNoteId, cancellationReason);
-                
+
                 if (result)
                 {
                     TempData["Success"] = "Nota fiscal cancelada com sucesso!";
@@ -5206,7 +5249,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .ThenInclude(p => p.Reservation)
                         .ThenInclude(r => r.Client)
                 .Include(c => c.Coworking)
-                .Where(c => !_context.FiscalNotes.Any(fn => 
+                .Where(c => !_context.FiscalNotes.Any(fn =>
                     (fn.PaymentId == c.PaymentId && fn.Type == "Intermediacao") ||
                     (fn.CommissionAmount == c.Amount && fn.CoworkingId == c.CoworkingId && fn.Type == "Intermediacao")
                 ))
@@ -5219,7 +5262,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
             if (clientId.HasValue)
             {
-                query = query.Where(c => 
+                query = query.Where(c =>
                     (c.Payment.Subscription != null && c.Payment.Subscription.Contract != null && c.Payment.Subscription.Contract.ClientId == clientId.Value) ||
                     (c.Payment.Reservation != null && c.Payment.Reservation.ClientId == clientId.Value)
                 );
@@ -5293,7 +5336,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
                 // Verificar se já existe NF emitida para esta comissão
                 var existingNote = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => 
+                    .FirstOrDefaultAsync(fn =>
                         (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
                         (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao" && fn.Status == "Emitida")
                     );
@@ -5409,7 +5452,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
                 // Verificar se já existe NF emitida para esta comissão
                 var existingNote = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => 
+                    .FirstOrDefaultAsync(fn =>
                         (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
                         (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao")
                     );
@@ -5649,10 +5692,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Reservation)
                             .ThenInclude(r => r.CoworkingAddress)
-                    .Where(c => c.CoworkingId == transfer.CoworkingId 
-                        && c.IsTransferred 
+                    .Where(c => c.CoworkingId == transfer.CoworkingId
+                        && c.IsTransferred
                         && c.TransferredAt.HasValue
-                        && c.TransferredAt >= transferDateStart 
+                        && c.TransferredAt >= transferDateStart
                         && c.TransferredAt <= transferDateEnd)
                     .OrderByDescending(c => c.CreatedAt)
                     .ToListAsync();
@@ -5861,10 +5904,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 else
                 {
                     // Gerar senha com 4 primeiras letras do email
-                    var defaultPassword = contactEmail.Length >= 4 
-                        ? contactEmail.Substring(0, 4).ToLower() 
+                    var defaultPassword = contactEmail.Length >= 4
+                        ? contactEmail.Substring(0, 4).ToLower()
                         : contactEmail.ToLower();
-                    
+
                     // Criar novo usuário
                     var passwordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword);
                     user = new User
@@ -5916,10 +5959,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     {
                         // Verificar duplicação
                         var existingCNPJ = await _context.Clients
-                            .Where(c => c.CNPJ != null && 
+                            .Where(c => c.CNPJ != null &&
                                 c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
                             .FirstOrDefaultAsync();
-                        
+
                         if (existingCNPJ != null)
                         {
                             TempData["Error"] = $"O CNPJ {cnpj} já está cadastrado para outro cliente.";
@@ -5937,10 +5980,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     {
                         // Verificar duplicação
                         var existingCPF = await _context.Clients
-                            .Where(c => c.CPF != null && 
+                            .Where(c => c.CPF != null &&
                                 c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean)
                             .FirstOrDefaultAsync();
-                        
+
                         if (existingCPF != null)
                         {
                             TempData["Error"] = $"O CPF {cpf} já está cadastrado para outro cliente.";
@@ -5973,7 +6016,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 // Buscar o pagamento criado para gerar o código PIX
                 var subscription = await _context.Subscriptions
                     .FirstOrDefaultAsync(s => s.ContractId == contract.Id);
-                
+
                 Payment? payment = null;
                 if (subscription != null)
                 {
@@ -5981,7 +6024,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         .Where(p => p.SubscriptionId == subscription.Id && p.Status == PaymentStatus.Pending)
                         .OrderByDescending(p => p.CreatedAt)
                         .FirstOrDefaultAsync();
-                    
+
                     if (payment != null)
                     {
                         try
@@ -6005,18 +6048,18 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     try
                     {
                         var baseUrl = await _systemConfigurationService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
-                        var defaultPassword = contactEmail.Length >= 4 
-                            ? contactEmail.Substring(0, 4).ToLower() 
+                        var defaultPassword = contactEmail.Length >= 4
+                            ? contactEmail.Substring(0, 4).ToLower()
                             : contactEmail.ToLower();
-                        
+
                         // Criar token de autenticação automática usando PasswordResetToken
                         var authToken = Guid.NewGuid().ToString();
                         user.PasswordResetToken = authToken;
                         user.PasswordResetExpires = DateTimeHelper.GetBrazilianTime().AddDays(7); // Token válido por 7 dias
                         await _context.SaveChangesAsync();
-                        
+
                         var paymentDetailsUrl = $"{baseUrl}/Auth/AutoLogin?token={authToken}&redirect=/Client/PaymentDetails/{payment.Id}";
-                        
+
                         await _emailService.SendClientCredentialsEmailAsync(
                             contactEmail,
                             contactName,
@@ -6094,13 +6137,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-                var coworkingServiceNames = new[]
-                {
-                    "Aluguel de Auditório",
-                    "Aluguel de Sala Compartilhada",
-                    "Aluguel de Sala Particular",
-                    "Reservar Sala"
-                };
+                var inactiveServices = _context.Services.Where(ps => !ps.IsActive).Select(x => x.Name).ToList();
 
                 // Carregar serviços do parceiro
                 var partnerServicesQuery = _context.PartnerServices
@@ -6108,7 +6145,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .Where(ps => ps.CoworkingId == coworkingId && ps.Service != null && ps.Service.IsActive);
 
                 if (!showCoworkingMenus)
-                    partnerServicesQuery = partnerServicesQuery.Where(ps => ps.Service != null && !coworkingServiceNames.Contains(ps.Service.Name));
+                    partnerServicesQuery = partnerServicesQuery.Where(ps => ps.Service != null && !inactiveServices.Contains(ps.Service.Name));
 
                 var partnerServices = await partnerServicesQuery
                     .OrderBy(ps => ps.Service.DisplayOrder)
@@ -6126,7 +6163,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 // Carregar serviços disponíveis para adicionar
                 IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive);
                 if (!showCoworkingMenus)
-                    servicesQuery = servicesQuery.Where(s => !coworkingServiceNames.Contains(s.Name));
+                    servicesQuery = servicesQuery.Where(s => !inactiveServices.Contains(s.Name));
 
                 var existingServiceIds = partnerServices.Select(ps => ps.serviceId).ToList();
                 var availableServices = await servicesQuery

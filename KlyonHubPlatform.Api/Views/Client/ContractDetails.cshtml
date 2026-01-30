@@ -43,9 +43,18 @@
                                     break;
 
                                 case ContractStatus.PendingPayment:
-                                    <span class="badge bg-pending-payment">
-                                        <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
-                                    </span>
+                                    @if (ViewBag.HasPaymentAwaitingValidation == true)
+                                    {
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-clock-history me-1"></i> Aguardando Validação
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-pending-payment">
+                                            <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                        </span>
+                                    }
                                     break;
 
                                 case ContractStatus.PendingCancellation:
@@ -118,20 +127,43 @@
 
         @if (Model.Status == ContractStatus.PendingPayment)
         {
+            var hasPaymentAwaitingValidation = ViewBag.HasPaymentAwaitingValidation == true;
+            var paymentAwaitingValidationId = ViewBag.PaymentAwaitingValidationId as int?;
             <div class="card mb-4">
-                <div class="card-header bg-warning">
-                    <h5><i class="bi bi-cash-coin"></i> Pagamento Pendente</h5>
+                <div class="card-header @(hasPaymentAwaitingValidation ? "bg-info" : "bg-warning")">
+                    <h5><i class="bi @(hasPaymentAwaitingValidation ? "bi-clock-history" : "bi-cash-coin")"></i> @(hasPaymentAwaitingValidation ? "Comprovante Aguardando Validação" : "Pagamento Pendente")</h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-warning">
-                        <i class="bi bi-info-circle"></i> <strong>Este contrato está aguardando pagamento.</strong>
-                    </div>
-                    <p class="text-muted mb-3">
-                        Para ativar seu contrato, realize o pagamento através da página de pagamentos.
-                    </p>
-                    <a href="@Url.Action("MyPayments", "Client")" class="btn btn-primary">
-                        <i class="bi bi-credit-card"></i> Ir para Pagamentos
-                    </a>
+                    @if (hasPaymentAwaitingValidation)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Seu comprovante de pagamento foi enviado e está aguardando validação pela administração.</strong>
+                        </div>
+                        <p class="text-muted mb-3">
+                            O status será atualizado assim que o comprovante for validado. Você pode acompanhar na página de pagamentos.
+                        </p>
+                        if (paymentAwaitingValidationId.HasValue)
+                        {
+                            <a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn btn-info">
+                                <i class="bi bi-eye"></i> Ver Detalhes do Pagamento
+                            </a>
+                        }
+                        <a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-primary ms-2">
+                                <i class="bi bi-credit-card"></i> Ir para Pagamentos
+                            </a>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle"></i> <strong>Este contrato está aguardando pagamento.</strong>
+                        </div>
+                        <p class="text-muted mb-3">
+                            Para ativar seu contrato, realize o pagamento através da página de pagamentos.
+                        </p>
+                        <a href="@Url.Action("MyPayments", "Client")" class="btn btn-primary">
+                            <i class="bi bi-credit-card"></i> Ir para Pagamentos
+                        </a>
+                    }
                 </div>
             </div>
         }
