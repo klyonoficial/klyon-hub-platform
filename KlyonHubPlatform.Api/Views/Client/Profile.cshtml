@@ -6,7 +6,7 @@
 @model KlyonHubPlatform.Domain.Entities.Client
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-person-badge"></i> Meu Perfil</h2>
+    <h2 id="clientProfileTitle"><i class="bi bi-person-badge"></i> Meu Perfil@(string.IsNullOrWhiteSpace(Model?.ContactName) ? "" : " - " + Model.ContactName)</h2>
 </div>
 
 <div class="card">
@@ -14,7 +14,7 @@
         <h5><i class="bi bi-person"></i> Dados Cadastrais</h5>
     </div>
     <div class="card-body">
-        <form method="post" action="@Url.Action("UpdateProfile", "Client")" enctype="multipart/form-data">
+        <form method="post" action="@Url.Action("UpdateProfile", "Client")" enctype="multipart/form-data" id="clientProfileForm">
             @Html.AntiForgeryToken()
             
             <!-- Seção de Logo -->
@@ -173,3 +173,66 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('clientProfileForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Salvando...';
+        }
+        var formData = new FormData(form);
+        var actionUrl = form.action;
+        var tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
+        var headers = { 'X-Requested-With': 'XMLHttpRequest' };
+        if (tokenEl && tokenEl.value) headers['RequestVerificationToken'] = tokenEl.value;
+        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
+        fetch(actionUrl, {
+            method: 'POST',
+            body: formData,
+            headers: headers,
+            redirect: 'manual',
+            credentials: 'same-origin'
+        })
+        .then(function(response) {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
+            var contentType = response.headers.get('content-type') || '';
+            if (contentType.indexOf('application/json') !== -1)
+                return response.json();
+            return response.text().then(function() { return { success: false, error: 'Resposta inválida do servidor. Tente novamente.' }; });
+        })
+        .then(function(data) {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Salvar Alterações';
+            }
+            if (!data) return;
+            if (data.success === true) {
+                if (typeof showToast === 'function') showToast(data.message || 'Perfil atualizado com sucesso!', 'success');
+                if (data.contactName) {
+                    var userNameLink = document.getElementById('userNameLink');
+                    if (userNameLink) userNameLink.textContent = data.contactName;
+                    var titleEl = document.getElementById('clientProfileTitle');
+                    if (titleEl) titleEl.innerHTML = '<i class="bi bi-person-badge"></i> Meu Perfil - ' + data.contactName;
+                }
+            } else if (data.success === false && data.error) {
+                if (typeof showToast === 'function') showToast(data.error, 'error');
+            }
+        })
+        .catch(function() {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Salvar Alterações';
+            }
+            if (typeof showToast === 'function') showToast('Erro ao processar. Tente novamente.', 'error');
+        });
+    });
+});
+</script>
+}

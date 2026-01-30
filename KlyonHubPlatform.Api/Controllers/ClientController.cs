@@ -1,22 +1,17 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using System.Security.Claims;
-using System.IO;
-using Microsoft.AspNetCore.Http;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
-using KlyonHubPlatform.Domain.Core.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
-using MySqlConnector;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
 using ClientCredit = KlyonHubPlatform.Domain.Entities.ClientCredit;
-using CreditPlan = KlyonHubPlatform.Domain.Entities.CreditPlan;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -437,10 +432,28 @@ namespace KlyonHubPlatform.Api.Controllers
             return File(fileBytes, contentType);
         }
 
+        private async Task RefreshUserPrincipalAsync(User user)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email ?? ""),
+                new Claim(ClaimTypes.Name, user.FullName ?? "")
+            };
+            foreach (var roleClaim in User.FindAll(ClaimTypes.Role))
+                claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
+            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            if (!string.IsNullOrEmpty(user.FullName))
+                HttpContext.Session.SetString("UserName", user.FullName);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo)
         {
+            var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -449,7 +462,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
                 if (existingClient == null)
                 {
-                    TempData["Error"] = "Cliente não encontrado.";
+                    var err = "Cliente não encontrado.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
                 }
 
@@ -464,6 +479,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (!cnpjValidation.isValid || cnpjValidation.type != "CNPJ")
                     {
                         TempData["Error"] = cnpjValidation.message;
+                        if (isAjaxRequest) return Json(new { success = false, error = cnpjValidation.message });
                         return RedirectToAction("Profile");
                     }
 
@@ -478,7 +494,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (existingCNPJ != null)
                     {
-                        TempData["Error"] = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
+                        var err = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
+                        TempData["Error"] = err;
+                        if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction("Profile");
                     }
                     
@@ -499,6 +517,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (!cpfValidation.isValid || cpfValidation.type != "CPF")
                     {
                         TempData["Error"] = cpfValidation.message;
+                        if (isAjaxRequest) return Json(new { success = false, error = cpfValidation.message });
                         return RedirectToAction("Profile");
                     }
 
@@ -513,7 +532,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (existingCPF != null)
                     {
-                        TempData["Error"] = $"O CPF {client.CPF} já está cadastrado no sistema.";
+                        var err = $"O CPF {client.CPF} já está cadastrado no sistema.";
+                        TempData["Error"] = err;
+                        if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction("Profile");
                     }
                     
@@ -530,21 +551,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 // CPF é obrigatório (mesmo padrão da tela RegisterClient)
                 if (string.IsNullOrWhiteSpace(client.CPF))
                 {
-                    TempData["Error"] = "O CPF é obrigatório.";
+                    var err = "O CPF é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
                 }
 
                 // Estado é obrigatório (mesmo padrão da tela RegisterClient)
                 if (string.IsNullOrWhiteSpace(client.State))
                 {
-                    TempData["Error"] = "O Estado é obrigatório.";
+                    var err = "O Estado é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
                 }
 
                 // Telefone é obrigatório (mesmo padrão da tela RegisterClient)
                 if (string.IsNullOrWhiteSpace(client.ContactPhone))
                 {
-                    TempData["Error"] = "O Telefone é obrigatório.";
+                    var err = "O Telefone é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
+                    return RedirectToAction("Profile");
+                }
+
+                // Nome Completo é obrigatório
+                if (string.IsNullOrWhiteSpace(client.ContactName))
+                {
+                    var err = "O Nome Completo é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
                 }
 
@@ -553,6 +589,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingClient.NomeFantasia = client.NomeFantasia;
                 existingClient.ContactName = client.ContactName;
                 existingClient.ContactEmail = userEmail; // Sempre usar o email do usuário logado
+
+                // Sincronizar FullName na tabela Users (persistido junto com o Client em um único SaveChanges no final)
+                var userToUpdate = await _context.Users.FindAsync(userId);
+                if (userToUpdate != null && !string.IsNullOrWhiteSpace(client.ContactName))
+                {
+                    userToUpdate.FullName = client.ContactName.Trim();
+                    userToUpdate.UpdatedAt = DateTime.UtcNow;
+                }
                 
                 // Remover máscaras do telefone e CEP antes de salvar (mantendo consistência com RegisterClient)
                 if (!string.IsNullOrEmpty(client.ContactPhone))
@@ -585,7 +629,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (!allowedExtensions.Contains(fileExtension))
                     {
-                        TempData["Error"] = "Formato de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.";
+                        var err = "Formato de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.";
+                        TempData["Error"] = err;
+                        if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction("Profile");
                     }
                     
@@ -593,7 +639,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     var maxMb = (int)(maxBytes / (1024 * 1024));
                     if (Logo.Length > maxBytes)
                     {
-                        TempData["Error"] = $"O arquivo é muito grande. O tamanho máximo é {maxMb}MB. (Configurável em Admin > Configurações > Upload.MaxPhotoSizeMB)";
+                        var err = $"O arquivo é muito grande. O tamanho máximo é {maxMb}MB. (Configurável em Admin > Configurações > Upload.MaxPhotoSizeMB)";
+                        TempData["Error"] = err;
+                        if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction("Profile");
                     }
                     
@@ -614,7 +662,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     catch (Exception ex)
                     {
-                        TempData["Error"] = $"Erro ao fazer upload da logo: {ex.Message}";
+                        var err = $"Erro ao fazer upload da logo: {ex.Message}";
+                        TempData["Error"] = err;
+                        if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction("Profile");
                     }
                 }
@@ -623,17 +673,26 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                if (userToUpdate != null)
+                    await RefreshUserPrincipalAsync(userToUpdate);
+
+                if (isAjaxRequest)
+                    return Json(new { success = true, message = "Perfil atualizado com sucesso!", contactName = existingClient.ContactName });
                 TempData["Success"] = "Perfil atualizado com sucesso!";
                 return RedirectToAction("Profile");
             }
             catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Message.Contains("Duplicate entry"))
             {
-                TempData["Error"] = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
+                var err = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
+                TempData["Error"] = err;
+                if (isAjaxRequest) return Json(new { success = false, error = err });
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao atualizar perfil: {ex.Message}";
+                var err = $"Erro ao atualizar perfil: {ex.Message}";
+                TempData["Error"] = err;
+                if (isAjaxRequest) return Json(new { success = false, error = err });
                 return RedirectToAction("Profile");
             }
         }
@@ -810,7 +869,13 @@ namespace KlyonHubPlatform.Api.Controllers
                         existingClient.ZipCode = existingClient.ZipCode.Replace("-", "");
                     }
                     
+                    // Sincronizar Nome Completo na tabela Users e atualizar a sessão (mesmo comportamento do Profile)
+                    if (existingClient.User != null)
+                        existingClient.User.FullName = existingClient.ContactName ?? "";
+                    
                     await _context.SaveChangesAsync();
+                    if (!isAdmin && existingClient.User != null)
+                        await RefreshUserPrincipalAsync(existingClient.User);
                     TempData["Success"] = "Cliente atualizado com sucesso!";
                     
                     if (isAdmin)
@@ -934,6 +999,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 _context.Clients.Add(client);
                 await _context.SaveChangesAsync();
+
+                // Sincronizar Nome Completo na tabela Users e atualizar a sessão (mesmo comportamento do Profile)
+                var userForNewClient = await _context.Users.FindAsync(userId);
+                if (userForNewClient != null && !string.IsNullOrWhiteSpace(client.ContactName))
+                {
+                    userForNewClient.FullName = client.ContactName;
+                    await _context.SaveChangesAsync();
+                    await RefreshUserPrincipalAsync(userForNewClient);
+                }
 
                 TempData["Success"] = "Cadastro realizado com sucesso!";
                 return RedirectToAction("DashboardDetails");
