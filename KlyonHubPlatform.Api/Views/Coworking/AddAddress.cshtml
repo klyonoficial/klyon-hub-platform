@@ -17,23 +17,13 @@
         <form method="post" action="/Parceiro/AddAddress">
             <!-- CEP como primeiro campo -->
             <div class="row">
-                <div class="col-md-4 mb-3">
+                <div class="col-md-12 mb-3">
                     <label for="ZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="ZipCode" name="ZipCode" 
                            placeholder="00000-000" maxlength="9" required
                            onkeypress="return onlyNumbers(event)"
                            onblur="buscarCEP(this.value)">
                     <small class="form-text text-muted">Digite o CEP para buscar o endereço automaticamente</small>
-                </div>
-                <div class="col-md-8 mb-3">
-                    <label for="LocationId" class="form-label">Localidade <span class="text-danger">*</span></label>
-                    <select class="form-select" id="LocationId" name="LocationId" required onchange="preencherEstado()">
-                        <option value="">Selecione a localidade...</option>
-                        @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location>)
-                        {
-                            <option value="@location.Id" data-state="@location.State">@location.City/@location.State</option>
-                        }
-                    </select>
                 </div>
             </div>
 
@@ -61,11 +51,18 @@
                 </div>
             </div>
 
-            <!-- Cidade e Estado -->
+            <!-- Cidade (select de Localidade) e Estado -->
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="City" class="form-label">Cidade <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="City" name="City" required>
+                    <label for="LocationId" class="form-label">Cidade <span class="text-danger">*</span></label>
+                    <select class="form-select" id="LocationId" name="locationId" required onchange="onCidadeLocalidadeChange()">
+                        <option value="">Selecione a cidade...</option>
+                        @foreach (var location in ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location>)
+                        {
+                            <option value="@location.Id" data-state="@location.State" data-city="@location.City">@(location.City)/@(location.State)</option>
+                        }
+                    </select>
+                    <input type="hidden" id="City" name="city" value="">
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="State" class="form-label">Estado (UF) <span class="text-danger">*</span></label>
@@ -171,6 +168,10 @@ async function buscarCEP(cep) {
             document.getElementById('Neighborhood').value = data.bairro || '';
             document.getElementById('City').value = data.localidade || '';
             document.getElementById('State').value = data.uf || '';
+            // Select2: atualizar a exibição quando o valor é definido por script (ex.: busca CEP)
+            if (data.uf && typeof $ !== 'undefined' && $('#State').hasClass('select2-hidden-accessible')) {
+                $('#State').val(data.uf).trigger('change');
+            }
             
             // Se o estado foi preenchido e há uma localidade selecionada, verificar compatibilidade
             const locationSelect = document.getElementById('LocationId');
@@ -190,18 +191,29 @@ async function buscarCEP(cep) {
     }
 }
 
-// Preencher estado quando selecionar localidade
-function preencherEstado() {
+// Ao escolher a cidade (select de Localidade): preenche campo Cidade (descrição antes da "/") e Estado; locationId segue no value do select
+function onCidadeLocalidadeChange() {
     const locationSelect = document.getElementById('LocationId');
+    const cityInput = document.getElementById('City');
     const stateSelect = document.getElementById('State');
     
     if (locationSelect.value) {
         const selectedOption = locationSelect.options[locationSelect.selectedIndex];
+        const cityPart = selectedOption.getAttribute('data-city'); // descrição antes da "/"
         const state = selectedOption.getAttribute('data-state');
         
+        if (cityPart) {
+            cityInput.value = cityPart;
+        }
         if (state) {
             stateSelect.value = state;
+            // Select2: atualizar a exibição quando o valor é definido por script
+            if (typeof $ !== 'undefined' && $('#State').hasClass('select2-hidden-accessible')) {
+                $('#State').val(state).trigger('change');
+            }
         }
+    } else {
+        cityInput.value = '';
     }
 }
 

@@ -225,7 +225,8 @@ namespace KlyonHubPlatform.Application.Services
                     Route = "/Home/Marketplace",
                     DisplayOrder = 1,
                     IsActive = true,
-                    ImageUrl = "/images/services/sala-compartilhada.svg"
+                    ImageUrl = "/images/services/sala-compartilhada.svg",
+                    Category = CategoryService.ClientAndPartner
                 },
                 new Service
                 {
@@ -235,7 +236,8 @@ namespace KlyonHubPlatform.Application.Services
                     Route = "/Home/Marketplace",
                     DisplayOrder = 2,
                     IsActive = true,
-                    ImageUrl = "/images/services/sala-particular.svg"
+                    ImageUrl = "/images/services/sala-particular.svg",
+                    Category = CategoryService.ClientAndPartner
                 },
                 new Service
                 {
@@ -245,7 +247,8 @@ namespace KlyonHubPlatform.Application.Services
                     Route = "/Home/Marketplace",
                     DisplayOrder = 3,
                     IsActive = true,
-                    ImageUrl = "/images/services/auditorio.svg"
+                    ImageUrl = "/images/services/auditorio.svg",
+                    Category = CategoryService.ClientAndPartner
                 },
                 new Service
                 {
@@ -255,7 +258,8 @@ namespace KlyonHubPlatform.Application.Services
                     Route = "/Client/ChooseLocation",
                     DisplayOrder = 4,
                     IsActive = true,
-                    ImageUrl = "/images/services/endereco-fiscal.svg"
+                    ImageUrl = "/images/services/endereco-fiscal.svg",
+                    Category = CategoryService.Partner
                 },
                 new Service
                 {
@@ -265,7 +269,8 @@ namespace KlyonHubPlatform.Application.Services
                     Route = "/Client/ChooseLocation",
                     DisplayOrder = 5,
                     IsActive = true,
-                    ImageUrl = "/images/services/endereco-fiscal.svg"
+                    ImageUrl = "/images/services/endereco-fiscal.svg",
+                    Category = CategoryService.Client
                 }
             };
 

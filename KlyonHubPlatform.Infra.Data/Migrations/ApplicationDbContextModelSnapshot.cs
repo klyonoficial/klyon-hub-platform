@@ -895,8 +895,10 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<int>("MaxContracts")
                         .HasColumnType("int");
 
-                    b.Property<int>("MaxContractsApprovalStatus")
-                        .HasColumnType("int");
+                    b.Property<string>("MaxContractsApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("Neighborhood")
                         .IsRequired()
@@ -2758,6 +2760,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("Category")
                         .HasColumnType("int");
 
                     b.Property<string>("Code")

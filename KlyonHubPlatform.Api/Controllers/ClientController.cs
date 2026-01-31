@@ -1441,6 +1441,13 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.HasPaymentAwaitingValidation = hasPaymentAwaitingValidation;
             ViewBag.PaymentAwaitingValidationId = paymentAwaitingValidationId;
 
+            // Declarações de endereço (mesmo que na tela do parceiro)
+            var declarations = await _context.AddressDeclarations
+                .Where(d => d.ContractId == id)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+            ViewBag.Declarations = declarations;
+
             // Exibir o contrato em qualquer status (incl. PendingCancellation, Cancelled, Expired) para o dono visualizar detalhes e documentos
             return View(contract);
         }

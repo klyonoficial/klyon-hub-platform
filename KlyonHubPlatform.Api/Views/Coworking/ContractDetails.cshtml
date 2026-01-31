@@ -18,7 +18,7 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h5><i class="bi bi-file-earmark-text"></i> Informações do Contrato</h5>
+                <h5 class="card-title-tight"><i class="bi bi-file-earmark-text"></i> Informações do Contrato</h5>
             </div>
             <div class="card-body">
                 <table class="table table-borderless">
@@ -90,7 +90,7 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header bg-info text-white">
-                <h5><i class="bi bi-person"></i> Informações do Cliente</h5>
+                <h5 class="card-title-tight"><i class="bi bi-person"></i> Informações do Cliente</h5>
             </div>
             <div class="card-body">
                 <table class="table table-borderless">
@@ -148,7 +148,7 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header bg-success text-white">
-                <h5><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
+                <h5 class="card-title-tight"><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
             </div>
             <div class="card-body">
                 <p>
@@ -175,7 +175,7 @@
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header bg-secondary text-white">
-                <h5><i class="bi bi-file-earmark-pdf"></i> Documentos</h5>
+                <h5 class="card-title-tight"><i class="bi bi-file-earmark-pdf"></i> Documentos</h5>
             </div>
             <div class="card-body">
                 @if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
@@ -241,7 +241,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-warning text-dark">
-                <h5><i class="bi bi-cash-coin"></i> Histórico de Pagamentos</h5>
+                <h5 class="card-title-tight"><i class="bi bi-cash-coin"></i> Histórico de Pagamentos</h5>
             </div>
             <div class="card-body">
                 @if (ViewBag.Payments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments).Any())
@@ -371,7 +371,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-dark text-white">
-                <h5><i class="bi bi-clock-history"></i> Timeline do Contrato</h5>
+                <h5 class="card-title-tight"><i class="bi bi-clock-history"></i> Timeline do Contrato</h5>
             </div>
             <div class="card-body">
                 @if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())

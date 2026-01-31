@@ -6150,7 +6150,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .ToListAsync();
 
                 // Carregar serviços disponíveis para adicionar
-                IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive);
+                IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive && s.Category == CategoryService.Partner);
                 if (!showCoworkingMenus)
                     servicesQuery = servicesQuery.Where(s => !inactiveServices.Contains(s.Name));
 

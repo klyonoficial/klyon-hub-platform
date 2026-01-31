@@ -559,7 +559,10 @@ function renderizarServicos(data) {
 
     // Limpar lista atual
     listaContainer.innerHTML = '';
-    selectServico.innerHTML = '<option value="">Selecione um serviço...</option>';
+    var temServicosDisponiveis = data.availableServices && data.availableServices.length > 0;
+    selectServico.innerHTML = temServicosDisponiveis
+        ? '<option value="">Selecione um serviço...</option>'
+        : '<option value="">Nenhum serviço disponível ou ativo!</option>';
 
     // Renderizar serviços existentes
     if (data.partnerServices && data.partnerServices.length > 0) {
@@ -650,13 +653,18 @@ function resetarFormularioPercentagem() {
     
     // Recarregar opções do dropdown para remover serviços adicionados dinamicamente
     if (percentagemDadosAtuais && percentagemDadosAtuais.availableServices) {
-        selectServico.innerHTML = '<option value="">Selecione um serviço...</option>';
-        percentagemDadosAtuais.availableServices.forEach(function(s) {
-            var option = document.createElement('option');
-            option.value = s.id;
-            option.textContent = s.name;
-            selectServico.appendChild(option);
-        });
+        var temServicos = percentagemDadosAtuais.availableServices.length > 0;
+        selectServico.innerHTML = temServicos
+            ? '<option value="">Selecione um serviço...</option>'
+            : '<option value="">Nenhum serviço disponível ou ativo!</option>';
+        if (temServicos) {
+            percentagemDadosAtuais.availableServices.forEach(function(s) {
+                var option = document.createElement('option');
+                option.value = s.id;
+                option.textContent = s.name;
+                selectServico.appendChild(option);
+            });
+        }
     }
 }
 

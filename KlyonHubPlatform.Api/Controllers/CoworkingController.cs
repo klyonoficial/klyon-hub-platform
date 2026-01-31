@@ -718,6 +718,26 @@ namespace KlyonHubPlatform.Api.Controllers
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço adicionado");
                 await _coworkingService.CreateAddressAsync(coworkingAddress);
 
+                // Inserir na tabela PartnerServices: CoworkingId, ServiceId (FISCAL_ADDRESS_OFFER), CreatedAt; restante null/0
+                var fiscalAddressOfferService = await _context.Services
+                    .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
+                if (fiscalAddressOfferService != null)
+                {
+                    var alreadyHasService = await _context.PartnerServices
+                        .AnyAsync(ps => ps.CoworkingId == coworkingEntity.Id && ps.ServiceId == fiscalAddressOfferService.Id);
+                    if (!alreadyHasService)
+                    {
+                        _context.PartnerServices.Add(new PartnerService
+                        {
+                            CoworkingId = coworkingEntity.Id,
+                            ServiceId = fiscalAddressOfferService.Id,
+                            Percentage = 0,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
                 TempData["Success"] = "Endereço cadastrado com sucesso!";
                 return RedirectToAction("MyAddresses");
             }

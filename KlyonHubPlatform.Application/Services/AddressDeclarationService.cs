@@ -120,8 +120,11 @@ namespace KlyonHubPlatform.Application.Services
                 coworkingFullAddress += $", {coworkingAddress.Complement}";
             coworkingFullAddress += $", {coworkingAddress.Neighborhood}, {coworkingAddress.City}/{coworkingAddress.State}, CEP {coworkingAddress.ZipCode}";
 
-            // Dados do Cliente
-            var clientName = contract.Client.RazaoSocial ?? contract.Client.NomeFantasia ?? "Não informado";
+            // Dados do Cliente (Empresa / Pessoa: razão social, nome fantasia ou nome do cliente)
+            var clientName = !string.IsNullOrWhiteSpace(contract.Client.RazaoSocial) ? contract.Client.RazaoSocial
+                : !string.IsNullOrWhiteSpace(contract.Client.NomeFantasia) ? contract.Client.NomeFantasia
+                : !string.IsNullOrWhiteSpace(contract.Client.ContactName) ? contract.Client.ContactName
+                : "Não informado";
             var clientCnpjCpf = !string.IsNullOrEmpty(contract.Client.CNPJ) ? contract.Client.CNPJ : contract.Client.CPF ?? "Não informado";
 
             // Primeiro parágrafo

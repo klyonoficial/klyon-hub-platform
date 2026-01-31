@@ -375,6 +375,10 @@ select[readonly]:focus {
     font-weight: 600;
 }
 
+.card-header .card-title-tight {
+    margin-bottom: 0.1rem;
+}
+
 /* Badges - Klyon Style */
 .badge {
     padding: 6px 12px;

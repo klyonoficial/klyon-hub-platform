@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     /// <summary>
@@ -17,6 +19,7 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Ordem de exibição</summary>
         public int DisplayOrder { get; set; }
         public bool IsActive { get; set; } = true;
+        public CategoryService Category { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 

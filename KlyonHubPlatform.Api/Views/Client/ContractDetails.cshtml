@@ -1,295 +1,327 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Detalhes do Contrato";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+	ViewData["Title"] = "Detalhes do Contrato";
+	Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 @model KlyonHubPlatform.Domain.Entities.Contract
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-file-earmark-text"></i> Contrato @Model.ContractNumber</h2>
-    <a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar
-    </a>
+	<h2><i class="bi bi-file-earmark-text"></i> Contrato @Model.ContractNumber</h2>
+	<a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
+		<i class="bi bi-arrow-left"></i> Voltar
+	</a>
 </div>
 
 <div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>Informações do Contrato</h5>
-            </div>
-            <div class="card-body">
-                <table class="table">
-                    <tr>
-                        <th>Número:</th>
-                        <td>@Model.ContractNumber</td>
-                    </tr>
-                    <tr>
-                        <th>Status:</th>
-                        <td>
-                            @switch (Model.Status)
-                            {
-                                case ContractStatus.Active:
-                                    <span class="badge bg-active">
-                                        <i class="bi bi-check-circle-fill me-1"></i> Ativo
-                                    </span>
-                                    break;
+	<div class="col-md-8">
+		<div class="card mb-4">
+			<div class="card-header klyon-primary text-white">
+				<h5 class="card-title-tight"><i class="bi bi-file-earmark-text me-1"></i> Informações do Contrato</h5>
+			</div>
+			<div class="card-body">
+				<table class="table">
+					<tr>
+						<th>Número:</th>
+						<td>@Model.ContractNumber</td>
+					</tr>
+					<tr>
+						<th>Status:</th>
+						<td>
+							@switch (Model.Status)
+							{
+								case ContractStatus.Active:
+									<span class="badge bg-active">
+										<i class="bi bi-check-circle-fill me-1"></i> Ativo
+									</span>
+									break;
 
-                                case ContractStatus.Suspended:
-                                    <span class="badge bg-suspended">
-                                        <i class="bi bi-pause-circle-fill me-1"></i> Suspenso
-                                    </span>
-                                    break;
+								case ContractStatus.Suspended:
+									<span class="badge bg-suspended">
+										<i class="bi bi-pause-circle-fill me-1"></i> Suspenso
+									</span>
+									break;
 
-                                case ContractStatus.PendingPayment:
-                                    @if (ViewBag.HasPaymentAwaitingValidation == true)
-                                    {
-                                        <span class="badge bg-info">
-                                            <i class="bi bi-clock-history me-1"></i> Aguardando Validação
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-pending-payment">
-                                            <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
-                                        </span>
-                                    }
-                                    break;
+								case ContractStatus.PendingPayment:
+									@if (ViewBag.HasPaymentAwaitingValidation == true)
+									{
+										<span class="badge bg-info">
+											<i class="bi bi-clock-history me-1"></i> Aguardando Validação
+										</span>
+									}
+									else
+									{
+										<span class="badge bg-pending-payment">
+											<i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+										</span>
+									}
+									break;
 
-                                case ContractStatus.PendingCancellation:
-                                    <span class="badge bg-pending-cancellation">
-                                        <i class="bi bi-clock-history me-1"></i> Cancelamento Pendente
-                                    </span>
-                                    break;
+								case ContractStatus.PendingCancellation:
+									<span class="badge bg-pending-cancellation">
+										<i class="bi bi-clock-history me-1"></i> Cancelamento Pendente
+									</span>
+									break;
 
-                                case ContractStatus.Cancelled:
-                                    <span class="badge bg-cancelled">
-                                        <i class="bi bi-x-circle-fill me-1"></i> Cancelado
-                                    </span>
-                                    break;
+								case ContractStatus.Cancelled:
+									<span class="badge bg-cancelled">
+										<i class="bi bi-x-circle-fill me-1"></i> Cancelado
+									</span>
+									break;
 
-                                case ContractStatus.Expired:
-                                    <span class="badge bg-expired">
-                                        <i class="bi bi-calendar-x-fill me-1"></i> Expirado
-                                    </span>
-                                    break;
+								case ContractStatus.Expired:
+									<span class="badge bg-expired">
+										<i class="bi bi-calendar-x-fill me-1"></i> Expirado
+									</span>
+									break;
 
-                                default:
-                                    <span class="badge bg-expired">
-                                        <i class="bi bi-question-circle-fill me-1"></i> @Model.Status
-                                    </span>
-                                    break;
-                            }
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Data de Início:</th>
-                        <td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
-                    </tr>
-                    <tr>
-                        <th>Valor Mensal:</th>
-                        <td>
-                            <strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString("F2") : Model.MonthlyValue.ToString("F2"))</strong>
-                            @if (Model.SnapshotMonthlyValue > 0 && Model.SnapshotMonthlyValue != Model.MonthlyValue)
-                            {
-                                <br><small class="text-muted">(Valor congelado no momento da criação)</small>
-                            }
-                        </td>
-                    </tr>
-                </table>
-            </div>
-        </div>
+								default:
+									<span class="badge bg-expired">
+										<i class="bi bi-question-circle-fill me-1"></i> @Model.Status
+									</span>
+									break;
+							}
+						</td>
+					</tr>
+					<tr>
+						<th>Data de Início:</th>
+						<td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
+					</tr>
+					<tr>
+						<th>Valor Mensal:</th>
+						<td>
+							<strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString("F2") : Model.MonthlyValue.ToString("F2"))</strong>
+							@if (Model.SnapshotMonthlyValue > 0 && Model.SnapshotMonthlyValue != Model.MonthlyValue)
+							{
+								<br>
+							
+								<small class="text-muted">(Valor congelado no momento da criação)</small>
+							}
+						</td>
+					</tr>
+				</table>
+			</div>
+		</div>
 
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>Endereço Fiscal</h5>
-            </div>
-            <div class="card-body">
-                @if (!string.IsNullOrEmpty(Model.SnapshotAddress))
-                {
-                    <p>
-                        @Model.SnapshotAddress
-                        <br><small class="text-muted">(Endereço congelado no momento da criação)</small>
-                    </p>
-                }
-                else
-                {
-                    <p>
-                        @Model.CoworkingAddress?.Address, @Model.CoworkingAddress?.Number<br>
-                        @Model.CoworkingAddress?.Neighborhood<br>
-                        @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
-                        CEP: @Model.CoworkingAddress?.ZipCode
-                    </p>
-                }
-            </div>
-        </div>
+		<div class="card mb-4">
+			<div class="card-header klyon-primary text-white">
+				<h5 class="card-title-tight"><i class="bi bi-geo-alt me-1"></i> Endereço Fiscal</h5>
+			</div>
+			<div class="card-body">
+				@if (!string.IsNullOrEmpty(Model.SnapshotAddress))
+				{
+					<p>
+						@Model.SnapshotAddress
+						<br><small class="text-muted">(Endereço congelado no momento da criação)</small>
+					</p>
+				}
+				else
+				{
+					<p>
+						@Model.CoworkingAddress?.Address, @Model.CoworkingAddress?.Number<br>
+						@Model.CoworkingAddress?.Neighborhood<br>
+						@Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
+						CEP: @Model.CoworkingAddress?.ZipCode
+					</p>
+				}
+			</div>
+		</div>
 
-        @if (Model.Status == ContractStatus.PendingPayment)
-        {
-            var hasPaymentAwaitingValidation = ViewBag.HasPaymentAwaitingValidation == true;
-            var paymentAwaitingValidationId = ViewBag.PaymentAwaitingValidationId as int?;
-            <div class="card mb-4">
-                <div class="card-header @(hasPaymentAwaitingValidation ? "bg-info" : "bg-warning")">
-                    <h5><i class="bi @(hasPaymentAwaitingValidation ? "bi-clock-history" : "bi-cash-coin")"></i> @(hasPaymentAwaitingValidation ? "Comprovante Aguardando Validação" : "Pagamento Pendente")</h5>
-                </div>
-                <div class="card-body">
-                    @if (hasPaymentAwaitingValidation)
-                    {
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> <strong>Seu comprovante de pagamento foi enviado e está aguardando validação pela administração.</strong>
-                        </div>
-                        <p class="text-muted mb-3">
-                            O status será atualizado assim que o comprovante for validado. Você pode acompanhar na página de pagamentos.
-                        </p>
-                        if (paymentAwaitingValidationId.HasValue)
-                        {
-                            <a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn btn-info">
-                                <i class="bi bi-eye"></i> Ver Detalhes do Pagamento
-                            </a>
-                        }
-                        <a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-primary ms-2">
-                                <i class="bi bi-credit-card"></i> Ir para Pagamentos
-                            </a>
-                    }
-                    else
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-info-circle"></i> <strong>Este contrato está aguardando pagamento.</strong>
-                        </div>
-                        <p class="text-muted mb-3">
-                            Para ativar seu contrato, realize o pagamento através da página de pagamentos.
-                        </p>
-                        <a href="@Url.Action("MyPayments", "Client")" class="btn btn-primary">
-                            <i class="bi bi-credit-card"></i> Ir para Pagamentos
-                        </a>
-                    }
-                </div>
-            </div>
-        }
+		@if (Model.Status == ContractStatus.PendingPayment)
+		{
+			var hasPaymentAwaitingValidation = ViewBag.HasPaymentAwaitingValidation == true;
+			var paymentAwaitingValidationId = ViewBag.PaymentAwaitingValidationId as int?;
+			<div class="card mb-4">
+				<div class="card-header @(hasPaymentAwaitingValidation ? "bg-info" : "bg-warning")">
+					<h5 class="card-title-tight"><i class="bi @(hasPaymentAwaitingValidation ? "bi-clock-history" : "bi-cash-coin")"></i> @(hasPaymentAwaitingValidation ? "Comprovante Aguardando Validação" : "Pagamento Pendente")</h5>
+				</div>
+				<div class="card-body">
+					@if (hasPaymentAwaitingValidation)
+					{
+						<div class="alert alert-info">
+							<i class="bi bi-info-circle"></i> <strong>Seu comprovante de pagamento foi enviado e está aguardando validação pela administração.</strong>
+						</div>
+						<p class="text-muted mb-3">
+							O status será atualizado assim que o comprovante for validado. Você pode acompanhar na página de pagamentos.
+						</p>
+						if (paymentAwaitingValidationId.HasValue)
+						{
+							<a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn btn-info">
+								<i class="bi bi-eye"></i> Ver Detalhes do Pagamento
+							</a>
+						}
+						<a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-primary ms-2">
+							<i class="bi bi-credit-card"></i> Ir para Pagamentos
+						</a>
+					}
+					else
+					{
+						<div class="alert alert-warning">
+							<i class="bi bi-info-circle"></i> <strong>Este contrato está aguardando pagamento.</strong>
+						</div>
+						<p class="text-muted mb-3">
+							Para ativar seu contrato, realize o pagamento através da página de pagamentos.
+						</p>
+						<a href="@Url.Action("MyPayments", "Client")" class="btn btn-primary">
+							<i class="bi bi-credit-card"></i> Ir para Pagamentos
+						</a>
+					}
+				</div>
+			</div>
+		}
 
-        @if (Model.Status == ContractStatus.Active)
-        {
-            <div class="card">
-                <div class="card-header">
-                    <h5>Cancelar Contrato</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">
-                        Se deseja cancelar este contrato, clique no botão abaixo. O cancelamento requer aprovação administrativa.
-                    </p>
-                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelContractModal">
-                        <i class="bi bi-x-circle"></i> Solicitar Cancelamento
-                    </button>
-                </div>
-            </div>
-        }
-        else if (Model.Status == ContractStatus.PendingCancellation)
-        {
-            <div class="card">
-                <div class="card-header bg-warning">
-                    <h5><i class="bi bi-clock-history"></i> Cancelamento Pendente</h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-warning">
-                        <i class="bi bi-info-circle"></i> <strong>Sua solicitação de cancelamento está aguardando aprovação.</strong>
-                    </div>
-                    <p><strong>Motivo informado:</strong></p>
-                    <p class="text-muted">@Model.CancellationRequestReason</p>
-                    <p class="text-muted small">
-                        <i class="bi bi-calendar"></i> Solicitado em: @Model.CancellationRequestedAt?.ToString("dd/MM/yyyy HH:mm")
-                    </p>
-                </div>
-            </div>
-        }
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5>Documentos</h5>
-            </div>
-            <div class="card-body">
-                @if (Model.Documents != null && Model.Documents.Any())
-                {
-                    <ul class="list-group">
-                        @foreach (var doc in Model.Documents)
-                        {
-                            var documentTypeText = doc.Type switch
-                            {
-                                DocumentType.Contract => "Contrato",
-                                DocumentType.Receipt => "Recibo",
-                                DocumentType.TaxDeclaration => "Declaração Fiscal",
-                                DocumentType.TermsOfUse => "Termos de Uso",
-                                _ => doc.Type.ToString()
-                            };
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>@documentTypeText</span>
-                                @if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
-                                {
-                                    <a href="@Url.Action("DownloadDocument", "Client", new { documentId = doc.Id })" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-download"></i> Download
-                                    </a>
-                                }
-                                else if (Model.Status == ContractStatus.PendingPayment)
-                                {
-                                    <span class="text-muted small">Disponível após pagamento</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted small">—</span>
-                                }
-                            </li>
-                        }
-                    </ul>
-                }
-                else
-                {
-                    <p class="text-muted">Nenhum documento disponível.</p>
-                }
-            </div>
-        </div>
-    </div>
+		@if (Model.Status == ContractStatus.Active)
+		{
+			<div class="card">
+				<div class="card-header klyon-primary text-white">
+					<h5 class="card-title-tight"><i class="bi bi-x-circle me-1"></i> Cancelar Contrato</h5>
+				</div>
+				<div class="card-body">
+					<p class="text-muted mb-3">
+						Se deseja cancelar este contrato, clique no botão abaixo. O cancelamento requer aprovação administrativa.
+					</p>
+					<button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelContractModal">
+						<i class="bi bi-x-circle"></i> Solicitar Cancelamento
+					</button>
+				</div>
+			</div>
+		}
+		else if (Model.Status == ContractStatus.PendingCancellation)
+		{
+			<div class="card">
+				<div class="card-header bg-warning">
+					<h5 class="card-title-tight"><i class="bi bi-clock-history me-1"></i> Cancelamento Pendente</h5>
+				</div>
+				<div class="card-body">
+					<div class="alert alert-warning">
+						<i class="bi bi-info-circle"></i> <strong>Sua solicitação de cancelamento está aguardando aprovação.</strong>
+					</div>
+					<p><strong>Motivo informado:</strong></p>
+					<p class="text-muted">@Model.CancellationRequestReason</p>
+					<p class="text-muted small">
+						<i class="bi bi-calendar"></i> Solicitado em: @Model.CancellationRequestedAt?.ToString("dd/MM/yyyy HH:mm")
+					</p>
+				</div>
+			</div>
+		}
+	</div>
+	<div class="col-md-4">
+		<div class="card">
+			<div class="card-header klyon-primary text-white">
+				<h5 class="card-title-tight"><i class="bi bi-file-earmark-pdf me-1"></i> Documentos</h5>
+			</div>
+			<div class="card-body">
+				@if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
+				{
+					<h6 class="mb-3">Declarações de Endereço:</h6>
+					<ul class="list-group mb-3">
+						@foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
+						{
+							<li class="list-group-item d-flex justify-content-between align-items-center">
+								<div>
+									<span class="fw-bold">@declaration.DeclarationNumber</span><br>
+									<small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString("dd/MM/yyyy")</small>
+								</div>
+								<div class="d-flex align-items-center gap-2">
+									@if (declaration.IsValid)
+									{
+										<span class="badge bg-success">Válida</span>
+									}
+									else
+									{
+										<span class="badge bg-danger">Inválida</span>
+									}
+									<a href="@Url.Action("DownloadDeclaration", "Client", new { declarationId = declaration.Id })" class="btn btn-sm btn-primary">
+										<i class="bi bi-download"></i> Download
+									</a>
+								</div>
+							</li>
+						}
+					</ul>
+				}
+				else
+				{
+					<p class="text-muted mb-3">Nenhuma declaração gerada ainda.</p>
+				}
+
+				@if (Model.Documents != null && Model.Documents.Any())
+				{
+					<h6 class="mb-3">Outros Documentos:</h6>
+					<ul class="list-group">
+						@foreach (var doc in Model.Documents)
+						{
+							var documentTypeText = doc.Type switch
+							{
+								DocumentType.Contract => "Contrato",
+								DocumentType.Receipt => "Recibo",
+								DocumentType.TaxDeclaration => "Declaração Fiscal",
+								DocumentType.TermsOfUse => "Termos de Uso",
+								_ => doc.Type.ToString()
+							};
+							<li class="list-group-item d-flex justify-content-between align-items-center">
+								<span>@documentTypeText</span>
+								@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
+								{
+									<a href="@Url.Action("DownloadDocument", "Client", new { documentId = doc.Id })" class="btn btn-sm btn-primary">
+										<i class="bi bi-download"></i> Download
+									</a>
+								}
+								else if (Model.Status == ContractStatus.PendingPayment)
+								{
+									<span class="text-muted small">Disponível após pagamento</span>
+								}
+								else
+								{
+									<span class="text-muted small">—</span>
+								}
+							</li>
+						}
+					</ul>
+				}
+			</div>
+		</div>
+	</div>
 </div>
 
 <!-- Modal de Cancelamento -->
 <div class="modal fade" id="cancelContractModal" tabindex="-1" aria-labelledby="cancelContractModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="cancelContractModalLabel">
-                    <i class="bi bi-exclamation-triangle"></i> Solicitar Cancelamento de Contrato
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <form method="post" action="@Url.Action("RequestContractCancellation", "Client")">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="contractId" value="@Model.Id">
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Atenção:</strong> O cancelamento deste contrato não gera extorno de valores já pagos. Todos os pagamentos realizados até o momento não serão reembolsados.
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Esta solicitação será enviada para aprovação administrativa. Você será notificado quando a solicitação for aprovada ou rejeitada.
-                    </div>
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header bg-danger text-white">
+				<h5 class="modal-title" id="cancelContractModalLabel">
+					<i class="bi bi-exclamation-triangle"></i> Solicitar Cancelamento de Contrato
+				</h5>
+				<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+			</div>
+			<form method="post" action="@Url.Action("RequestContractCancellation", "Client")">
+				@Html.AntiForgeryToken()
+				<input type="hidden" name="contractId" value="@Model.Id">
+				<div class="modal-body">
+					<div class="alert alert-warning">
+						<i class="bi bi-exclamation-triangle-fill"></i> <strong>Atenção:</strong> O cancelamento deste contrato não gera extorno de valores já pagos. Todos os pagamentos realizados até o momento não serão reembolsados.
+					</div>
 
-                    <div class="mb-3">
-                        <label for="cancellationReason" class="form-label">
-                            <strong>Motivo do Cancelamento <span class="text-danger">*</span></strong>
-                        </label>
-                        <textarea class="form-control" id="cancellationReason" name="reason" rows="4" required placeholder="Descreva o motivo do cancelamento..."></textarea>
-                        <small class="form-text text-muted">Este campo é obrigatório e será analisado pela administração.</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle"></i> Cancelar
-                    </button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-check-circle"></i> Confirmar Solicitação
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+					<div class="alert alert-info">
+						<i class="bi bi-info-circle"></i> Esta solicitação será enviada para aprovação administrativa. Você será notificado quando a solicitação for aprovada ou rejeitada.
+					</div>
+
+					<div class="mb-3">
+						<label for="cancellationReason" class="form-label">
+							<strong>Motivo do Cancelamento <span class="text-danger">*</span></strong>
+						</label>
+						<textarea class="form-control" id="cancellationReason" name="reason" rows="4" required placeholder="Descreva o motivo do cancelamento..."></textarea>
+						<small class="form-text text-muted">Este campo é obrigatório e será analisado pela administração.</small>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+						<i class="bi bi-x-circle"></i> Cancelar
+					</button>
+					<button type="submit" class="btn btn-danger">
+						<i class="bi bi-check-circle"></i> Confirmar Solicitação
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
 </div>
