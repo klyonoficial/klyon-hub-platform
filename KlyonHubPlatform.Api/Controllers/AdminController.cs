@@ -885,13 +885,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
             var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
-            var coworkingServiceNames = new[]
-            {
-                "Aluguel de Auditório",
-                "Aluguel de Sala Compartilhada",
-                "Aluguel de Sala Particular",
-                "Reservar Sala"
-            };
+            var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
 
             // Carregar serviços disponíveis
             IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive);
@@ -916,10 +910,10 @@ namespace KlyonHubPlatform.Api.Controllers
             // Configurar paginação para documentos obrigatórios
             var requiredDocTypes = new[]
             {
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+                (CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
+                (CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
+                (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
             };
 
             var totalDocuments = requiredDocTypes.Length;
@@ -4150,13 +4144,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     return RedirectToAction("ViewCoworking", new { id = CoworkingId });
                 }
 
-                var coworkingServiceNames = new[]
-                {
-                    "Aluguel de Auditório",
-                    "Aluguel de Sala Compartilhada",
-                    "Aluguel de Sala Particular",
-                    "Reservar Sala"
-                };
+                var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
@@ -6214,13 +6203,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     return Json(new { success = false, message = "Serviço não encontrado." });
 
                 // Verificar se os menus de coworking estão habilitados
-                var coworkingServiceNames = new[]
-                {
-                    "Aluguel de Auditório",
-                    "Aluguel de Sala Compartilhada",
-                    "Aluguel de Sala Particular",
-                    "Reservar Sala"
-                };
+                var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))

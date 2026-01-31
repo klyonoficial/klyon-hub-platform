@@ -263,7 +263,7 @@ namespace KlyonHubPlatform.Application.Services
                     Code = FiscalAddressContracting,
                     Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
                     Route = "/Client/ChooseLocation",
-                    DisplayOrder = 0,
+                    DisplayOrder = 5,
                     IsActive = true,
                     ImageUrl = "/images/services/endereco-fiscal.svg"
                 }

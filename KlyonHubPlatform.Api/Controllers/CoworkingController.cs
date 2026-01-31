@@ -122,12 +122,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
                 // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
                 pendingNf = await _context.Payments
-                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) || 
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
                                 (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
                     .Where(p => p.Status == PaymentStatus.Paid)
-                    .Where(p => !_context.FiscalNotes.Any(fn => 
-                        fn.PaymentId == p.Id && 
-                        fn.Type == "Servico" && 
+                    .Where(p => !_context.FiscalNotes.Any(fn =>
+                        fn.PaymentId == p.Id &&
+                        fn.Type == "Servico" &&
                         (fn.Status == "Emitida" || fn.Status == "Importada")
                     ))
                     .CountAsync();
@@ -135,20 +135,20 @@ namespace KlyonHubPlatform.Api.Controllers
             catch { }
             if (pendingNf > 0) alerts.Add(new { Type = "warning", Icon = "bi-receipt", Title = "NF de Serviço Não Emitidas", Message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir NF" });
             var rejectedNf = 0;
-            try 
-            { 
+            try
+            {
                 // Contar apenas notas rejeitadas que não têm uma NF aprovada (Emitida ou Importada) posteriormente para o mesmo PaymentId
                 // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
                 rejectedNf = await _context.FiscalNotes
                     .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == "Rejeitada")
-                    .Where(fn => !_context.FiscalNotes.Any(fn2 => 
-                        fn2.PaymentId == fn.PaymentId && 
-                        fn2.Type == "Servico" && 
+                    .Where(fn => !_context.FiscalNotes.Any(fn2 =>
+                        fn2.PaymentId == fn.PaymentId &&
+                        fn2.Type == "Servico" &&
                         (fn2.Status == "Emitida" || fn2.Status == "Importada") &&
                         fn2.Id != fn.Id
                     ))
-                    .CountAsync(); 
-            } 
+                    .CountAsync();
+            }
             catch { }
             if (rejectedNf > 0) alerts.Add(new { Type = "danger", Icon = "bi-x-circle-fill", Title = "NF Importadas Rejeitadas", Message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir / Importar NF" });
             var addrs = await _context.CoworkingAddresses.Where(a => a.CoworkingId == coworkingEntity.Id && (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected)).ToListAsync();
@@ -229,21 +229,21 @@ namespace KlyonHubPlatform.Api.Controllers
             var administrativeAlerts = await BuildAdministrativeAlertsAsync(coworkingEntity);
             var pendenciasTotal = administrativeAlerts.Count;
             var pendingNfCount = 0;
-            try 
-            { 
+            try
+            {
                 // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
                 // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
                 pendingNfCount = await _context.Payments
-                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) || 
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
                                 (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
                     .Where(p => p.Status == PaymentStatus.Paid)
-                    .Where(p => !_context.FiscalNotes.Any(fn => 
-                        fn.PaymentId == p.Id && 
-                        fn.Type == "Servico" && 
+                    .Where(p => !_context.FiscalNotes.Any(fn =>
+                        fn.PaymentId == p.Id &&
+                        fn.Type == "Servico" &&
                         (fn.Status == "Emitida" || fn.Status == "Importada")
                     ))
-                    .CountAsync(); 
-            } 
+                    .CountAsync();
+            }
             catch { }
 
             // Verificar se há notificação de mudança de status
@@ -311,19 +311,19 @@ namespace KlyonHubPlatform.Api.Controllers
             // Preencher o email do usuário logado automaticamente
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
-            
+
             // Buscar o FullName do usuário da tabela Users
             var user = await _context.Users.FindAsync(userId);
             ViewBag.UserFullName = user?.FullName ?? string.Empty;
-            
+
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(Coworking coworking, 
-            List<IFormFile>? Photos, 
-            IFormFile? UtilityBill, 
-            IFormFile? AddressAuthorization, 
+        public async Task<IActionResult> Register(Coworking coworking,
+            List<IFormFile>? Photos,
+            IFormFile? UtilityBill,
+            IFormFile? AddressAuthorization,
             IFormFile? CNPJCard)
         {
             try
@@ -370,10 +370,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se o CNPJ já está cadastrado
                 var existingCNPJ = await _context.Coworkings
-                    .Where(c => c.CNPJ != null && 
+                    .Where(c => c.CNPJ != null &&
                         c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
                     .FirstOrDefaultAsync();
-                
+
                 if (existingCNPJ != null)
                 {
                     TempData["Error"] = $"O CNPJ {coworking.CNPJ} já está cadastrado no sistema.";
@@ -453,8 +453,8 @@ namespace KlyonHubPlatform.Api.Controllers
                             FileName = file.FileName,
                             FilePath = filePath,
                             IsValid = true,
-                            ExpiresAt = docType == CoworkingDocumentType.UtilityBill 
-                                ? DateTime.UtcNow.AddDays(90) 
+                            ExpiresAt = docType == CoworkingDocumentType.UtilityBill
+                                ? DateTime.UtcNow.AddDays(90)
                                 : null
                         };
 
@@ -523,9 +523,9 @@ namespace KlyonHubPlatform.Api.Controllers
             // Filtro de busca (endereço, cidade ou estado)
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(a => 
-                    a.Address.Contains(search) || 
-                    a.City.Contains(search) || 
+                query = query.Where(a =>
+                    a.Address.Contains(search) ||
+                    a.City.Contains(search) ||
                     a.State.Contains(search) ||
                     a.Neighborhood.Contains(search));
             }
@@ -577,7 +577,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Where(c => addressIds.Contains(c.CoworkingAddressId) && c.Status == ContractStatus.Active)
                 .GroupBy(c => c.CoworkingAddressId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count());
-            
+
             ViewBag.ActiveContractsByAddress = activeContractsByAddress;
 
             // Só pode adicionar endereço se ainda não tiver nenhum endereço fiscal cadastrado
@@ -611,8 +611,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 try
                 {
                     hasRoomRental = await _context.CoworkingProducts
-                        .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                      p.ProductType == "RoomRental" && 
+                        .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                      p.ProductType == "RoomRental" &&
                                       p.IsActive);
                 }
                 catch
@@ -629,7 +629,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> AddAddress(int locationId, string address, string number, string? complement, 
+        public async Task<IActionResult> AddAddress(int locationId, string address, string number, string? complement,
             string neighborhood, string city, string state, string zipCode, decimal basePrice, int maxContracts)
         {
             try
@@ -661,8 +661,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -683,8 +683,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -717,7 +717,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço adicionado");
                 await _coworkingService.CreateAddressAsync(coworkingAddress);
-                
+
                 TempData["Success"] = "Endereço cadastrado com sucesso!";
                 return RedirectToAction("MyAddresses");
             }
@@ -733,8 +733,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -784,8 +784,8 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 hasRoomRental = await _context.CoworkingProducts
-                    .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                  p.ProductType == "RoomRental" && 
+                    .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                  p.ProductType == "RoomRental" &&
                                   p.IsActive);
             }
             catch
@@ -797,7 +797,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Verificar se há contratos ativos para este endereço
             var hasActiveContracts = await _context.Contracts
                 .AnyAsync(c => c.CoworkingAddressId == address.Id && c.Status == ContractStatus.Active);
-            
+
             ViewBag.HasActiveContracts = hasActiveContracts;
 
             var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
@@ -856,8 +856,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -884,8 +884,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -907,8 +907,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -957,8 +957,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     try
                     {
                         hasRoomRental = await _context.CoworkingProducts
-                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id && 
-                                          p.ProductType == "RoomRental" && 
+                            .AnyAsync(p => p.CoworkingId == coworkingEntity.Id &&
+                                          p.ProductType == "RoomRental" &&
                                           p.IsActive);
                     }
                     catch
@@ -1250,7 +1250,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Filtro por nome do cliente
             if (!string.IsNullOrEmpty(clientName))
             {
-                query = query.Where(c => c.Client != null && 
+                query = query.Where(c => c.Client != null &&
                     (c.Client.RazaoSocial != null && c.Client.RazaoSocial.Contains(clientName) ||
                      c.Client.ContactName != null && c.Client.ContactName.Contains(clientName)));
             }
@@ -1341,7 +1341,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Buscar histórico de pagamentos ordenado
             var payments = new List<Payment>();
             var historiesByPaymentId = new Dictionary<int, List<PaymentHistory>>();
-            
+
             if (contract.Subscription != null)
             {
                 payments = await _context.Payments
@@ -1461,7 +1461,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             Date = history.ActionAt,
                             Type = "Validação",
                             Title = history.Action == "Approved" ? "Pagamento Aprovado" : "Pagamento Rejeitado",
-                            Description = history.Action == "Approved" 
+                            Description = history.Action == "Approved"
                                 ? $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}"
                                 : $"Rejeitado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}",
                             Icon = history.Action == "Approved" ? "bi-check-circle" : "bi-x-circle",
@@ -1746,13 +1746,13 @@ namespace KlyonHubPlatform.Api.Controllers
             // Paginação manual
             var totalItems = allReservations.Count;
             var totalPages = totalItems > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
-            
+
             // Garantir que a página não seja maior que o total de páginas
             if (page > totalPages && totalPages > 0)
             {
                 page = totalPages;
             }
-            
+
             var pagedReservations = allReservations
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -1868,11 +1868,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var list = await q.ToListAsync();
             var listIds = list.Select(r => r.Id).ToList();
-            
+
             // Buscar comissões e transfers (se as tabelas existirem)
             var commissions = new List<ReservationCommission>();
             var transfers = new List<Transfer>();
-            
+
             try
             {
                 if (listIds.Any())
@@ -1903,7 +1903,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ("Shared", "Sala compartilhada", list.Where(r => r.RoomType == "Shared").ToList()),
                 ("Private", "Sala privativa", list.Where(r => r.RoomType == "Private").ToList()),
                 ("Auditorium", "Auditório", list.Where(r => r.RoomType == "Auditorium").ToList())
-            }.Select(x => 
+            }.Select(x =>
             {
                 var allDetails = x.Item3.Select(r => new Dictionary<string, object>
                 {
@@ -1911,16 +1911,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     ["ClientName"] = ClientDisplayName(r),
                     ["Value"] = r.TotalValue,
                 }).ToList();
-                
+
                 var totalDetails = allDetails.Count;
                 var totalPages = totalDetails > 0 ? (int)Math.Ceiling(totalDetails / (double)pageSize) : 1;
                 if (page > totalPages && totalPages > 0) page = totalPages;
-                
+
                 var pagedDetails = allDetails
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToList();
-                
+
                 return new Dictionary<string, object>
                 {
                     ["RoomTypeKey"] = x.Item1,
@@ -1940,24 +1940,24 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     var firstReservation = g.FirstOrDefault();
                     if (firstReservation == null) return null;
-                    
+
                     var allDetails = g.Select(r => new Dictionary<string, object>
                     {
                         ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
                         ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
                         ["Value"] = r.TotalValue,
                     }).ToList();
-                    
+
                     var totalDetails = allDetails.Count;
                     var totalPages = totalDetails > 0 ? (int)Math.Ceiling(totalDetails / (double)pageSize) : 1;
                     var clientPage = page;
                     if (clientPage > totalPages && totalPages > 0) clientPage = totalPages;
-                    
+
                     var pagedDetails = allDetails
                         .Skip((clientPage - 1) * pageSize)
                         .Take(pageSize)
                         .ToList();
-                    
+
                     return new Dictionary<string, object>
                     {
                         ["ClientId"] = g.Key,
@@ -2013,7 +2013,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Criar um dicionário para mapear comissões para transferências
             var commissionTransferMap = new Dictionary<int, Transfer?>();
-            
+
             // Primeiro, mapear usando os IDs armazenados no Description do Transfer (método mais confiável)
             foreach (var transfer in transfers)
             {
@@ -2037,14 +2037,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
             }
-            
+
             // Depois, usar heurística para comissões transferidas que não foram mapeadas (casos antigos)
             var transferredCommissions = commissions
                 .Where(c => c.IsTransferred && c.TransferredAt.HasValue && !commissionTransferMap.ContainsKey(c.Id))
-                .GroupBy(c => new 
-                { 
+                .GroupBy(c => new
+                {
                     Date = c.TransferredAt.Value.Date,
-                    Hour = c.TransferredAt.Value.Hour 
+                    Hour = c.TransferredAt.Value.Hour
                 })
                 .ToList();
 
@@ -2052,10 +2052,10 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var groupCommissions = group.ToList();
                 var totalCreditado = groupCommissions.Sum(c => c.TotalPaymentAmount - c.Amount);
-                
+
                 // Encontrar transferência que corresponde a este grupo
                 var matchingTransfer = transfers
-                    .Where(t => 
+                    .Where(t =>
                         !commissionTransferMap.Values.Contains(t) && // Não usar transfers já mapeados
                         t.CreatedAt.Date == group.Key.Date &&
                         Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 && // Dentro de 1 hora
@@ -2067,7 +2067,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (matchingTransfer == null)
                 {
                     matchingTransfer = transfers
-                        .Where(t => 
+                        .Where(t =>
                             !commissionTransferMap.Values.Contains(t) &&
                             t.CreatedAt.Date == group.Key.Date &&
                             Math.Abs(t.CreatedAt.Hour - group.Key.Hour) <= 1 &&
@@ -2197,7 +2197,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var totalPartners = await partnersQuery.CountAsync();
                 var totalPartnersPages = totalPartners > 0 ? (int)Math.Ceiling(totalPartners / (double)partnersPageSize) : 1;
-                
+
                 if (partnersPage > totalPartnersPages && totalPartnersPages > 0)
                 {
                     partnersPage = totalPartnersPages;
@@ -2224,7 +2224,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var totalPhotos = await photosQuery.CountAsync();
                 var totalPhotosPages = totalPhotos > 0 ? (int)Math.Ceiling(totalPhotos / (double)photosPageSize) : 1;
-                
+
                 if (photosPage > totalPhotosPages && totalPhotosPages > 0)
                 {
                     photosPage = totalPhotosPages;
@@ -2250,7 +2250,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.PartnersCurrentPage = 1;
                 ViewBag.PartnersTotalPages = 1;
                 ViewBag.PartnersPageSize = partnersPageSize;
-                
+
                 coworkingEntity.Photos = new List<Domain.Entities.CoworkingPhoto>();
                 ViewBag.PhotosTotalItems = 0;
                 ViewBag.PhotosCurrentPage = 1;
@@ -2289,7 +2289,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Verificar se é requisição AJAX (declarar uma única vez no início do método)
                 var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
-                
+
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = existingCoworking.FirstOrDefault();
@@ -2344,11 +2344,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
                         // Verificar se o CNPJ já está cadastrado em outro coworking
                         var existingCNPJ = await _context.Coworkings
-                            .Where(c => c.Id != coworkingEntity.Id && 
-                                c.CNPJ != null && 
+                            .Where(c => c.Id != coworkingEntity.Id &&
+                                c.CNPJ != null &&
                                 c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
                             .FirstOrDefaultAsync();
-                        
+
                         if (existingCNPJ != null)
                         {
                             var errorMessage = $"O CNPJ {coworking.CNPJ} já está cadastrado para outro coworking.";
@@ -2480,13 +2480,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["ActiveTab"] = activeTab;
                 }
-                
+
                 // Se for requisição AJAX, retornar JSON
                 if (isAjaxRequest)
                 {
                     return Json(new { success = true, message = "Perfil atualizado com sucesso!" });
                 }
-                
+
                 TempData["Success"] = "Perfil atualizado com sucesso!";
                 return RedirectToAction("Profile");
             }
@@ -2494,7 +2494,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Verificar se é requisição AJAX no catch também
                 var isAjaxRequestCatch = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
-                
+
                 var errorMessage = $"Erro ao atualizar dados: {ex.Message}";
                 TempData["Error"] = errorMessage;
                 var activeTab = Request.Form["activeTab"].ToString();
@@ -2502,13 +2502,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData["ActiveTab"] = activeTab;
                 }
-                
+
                 // Se for requisição AJAX, retornar JSON com erro
                 if (isAjaxRequestCatch)
                 {
                     return Json(new { success = false, error = errorMessage });
                 }
-                
+
                 return RedirectToAction("Profile");
             }
         }
@@ -2563,10 +2563,10 @@ namespace KlyonHubPlatform.Api.Controllers
                         .Where(p => p.CoworkingId == coworkingEntity.Id && p.IsActive)
                         .Select(p => p.ProductType)
                         .ToListAsync();
-                    
-                    return Json(new 
-                    { 
-                        success = true, 
+
+                    return Json(new
+                    {
+                        success = true,
                         message = "Produtos atualizados com sucesso!",
                         hasFiscalAddress = updatedProducts.Contains("FiscalAddress"),
                         hasRoomRental = updatedProducts.Contains("RoomRental")
@@ -2785,7 +2785,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Aplicar filtros
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(p => 
+                query = query.Where(p =>
                     p.Id.ToString().Contains(search) ||
                     (p.Subscription.Contract.Client.RazaoSocial != null && p.Subscription.Contract.Client.RazaoSocial.Contains(search)) ||
                     (p.Subscription.Contract.Client.ContactName != null && p.Subscription.Contract.Client.ContactName.Contains(search)) ||
@@ -2928,8 +2928,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)
                 var previousPaidPayments = await _context.Payments
-                    .Where(p => p.SubscriptionId == payment.SubscriptionId && 
-                               p.Id != paymentId && 
+                    .Where(p => p.SubscriptionId == payment.SubscriptionId &&
+                               p.Id != paymentId &&
                                p.Status == PaymentStatus.Paid)
                     .CountAsync();
 
@@ -2937,20 +2937,20 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Guardar o status original antes de alterar
                 var originalStatus = contract.Status;
-                
+
                 // Ativar contrato se estiver aguardando pagamento ou suspenso
                 if (contract.Status == ContractStatus.PendingPayment || contract.Status == ContractStatus.Suspended)
                 {
                     contract.Status = ContractStatus.Active;
                     contract.UpdatedAt = DateTime.UtcNow;
-                    
+
                     // Se for o primeiro pagamento, definir validade de 1 ano a partir do pagamento
                     if (isFirstPayment && contract.ExpiryDate == null)
                     {
                         contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
                     }
                 }
-                
+
                 await _context.SaveChangesAsync();
 
                 // Atualizar contador de contratos do endereço apenas se for o primeiro pagamento
@@ -2983,7 +2983,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
-                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!" + 
+                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!" +
                     (isFirstPayment && contract.ExpiryDate.HasValue ? " Declaração gerada automaticamente." : "");
                 return RedirectToAction("PendingPayments");
             }
@@ -3095,7 +3095,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var fileName = Path.GetFileName(payment.ReceiptFilePath);
             var contentType = fileName.EndsWith(".pdf") ? "application/pdf" : "image/jpeg";
-            
+
             return File(fileBytes, contentType, fileName);
         }
 
@@ -3194,7 +3194,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var photo = await _context.CoworkingPhotos
                 .Include(p => p.Coworking)
                 .FirstOrDefaultAsync(p => p.Id == photoId);
-            
+
             if (photo == null)
             {
                 return NotFound();
@@ -3203,7 +3203,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Verificar se o coworking está ativo e é parceiro (fotos públicas no marketplace)
             // Se não for público, verificar permissões
             var isPublic = photo.Coworking.IsActive && photo.Coworking.IsPartner;
-            
+
             if (!isPublic && User.Identity?.IsAuthenticated == true)
             {
                 // Verificar se a foto pertence ao coworking do usuário logado OU se o usuário é cliente/administrador
@@ -3215,7 +3215,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // 1. É o dono do coworking
                 // 2. É administrador
                 // 3. É cliente (pode ver fotos de qualquer coworking para escolher endereços)
-                var canAccess = User.IsInRole("Administrator") || 
+                var canAccess = User.IsInRole("Administrator") ||
                               (coworkingEntity != null && photo.CoworkingId == coworkingEntity.Id) ||
                               User.IsInRole("Client");
 
@@ -3247,7 +3247,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 contentType = "image/gif";
             else if (lowerPath.EndsWith(".webp"))
                 contentType = "image/webp";
-            
+
             return File(fileBytes, contentType);
         }
 
@@ -3380,7 +3380,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 partner.CreatedAt = DateTime.UtcNow;
                 partner.IsPrincipal = IsPrincipal;
                 partner.IsContractSigner = IsContractSigner;
-                
+
                 // Converter SharePercentage de string (pode vir com vírgula) para decimal
                 if (Request.Form.ContainsKey("SharePercentage") && !string.IsNullOrWhiteSpace(Request.Form["SharePercentage"]))
                 {
@@ -3461,7 +3461,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingPartner.IsPrincipal = IsPrincipal;
                 existingPartner.IsContractSigner = IsContractSigner;
                 existingPartner.UpdatedAt = DateTime.UtcNow;
-                
+
                 // Converter SharePercentage de string (pode vir com vírgula) para decimal
                 if (Request.Form.ContainsKey("SharePercentage") && !string.IsNullOrWhiteSpace(Request.Form["SharePercentage"]))
                 {
@@ -3652,11 +3652,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var docType = (CoworkingDocumentType)documentType;
                 var storageService = await _storageFactory.GetStorageServiceAsync();
-                
+
                 using var stream = new MemoryStream();
                 await documentFile.CopyToAsync(stream);
                 var fileBytes = stream.ToArray();
-                
+
                 var folderName = docType switch
                 {
                     CoworkingDocumentType.AddressCessionContract => "address_cession_contract",
@@ -3665,7 +3665,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     CoworkingDocumentType.AddressAuthorization => "address_authorization",
                     _ => "other"
                 };
-                
+
                 var fileName = $"{folderName}_{coworkingEntity.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(documentFile.FileName)}";
                 var filePath = await storageService.SaveFileAsync(fileBytes, fileName, $"coworkings/{coworkingEntity.Id}/documents");
 
@@ -3691,7 +3691,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     existingDoc.IsValid = true;
                     existingDoc.Status = CoworkingDocumentStatus.Pending;
                     existingDoc.RejectionReason = null;
-                    
+
                     // Definir data de expiração para comprovante de endereço (90 dias)
                     if (docType == CoworkingDocumentType.AddressProof)
                     {
@@ -3709,8 +3709,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         FilePath = filePath,
                         IsValid = true,
                         Status = CoworkingDocumentStatus.Pending,
-                        ExpiresAt = docType == CoworkingDocumentType.AddressProof 
-                            ? DateTime.UtcNow.AddDays(90) 
+                        ExpiresAt = docType == CoworkingDocumentType.AddressProof
+                            ? DateTime.UtcNow.AddDays(90)
                             : null
                     };
 
@@ -3790,12 +3790,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Converter strings de horário para TimeSpan
                     TimeSpan? openingTime = null;
                     TimeSpan? closingTime = null;
-                    
+
                     if (!string.IsNullOrWhiteSpace(openingTimeStr) && TimeSpan.TryParse(openingTimeStr, out var opening))
                     {
                         openingTime = opening;
                     }
-                    
+
                     if (!string.IsNullOrWhiteSpace(closingTimeStr) && TimeSpan.TryParse(closingTimeStr, out var closing))
                     {
                         closingTime = closing;
@@ -3988,13 +3988,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
             // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
-            var coworkingServiceNames = new[] 
-            { 
-                "Aluguel de Auditório", 
-                "Aluguel de Sala Compartilhada", 
-                "Aluguel de Sala Particular", 
-                "Reservar Sala" 
-            };
+            var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
 
             // Buscar todos os serviços disponíveis (excluir "Contratar Endereço Fiscal", que é apenas para clientes)
             var allServicesQuery = _context.Services
@@ -4036,7 +4030,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
 
             var hasActiveContracts = await _context.Contracts
-                .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId) 
+                .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId)
                     && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
 
             ViewBag.PartnerServices = partnerServices;
@@ -4069,13 +4063,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 
                 // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
-                var coworkingServiceNames = new[] 
-                { 
-                    "Aluguel de Auditório", 
-                    "Aluguel de Sala Compartilhada", 
-                    "Aluguel de Sala Particular", 
-                    "Reservar Sala" 
-                };
+                var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
 
                 // Verificar se o serviço existe e está ativo
                 var service = await _context.Services
@@ -4170,7 +4158,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se há contratos ativos para esses endereços
                 var hasActiveContracts = await _context.Contracts
-                    .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId) 
+                    .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId)
                         && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
 
                 if (hasActiveContracts)
@@ -4192,7 +4180,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 // Registrar no audit log
-                await _auditService.LogActionAsync(userId, "ServiceRemovalRequested", "PartnerService", partnerService.Id, 
+                await _auditService.LogActionAsync(userId, "ServiceRemovalRequested", "PartnerService", partnerService.Id,
                     null, $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}");
 
                 TempData["Success"] = $"Solicitação de remoção do serviço '{serviceName}' enviada com sucesso! Aguardando aprovação do administrador.";
@@ -4237,14 +4225,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(p => p.Reservation)
                     .ThenInclude(r => r.Client)
                         .ThenInclude(cl => cl.User)
-                .Where(p => 
+                .Where(p =>
                     (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
                     (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                 )
                 .Where(p => p.Status == PaymentStatus.Paid)
-                .Where(p => !_context.FiscalNotes.Any(fn => 
-                    fn.PaymentId == p.Id && 
-                    fn.Type == "Servico" && 
+                .Where(p => !_context.FiscalNotes.Any(fn =>
+                    fn.PaymentId == p.Id &&
+                    fn.Type == "Servico" &&
                     (fn.Status == "Emitida" || fn.Status == "Importada")
                 ))
                 .AsQueryable();
@@ -4688,8 +4676,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     // Verificar se já existe configuração para este estado/ambiente
                     var existing = await _context.CoworkingSefazConfigurations
-                        .FirstOrDefaultAsync(c => c.CoworkingId == coworkingEntity.Id && 
-                                                  c.State == state.ToUpper() && 
+                        .FirstOrDefaultAsync(c => c.CoworkingId == coworkingEntity.Id &&
+                                                  c.State == state.ToUpper() &&
                                                   c.Environment == environment);
 
                     if (existing != null)
@@ -4781,7 +4769,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UploadPartnerInvoice(int settlementId, IFormFile pdfFile, IFormFile? xmlFile, 
+        public async Task<IActionResult> UploadPartnerInvoice(int settlementId, IFormFile pdfFile, IFormFile? xmlFile,
             string? invoiceNumber, decimal invoiceAmount, string? partnerNotes)
         {
             var coworking = await GetCurrentCoworkingAsync();
