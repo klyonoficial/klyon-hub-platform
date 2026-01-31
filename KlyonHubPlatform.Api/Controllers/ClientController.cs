@@ -1132,6 +1132,7 @@ namespace KlyonHubPlatform.Api.Controllers
             
             // IDs de endereços que o cliente já possui contrato (ativo, suspenso, pendente de pagamento ou pendente de cancelamento)
             var contractedAddressIds = new HashSet<int>();
+            int? activeContractId = null;
             if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -1149,9 +1150,18 @@ namespace KlyonHubPlatform.Api.Controllers
                         .Select(c => c.CoworkingAddressId)
                         .ToListAsync();
                     contractedAddressIds = new HashSet<int>(ids);
+                    // ID do contrato ativo/suspenso (para link "Contrato de Endereço Fiscal" -> detalhes do contrato atual)
+                    var activeId = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended))
+                        .OrderByDescending(c => c.StartDate)
+                        .Select(c => c.Id)
+                        .FirstOrDefaultAsync();
+                    if (activeId != 0) activeContractId = activeId;
                 }
             }
             ViewBag.ContractedAddressIds = contractedAddressIds;
+            ViewBag.ActiveContractId = activeContractId;
             
             // Buscar foto principal de cada coworking
             // Se não houver foto principal, buscar a primeira foto disponível
@@ -1278,7 +1288,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Cliente já possui contrato ativo em outro endereço — não pode adicionar outro sem cancelar/encerrar o atual
                 if (await _clientMenuService.ClientHasActiveContractAsync(userId))
                 {
-                    var msg = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+                    var activeContract = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended))
+                        .OrderByDescending(c => c.StartDate)
+                        .Select(c => c.Id)
+                        .FirstOrDefaultAsync();
+                    var contractDetailsUrl = activeContract != 0
+                        ? Url.Action("ContractDetails", new { id = activeContract })
+                        : Url.Action("MyContracts");
+                    var msg = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual no menu <strong><a href=\"" + contractDetailsUrl + "\" class=\"alert-link text-white text-decoration-underline\">Contrato de Endereço Fiscal</a></strong>.";
                     if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action("AvailableAddresses", new { locationId = addressEntity.LocationId }) });
                     TempData["Info"] = msg;
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });

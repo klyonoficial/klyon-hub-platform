@@ -16,6 +16,10 @@
     var mainPhotos = ViewBag.MainPhotos as Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto> ?? new Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
     var contractedAddressIds = ViewBag.ContractedAddressIds as HashSet<int> ?? new HashSet<int>();
     var clientHasActiveContract = contractedAddressIds.Count > 0;
+    var activeContractId = ViewBag.ActiveContractId as int?;
+    var urlContratoAtivo = activeContractId.HasValue
+        ? Url.Action("ContractDetails", "Client", new { id = activeContractId.Value })
+        : Url.Action("MyContracts", "Client");
 }
 
 @if (Model.Any())
@@ -134,7 +138,8 @@ else
 }
 
 <script>
-var msgJaContratado = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual em Meus Contratos.";
+var urlContratoAtivo = '@Html.Raw(urlContratoAtivo)';
+var msgJaContratado = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual no menu <strong><a href=\"" + urlContratoAtivo + "\" class=\"alert-link text-white text-decoration-underline\">Contrato de Endereço Fiscal</a></strong>.";
 // Regra: já tem contrato ativo → só toast, sem loading. Pode contratar → Ajax + loading (fetch aciona o loading do layout).
 document.addEventListener('submit', function(e) {
     var form = e.target;
