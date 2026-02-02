@@ -10,6 +10,7 @@ using KlyonHubPlatform.Domain.Interfaces;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json;
+using System.Security.Claims;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -69,6 +70,66 @@ namespace KlyonHubPlatform.Application.Services
             string? newValuesJson = newValues != null ? JsonSerializer.Serialize(newValues) : null;
 
             await _auditService.LogActionAsync(userId, action, entityType, entityId, oldValuesJson, newValuesJson, ipAddress, userAgent);
+        }
+
+        /// <summary>
+        /// Cancela todos os outros contratos do cliente que estão com pagamento pendente,
+        /// pois o cliente só pode possuir um endereço fiscal ativo.
+        /// Também cancela os pagamentos (PaymentStatus.Cancelled) e registra histórico com motivo claro.
+        /// </summary>
+        private async Task CancelOtherPendingPaymentContractsForClientAsync(int clientId, int activeContractId)
+        {
+            var activeContract = await _context.Contracts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == activeContractId);
+            var activeContractNumber = activeContract?.ContractNumber ?? "N/A";
+            var cancellationReasonContract = "Cliente já possui um endereço fiscal ativo. Outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
+            var rejectionReasonPayment = "Cancelado pois outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
+
+            var others = await _context.Contracts
+                .Include(c => c.Subscription)
+                .Where(c => c.ClientId == clientId && c.Id != activeContractId && c.Status == ContractStatus.PendingPayment)
+                .ToListAsync();
+            var now = DateTime.UtcNow;
+            var subscriptionIds = new List<int>();
+            foreach (var c in others)
+            {
+                c.Status = ContractStatus.Cancelled;
+                c.CancelledAt = now;
+                c.CancellationReason = cancellationReasonContract;
+                c.UpdatedAt = now;
+                _context.Contracts.Update(c);
+                if (c.Subscription != null)
+                    subscriptionIds.Add(c.Subscription.Id);
+            }
+            if (subscriptionIds.Count > 0)
+            {
+                var paymentsToCancel = await _context.Payments
+                    .Where(p => p.SubscriptionId != null && subscriptionIds.Contains(p.SubscriptionId.Value)
+                        && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation))
+                    .ToListAsync();
+                var actionBy = 0;
+                var userIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var uid))
+                    actionBy = uid;
+                foreach (var p in paymentsToCancel)
+                {
+                    p.Status = PaymentStatus.Cancelled;
+                    p.UpdatedAt = now;
+                    _context.Payments.Update(p);
+                    if (actionBy > 0)
+                    {
+                        _context.PaymentHistories.Add(new PaymentHistory
+                        {
+                            PaymentId = p.Id,
+                            Action = "Cancelled",
+                            RejectionReason = rejectionReasonPayment,
+                            ActionBy = actionBy,
+                            ActionAt = now
+                        });
+                    }
+                }
+            }
         }
 
         public async Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method)
@@ -190,6 +251,9 @@ namespace KlyonHubPlatform.Application.Services
                                             System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
                                         }
                                     }
+
+                                    // Cancelar outros contratos pendentes do cliente (só pode ter um endereço fiscal ativo)
+                                    await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
                                 }
                                 else
                                 {
@@ -784,6 +848,9 @@ namespace KlyonHubPlatform.Application.Services
                                             System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
                                         }
                                     }
+
+                                    // Cancelar outros contratos pendentes do cliente (só pode ter um endereço fiscal ativo)
+                                    await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
                                 }
                                 else
                                 {

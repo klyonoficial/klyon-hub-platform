@@ -25,7 +25,7 @@
             }
             var tooltipText = string.Join(" e ", pendingMessages);
             <span class="badge bg-warning text-dark ms-2" title="@tooltipText" data-bs-toggle="tooltip" data-bs-placement="top">
-                <i class="bi bi-exclamation-triangle-fill"></i> Pendência
+                <i class="bi bi-exclamation-triangle-fill"></i> Atenção! @tooltipText
             </span>
         }
     </h2>
@@ -35,7 +35,7 @@
 {
     <div class="alert alert-info">
         <h5><i class="bi bi-info-circle"></i> Complete seu cadastro</h5>
-        <p>Para contratar um endereço fiscal, você precisa completar seu cadastro primeiro.</p>
+        <p>Para utilizar nossos serviços, você precisa completar seu cadastro primeiro.</p>
         <a href="@Url.Action("RegisterClient", "Client")" class="btn btn-primary">
             <i class="bi bi-person-plus"></i> Completar Cadastro
         </a>
@@ -44,14 +44,15 @@
 else
 {
     var client = ViewBag.Client as KlyonHubPlatform.Domain.Entities.Client;
-    var activeContracts = client?.Contracts?.Where(c => c.Status == ContractStatus.Active || c.Status == ContractStatus.PendingPayment).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Contract>();
+    var contractsForTable = client?.Contracts?.Where(c => c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended || c.Status == ContractStatus.PendingPayment).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Contract>();
+    var trulyActiveCount = client?.Contracts?.Count(c => c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended) ?? 0;
 
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card text-white bg-primary">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos Ativos</h5>
-                    <h2 class="display-4">@activeContracts.Count</h2>
+                    <h2 class="display-4">@trulyActiveCount</h2>
                 </div>
             </div>
         </div>
@@ -67,7 +68,7 @@ else
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-geo-alt"></i> Endereços</h5>
-                    <h4>@activeContracts.Count</h4>
+                    <h4>@trulyActiveCount</h4>
                 </div>
             </div>
         </div>
@@ -116,7 +117,7 @@ else
             <small class="text-white">Exibindo contratos ativos e pendentes de pagamento</small>
         </div>
         <div class="card-body">
-            @if (activeContracts.Any())
+            @if (contractsForTable.Any())
             {
                 <div class="table-responsive">
                     <table class="table table-hover">
@@ -130,8 +131,9 @@ else
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var contract in activeContracts)
+                            @foreach (var contract in contractsForTable)
                             {
+                                var hasPaymentAwaitingValidation = contract.Subscription?.Payments?.Any(p => p.Status == PaymentStatus.AwaitingValidation) == true;
                                 <tr>
                                     <td>@contract.ContractNumber</td>
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
@@ -150,9 +152,18 @@ else
                                                 </span>
                                                 break;
                                             case ContractStatus.PendingPayment:
-                                                <span class="badge bg-pending-payment">
-                                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
-                                                </span>
+                                                @if (hasPaymentAwaitingValidation)
+                                                {
+                                                    <span class="badge bg-pending-payment">
+                                                        <i class="bi bi-clock-history me-1"></i> Aguardando Validação
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-pending-payment">
+                                                        <i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento
+                                                    </span>
+                                                }
                                                 break;
                                             case ContractStatus.PendingCancellation:
                                                 <span class="badge bg-pending-cancellation">

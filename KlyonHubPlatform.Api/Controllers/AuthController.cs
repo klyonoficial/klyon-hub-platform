@@ -33,6 +33,11 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             ViewData["ReturnUrl"] = returnUrl;
+            // Exibir mensagem de sucesso vinda do redirect (ex.: após verificar email)
+            if (TempData["Success"] != null)
+            {
+                ViewData["Success"] = TempData["Success"];
+            }
             return View();
         }
 
@@ -110,25 +115,27 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public IActionResult Register([FromQuery] string? role = null)
+        public IActionResult Register([FromQuery] string? role = null, [FromQuery] string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
             {
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-                return RedirectToDashboardByRole(userRole, null);
+                return RedirectToDashboardByRole(userRole, returnUrl);
             }
 
             if (role == "CoworkingPartner")
                 ViewBag.PreSelectedRole = "CoworkingPartner";
+            ViewData["ReturnUrl"] = returnUrl;
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client")
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null)
         {
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
             {
                 ViewData["Error"] = "Todos os campos são obrigatórios";
+                ViewData["ReturnUrl"] = returnUrl;
                 return View();
             }
 
@@ -136,14 +143,16 @@ namespace KlyonHubPlatform.Api.Controllers
             // NÃO cria Client nem Contract automaticamente.
             // O cliente deve ser criado separadamente através de /Client/RegisterClient
             // e os contratos devem ser criados apenas quando o cliente escolher um endereço fiscal.
-            var success = await _authService.RegisterAsync(email, password, fullName, role);
+            var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl);
             if (!success)
             {
                 ViewData["Error"] = "Erro ao criar conta. Email já existe?";
+                ViewData["ReturnUrl"] = returnUrl;
                 return View();
             }
 
             ViewData["Success"] = "Conta criada com sucesso! Verifique seu email para ativar a conta.";
+            ViewData["ReturnUrl"] = returnUrl;
             return View("Login");
         }
 
@@ -259,7 +268,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> VerifyEmail(string? token = null)
+        public async Task<IActionResult> VerifyEmail(string? token = null, string? returnUrl = null)
         {
             if (!string.IsNullOrEmpty(token))
             {
@@ -268,6 +277,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (success)
                 {
                     ViewData["Success"] = "Email verificado com sucesso! Você já pode fazer login.";
+                    ViewData["ReturnUrl"] = returnUrl;
+                    // Redirecionar para Login com returnUrl para que, após login, o usuário continue (ex.: contratação)
+                    if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                    {
+                        TempData["Success"] = "Email verificado com sucesso! Faça login para continuar.";
+                        return RedirectToAction("Login", new { returnUrl });
+                    }
                 }
                 else
                 {
@@ -278,22 +294,30 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 ViewData["Message"] = "Token de verificação não fornecido.";
             }
+            ViewData["ReturnUrl"] = returnUrl;
             return View();
         }
 
         [HttpPost]
         [ActionName("VerifyEmail")]
-        public async Task<IActionResult> VerifyEmailPost(string token)
+        public async Task<IActionResult> VerifyEmailPost(string token, string? returnUrl = null)
         {
             var success = await _authService.VerifyEmailAsync(token);
             if (success)
             {
                 ViewData["Success"] = "Email verificado com sucesso! Você já pode fazer login.";
+                ViewData["ReturnUrl"] = returnUrl;
+                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                {
+                    TempData["Success"] = "Email verificado com sucesso! Faça login para continuar.";
+                    return RedirectToAction("Login", new { returnUrl });
+                }
             }
             else
             {
                 ViewData["Error"] = "Token inválido ou expirado.";
             }
+            ViewData["ReturnUrl"] = returnUrl;
             return View("VerifyEmail");
         }
 

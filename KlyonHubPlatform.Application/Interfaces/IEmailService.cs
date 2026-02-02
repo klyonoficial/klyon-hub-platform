@@ -3,7 +3,7 @@ namespace KlyonHubPlatform.Application.Interfaces
     public interface IEmailService
     {
         Task<bool> SendEmailAsync(string to, string subject, string body, bool isHtml = true);
-        Task<bool> SendVerificationEmailAsync(string to, string name, string token);
+        Task<bool> SendVerificationEmailAsync(string to, string name, string token, string? returnUrl = null);
         Task<bool> SendPasswordResetEmailAsync(string to, string name, string token);
         Task<bool> SendContractExpiryNotificationAsync(string to, string clientName, string contractNumber, DateTime expiryDate, int daysRemaining);
         /// <summary>Envia ao Coworking: solicitação de reserva(s), link para aprovar/reprovar, aviso 24h.</summary>

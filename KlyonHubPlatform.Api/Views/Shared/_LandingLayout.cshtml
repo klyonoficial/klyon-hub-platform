@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — " : "")Klyon — Endereço Fiscal e Espaços Corporativos</title>
     <meta name="description" content="Marketplace que conecta clientes a parceiros: endereço fiscal, coworking, salas de reunião e espaços corporativos. Simples, seguro e premium." />
+    <link rel="icon" href="~/favicon.png" type="image/png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -46,7 +47,7 @@
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <li class="nav-item">
-                            <a class="nav-link" href="@(User.IsInRole("Client") ? Url.Action("Services", "Client") : Url.Action("Dashboard", "Coworking"))">
+                            <a class="nav-link" href="@(User.IsInRole("Administrator") ? Url.Action("Dashboard", "Admin") : User.IsInRole("Client") ? Url.Action("DashboardDetails", "Client") : Url.Action("Dashboard", "Coworking"))">
                                 <i class="fa-solid fa-th-large me-1" aria-hidden="true"></i> Área logada
                             </a>
                         </li>

@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Contratar Endereço Fiscal - Escolher Endereço";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -22,14 +23,34 @@
     var currentPage = ViewBag.CurrentPage as int? ?? 1;
     var totalPages = ViewBag.TotalPages as int? ?? 1;
     var totalItems = ViewBag.TotalItems as int? ?? 0;
+    var pendingPaymentByAddressId = ViewBag.PendingPaymentByAddressId as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var pendingPaymentStatusByAddressId = ViewBag.PendingPaymentStatusByAddressId as Dictionary<int, PaymentStatus> ?? new Dictionary<int, PaymentStatus>();
 }
+
+<style>
+/* Botão Contratar em estado de loading (Client/ChooseLocation) */
+.contract-btn.contract-btn-loading {
+    background-color: #051323 !important;
+    border-color: #051323 !important;
+    color: #fff;
+}
+.contract-btn.contract-btn-loading .spinner-white {
+    color: #fff;
+}
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Contratar Endereço Fiscal</h2>
+    <a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
 </div>
 
 <!-- Filtros por Região, Cidade e Estado -->
 <div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
     <div class="card-body">
         <form method="get" action="@Url.Action("ChooseLocation", "Client")" id="filterForm">
             <div class="row g-3">
@@ -86,7 +107,7 @@
                 </div>
                 <div class="col-6 col-md-3 d-flex align-items-end">
                     <button type="button" class="btn btn-secondary w-100" onclick="window.location.href='@Url.Action("ChooseLocation", "Client")';">
-                        <i class="bi bi-x-circle"></i> Limpar Filtros
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Limpar Filtros
                     </button>
                 </div>
             </div>
@@ -98,7 +119,7 @@
 @if (Model.Any())
 {
     <p class="text-muted mb-4">
-        <i class="bi bi-info-circle"></i>
+        <i class="bi bi-info-circle me-1"></i>
         Mostrando <strong>@Model.Count</strong> de <strong>@totalItems</strong> endereços fiscais disponíveis
         @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentCity) || !string.IsNullOrEmpty(currentState))
         {
@@ -127,10 +148,10 @@
                             @if (vacancies <= 2)
                             {
                                 <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
                                 </span>
                             }
-                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill"><i class="bi bi-geo-alt me-1"></i>@locationLabel</span>
                             <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = mainPhoto.Id })"
                                  alt="@coworkingName"
                                  class="card-img-top"
@@ -144,10 +165,10 @@
                             @if (vacancies <= 2)
                             {
                                 <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
                                 </span>
                             }
-                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill"><i class="bi bi-geo-alt me-1"></i>@locationLabel</span>
                             <div class="text-center text-white opacity-75">
                                 <i class="bi bi-building" style="font-size: 3rem;"></i>
                                 <p class="mt-2 mb-0 small">@coworkingName</p>
@@ -157,18 +178,18 @@
                     <div class="card-body d-flex flex-column">
                         <h6 class="text-uppercase text-primary fw-bold mb-1" style="font-size: 0.8rem;">@coworkingName</h6>
                         <h5 class="card-title mb-2">
-                            <i class="bi bi-geo-alt-fill text-primary"></i> @address.Address, @address.Number
+                            <i class="bi bi-geo-alt-fill text-primary me-1"></i> @address.Address, @address.Number
                             @if (!string.IsNullOrEmpty(address.Complement)) { <span class="text-muted">@address.Complement</span> }
                         </h5>
                         <p class="card-text text-muted small mb-3">
                             @address.Neighborhood &middot; @address.City/@address.State<br>
-                            <i class="bi bi-upc"></i> CEP @address.ZipCode
+                            <i class="bi bi-upc me-1"></i> CEP @address.ZipCode
                         </p>
 
                         <ul class="list-unstyled small mb-3 flex-grow-1">
-                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Endereço fiscal para CNPJ</li>
-                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Contrato anual — preço fixo</li>
-                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Suporte Klyon incluído</li>
+                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Endereço fiscal para CNPJ</li>
+                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Contrato anual — preço fixo</li>
+                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Suporte Klyon incluído</li>
                         </ul>
 
                         <div class="mt-auto pt-3 border-top">
@@ -177,13 +198,29 @@
                                     <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString("N2")</span>
                                     <span class="text-muted">/ano</span>
                                     <div class="small text-success fw-semibold">
-                                        <i class="bi bi-tag-fill"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
+                                        <i class="bi bi-tag-fill me-1"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
                                     </div>
                                 </div>
-                                @if (alreadyContracted)
+                                @{
+                                    var pendingPaymentId = pendingPaymentByAddressId.ContainsKey(address.Id) ? (int?)pendingPaymentByAddressId[address.Id] : null;
+                                    var pendingStatus = pendingPaymentId.HasValue && pendingPaymentStatusByAddressId.ContainsKey(address.Id) ? pendingPaymentStatusByAddressId[address.Id] : (PaymentStatus?)null;
+                                }
+                                @if (pendingPaymentId.HasValue)
+                                {
+                                    @* Mesmos nomes e cores de MyPayments: Aguardando Pagamento (bg-pending-payment), Aguardando Validação (bg-pending-payment), Processando (bg-suspended) *@
+                                    var isAwaitingValidation = pendingStatus == PaymentStatus.AwaitingValidation;
+                                    var isProcessing = pendingStatus == PaymentStatus.Processing;
+                                    var badgeClass = isProcessing ? "bg-suspended" : "bg-pending-payment";
+                                    var statusLabel = isProcessing ? "Processando" : (isAwaitingValidation ? "Aguardando Validação" : "Aguardando Pagamento");
+                                    var statusIcon = isProcessing ? "bi-arrow-repeat" : (isAwaitingValidation ? "bi-clock-history" : "bi-cash-coin");
+                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = pendingPaymentId.Value })" class="badge @badgeClass text-white rounded-pill px-4 py-2 text-decoration-none contract-btn d-inline-flex align-items-center" style="font-size: 0.9rem;">
+                                        <i class="bi @statusIcon me-1"></i> @statusLabel
+                                    </a>
+                                }
+                                else if (alreadyContracted)
                                 {
                                     <button type="button" class="btn btn-secondary rounded-pill px-4" disabled>
-                                        <i class="bi bi-check2-all"></i> Já Contratado!
+                                        <i class="bi bi-check-circle-fill me-1"></i> Já Contratado!
                                     </button>
                                 }
                                 else
@@ -192,14 +229,14 @@
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="coworkingAddressId" value="@address.Id">
                                         <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
-                                            <i class="bi bi-check2-all"></i> Contratar
+                                            <i class="bi bi-file-earmark-text me-1"></i> Contratar
                                         </button>
                                     </form>
                                 }
                             </div>
                             @if (vacancies > 0 && vacancies <= 5)
                             {
-                                <p class="small text-muted mb-0"><i class="bi bi-people"></i> @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</p>
+                                <p class="small text-muted mb-0"><i class="bi bi-people me-1"></i> @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</p>
                             }
                         </div>
                     </div>
@@ -256,7 +293,7 @@
 else
 {
     <div class="alert alert-info mt-4">
-        <i class="bi bi-info-circle"></i>
+        <i class="bi bi-info-circle me-1"></i>
         @if (totalItems == 0)
         {
             @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentCity) || !string.IsNullOrEmpty(currentState))
@@ -294,24 +331,51 @@ document.addEventListener('submit', function(e) {
     var btn = form.querySelector('.contract-btn');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+        btn.classList.add('contract-btn-loading');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm spinner-white me-1" role="status" aria-hidden="true"></span> Processando...';
     }
     if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
     var formData = new FormData(form);
     fetch(form.action, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            var ct = r.headers.get('content-type') || '';
+            if (!r.ok) {
+                return r.text().then(function(t) { return Promise.reject({ status: r.status, body: t }); });
+            }
+            if (ct.indexOf('application/json') === -1) {
+                return r.text().then(function(t) { return Promise.reject({ status: r.status, body: t }); });
+            }
+            return r.json();
+        })
         .then(function(data) {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
             if (data.success && data.redirectUrl) {
                 window.location.href = data.redirectUrl;
                 return;
             }
             if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar.', 'error', 5000);
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+            if (btn) { btn.disabled = false; btn.classList.remove('contract-btn-loading'); btn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i> Contratar'; }
         })
-        .catch(function() {
+        .catch(function(err) {
             if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
-            if (typeof showToast === 'function') showToast('Erro de conexão. Tente novamente.', 'error', 5000);
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+            var msg = 'Erro de conexão. Tente novamente.';
+            var addressIdInput = form.querySelector('input[name="coworkingAddressId"]');
+            var addressId = addressIdInput ? addressIdInput.value : '';
+            var completeContractUrl = '@Url.Action("CompleteContractAfterLogin", "Client")' + (addressId ? '?coworkingAddressId=' + encodeURIComponent(addressId) : '');
+            var loginUrl = '@Url.Action("Login", "Auth")' + (completeContractUrl ? '?returnUrl=' + encodeURIComponent(completeContractUrl) : '');
+            if (err && err.status === 400) {
+                msg = 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
+            } else if (err && (err.status === 401 || err.status === 403)) {
+                msg = 'Sessão expirada. Faça login para continuar a contratação.';
+                setTimeout(function() { window.location.href = loginUrl; }, 2000);
+            } else if (err && err.status === 200) {
+                msg = 'Faça login para continuar a contratação.';
+                setTimeout(function() { window.location.href = loginUrl; }, 2500);
+            } else if (err && err.status >= 500) {
+                msg = 'Erro no servidor. Tente novamente em alguns instantes.';
+            }
+            if (typeof showToast === 'function') showToast(msg, 'error', 5000);
+            if (btn) { btn.disabled = false; btn.classList.remove('contract-btn-loading'); btn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i> Contratar'; }
         });
 }, true);
 document.addEventListener('DOMContentLoaded', function() {
@@ -319,7 +383,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (errorAlert) {
         document.querySelectorAll('.contract-btn').forEach(function(btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar';
+            btn.classList.remove('contract-btn-loading');
+            btn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i> Contratar';
         });
     }
 });

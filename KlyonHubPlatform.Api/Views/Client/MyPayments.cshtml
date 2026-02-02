@@ -21,26 +21,26 @@ else
 {
     <div class="row mb-3">
         <div class="col-md-4">
-            <div class="card border-warning">
+            <div class="card border-0 bg-pending-payment text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-warning">Pendentes</h6>
-                    <h4>R$ @Model.Where(p => p.Status == PaymentStatus.Pending).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h6 class="card-title"><i class="bi bi-cash-coin me-1"></i> Pendentes</h6>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Pending).Sum(p => p.Amount).ToString("N2")</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-info">
+            <div class="card border-0 bg-suspended text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-info">Processando</h6>
-                    <h4>R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h6 class="card-title"><i class="bi bi-arrow-repeat me-1"></i> Processando / Aguardando Validação</h6>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("N2")</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-success">
+            <div class="card border-0 bg-active text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-success">Pagas</h6>
-                    <h4>R$ @Model.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h6 class="card-title"><i class="bi bi-check-circle-fill me-1"></i> Pagas</h6>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString("N2")</h4>
                 </div>
             </div>
         </div>
@@ -90,22 +90,28 @@ else
                                     @switch (payment.Status)
                                     {
                                         case PaymentStatus.Pending:
-                                            <span class="badge bg-warning">Pendente</span>
+                                            <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
                                             break;
                                         case PaymentStatus.Processing:
-                                            <span class="badge bg-info">Processando</span>
+                                            <span class="badge bg-suspended"><i class="bi bi-arrow-repeat me-1"></i> Processando</span>
                                             break;
                                         case PaymentStatus.AwaitingValidation:
-                                            <span class="badge bg-info"><i class="bi bi-clock-history"></i> Aguardando Validação</span>
+                                            <span class="badge bg-pending-payment"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
                                             break;
                                         case PaymentStatus.Paid:
-                                            <span class="badge bg-success">Pago</span>
+                                            <span class="badge bg-active"><i class="bi bi-check-circle-fill me-1"></i> Pago</span>
                                             break;
                                         case PaymentStatus.Failed:
-                                            <span class="badge bg-danger">Falhou</span>
+                                            <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Falhou</span>
+                                            break;
+                                        case PaymentStatus.Cancelled:
+                                            <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Cancelado</span>
+                                            break;
+                                        case PaymentStatus.Refunded:
+                                            <span class="badge bg-expired"><i class="bi bi-arrow-counterclockwise me-1"></i> Estornado</span>
                                             break;
                                         default:
-                                            <span class="badge bg-secondary">@payment.Status</span>
+                                            <span class="badge bg-expired"><i class="bi bi-question-circle-fill me-1"></i> @payment.Status</span>
                                             break;
                                     }
                                 </td>
@@ -113,7 +119,7 @@ else
                                     @payment.DueDate.ToString("dd/MM/yyyy")
                                     @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
                                     {
-                                        <br><small class="text-danger">Vencido</small>
+                                        <br><span class="badge bg-cancelled">Vencido</span>
                                     }
                                 </td>
                                 <td>

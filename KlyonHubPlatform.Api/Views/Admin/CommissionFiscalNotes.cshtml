@@ -85,6 +85,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Código Contrato</th>
                             <th>Parceiro</th>
                             <th>Cliente</th>
                             <th>Serviço</th>
@@ -102,9 +103,20 @@
                             var client = payment?.Subscription?.Contract?.Client ?? payment?.Reservation?.Client;
                             var serviceName = payment?.Subscription?.Contract != null ? "Endereço Fiscal" : "Reserva de Sala";
                             var location = payment?.Subscription?.Contract?.CoworkingAddress?.Location ?? payment?.Reservation?.CoworkingAddress?.Location;
+                            var contractNumber = payment?.Subscription?.Contract?.ContractNumber;
                             
                             <tr>
                                 <td>#@commission.Id</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(contractNumber))
+                                    {
+                                        <strong>@contractNumber</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
                                 <td>
                                     <strong>@coworking?.Name</strong><br>
                                     <small class="text-muted">@coworking?.CNPJ</small>

@@ -55,7 +55,7 @@
                     </div>
                     <hr>
                     <div class="text-center">
-                        <p>Não tem uma conta? <a href="@Url.Action("Register", "Auth")">Cadastre-se</a></p>
+                        <p>Não tem uma conta? <a href="@(Url.Action("Register", "Auth") + (ViewData["ReturnUrl"] != null && !string.IsNullOrEmpty(ViewData["ReturnUrl"]?.ToString()) ? "?returnUrl=" + Uri.EscapeDataString(ViewData["ReturnUrl"]!.ToString()!) : ""))">Cadastre-se</a></p>
                     </div>
                 </div>
             </div>

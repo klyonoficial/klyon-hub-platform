@@ -22,6 +22,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Klyon Endereço Fiscal</title>
+    <link rel="icon" href="~/favicon.png" type="image/png" />
+    <script>
+        // Definir no head para que existam antes do navbar (evita ReferenceError no onmouseenter)
+        var hideUserMenuTimeout = null;
+        function showUserMenu() {
+            if (hideUserMenuTimeout) { clearTimeout(hideUserMenuTimeout); hideUserMenuTimeout = null; }
+            var el = document.getElementById('userMenu');
+            if (el) el.style.display = 'block';
+        }
+        function hideUserMenu() {
+            var userMenu = document.getElementById('userMenu');
+            if (userMenu) {
+                hideUserMenuTimeout = setTimeout(function() {
+                    var dropdown = document.getElementById('userMenuDropdown');
+                    if (dropdown && !dropdown.matches(':hover') && !(userMenu.matches(':hover')))
+                        userMenu.style.display = 'none';
+                }, 150);
+            }
+        }
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -51,7 +71,7 @@
         }
     </style>
 </head>
-<body>
+<body class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Client" && ViewContext.RouteData.Values["action"]?.ToString() == "ChooseLocation" ? "page-choose-location" : "")">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <div class="navbar-brand d-flex align-items-center">
@@ -462,8 +482,7 @@
             });
         });
 
-        // Variáveis para controlar os timeouts de fechamento
-        let hideUserMenuTimeout = null;
+        // Variáveis para controlar os timeouts de fechamento (hideUserMenuTimeout já definida no head)
         let hideSidebarMenuTimeouts = {};
 
         // Função para mostrar o menu do usuário ao passar o mouse
@@ -499,6 +518,7 @@
                 }, 150);
             }
         }
+        window.hideUserMenu = hideUserMenu;
 
         // Função para mostrar o submenu da sidebar
         // Função para alternar (abrir/fechar) o menu da sidebar

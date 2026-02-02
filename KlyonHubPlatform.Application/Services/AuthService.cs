@@ -83,7 +83,7 @@ namespace KlyonHubPlatform.Application.Services
             return user;
         }
 
-        public async Task<bool> RegisterAsync(string email, string password, string fullName, string roleName)
+        public async Task<bool> RegisterAsync(string email, string password, string fullName, string roleName, string? returnUrl = null)
         {
             var existingUser = await _userRepository.GetByEmailAsync(email);
             if (existingUser != null)
@@ -133,10 +133,10 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
-            // Send verification email
+            // Send verification email (inclui returnUrl para continuar fluxo após confirmar email, ex.: contratação)
             try
             {
-                await _emailService.SendVerificationEmailAsync(email, fullName, emailVerificationToken);
+                await _emailService.SendVerificationEmailAsync(email, fullName, emailVerificationToken, returnUrl);
             }
             catch (Exception)
             {

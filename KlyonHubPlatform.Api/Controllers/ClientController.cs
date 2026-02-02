@@ -698,10 +698,11 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> RegisterClient(int? id = null)
+        public async Task<IActionResult> RegisterClient(int? id = null, string? returnUrl = null)
         {
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
+            ViewBag.ReturnUrl = returnUrl;
             
             // Se houver um ID, carregar o cliente para edição
             if (id.HasValue)
@@ -725,7 +726,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RegisterClient(Client client)
+        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null)
         {
             try
             {
@@ -882,6 +883,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         return RedirectToAction("Contracts", "Admin");
                     }
+                    if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                        return Redirect(returnUrl);
                     return RedirectToAction("DashboardDetails");
                 }
                 
@@ -1010,6 +1013,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 TempData["Success"] = "Cadastro realizado com sucesso!";
+                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                    return Redirect(returnUrl);
                 return RedirectToAction("DashboardDetails");
             }
             catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Message.Contains("Duplicate entry"))
@@ -1127,6 +1132,35 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (activeId != 0) activeContractId = activeId;
                 }
             }
+
+            // Endereços com contrato em processo de pagamento: CoworkingAddressId -> PaymentId e status (para badge alinhado a MyPayments)
+            var pendingPaymentByAddressId = new Dictionary<int, int>();
+            var pendingPaymentStatusByAddressId = new Dictionary<int, PaymentStatus>();
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var client = await _context.Clients.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client != null)
+                {
+                    var pendingContracts = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id && c.Status == ContractStatus.PendingPayment)
+                        .Include(c => c.Subscription)
+                            .ThenInclude(s => s!.Payments)
+                        .ToListAsync();
+                    foreach (var c in pendingContracts)
+                    {
+                        var payment = c.Subscription?.Payments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+                        if (payment != null)
+                        {
+                            pendingPaymentByAddressId[c.CoworkingAddressId] = payment.Id;
+                            pendingPaymentStatusByAddressId[c.CoworkingAddressId] = payment.Status;
+                        }
+                    }
+                }
+            }
+            ViewBag.PendingPaymentByAddressId = pendingPaymentByAddressId;
+            ViewBag.PendingPaymentStatusByAddressId = pendingPaymentStatusByAddressId;
             ViewBag.ContractedAddressIds = contractedAddressIds;
             ViewBag.ActiveContractId = activeContractId;
 
@@ -1246,10 +1280,50 @@ namespace KlyonHubPlatform.Api.Controllers
             return View(addresses);
         }
 
+        /// <summary>
+        /// Página intermediária após login/cadastro: completa o cadastro se necessário e em seguida executa a contratação do endereço, redirecionando para pagamento.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> CompleteContractAfterLogin(int coworkingAddressId)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr))
+            {
+                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("CompleteContractAfterLogin", "Client", new { coworkingAddressId }) });
+            }
+            var userId = int.Parse(userIdStr);
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            var returnUrlComplete = Url.Action("CompleteContractAfterLogin", "Client", new { coworkingAddressId });
+
+            if (client == null)
+            {
+                TempData["Info"] = "Complete seu cadastro para continuar com a contratação do endereço fiscal.";
+                return RedirectToAction("RegisterClient", new { returnUrl = returnUrlComplete });
+            }
+
+            var missingRequired = string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactName)
+                || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.State);
+            if (missingRequired)
+            {
+                TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo, Telefone e Estado) para continuar com a contratação.";
+                return RedirectToAction("RegisterClient", new { id = client.Id, returnUrl = returnUrlComplete });
+            }
+
+            ViewBag.CoworkingAddressId = coworkingAddressId;
+            return View(coworkingAddressId);
+        }
+
+        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateContract(int coworkingAddressId)
         {
+            // Se não estiver autenticado, redirecionar para Login com returnUrl para continuar a contratação após login/cadastro/confirmação de email
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("CompleteContractAfterLogin", "Client", new { coworkingAddressId }) });
+            }
+
             var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
             try
             {
@@ -1516,6 +1590,178 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToListAsync();
             ViewBag.Declarations = declarations;
 
+            // Histórico do contrato (mesmo padrão do Parceiro/ContractDetails - Timeline)
+            var payments = new List<Payment>();
+            var historiesByPaymentId = new Dictionary<int, List<PaymentHistory>>();
+            if (contract.Subscription != null)
+            {
+                payments = await _context.Payments
+                    .Where(p => p.SubscriptionId == contract.Subscription.Id)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .ToListAsync();
+                var paymentIds = payments.Select(p => p.Id).ToList();
+                if (paymentIds.Any())
+                {
+                    var paymentHistories = await _context.PaymentHistories
+                        .Where(ph => paymentIds.Contains(ph.PaymentId))
+                        .Include(ph => ph.ActionByUser)
+                        .ToListAsync();
+                    historiesByPaymentId = paymentHistories
+                        .GroupBy(ph => ph.PaymentId)
+                        .ToDictionary(g => g.Key, g => g.ToList());
+                }
+            }
+
+            var timeline = new List<object>();
+            string ContractStatusPt(ContractStatus s) => s switch
+            {
+                ContractStatus.Active => "Ativo",
+                ContractStatus.Suspended => "Suspenso",
+                ContractStatus.PendingPayment => "Aguardando Pagamento",
+                ContractStatus.PendingCancellation => "Cancelamento Pendente",
+                ContractStatus.Cancelled => "Cancelado",
+                ContractStatus.Expired => "Expirado",
+                _ => s.ToString()
+            };
+            string PaymentStatusPt(PaymentStatus s) => s switch
+            {
+                PaymentStatus.Pending => "Aguardando",
+                PaymentStatus.Processing => "Processando",
+                PaymentStatus.AwaitingValidation => "Aguardando Validação",
+                PaymentStatus.Paid => "Pago",
+                PaymentStatus.Failed => "Falhou",
+                PaymentStatus.Refunded => "Reembolsado",
+                PaymentStatus.Cancelled => "Cancelado",
+                _ => s.ToString()
+            };
+            string PaymentMethodPt(PaymentMethod m) => m switch
+            {
+                PaymentMethod.PIX => "PIX",
+                PaymentMethod.CreditCard => "Cartão",
+                PaymentMethod.BankTransfer => "Boleto",
+                _ => m.ToString()
+            };
+
+            timeline.Add(new
+            {
+                Date = contract.CreatedAt,
+                Type = "Criação",
+                Title = "Contrato Criado",
+                Description = $"Contrato {contract.ContractNumber} foi criado",
+                Icon = "bi-file-earmark-plus",
+                Color = "primary"
+            });
+
+            if (contract.UpdatedAt.HasValue && contract.UpdatedAt != contract.CreatedAt)
+            {
+                var statusPt = ContractStatusPt(contract.Status);
+                timeline.Add(new
+                {
+                    Date = contract.UpdatedAt.Value,
+                    Type = "Status",
+                    Title = $"Status: {statusPt}",
+                    Description = $"Status do contrato alterado para {statusPt}",
+                    Icon = "bi-arrow-repeat",
+                    Color = "info"
+                });
+            }
+
+            foreach (var payment in payments)
+            {
+                timeline.Add(new
+                {
+                    Date = payment.CreatedAt,
+                    Type = "Pagamento",
+                    Title = $"Pagamento de R$ {payment.Amount:N2}",
+                    Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
+                    Icon = "bi-cash-coin",
+                    Color = payment.Status == PaymentStatus.Paid ? "success" : "warning",
+                    Payment = payment
+                });
+                if (payment.PaidAt.HasValue)
+                {
+                    timeline.Add(new
+                    {
+                        Date = payment.PaidAt.Value,
+                        Type = "Pagamento",
+                        Title = "Pagamento Confirmado",
+                        Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
+                        Icon = "bi-check-circle",
+                        Color = "success",
+                        Payment = payment
+                    });
+                }
+                // ContractCreated não entra na timeline para não duplicar "Contrato Criado". "Pagamento Reprovado" só quando Action == "Rejected".
+                if (historiesByPaymentId.ContainsKey(payment.Id))
+                {
+                    foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
+                    {
+                        if (history.Action == "ContractCreated")
+                            continue;
+
+                        string title, description, icon, color;
+                        if (history.Action == "Approved")
+                        {
+                            title = "Pagamento Aprovado";
+                            description = $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}";
+                            icon = "bi-check-circle";
+                            color = "success";
+                        }
+                        else if (history.Action == "Cancelled")
+                        {
+                            title = "Pagamento Cancelado";
+                            description = history.RejectionReason ?? "Cancelado";
+                            icon = "bi-x-circle";
+                            color = "secondary";
+                        }
+                        else if (history.Action == "ReceiptUploaded")
+                        {
+                            title = "Comprovante enviado";
+                            description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
+                            icon = "bi-file-earmark-arrow-up";
+                            color = "info";
+                        }
+                        else if (history.Action == "Rejected")
+                        {
+                            title = "Pagamento Reprovado";
+                            description = $"Reprovado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}";
+                            icon = "bi-x-circle";
+                            color = "danger";
+                        }
+                        else
+                            continue;
+
+                        timeline.Add(new
+                        {
+                            Date = history.ActionAt,
+                            Type = "Validação",
+                            Title = title,
+                            Description = description,
+                            Icon = icon,
+                            Color = color,
+                            History = history
+                        });
+                    }
+                }
+            }
+
+            foreach (var declaration in declarations)
+            {
+                timeline.Add(new
+                {
+                    Date = declaration.CreatedAt,
+                    Type = "Documento",
+                    Title = $"Declaração {declaration.DeclarationNumber}",
+                    Description = $"Versão {declaration.Version} gerada",
+                    Icon = "bi-file-earmark-pdf",
+                    Color = "info",
+                    Declaration = declaration
+                });
+            }
+
+            timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList<object>();
+            ViewBag.Timeline = timeline;
+
             // Exibir o contrato em qualquer status (incl. PendingCancellation, Cancelled, Expired) para o dono visualizar detalhes e documentos
             return View(contract);
         }
@@ -1533,6 +1779,8 @@ namespace KlyonHubPlatform.Api.Controllers
             var query = _context.Contracts
                 .Include(c => c.CoworkingAddress)
                     .ThenInclude(a => a.Location)
+                .Include(c => c.Subscription)
+                    .ThenInclude(s => s!.Payments)
                 .Where(c => c.ClientId == client.Id)
                 .AsQueryable();
 
@@ -1970,6 +2218,19 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.HistoryTotalPages = totalHistoryPages;
             ViewBag.HistoryTotalItems = totalHistoryItems;
 
+            // Data/hora de envio do comprovante (para exibir no modal "Comprovante Enviado")
+            var receiptUploadedEntry = await _context.PaymentHistories
+                .Where(h => h.PaymentId == payment.Id && h.Action == "ReceiptUploaded")
+                .OrderByDescending(h => h.ActionAt)
+                .FirstOrDefaultAsync();
+            ViewBag.ReceiptUploadedAt = receiptUploadedEntry?.ActionAt;
+
+            // Quando o pagamento está cancelado, passar o motivo do contrato para exibir na tela (ex.: cancelamento automático por outro contrato aprovado)
+            if (payment.Status == PaymentStatus.Cancelled && payment.Subscription?.Contract != null && !string.IsNullOrEmpty(payment.Subscription.Contract.CancellationReason))
+            {
+                ViewBag.ContractCancellationReason = payment.Subscription.Contract.CancellationReason;
+            }
+
             return View(payment);
         }
 
@@ -2298,6 +2559,78 @@ namespace KlyonHubPlatform.Api.Controllers
             };
             
             return File(fileBytes, contentType, fileName);
+        }
+
+        /// <summary>
+        /// Exibe o comprovante de pagamento inline (para visualização no modal). Mesmo critério do Admin/ViewReceipt.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> ViewReceipt(int paymentId)
+        {
+            var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+            if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
+            {
+                return NotFound();
+            }
+
+            // Verificar se o pagamento pertence ao cliente logado
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                return RedirectToAction("RegisterClient");
+            }
+
+            bool isAuthorized = false;
+            if (payment.SubscriptionId.HasValue)
+            {
+                var subscription = await _context.Subscriptions.FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value);
+                if (subscription != null)
+                {
+                    var contract = await _context.Contracts.FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+                    if (contract != null && contract.ClientId == client.Id) isAuthorized = true;
+                }
+            }
+            else if (payment.ReservationId.HasValue)
+            {
+                var reservation = await _context.Reservations.FirstOrDefaultAsync(r => r.Id == payment.ReservationId.Value);
+                if (reservation != null && reservation.ClientId == client.Id) isAuthorized = true;
+            }
+            if (!isAuthorized && !User.IsInRole("Administrator") && !User.IsInRole("CoworkingPartner"))
+            {
+                return Forbid();
+            }
+
+            var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
+            var storageService = await storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(payment.ReceiptFilePath);
+
+            if (fileBytes == null)
+            {
+                return NotFound();
+            }
+
+            var fileName = Path.GetFileName(payment.ReceiptFilePath);
+            var fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
+            var contentType = fileExtension switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
+
+            // Retornar inline para exibição no modal (como Admin/ViewReceipt)
+            if (fileExtension != ".pdf")
+            {
+                Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+                Response.Headers.Append("Pragma", "no-cache");
+                Response.Headers.Append("Expires", "0");
+                return File(fileBytes, contentType);
+            }
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            return File(fileBytes, contentType);
         }
 
         [HttpPost]

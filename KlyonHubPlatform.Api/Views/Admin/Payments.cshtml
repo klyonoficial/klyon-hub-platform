@@ -17,11 +17,13 @@
             <div class="col-md-3">
                 <select class="form-select" name="status">
                     <option value="">Todos os status</option>
-                    <option value="Pending" selected="@(ViewBag.Status == "Pending")">Pendente</option>
+                    <option value="Pending" selected="@(ViewBag.Status == "Pending")">Aguardando Pagamento</option>
                     <option value="Processing" selected="@(ViewBag.Status == "Processing")">Processando</option>
                     <option value="AwaitingValidation" selected="@(ViewBag.Status == "AwaitingValidation")">Aguardando Validação</option>
                     <option value="Paid" selected="@(ViewBag.Status == "Paid")">Pago</option>
                     <option value="Failed" selected="@(ViewBag.Status == "Failed")">Falhou</option>
+                    <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelado</option>
+                    <option value="Refunded" selected="@(ViewBag.Status == "Refunded")">Estornado</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -111,27 +113,37 @@
                                             </span>
                                             break;
                                         case PaymentStatus.Processing:
-                                            <span class="badge bg-info">
+                                            <span class="badge bg-suspended">
                                                 <i class="bi bi-arrow-repeat me-1"></i> Processando
                                             </span>
                                             break;
                                         case PaymentStatus.AwaitingValidation:
-                                            <span class="badge bg-info">
-                                                <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                            <span class="badge bg-pending-payment">
+                                                <i class="bi bi-clock-history me-1"></i> Aguardando Validação
                                             </span>
                                             break;
                                         case PaymentStatus.Paid:
-                                            <span class="badge bg-success">
+                                            <span class="badge bg-active">
                                                 <i class="bi bi-check-circle-fill me-1"></i> Pago
                                             </span>
                                             break;
                                         case PaymentStatus.Failed:
-                                            <span class="badge bg-danger">
+                                            <span class="badge bg-cancelled">
                                                 <i class="bi bi-x-circle-fill me-1"></i> Falhou
                                             </span>
                                             break;
+                                        case PaymentStatus.Cancelled:
+                                            <span class="badge bg-cancelled">
+                                                <i class="bi bi-x-circle-fill me-1"></i> Cancelado
+                                            </span>
+                                            break;
+                                        case PaymentStatus.Refunded:
+                                            <span class="badge bg-expired">
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i> Estornado
+                                            </span>
+                                            break;
                                         default:
-                                            <span class="badge bg-secondary">
+                                            <span class="badge bg-expired">
                                                 <i class="bi bi-question-circle-fill me-1"></i> @payment.Status
                                             </span>
                                             break;
@@ -141,7 +153,7 @@
                                     @payment.DueDate.ToString("dd/MM/yyyy")
                                     @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
                                     {
-                                        <br><small class="text-danger">Vencido</small>
+                                        <br><span class="badge bg-cancelled">Vencido</span>
                                     }
                                 </td>
                                 <td>
@@ -359,27 +371,37 @@
                                 </span>
                                 break;
                             case PaymentStatus.Processing:
-                                <span class="badge bg-info">
+                                <span class="badge bg-suspended">
                                     <i class="bi bi-arrow-repeat me-1"></i> Processando
                                 </span>
                                 break;
                             case PaymentStatus.AwaitingValidation:
-                                <span class="badge bg-info">
-                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                <span class="badge bg-pending-payment">
+                                    <i class="bi bi-clock-history me-1"></i> Aguardando Validação
                                 </span>
                                 break;
                             case PaymentStatus.Paid:
-                                <span class="badge bg-success">
+                                <span class="badge bg-active">
                                     <i class="bi bi-check-circle-fill me-1"></i> Pago
                                 </span>
                                 break;
                             case PaymentStatus.Failed:
-                                <span class="badge bg-danger">
+                                <span class="badge bg-cancelled">
                                     <i class="bi bi-x-circle-fill me-1"></i> Falhou
                                 </span>
                                 break;
+                            case PaymentStatus.Cancelled:
+                                <span class="badge bg-cancelled">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Cancelado
+                                </span>
+                                break;
+                            case PaymentStatus.Refunded:
+                                <span class="badge bg-expired">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Estornado
+                                </span>
+                                break;
                             default:
-                                <span class="badge bg-secondary">
+                                <span class="badge bg-expired">
                                     <i class="bi bi-question-circle-fill me-1"></i> @payment.Status
                                 </span>
                                 break;
@@ -435,6 +457,8 @@
                                 html += '<span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>';
                             } else if (item.action === 'ContractCreated') {
                                 html += '<span class="badge bg-primary me-2"><i class="bi bi-file-earmark-text"></i> Contrato Criado</span>';
+                            } else if (item.action === 'Cancelled') {
+                                html += '<span class="badge bg-cancelled me-2"><i class="bi bi-x-circle"></i> Cancelado</span>';
                             } else {
                                 html += '<span class="badge bg-secondary me-2">' + item.action + '</span>';
                             }

@@ -81,10 +81,12 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
-        public async Task<bool> SendVerificationEmailAsync(string to, string name, string token)
+        public async Task<bool> SendVerificationEmailAsync(string to, string name, string token, string? returnUrl = null)
         {
             var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
-            var verificationUrl = $"{baseUrl}/Auth/VerifyEmail?token={token}";
+            var verificationUrl = $"{baseUrl}/Auth/VerifyEmail?token={Uri.EscapeDataString(token)}";
+            if (!string.IsNullOrEmpty(returnUrl))
+                verificationUrl += "&returnUrl=" + Uri.EscapeDataString(returnUrl);
 
             var subject = "Verifique seu email - Klyon Endereço Fiscal";
             var body = $@"

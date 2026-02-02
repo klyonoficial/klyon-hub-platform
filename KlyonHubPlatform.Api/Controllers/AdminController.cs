@@ -2534,59 +2534,60 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RejectPayment(int paymentId, string rejectionReason)
         {
+            if (string.IsNullOrWhiteSpace(rejectionReason))
+            {
+                TempData["Error"] = "É necessário informar o motivo da reprovação.";
+                return RedirectToAction("Payments");
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var strategy = _context.Database.CreateExecutionStrategy();
+
             try
             {
-                var payment = await _context.Payments
-                    .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                    .FirstOrDefaultAsync(p => p.Id == paymentId);
-
-                if (payment == null)
+                await strategy.ExecuteAsync(async () =>
                 {
-                    TempData["Error"] = "Pagamento não encontrado.";
-                    return RedirectToAction("Payments");
-                }
+                    var payment = await _context.Payments
+                        .Include(p => p.Subscription)
+                            .ThenInclude(s => s.Contract)
+                        .FirstOrDefaultAsync(p => p.Id == paymentId);
 
-                if (string.IsNullOrWhiteSpace(rejectionReason))
-                {
-                    TempData["Error"] = "É necessário informar o motivo da reprovação.";
-                    return RedirectToAction("Payments");
-                }
+                    if (payment == null)
+                        throw new InvalidOperationException("Pagamento não encontrado.");
 
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-
-                // Usar transação única para evitar deadlocks
-                await using var transaction = await _context.Database.BeginTransactionAsync();
-                try
-                {
-                    // Registrar histórico dentro da transação
-                    var history = new PaymentHistory
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
+                    try
                     {
-                        PaymentId = paymentId,
-                        Action = "Rejected",
-                        RejectionReason = rejectionReason,
-                        ActionBy = userId,
-                        ActionAt = DateTimeHelper.GetBrazilianTime()
-                    };
-                    _context.PaymentHistories.Add(history);
+                        var history = new PaymentHistory
+                        {
+                            PaymentId = paymentId,
+                            Action = "Rejected",
+                            RejectionReason = rejectionReason,
+                            ActionBy = userId,
+                            ActionAt = DateTimeHelper.GetBrazilianTime()
+                        };
+                        _context.PaymentHistories.Add(history);
 
-                    // Voltar status para Pending
-                    payment.Status = PaymentStatus.Pending;
-                    payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                    payment.ReceiptFilePath = null; // Limpar comprovante para permitir novo envio
-                    _context.Payments.Update(payment);
+                        payment.Status = PaymentStatus.Pending;
+                        payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                        payment.ReceiptFilePath = null;
+                        _context.Payments.Update(payment);
 
-                    // Commit de tudo junto
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
 
-                    TempData["Success"] = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
-                }
-                catch
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
+                TempData["Success"] = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "Pagamento não encontrado.")
+            {
+                TempData["Error"] = "Pagamento não encontrado.";
             }
             catch (Exception ex)
             {

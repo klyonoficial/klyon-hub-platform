@@ -1,0 +1,65 @@
+@model int
+@{
+    ViewData["Title"] = "Contratar Endereço Fiscal";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var coworkingAddressId = Model;
+    var createContractUrl = Url.Action("CreateContract", "Client");
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body text-center py-5">
+                    <div class="spinner-border mb-3" role="status" style="width: 3rem; height: 3rem; color: #051323;">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <h5 class="card-title">Processando contratação do endereço fiscal</h5>
+                    <p class="text-muted mb-0">Aguarde, você será redirecionado para a página de pagamento.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="completeContractForm" method="post" action="@createContractUrl" style="display: none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="coworkingAddressId" value="@coworkingAddressId" />
+</form>
+
+<script>
+(function() {
+    var form = document.getElementById('completeContractForm');
+    if (!form) return;
+    var formData = new FormData(form);
+    var createContractUrl = '@Html.Raw(createContractUrl)';
+    fetch(createContractUrl, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) {
+        var ct = r.headers.get('content-type') || '';
+        if (!r.ok) return r.text().then(function(t) { return Promise.reject({ status: r.status, body: t }); });
+        if (ct.indexOf('application/json') === -1) return r.text().then(function(t) { return Promise.reject({ status: r.status, body: t }); });
+        return r.json();
+    })
+    .then(function(data) {
+        if (data.success && data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+            return;
+        }
+        if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar contratação.', 'error', 6000);
+        else alert(data.message || 'Erro ao processar contratação.');
+        setTimeout(function() { window.location.href = '@Url.Action("ChooseLocation", "Client")'; }, 3000);
+    })
+    .catch(function(err) {
+        var msg = 'Erro de conexão. Tente novamente.';
+        if (err && err.status === 400) msg = 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
+        else if (err && (err.status === 401 || err.status === 403)) msg = 'Sessão expirada. Faça login novamente.';
+        if (typeof showToast === 'function') showToast(msg, 'error', 6000);
+        else alert(msg);
+        setTimeout(function() { window.location.href = '@Url.Action("ChooseLocation", "Client")'; }, 3000);
+    });
+})();
+</script>

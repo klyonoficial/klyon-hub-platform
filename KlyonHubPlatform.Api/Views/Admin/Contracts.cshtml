@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Gerenciar Contratos de Endereço Fiscal";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -153,28 +154,68 @@
                                 </td>
                                 <td>
                                     @{
-                                        var statusClass = contract.Status switch
+                                        string statusLabel;
+                                        string statusBadgeClass;
+                                        string statusIcon;
+                                        if (contract.Status == ContractStatus.PendingPayment && contract.Subscription?.Payments != null && contract.Subscription.Payments.Any())
                                         {
-                                            ContractStatus.Active => "success",
-                                            ContractStatus.Suspended => "warning",
-                                            ContractStatus.PendingPayment => "info",
-                                            ContractStatus.PendingCancellation => "warning",
-                                            ContractStatus.Cancelled => "danger",
-                                            ContractStatus.Expired => "secondary",
-                                            _ => "secondary"
-                                        };
-                                        var statusText = contract.Status switch
+                                            var latestPaymentStatus = contract.Subscription.Payments.OrderByDescending(p => p.CreatedAt).First().Status;
+                                            if (latestPaymentStatus == PaymentStatus.AwaitingValidation || latestPaymentStatus == PaymentStatus.Processing)
+                                            {
+                                                statusLabel = "Aguardando Validação";
+                                                statusBadgeClass = "bg-pending-payment";
+                                                statusIcon = "bi-clock-history";
+                                            }
+                                            else
+                                            {
+                                                statusLabel = "Aguardando Pagamento";
+                                                statusBadgeClass = "bg-pending-payment";
+                                                statusIcon = "bi-cash-coin";
+                                            }
+                                        }
+                                        else
                                         {
-                                            ContractStatus.Active => "Ativo",
-                                            ContractStatus.Suspended => "Suspenso",
-                                            ContractStatus.PendingPayment => "Aguardando Pagamento",
-                                            ContractStatus.PendingCancellation => "Cancelamento Pendente",
-                                            ContractStatus.Cancelled => "Cancelado",
-                                            ContractStatus.Expired => "Expirado",
-                                            _ => contract.Status.ToString()
-                                        };
+                                            switch (contract.Status)
+                                            {
+                                                case ContractStatus.Active:
+                                                    statusLabel = "Ativo";
+                                                    statusBadgeClass = "bg-active";
+                                                    statusIcon = "bi-check-circle-fill";
+                                                    break;
+                                                case ContractStatus.Suspended:
+                                                    statusLabel = "Suspenso";
+                                                    statusBadgeClass = "bg-suspended";
+                                                    statusIcon = "bi-pause-circle-fill";
+                                                    break;
+                                                case ContractStatus.PendingPayment:
+                                                    statusLabel = "Aguardando Pagamento";
+                                                    statusBadgeClass = "bg-pending-payment";
+                                                    statusIcon = "bi-cash-coin";
+                                                    break;
+                                                case ContractStatus.PendingCancellation:
+                                                    statusLabel = "Cancelamento Pendente";
+                                                    statusBadgeClass = "bg-pending-cancellation";
+                                                    statusIcon = "bi-clock-history";
+                                                    break;
+                                                case ContractStatus.Cancelled:
+                                                    statusLabel = "Cancelado";
+                                                    statusBadgeClass = "bg-cancelled";
+                                                    statusIcon = "bi-x-circle-fill";
+                                                    break;
+                                                case ContractStatus.Expired:
+                                                    statusLabel = "Expirado";
+                                                    statusBadgeClass = "bg-expired";
+                                                    statusIcon = "bi-calendar-x-fill";
+                                                    break;
+                                                default:
+                                                    statusLabel = contract.Status.ToString();
+                                                    statusBadgeClass = "bg-expired";
+                                                    statusIcon = "bi-question-circle-fill";
+                                                    break;
+                                            }
+                                        }
                                     }
-                                    <span class="badge bg-@statusClass">@statusText</span>
+                                    <span class="badge @statusBadgeClass"><i class="bi @statusIcon me-1"></i> @statusLabel</span>
                                 </td>
                                 <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
                                 <td>

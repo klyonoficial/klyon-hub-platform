@@ -237,6 +237,8 @@ namespace KlyonHubPlatform.Application.Services
                 .Include(c => c.Client)
                 .Include(c => c.CoworkingAddress)
                     .ThenInclude(a => a.Location)
+                .Include(c => c.Subscription)
+                    .ThenInclude(s => s.Payments)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();

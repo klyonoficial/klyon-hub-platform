@@ -13,6 +13,10 @@
     <div class="card-body">
         <form method="post" action="@Url.Action("RegisterClient", "Client")">
             @Html.AntiForgeryToken()
+            @if (ViewBag.ReturnUrl != null && !string.IsNullOrEmpty((string)ViewBag.ReturnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+            }
             @if (Model != null)
             {
                 <input type="hidden" name="Id" value="@Model.Id" />

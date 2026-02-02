@@ -6,7 +6,7 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         Task<string> GenerateTokenAsync(User user, List<string> roles);
         Task<User?> AuthenticateAsync(string email, string password);
-        Task<bool> RegisterAsync(string email, string password, string fullName, string roleName);
+        Task<bool> RegisterAsync(string email, string password, string fullName, string roleName, string? returnUrl = null);
         Task<bool> VerifyEmailAsync(string token);
         Task<bool> RequestPasswordResetAsync(string email);
         Task<bool> ResetPasswordAsync(string token, string newPassword);

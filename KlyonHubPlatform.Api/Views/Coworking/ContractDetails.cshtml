@@ -29,32 +29,39 @@
                     <tr>
                         <th>Status:</th>
                         <td>
-                            @switch (Model.Status)
-                            {
-                                case ContractStatus.Active:
-                                    <span class="badge bg-success">Ativo</span>
-                                    break;
-                                case ContractStatus.Suspended:
-                                    <span class="badge bg-warning">Suspenso</span>
-                                    break;
-                                case ContractStatus.PendingPayment:
-                                    <span class="badge bg-info">Aguardando Pagamento</span>
-                                    break;
-                                case ContractStatus.PendingCancellation:
-                                    <span class="badge bg-warning">Cancelamento Pendente</span>
-                                    break;
-                                case ContractStatus.Cancelled:
-                                    <span class="badge bg-danger">Cancelado</span>
-                                    break;
-                                case ContractStatus.Expired:
-                                    <span class="badge bg-secondary">Expirado</span>
-                                    break;
-                                default:
-                                    <span class="badge bg-secondary">Outro</span>
-                                    break;
+                            @{
+                                var displayStatus = ViewBag.ContractDisplayStatus as string ?? Model.Status.ToString();
+                                var statusBadgeClass = Model.Status switch
+                                {
+                                    ContractStatus.Active => "bg-active",
+                                    ContractStatus.Suspended => "bg-suspended",
+                                    ContractStatus.PendingPayment => "bg-pending-payment",
+                                    ContractStatus.PendingCancellation => "bg-pending-cancellation",
+                                    ContractStatus.Cancelled => "bg-cancelled",
+                                    ContractStatus.Expired => "bg-expired",
+                                    _ => "bg-expired"
+                                };
+                                var statusIcon = Model.Status switch
+                                {
+                                    ContractStatus.Active => "bi-check-circle-fill",
+                                    ContractStatus.Suspended => "bi-pause-circle-fill",
+                                    ContractStatus.PendingPayment => (displayStatus == "Aguardando Validação" ? "bi-clock-history" : "bi-cash-coin"),
+                                    ContractStatus.PendingCancellation => "bi-clock-history",
+                                    ContractStatus.Cancelled => "bi-x-circle-fill",
+                                    ContractStatus.Expired => "bi-calendar-x-fill",
+                                    _ => "bi-question-circle-fill"
+                                };
                             }
+                            <span class="badge @statusBadgeClass"><i class="bi @statusIcon me-1"></i> @displayStatus</span>
                         </td>
                     </tr>
+                    @if (Model.Status == ContractStatus.Cancelled && !string.IsNullOrEmpty(Model.CancellationReason))
+                    {
+                        <tr>
+                            <th>Motivo do cancelamento:</th>
+                            <td><span class="text-muted">@Model.CancellationReason</span></td>
+                        </tr>
+                    }
                     <tr>
                         <th>Data de Início:</th>
                         <td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
@@ -82,91 +89,6 @@
                         </tr>
                     }
                 </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Informações do Cliente -->
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="card-title-tight"><i class="bi bi-person"></i> Informações do Cliente</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-borderless">
-                    <tr>
-                        <th width="40%">Razão Social:</th>
-                        <td><strong>@(Model.Client?.RazaoSocial ?? "N/A")</strong></td>
-                    </tr>
-                    @if (!string.IsNullOrEmpty(Model.Client?.NomeFantasia))
-                    {
-                        <tr>
-                            <th>Nome Fantasia:</th>
-                            <td>@Model.Client.NomeFantasia</td>
-                        </tr>
-                    }
-                    <tr>
-                        <th>Nome de Contato:</th>
-                        <td>@(Model.Client?.ContactName ?? "N/A")</td>
-                    </tr>
-                    @if (!string.IsNullOrEmpty(Model.Client?.CNPJ))
-                    {
-                        <tr>
-                            <th>CNPJ:</th>
-                            <td>@Model.Client.CNPJ</td>
-                        </tr>
-                    }
-                    @if (!string.IsNullOrEmpty(Model.Client?.CPF))
-                    {
-                        <tr>
-                            <th>CPF:</th>
-                            <td>@Model.Client.CPF</td>
-                        </tr>
-                    }
-                    @if (!string.IsNullOrEmpty(Model.Client?.ContactEmail))
-                    {
-                        <tr>
-                            <th>Email:</th>
-                            <td>@Model.Client.ContactEmail</td>
-                        </tr>
-                    }
-                    @if (!string.IsNullOrEmpty(Model.Client?.ContactPhone))
-                    {
-                        <tr>
-                            <th>Telefone:</th>
-                            <td>@Model.Client.ContactPhone</td>
-                        </tr>
-                    }
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <!-- Endereço Fiscal -->
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h5 class="card-title-tight"><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
-            </div>
-            <div class="card-body">
-                <p>
-                    <strong>@Model.CoworkingAddress?.Address</strong>, @Model.CoworkingAddress?.Number<br>
-                    @if (!string.IsNullOrEmpty(Model.CoworkingAddress?.Complement))
-                    {
-                        <text>@Model.CoworkingAddress.Complement<br></text>
-                    }
-                    @Model.CoworkingAddress?.Neighborhood<br>
-                    @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
-                    CEP: @Model.CoworkingAddress?.ZipCode
-                </p>
-                @if (Model.CoworkingAddress?.Location != null)
-                {
-                    <p class="text-muted mb-0">
-                        <small>Localidade: @Model.CoworkingAddress.Location.City/@Model.CoworkingAddress.Location.State</small>
-                    </p>
-                }
             </div>
         </div>
     </div>
@@ -236,6 +158,35 @@
     </div>
 </div>
 
+<div class="row">
+    <!-- Endereço Fiscal -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title-tight"><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>@Model.CoworkingAddress?.Address</strong>, @Model.CoworkingAddress?.Number<br>
+                    @if (!string.IsNullOrEmpty(Model.CoworkingAddress?.Complement))
+                    {
+                        <text>@Model.CoworkingAddress.Complement<br></text>
+                    }
+                    @Model.CoworkingAddress?.Neighborhood<br>
+                    @Model.CoworkingAddress?.City/@Model.CoworkingAddress?.State<br>
+                    CEP: @Model.CoworkingAddress?.ZipCode
+                </p>
+                @if (Model.CoworkingAddress?.Location != null)
+                {
+                    <p class="text-muted mb-0">
+                        <small>Localidade: @Model.CoworkingAddress.Location.City/@Model.CoworkingAddress.Location.State</small>
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Histórico de Pagamentos -->
 <div class="row mb-4">
     <div class="col-12">
@@ -282,33 +233,55 @@
                                             }
                                         </td>
                                         <td>
-                                            @switch (payment.Status)
-                                            {
-                                                case PaymentStatus.Pending:
-                                                    <span class="badge bg-warning">Aguardando</span>
-                                                    break;
-                                                case PaymentStatus.Processing:
-                                                    <span class="badge bg-info">Processando</span>
-                                                    break;
-                                                case PaymentStatus.AwaitingValidation:
-                                                    <span class="badge bg-info">Aguardando Validação</span>
-                                                    break;
-                                                case PaymentStatus.Paid:
-                                                    <span class="badge bg-success">Pago</span>
-                                                    break;
-                                                case PaymentStatus.Failed:
-                                                    <span class="badge bg-danger">Falhou</span>
-                                                    break;
-                                                case PaymentStatus.Refunded:
-                                                    <span class="badge bg-secondary">Reembolsado</span>
-                                                    break;
-                                                case PaymentStatus.Cancelled:
-                                                    <span class="badge bg-dark">Cancelado</span>
-                                                    break;
-                                                default:
-                                                    <span class="badge bg-secondary">Outro</span>
-                                                    break;
+                                            @{
+                                                string payStatusLabel;
+                                                string payStatusClass;
+                                                string payStatusIcon;
+                                                switch (payment.Status)
+                                                {
+                                                    case PaymentStatus.Pending:
+                                                        payStatusLabel = "Aguardando Pagamento";
+                                                        payStatusClass = "bg-pending-payment";
+                                                        payStatusIcon = "bi-cash-coin";
+                                                        break;
+                                                    case PaymentStatus.Processing:
+                                                        payStatusLabel = "Processando";
+                                                        payStatusClass = "bg-suspended";
+                                                        payStatusIcon = "bi-arrow-repeat";
+                                                        break;
+                                                    case PaymentStatus.AwaitingValidation:
+                                                        payStatusLabel = "Aguardando Validação";
+                                                        payStatusClass = "bg-pending-payment";
+                                                        payStatusIcon = "bi-clock-history";
+                                                        break;
+                                                    case PaymentStatus.Paid:
+                                                        payStatusLabel = "Pago";
+                                                        payStatusClass = "bg-active";
+                                                        payStatusIcon = "bi-check-circle-fill";
+                                                        break;
+                                                    case PaymentStatus.Failed:
+                                                        payStatusLabel = "Falhou";
+                                                        payStatusClass = "bg-cancelled";
+                                                        payStatusIcon = "bi-x-circle-fill";
+                                                        break;
+                                                    case PaymentStatus.Refunded:
+                                                        payStatusLabel = "Reembolsado";
+                                                        payStatusClass = "bg-expired";
+                                                        payStatusIcon = "bi-arrow-counterclockwise";
+                                                        break;
+                                                    case PaymentStatus.Cancelled:
+                                                        payStatusLabel = "Cancelado";
+                                                        payStatusClass = "bg-cancelled";
+                                                        payStatusIcon = "bi-x-circle-fill";
+                                                        break;
+                                                    default:
+                                                        payStatusLabel = "Outro";
+                                                        payStatusClass = "bg-expired";
+                                                        payStatusIcon = "bi-question-circle-fill";
+                                                        break;
+                                                }
                                             }
+                                            <span class="badge @payStatusClass"><i class="bi @payStatusIcon me-1"></i> @payStatusLabel</span>
                                         </td>
                                         <td>
                                             @if (payment.PaidAt.HasValue)
@@ -323,25 +296,50 @@
                                         <td>
                                             @{
                                                 var histories = ViewBag.PaymentHistories as Dictionary<int, List<KlyonHubPlatform.Domain.Entities.PaymentHistory>>;
-                                                if (histories != null && histories.ContainsKey(payment.Id) && histories[payment.Id].Any())
+                                                if (payment.Status == PaymentStatus.Pending)
+                                                {
+                                                    <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
+                                                }
+                                                else if (payment.Status == PaymentStatus.Processing)
+                                                {
+                                                    <span class="badge bg-suspended"><i class="bi bi-arrow-repeat me-1"></i> Processando</span>
+                                                }
+                                                else if (payment.Status == PaymentStatus.AwaitingValidation)
+                                                {
+                                                    <span class="badge bg-pending-payment"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
+                                                }
+                                                else if (payment.Status == PaymentStatus.Paid && histories != null && histories.ContainsKey(payment.Id) && histories[payment.Id].Any(h => h.Action == "Approved"))
+                                                {
+                                                    var lastApproved = histories[payment.Id].Where(h => h.Action == "Approved").OrderByDescending(h => h.ActionAt).First();
+                                                    <span class="badge bg-active">
+                                                        <i class="bi bi-check-circle-fill me-1"></i> Aprovado por @(lastApproved.ActionByUser?.FullName ?? "Admin")
+                                                    </span>
+                                                }
+                                                else if (payment.Status == PaymentStatus.Failed || payment.Status == PaymentStatus.Cancelled)
+                                                {
+                                                    <span class="badge bg-cancelled">
+                                                        <i class="bi bi-x-circle-fill me-1"></i> @(payment.Status == PaymentStatus.Cancelled ? "Cancelado" : "Reprovado")
+                                                    </span>
+                                                }
+                                                else if (payment.Status == PaymentStatus.Refunded)
+                                                {
+                                                    <span class="badge bg-expired"><i class="bi bi-arrow-counterclockwise me-1"></i> Reembolsado</span>
+                                                }
+                                                else if (histories != null && histories.ContainsKey(payment.Id) && histories[payment.Id].Any())
                                                 {
                                                     var lastHistory = histories[payment.Id].OrderByDescending(h => h.ActionAt).First();
                                                     if (lastHistory.Action == "Approved")
                                                     {
-                                                        <span class="badge bg-success">
-                                                            <i class="bi bi-check-circle"></i> Aprovado por @(lastHistory.ActionByUser?.FullName ?? "Admin")
+                                                        <span class="badge bg-active">
+                                                            <i class="bi bi-check-circle-fill me-1"></i> Aprovado por @(lastHistory.ActionByUser?.FullName ?? "Admin")
                                                         </span>
                                                     }
                                                     else
                                                     {
-                                                        <span class="badge bg-danger">
-                                                            <i class="bi bi-x-circle"></i> Rejeitado
+                                                        <span class="badge bg-cancelled">
+                                                            <i class="bi bi-x-circle-fill me-1"></i> Reprovado
                                                         </span>
                                                     }
-                                                }
-                                                else if (payment.Status == PaymentStatus.AwaitingValidation)
-                                                {
-                                                    <span class="badge bg-warning">Aguardando Validação</span>
                                                 }
                                                 else
                                                 {
@@ -366,12 +364,12 @@
     </div>
 </div>
 
-<!-- Timeline do Fluxo -->
+<!-- Histórico -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-dark text-white">
-                <h5 class="card-title-tight"><i class="bi bi-clock-history"></i> Timeline do Contrato</h5>
+                <h5 class="card-title-tight"><i class="bi bi-clock-history"></i> Histórico</h5>
             </div>
             <div class="card-body">
                 @if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())

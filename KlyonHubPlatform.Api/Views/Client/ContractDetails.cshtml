@@ -8,13 +8,13 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
 	<h2><i class="bi bi-file-earmark-text"></i> Contrato @Model.ContractNumber</h2>
-	<a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
+	<a href="@(User.IsInRole("Administrator") ? Url.Action("Contracts", "Admin") : Url.Action("MyContracts", "Client"))" class="btn btn-secondary">
 		<i class="bi bi-arrow-left"></i> Voltar
 	</a>
 </div>
 
 <div class="row">
-	<div class="col-md-8">
+	<div class="col-md-6 mb-4">
 		<div class="card mb-4">
 			<div class="card-header klyon-primary text-white">
 				<h5 class="card-title-tight"><i class="bi bi-file-earmark-text me-1"></i> Informações do Contrato</h5>
@@ -45,7 +45,7 @@
 								case ContractStatus.PendingPayment:
 									@if (ViewBag.HasPaymentAwaitingValidation == true)
 									{
-										<span class="badge bg-info">
+										<span class="badge bg-pending-payment">
 											<i class="bi bi-clock-history me-1"></i> Aguardando Validação
 										</span>
 									}
@@ -83,6 +83,13 @@
 							}
 						</td>
 					</tr>
+					@if (Model.Status == ContractStatus.Cancelled && !string.IsNullOrEmpty(Model.CancellationReason))
+					{
+						<tr>
+							<th>Motivo do cancelamento:</th>
+							<td><span class="text-muted">@Model.CancellationReason</span></td>
+						</tr>
+					}
 					<tr>
 						<th>Data de Início:</th>
 						<td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
@@ -132,26 +139,26 @@
 			var hasPaymentAwaitingValidation = ViewBag.HasPaymentAwaitingValidation == true;
 			var paymentAwaitingValidationId = ViewBag.PaymentAwaitingValidationId as int?;
 			<div class="card mb-4">
-				<div class="card-header @(hasPaymentAwaitingValidation ? "bg-info" : "bg-warning")">
-					<h5 class="card-title-tight"><i class="bi @(hasPaymentAwaitingValidation ? "bi-clock-history" : "bi-cash-coin")"></i> @(hasPaymentAwaitingValidation ? "Comprovante Aguardando Validação" : "Pagamento Pendente")</h5>
+				<div class="card-header @(hasPaymentAwaitingValidation ? "bg-pending-payment text-white" : "bg-warning text-dark")">
+					<h5 class="card-title-tight"><i class="bi @(hasPaymentAwaitingValidation ? "bi-clock-history" : "bi-cash-coin") me-1"></i> @(hasPaymentAwaitingValidation ? "Comprovante Aguardando Validação" : "Pagamento Pendente")</h5>
 				</div>
 				<div class="card-body">
 					@if (hasPaymentAwaitingValidation)
 					{
-						<div class="alert alert-info">
-							<i class="bi bi-info-circle"></i> <strong>Seu comprovante de pagamento foi enviado e está aguardando validação pela administração.</strong>
+						<div class="alert border border-0" style="background-color: rgba(111, 66, 193, 0.15); border-left: 4px solid rgba(111, 66, 193, 0.8);">
+							<i class="bi bi-info-circle me-1"></i> <strong>Seu comprovante de pagamento foi enviado e está aguardando validação pela administração.</strong>
 						</div>
 						<p class="text-muted mb-3">
 							O status será atualizado assim que o comprovante for validado. Você pode acompanhar na página de pagamentos.
 						</p>
 						if (paymentAwaitingValidationId.HasValue)
 						{
-							<a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn btn-info">
-								<i class="bi bi-eye"></i> Ver Detalhes do Pagamento
+							<a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn bg-pending-payment text-white">
+								<i class="bi bi-eye me-1"></i> Ver Detalhes do Pagamento
 							</a>
 						}
 						<a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-primary ms-2">
-							<i class="bi bi-credit-card"></i> Ir para Pagamentos
+							<i class="bi bi-credit-card me-1"></i> Ir para Pagamentos
 						</a>
 					}
 					else
@@ -205,7 +212,7 @@
 			</div>
 		}
 	</div>
-	<div class="col-md-4">
+	<div class="col-md-6 mb-4">
 		<div class="card">
 			<div class="card-header klyon-primary text-white">
 				<h5 class="card-title-tight"><i class="bi bi-file-earmark-pdf me-1"></i> Documentos</h5>
@@ -282,6 +289,67 @@
 		</div>
 	</div>
 </div>
+
+<!-- Histórico -->
+<div class="row mb-4">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header bg-dark text-white">
+				<h5 class="card-title-tight"><i class="bi bi-clock-history"></i> Histórico</h5>
+			</div>
+			<div class="card-body">
+				@if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())
+				{
+					<div class="timeline">
+						@foreach (var item in (List<object>)ViewBag.Timeline)
+						{
+							var timelineItem = (dynamic)item;
+							<div class="timeline-item mb-4">
+								<div class="d-flex">
+									<div class="timeline-marker me-3">
+										<i class="bi @timelineItem.Icon text-@timelineItem.Color" style="font-size: 1.5rem;"></i>
+									</div>
+									<div class="flex-grow-1">
+										<div class="card border-@timelineItem.Color">
+											<div class="card-body">
+												<div class="d-flex justify-content-between align-items-start mb-2">
+													<h6 class="mb-0">@timelineItem.Title</h6>
+													<small class="text-muted">@timelineItem.Date.ToString("dd/MM/yyyy HH:mm")</small>
+												</div>
+												<p class="mb-0 text-muted">@timelineItem.Description</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						}
+					</div>
+				}
+				else
+				{
+					<div class="alert alert-info">
+						<i class="bi bi-info-circle"></i> Nenhum evento registrado ainda.
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+</div>
+
+<style>
+	.timeline-item {
+		position: relative;
+	}
+	.timeline-item:not(:last-child)::after {
+		content: '';
+		position: absolute;
+		left: 0.75rem;
+		top: 2.5rem;
+		width: 2px;
+		height: calc(100% + 1rem);
+		background-color: #dee2e6;
+	}
+</style>
 
 <!-- Modal de Cancelamento -->
 <div class="modal fade" id="cancelContractModal" tabindex="-1" aria-labelledby="cancelContractModalLabel" aria-hidden="true">

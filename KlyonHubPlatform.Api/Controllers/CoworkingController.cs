@@ -119,12 +119,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var pendingNf = 0;
             try
             {
-                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
-                // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada).
+                // Só conta quando o contrato teve pagamento realizado com sucesso e está ativo (mesmo critério da tela Emitir NF).
                 pendingNf = await _context.Payments
                     .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
                                 (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
                     .Where(p => p.Status == PaymentStatus.Paid)
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) ||
+                                (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
                         fn.Type == "Servico" &&
@@ -231,12 +233,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var pendingNfCount = 0;
             try
             {
-                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada)
-                // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+                // Contar pagamentos que não têm NF aprovada (Emitida ou Importada).
+                // Só conta quando o contrato está ativo (mesmo critério da tela Emitir NF e do alerta NF de Serviço Não Emitidas).
                 pendingNfCount = await _context.Payments
                     .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
                                 (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
                     .Where(p => p.Status == PaymentStatus.Paid)
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) ||
+                                (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
                         fn.Type == "Servico" &&
@@ -1236,6 +1240,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(c => c.CoworkingAddress)
                     .ThenInclude(a => a.Location)
                 .Include(c => c.Subscription)
+                    .ThenInclude(s => s.Payments)
                 .Where(c => c.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                 .AsQueryable();
 
@@ -1471,21 +1476,55 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
 
-                // Adicionar histórico de validação
+                // Adicionar histórico de validação. Apenas Approved, Cancelled, ReceiptUploaded e Rejected entram na timeline.
+                // ContractCreated não entra para não duplicar "Contrato Criado". "Pagamento Reprovado" só quando Action == "Rejected".
                 if (historiesByPaymentId.ContainsKey(payment.Id))
                 {
                     foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
                     {
+                        if (history.Action == "ContractCreated")
+                            continue;
+
+                        string title, description, icon, color;
+                        if (history.Action == "Approved")
+                        {
+                            title = "Pagamento Aprovado";
+                            description = $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}";
+                            icon = "bi-check-circle";
+                            color = "success";
+                        }
+                        else if (history.Action == "Cancelled")
+                        {
+                            title = "Pagamento Cancelado";
+                            description = history.RejectionReason ?? "Cancelado (outro contrato ativado)";
+                            icon = "bi-x-circle";
+                            color = "secondary";
+                        }
+                        else if (history.Action == "ReceiptUploaded")
+                        {
+                            title = "Comprovante enviado";
+                            description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
+                            icon = "bi-file-earmark-arrow-up";
+                            color = "info";
+                        }
+                        else if (history.Action == "Rejected")
+                        {
+                            title = "Pagamento Reprovado";
+                            description = $"Reprovado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}";
+                            icon = "bi-x-circle";
+                            color = "danger";
+                        }
+                        else
+                            continue;
+
                         timeline.Add(new
                         {
                             Date = history.ActionAt,
                             Type = "Validação",
-                            Title = history.Action == "Approved" ? "Pagamento Aprovado" : "Pagamento Rejeitado",
-                            Description = history.Action == "Approved"
-                                ? $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}"
-                                : $"Rejeitado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}",
-                            Icon = history.Action == "Approved" ? "bi-check-circle" : "bi-x-circle",
-                            Color = history.Action == "Approved" ? "success" : "danger",
+                            Title = title,
+                            Description = description,
+                            Icon = icon,
+                            Color = color,
                             History = history
                         });
                     }
@@ -1508,8 +1547,18 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             // Ordenar timeline por data
-            timeline = timeline.OrderBy(t => ((dynamic)t).Date).ToList();
+            timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList();
 
+            // Status de exibição do contrato: quando PendingPayment, refletir status do pagamento (Aguardando Pagamento / Aguardando Validação)
+            if (contract.Status == ContractStatus.PendingPayment && payments.Any())
+            {
+                var latestPaymentStatus = payments.OrderByDescending(p => p.CreatedAt).First().Status;
+                ViewBag.ContractDisplayStatus = (latestPaymentStatus == PaymentStatus.AwaitingValidation || latestPaymentStatus == PaymentStatus.Processing) ? "Aguardando Validação" : "Aguardando Pagamento";
+            }
+            else
+            {
+                ViewBag.ContractDisplayStatus = ContractStatusPt(contract.Status);
+            }
             ViewBag.Timeline = timeline;
             ViewBag.Declarations = declarations;
             ViewBag.Payments = payments;
@@ -2322,6 +2371,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var activeTab = Request.Form["activeTab"].ToString();
 
+                // Guardar valores atuais dos dados críticos (para não retornar à análise só por descrição/contato/redes)
+                var oldName = coworkingEntity.Name;
+                var oldCNPJ = coworkingEntity.CNPJ;
+                var oldTradeName = coworkingEntity.TradeName;
+
                 // Atualizar apenas os campos da aba enviada (evita apagar endereço, contato, etc. ao salvar outra aba)
                 switch (activeTab)
                 {
@@ -2460,8 +2514,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     _ => "Perfil atualizado"
                 };
 
-                // Retornar para análise se o cadastro estava aprovado
-                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, changeReason);
+                // Retornar para análise só quando dados críticos mudam (evita sumir da ChooseLocation ao editar descrição, contato, redes ou horários)
+                bool shouldReturnToReview = activeTab switch
+                {
+                    "contact" => false,  // telefone/email não exigem nova análise
+                    "social" => false,   // redes sociais não exigem nova análise
+                    "basic" => coworkingEntity.Name != oldName || coworkingEntity.CNPJ != oldCNPJ || coworkingEntity.TradeName != oldTradeName,  // só Nome/CNPJ/TradeName
+                    _ => true   // address, bank, default: retornar para análise
+                };
+                if (shouldReturnToReview)
+                    await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, changeReason);
 
                 await _coworkingService.UpdateAsync(coworkingEntity);
 
@@ -2973,6 +3035,53 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                // Quando um contrato for aprovado, cancelar os outros contratos pendentes do mesmo cliente (só pode ter um endereço fiscal ativo)
+                // e também os pagamentos desses contratos (PaymentStatus.Cancelled) e registrar histórico com motivo claro
+                if (contract.Status == ContractStatus.Active)
+                {
+                    var activeContractNumber = contract.ContractNumber ?? "N/A";
+                    var cancellationReasonContract = "Cliente já possui um endereço fiscal ativo. Outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
+                    var rejectionReasonPayment = "Cancelado pois outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
+                    var others = await _context.Contracts
+                        .Include(c => c.Subscription)
+                        .Where(c => c.ClientId == contract.ClientId && c.Id != contract.Id && c.Status == ContractStatus.PendingPayment)
+                        .ToListAsync();
+                    var now = DateTime.UtcNow;
+                    var nowBr = DateTimeHelper.GetBrazilianTime();
+                    var subscriptionIds = new List<int>();
+                    foreach (var c in others)
+                    {
+                        c.Status = ContractStatus.Cancelled;
+                        c.CancelledAt = now;
+                        c.CancellationReason = cancellationReasonContract;
+                        c.UpdatedAt = now;
+                        if (c.Subscription != null)
+                            subscriptionIds.Add(c.Subscription.Id);
+                    }
+                    if (subscriptionIds.Count > 0)
+                    {
+                        var paymentsToCancel = await _context.Payments
+                            .Where(p => p.SubscriptionId != null && subscriptionIds.Contains(p.SubscriptionId.Value)
+                                && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation))
+                            .ToListAsync();
+                        foreach (var p in paymentsToCancel)
+                        {
+                            p.Status = PaymentStatus.Cancelled;
+                            p.UpdatedAt = now;
+                            _context.PaymentHistories.Add(new PaymentHistory
+                            {
+                                PaymentId = p.Id,
+                                Action = "Cancelled",
+                                RejectionReason = rejectionReasonPayment,
+                                ActionBy = userId,
+                                ActionAt = nowBr
+                            });
+                        }
+                    }
+                    if (others.Count > 0)
+                        await _context.SaveChangesAsync();
+                }
+
                 // Atualizar contador de contratos do endereço apenas se for o primeiro pagamento
                 // e o contrato estava aguardando pagamento (não suspenso, pois suspenso já foi contado)
                 if (isFirstPayment && contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
@@ -3196,6 +3305,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
+                // Adicionar fotos retorna para análise (igual a adicionar/substituir documentos obrigatórios)
+                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto(s) adicionada(s)");
                 await _context.SaveChangesAsync();
                 TempData["Success"] = $"{photosToAdd.Count()} foto(s) adicionada(s) com sucesso!";
                 return RedirectToAction("Profile");
@@ -3357,7 +3468,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Continuar mesmo se não conseguir deletar o arquivo
                 }
 
-                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto excluída");
+                // Apagar foto não retorna para análise (parceiro continua visível na ChooseLocation)
                 _context.CoworkingPhotos.Remove(photo);
                 await _context.SaveChangesAsync();
 
@@ -4228,8 +4339,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Register");
             }
 
-            // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço aprovada
-            // Se existe uma NF aprovada (Emitida ou Importada) para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
+            // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço aprovada.
+            // Só aparecem registros para emitir NF quando o contrato teve pagamento realizado com sucesso e está ativo
+            // (para pagamentos de assinatura/contrato). Reservas aparecem se o pagamento estiver pago.
             var query = _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
@@ -4250,6 +4362,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                 )
                 .Where(p => p.Status == PaymentStatus.Paid)
+                .Where(p =>
+                    (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) ||
+                    (p.Reservation != null)
+                )
                 .Where(p => !_context.FiscalNotes.Any(fn =>
                     fn.PaymentId == p.Id &&
                     fn.Type == "Servico" &&

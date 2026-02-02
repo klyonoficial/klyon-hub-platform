@@ -10,6 +10,7 @@
     --klyon-success: #28a745;
     --klyon-danger: #dc3545;
     --klyon-warning: #ffc107;
+    --klyon-warning-light: #ffca2c;
     --klyon-info: #17a2b8;
 }
 
@@ -248,6 +249,17 @@ select[readonly]:focus {
 .btn-primary:hover {
     background-color: var(--klyon-accent-light);
     border-color: var(--klyon-accent-light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-warning {
+    transition: all 0.3s ease;
+}
+
+.btn-warning:hover {
+    background-color: var(--klyon-warning-light);
+    border-color: var(--klyon-warning-light);
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
@@ -716,4 +728,18 @@ body {
 [data-drilldown] > * {
     position: relative;
     z-index: 1;
+}
+
+/* Cor dos spinners em todas as páginas (exceto Client/ChooseLocation) */
+.spinner-border,
+.spinner-border.text-primary,
+.spinner-border-sm,
+.spinner-border-sm.text-primary {
+    color: #051323;
+}
+body.page-choose-location .spinner-border,
+body.page-choose-location .spinner-border.text-primary,
+body.page-choose-location .spinner-border-sm,
+body.page-choose-location .spinner-border-sm.text-primary {
+    color: var(--bs-primary);
 }

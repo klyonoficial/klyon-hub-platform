@@ -12,6 +12,18 @@
 
 @Html.AntiForgeryToken()
 
+<style>
+/* Botão Salvar Alterações em estado de loading (Parceiro/Profile - mesmo comportamento do Client/Profile) */
+.profile-save-btn.profile-save-btn-loading {
+    background-color: #051323 !important;
+    border-color: #051323 !important;
+    color: #fff;
+}
+.profile-save-btn.profile-save-btn-loading .spinner-white {
+    color: #fff;
+}
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 id="coworkingProfileTitle"><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
     <a href="@Url.Action("Dashboard", "Parceiro")" class="btn btn-secondary">
@@ -176,7 +188,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         <small class="form-text text-muted"><i class="bi bi-lightbulb"></i> Uma boa descrição ajuda clientes a conhecerem seu espaço antes de entrar em contato.</small>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary profile-save-btn">
                         <i class="bi bi-check-circle"></i> Salvar Alterações
                     </button>
                 </form>
@@ -217,7 +229,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary profile-save-btn">
                         <i class="bi bi-check-circle"></i> Salvar Alterações
                     </button>
                 </form>
@@ -284,7 +296,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary profile-save-btn">
                         <i class="bi bi-check-circle"></i> Salvar Alterações
                     </button>
                 </form>
@@ -351,7 +363,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         <input type="text" class="form-control" id="BankPixKey" name="BankPixKey" value="@Model.BankPixKey" placeholder="CPF, CNPJ, Email, Telefone ou Chave Aleatória">
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary profile-save-btn">
                         <i class="bi bi-check-circle"></i> Salvar Alterações
                     </button>
                 </form>
@@ -391,7 +403,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary profile-save-btn">
                         <i class="bi bi-check-circle"></i> Salvar Alterações
                     </button>
                 </form>
@@ -1178,6 +1190,22 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     return;
                 }
                 
+                // Botão Salvar Alterações: estado de loading (cor #051323, spinner branco)
+                var submitBtn = form.querySelector('button[type="submit"]');
+                var originalHtml = submitBtn ? submitBtn.innerHTML : '';
+                function restoreSubmitButton() {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('profile-save-btn-loading');
+                        submitBtn.innerHTML = originalHtml;
+                    }
+                }
+                if (submitBtn && submitBtn.classList.contains('profile-save-btn')) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('profile-save-btn-loading');
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm spinner-white me-1" role="status" aria-hidden="true"></span> Salvando...';
+                }
+                
                 // Verificar se o formulário deve ignorar o loading
                 if (form.classList.contains('no-loading')) {
                     config.showLoading = false;
@@ -1210,6 +1238,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     if (config.hideLoading && typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                         window.KlyonLoading.hide();
                     }
+                    
+                    // Restaurar botão Salvar Alterações
+                    restoreSubmitButton();
                     
                     // Remover marcação
                     form.removeAttribute('data-ajax-request');
@@ -1291,6 +1322,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     if (config.hideLoading && typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                         window.KlyonLoading.hide();
                     }
+                    
+                    // Restaurar botão Salvar Alterações
+                    restoreSubmitButton();
                     
                     // Remover marcação
                     form.removeAttribute('data-ajax-request');
@@ -1513,6 +1547,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                     modal.hide();
                                 }
                             }
+                            // Limpar preview e input de fotos (ao reabrir o modal fica vazio)
+                            document.getElementById('photoPreview').innerHTML = '';
+                            document.getElementById('Photos').value = '';
                             // Atualizar galeria de fotos
                             updatePhotosGallery();
                             showToast('Fotos enviadas com sucesso!', 'success');

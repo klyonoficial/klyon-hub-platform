@@ -21,6 +21,10 @@
                     }
 
                     <form method="post" action="@Url.Action("Register", "Auth")">
+                        @if (ViewData["ReturnUrl"] != null && !string.IsNullOrEmpty(ViewData["ReturnUrl"]?.ToString()))
+                        {
+                            <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                        }
                         <div class="mb-3">
                             <label for="fullName" class="form-label">Nome Completo</label>
                             <input type="text" class="form-control" id="fullName" name="fullName" required>
@@ -47,7 +51,7 @@
                     </form>
 
                     <div class="text-center">
-                        <p>Já tem uma conta? <a href="@Url.Action("Login", "Auth")">Entrar</a></p>
+                        <p>Já tem uma conta? <a href="@(Url.Action("Login", "Auth") + (ViewData["ReturnUrl"] != null && !string.IsNullOrEmpty(ViewData["ReturnUrl"]?.ToString()) ? "?returnUrl=" + Uri.EscapeDataString(ViewData["ReturnUrl"]!.ToString()!) : ""))">Entrar</a></p>
                     </div>
                 </div>
             </div>

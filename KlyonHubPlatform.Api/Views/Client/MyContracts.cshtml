@@ -114,27 +114,53 @@
                                 </td>
                                 <td>
                                     @{
-                                        var statusClass = contract.Status switch
+                                        string statusClass;
+                                        string statusText;
+                                        string statusIcon;
+                                        if (contract.Status == ContractStatus.PendingPayment)
                                         {
-                                            ContractStatus.Active => "active",
-                                            ContractStatus.PendingPayment => "pending-payment",
-                                            ContractStatus.Suspended => "suspended",
-                                            ContractStatus.PendingCancellation => "pending-cancellation",
-                                            ContractStatus.Cancelled => "cancelled",
-                                            ContractStatus.Expired => "expired",
-                                            _ => "expired"
-                                        };
-
-                                        var (statusText, statusIcon) = contract.Status switch
+                                            var hasPaymentAwaitingValidation = contract.Subscription?.Payments?.Any(p => p.Status == PaymentStatus.AwaitingValidation) == true;
+                                            var hasPaymentProcessing = contract.Subscription?.Payments?.Any(p => p.Status == PaymentStatus.Processing) == true;
+                                            if (hasPaymentProcessing)
+                                            {
+                                                statusClass = "suspended";
+                                                statusText = "Processando";
+                                                statusIcon = "bi-arrow-repeat";
+                                            }
+                                            else if (hasPaymentAwaitingValidation)
+                                            {
+                                                statusClass = "pending-payment";
+                                                statusText = "Aguardando Validação";
+                                                statusIcon = "bi-clock-history";
+                                            }
+                                            else
+                                            {
+                                                statusClass = "pending-payment";
+                                                statusText = "Aguardando Pagamento";
+                                                statusIcon = "bi-cash-coin";
+                                            }
+                                        }
+                                        else
                                         {
-                                            ContractStatus.Active => ("Ativo", "bi-check-circle-fill"),
-                                            ContractStatus.PendingPayment => ("Aguardando Pagamento", "bi-cash-coin"),
-                                            ContractStatus.Suspended => ("Suspenso", "bi-pause-circle-fill"),
-                                            ContractStatus.PendingCancellation => ("Cancelamento Pendente", "bi-clock-history"),
-                                            ContractStatus.Cancelled => ("Cancelado", "bi-x-circle-fill"),
-                                            ContractStatus.Expired => ("Expirado", "bi-calendar-x-fill"),
-                                            _ => (contract.Status.ToString(), "bi-question-circle-fill")
-                                        };
+                                            statusClass = contract.Status switch
+                                            {
+                                                ContractStatus.Active => "active",
+                                                ContractStatus.Suspended => "suspended",
+                                                ContractStatus.PendingCancellation => "pending-cancellation",
+                                                ContractStatus.Cancelled => "cancelled",
+                                                ContractStatus.Expired => "expired",
+                                                _ => "expired"
+                                            };
+                                            (statusText, statusIcon) = contract.Status switch
+                                            {
+                                                ContractStatus.Active => ("Ativo", "bi-check-circle-fill"),
+                                                ContractStatus.Suspended => ("Suspenso", "bi-pause-circle-fill"),
+                                                ContractStatus.PendingCancellation => ("Cancelamento Pendente", "bi-clock-history"),
+                                                ContractStatus.Cancelled => ("Cancelado", "bi-x-circle-fill"),
+                                                ContractStatus.Expired => ("Expirado", "bi-calendar-x-fill"),
+                                                _ => (contract.Status.ToString(), "bi-question-circle-fill")
+                                            };
+                                        }
                                     }
                                     <span class="badge bg-@statusClass">
                                         <i class="bi @statusIcon me-1"></i>

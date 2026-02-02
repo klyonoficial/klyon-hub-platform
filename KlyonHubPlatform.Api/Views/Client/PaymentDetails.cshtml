@@ -21,7 +21,7 @@
     <div class="col-md-8">
         <div class="card mb-4" id="paymentInfoCard">
             <div class="card-header">
-                <h5 class="mb-0">Informações do Pagamento</h5>
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações do Pagamento</h5>
             </div>
             <div class="card-body" id="paymentInfoBody">
                 <dl class="row">
@@ -183,31 +183,43 @@
                                 break;
                         
                             case PaymentStatus.Processing:
-                                <span class="badge bg-info">
+                                <span class="badge bg-suspended">
                                     <i class="bi bi-arrow-repeat me-1"></i> Processando
                                 </span>
                                 break;
                         
                             case PaymentStatus.AwaitingValidation:
-                                <span class="badge bg-info">
-                                    <i class="bi bi-cash-coin me-1"></i> Aguardando Validação
+                                <span class="badge bg-pending-payment">
+                                    <i class="bi bi-clock-history me-1"></i> Aguardando Validação
                                 </span>
                                 break;
                         
                             case PaymentStatus.Paid:
-                                <span class="badge bg-success">
+                                <span class="badge bg-active">
                                     <i class="bi bi-check-circle-fill me-1"></i> Pago
                                 </span>
                                 break;
                         
                             case PaymentStatus.Failed:
-                                <span class="badge bg-danger">
+                                <span class="badge bg-cancelled">
                                     <i class="bi bi-x-circle-fill me-1"></i> Falhou
                                 </span>
                                 break;
                         
+                            case PaymentStatus.Cancelled:
+                                <span class="badge bg-cancelled">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Cancelado
+                                </span>
+                                break;
+                        
+                            case PaymentStatus.Refunded:
+                                <span class="badge bg-expired">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Estornado
+                                </span>
+                                break;
+                        
                             default:
-                                <span class="badge bg-secondary">
+                                <span class="badge bg-expired">
                                     <i class="bi bi-question-circle-fill me-1"></i> @Model.Status
                                 </span>
                                 break;
@@ -219,7 +231,7 @@
                         @Model.DueDate.ToString("dd/MM/yyyy")
                         @if (Model.DueDate < DateTime.UtcNow && isPending)
                         {
-                            <span class="badge bg-danger ms-2">Vencido</span>
+                            <span class="badge bg-cancelled ms-2">Vencido</span>
                         }
                     </dd>
 
@@ -420,7 +432,7 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Ações</h5>
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Ações</h5>
             </div>
             <div class="card-body" id="actionsCardBody">
                 @if (isPending)
@@ -465,9 +477,11 @@
 
                     @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
                     {
-                        <a href="@Url.Action("DownloadReceipt", "Client", new { paymentId = Model.Id })" class="btn btn-outline-primary w-100 mb-2" target="_blank">
-                            <i class="bi bi-download"></i> Ver Comprovante Enviado
-                        </a>
+                        var receiptUploadedAt = ViewBag.ReceiptUploadedAt as DateTime?;
+                        var receiptUploadedAtStr = receiptUploadedAt.HasValue ? receiptUploadedAt.Value.ToString("dd/MM/yyyy HH:mm") : "";
+                        <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="viewReceipt(@Model.Id, '@receiptUploadedAtStr'); return false;">
+                            <i class="bi bi-file-earmark-image"></i> Ver Comprovante Enviado
+                        </button>
                     }
                 }
                 else if (Model.Status == PaymentStatus.Paid)
@@ -503,6 +517,12 @@
                 <h5 class="mb-0"><i class="bi bi-clock-history"></i> Histórico</h5>
             </div>
             <div class="card-body" id="paymentHistoryBody">
+                @if (Model.Status == KlyonHubPlatform.Domain.Core.Enums.PaymentStatus.Cancelled && ViewBag.ContractCancellationReason != null)
+                {
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <strong><i class="bi bi-info-circle me-1"></i> Motivo do cancelamento:</strong> @ViewBag.ContractCancellationReason
+                    </div>
+                }
                 @if (ViewBag.PaymentHistory != null && ((List<KlyonHubPlatform.Domain.Entities.PaymentHistory>)ViewBag.PaymentHistory).Any())
                 {
                     <div class="list-group">
@@ -535,6 +555,10 @@
                                         else if (history.Action == "ContractCreated")
                                         {
                                             <span class="badge bg-primary me-2"><i class="bi bi-file-earmark-text"></i> Contrato Criado</span>
+                                        }
+                                        else if (history.Action == "Cancelled")
+                                        {
+                                            <span class="badge bg-cancelled me-2"><i class="bi bi-x-circle"></i> Cancelado</span>
                                         }
                                         else
                                         {
@@ -637,6 +661,67 @@
         </div>
     </div>
 </div>
+
+@if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
+{
+    var receiptUrl = Url.Action("ViewReceipt", "Client", new { paymentId = Model.Id });
+    var receiptFileExtension = System.IO.Path.GetExtension(Model.ReceiptFilePath ?? "").ToLowerInvariant();
+    if (string.IsNullOrEmpty(receiptFileExtension)) { receiptFileExtension = ".pdf"; }
+    var receiptIsPdf = receiptFileExtension == ".pdf";
+    <!-- Modal Comprovante Enviado (mesmo padrão do Admin/Validar Pagamento) -->
+    <div class="modal fade" id="viewReceiptModal" tabindex="-1" aria-labelledby="viewReceiptModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewReceiptModalLabel">
+                        <i class="bi bi-file-earmark-image"></i> Comprovante Enviado
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted mb-3" id="viewReceiptUploadDate">
+                        <i class="bi bi-calendar"></i> Enviado em: —
+                    </p>
+                    <div class="border rounded p-3 text-center bg-light" style="min-height: 400px; max-height: 70vh; overflow: auto;">
+                        @if (receiptIsPdf)
+                        {
+                            <div style="width: 100%; height: 70vh;">
+                                <embed src="@(receiptUrl)&t=@DateTime.UtcNow.Ticks"
+                                       type="application/pdf"
+                                       style="width: 100%; height: 100%; border: none;"
+                                       frameborder="0">
+                                <p class="mt-2 text-muted small">Seu navegador não suporta a visualização de PDFs.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div id="viewReceiptImageContainer">
+                                <img id="viewReceiptImage"
+                                     src="@(receiptUrl)&t=@DateTime.UtcNow.Ticks"
+                                     alt="Comprovante"
+                                     class="img-thumbnail"
+                                     style="max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto;"
+                                     onclick="window.open('@receiptUrl', '_blank')"
+                                     onerror="this.onerror=null; var c=document.getElementById('viewReceiptImageContainer'); if(c){ c.innerHTML='<div class=\'text-danger\'><i class=\'bi bi-exclamation-triangle\'></i><br>Erro ao carregar imagem.<br><a href=\'@receiptUrl\' target=\'_blank\' class=\'btn btn-sm btn-primary mt-2\'>Abrir em nova aba</a></div>'; }">
+                            </div>
+                        }
+                    </div>
+                    <div class="mt-3">
+                        <a href="@Url.Action("DownloadReceipt", "Client", new { paymentId = Model.Id })" class="btn btn-primary" target="_blank" download>
+                            <i class="bi bi-download"></i> Baixar Comprovante
+                        </a>
+                        <a href="@receiptUrl" class="btn btn-outline-primary ms-2" target="_blank">
+                            <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <!-- Modal para Adicionar Cartão -->
 <div class="modal fade" id="addCardModal" tabindex="-1" aria-labelledby="addCardModalLabel" aria-hidden="true">
@@ -1161,88 +1246,16 @@
             });
         });
 
-        // Função para visualizar comprovante
+        // Função para visualizar comprovante (modal pré-renderido com ViewReceipt, como Admin/Validar Pagamento)
         function viewReceipt(paymentId, uploadDate) {
-            const receiptUrl = '@Url.Action("DownloadReceipt", "Client")?paymentId=' + paymentId;
-            
-            // Criar modal para visualizar o comprovante
-            const modalHtml = `
-                <div class="modal fade" id="viewReceiptModal" tabindex="-1" aria-labelledby="viewReceiptModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-xl modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="viewReceiptModalLabel">
-                                    <i class="bi bi-file-earmark-image"></i> Comprovante Enviado
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                            </div>
-                            <div class="modal-body text-center">
-                                <p class="text-muted mb-3">
-                                    <i class="bi bi-calendar"></i> Enviado em: ${uploadDate}
-                                </p>
-                                <div id="receiptContainer" style="min-height: 500px; max-height: 70vh; overflow: auto;">
-                                    <div class="d-flex justify-content-center align-items-center" style="min-height: 500px;">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Carregando...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="mt-3">
-                                    <a href="${receiptUrl}" class="btn btn-primary" target="_blank" download>
-                                        <i class="bi bi-download"></i> Baixar Comprovante
-                                    </a>
-                                    <a href="${receiptUrl}" class="btn btn-outline-primary" target="_blank">
-                                        <i class="bi bi-box-arrow-up-right"></i> Abrir em Nova Aba
-                                    </a>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Remover modal anterior se existir
-            const existingModal = document.getElementById('viewReceiptModal');
-            if (existingModal) {
-                existingModal.remove();
+            var modalEl = document.getElementById('viewReceiptModal');
+            if (!modalEl) return;
+            var dateEl = document.getElementById('viewReceiptUploadDate');
+            if (dateEl && uploadDate) {
+                dateEl.innerHTML = '<i class="bi bi-calendar"></i> Enviado em: ' + uploadDate;
             }
-            
-            // Adicionar novo modal ao body
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            
-            // Mostrar modal
-            const modal = new bootstrap.Modal(document.getElementById('viewReceiptModal'));
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
             modal.show();
-            
-            // Carregar o comprovante após o modal ser exibido
-            const receiptContainer = document.getElementById('receiptContainer');
-            const iframe = document.createElement('iframe');
-            iframe.src = receiptUrl;
-            iframe.style.width = '100%';
-            iframe.style.height = '70vh';
-            iframe.style.border = '1px solid #dee2e6';
-            iframe.style.borderRadius = '4px';
-            iframe.onload = function() {
-                receiptContainer.innerHTML = '';
-                receiptContainer.appendChild(iframe);
-            };
-            iframe.onerror = function() {
-                receiptContainer.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        Não foi possível carregar o comprovante. 
-                        <a href="${receiptUrl}" target="_blank" class="alert-link">Clique aqui para tentar abrir diretamente</a>.
-                    </div>
-                `;
-            };
-            
-            // Limpar modal quando fechar
-            document.getElementById('viewReceiptModal').addEventListener('hidden.bs.modal', function() {
-                this.remove();
-            });
         }
 
         // Garantir que o link "Ver Cobranças" funcione corretamente
