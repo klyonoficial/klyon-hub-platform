@@ -1030,7 +1030,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet]
-        public async Task<IActionResult> ChooseLocation(string? region = null, string? state = null, int page = 1)
+        public async Task<IActionResult> ChooseLocation(string? region = null, string? city = null, string? state = null, int page = 1)
         {
             if (User.IsInRole("Client") && !User.IsInRole("Administrator"))
             {
@@ -1048,67 +1048,115 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
 
-            const int pageSize = 6;
-            
-            // Query base: localidades ativas
-            var query = _context.Locations.Where(l => l.IsActive);
-            var allLocations = await query.ToListAsync();
-            var locationIds = allLocations.Select(l => l.Id).ToList();
-            
-            // Buscar endereços disponíveis usando o serviço (que já aplica todas as validações)
-            var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
-            var availableAddressesInLocations = availableAddresses
-                .Where(a => locationIds.Contains(a.LocationId))
+            const int pageSize = 9;
+
+            // Buscar todos os endereços fiscais disponíveis (mesmo critério de AvailableAddresses)
+            var fullAddressList = await _coworkingService.GetAvailableAddressesAsync();
+
+            // Regiões e estados para filtros (a partir da lista completa)
+            ViewBag.Regions = fullAddressList
+                .Where(a => a.Location != null && !string.IsNullOrEmpty(a.Location.Region))
+                .Select(a => a.Location!.Region!)
+                .Distinct()
+                .OrderBy(r => r)
                 .ToList();
-            
-            // Contar endereços disponíveis por localidade
-            var availableAddressesCount = availableAddressesInLocations
-                .GroupBy(a => a.LocationId)
-                .ToDictionary(g => g.Key, g => g.Count());
-            
-            // Mostrar somente localidades que tenham pelo menos um endereço cadastrado
-            var locationsWithAddresses = allLocations
-                .Where(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
+            ViewBag.States = fullAddressList
+                .Where(a => a.Location != null)
+                .Select(a => a.Location!.State)
+                .Distinct()
+                .OrderBy(s => s)
                 .ToList();
-            
-            // Aplicar filtros de região e estado
+            ViewBag.Cities = fullAddressList
+                .Select(a => a.Location?.City ?? a.City)
+                .Where(c => !string.IsNullOrEmpty(c))
+                .Distinct()
+                .OrderBy(c => c)
+                .ToList();
+
+            // Aplicar filtros por região, cidade e estado (via Location do endereço)
+            var filteredAddresses = fullAddressList.AsEnumerable();
             if (!string.IsNullOrEmpty(region))
-                locationsWithAddresses = locationsWithAddresses.Where(l => l.Region == region).ToList();
+                filteredAddresses = filteredAddresses.Where(a => a.Location != null && a.Location.Region == region);
+            if (!string.IsNullOrEmpty(city))
+                filteredAddresses = filteredAddresses.Where(a => (a.Location?.City ?? a.City) == city);
             if (!string.IsNullOrEmpty(state))
-                locationsWithAddresses = locationsWithAddresses.Where(l => l.State == state).ToList();
-            
-            // Ordenar por quantidade de endereços (maior primeiro) e depois por estado
-            var sortedLocations = locationsWithAddresses
-                .OrderByDescending(l => availableAddressesCount[l.Id])
-                .ThenBy(l => l.State)
+                filteredAddresses = filteredAddresses.Where(a => a.Location != null && a.Location.State == state);
+
+            // Ordenar: Estado, Cidade, Endereço
+            var sortedAddresses = filteredAddresses
+                .OrderBy(a => a.Location?.State ?? a.State)
+                .ThenBy(a => a.Location?.City ?? a.City)
+                .ThenBy(a => a.Address)
                 .ToList();
-            
-            // Paginação
-            var totalItems = sortedLocations.Count;
+
+            var totalItems = sortedAddresses.Count;
             var totalPages = totalItems > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
             page = Math.Max(1, Math.Min(page, totalPages));
-            
-            var pagedLocations = sortedLocations
+
+            var pagedAddresses = sortedAddresses
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
-            
-            ViewBag.AvailableAddressesCount = availableAddressesCount;
+
+            // IDs de endereços que o cliente já possui contrato (igual AvailableAddresses)
+            var contractedAddressIds = new HashSet<int>();
+            int? activeContractId = null;
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var client = await _context.Clients.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client != null)
+                {
+                    var ids = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id
+                            && c.Status != ContractStatus.Cancelled
+                            && c.Status != ContractStatus.Expired
+                            && (c.Status == ContractStatus.Active
+                                || c.Status == ContractStatus.Suspended
+                                || c.Status == ContractStatus.PendingCancellation))
+                        .Select(c => c.CoworkingAddressId)
+                        .ToListAsync();
+                    contractedAddressIds = new HashSet<int>(ids);
+                    var activeId = await _context.Contracts
+                        .AsNoTracking()
+                        .Where(c => c.ClientId == client.Id && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended))
+                        .OrderByDescending(c => c.StartDate)
+                        .Select(c => c.Id)
+                        .FirstOrDefaultAsync();
+                    if (activeId != 0) activeContractId = activeId;
+                }
+            }
+            ViewBag.ContractedAddressIds = contractedAddressIds;
+            ViewBag.ActiveContractId = activeContractId;
+
+            // Foto principal de cada coworking (igual AvailableAddresses)
+            var coworkingIds = pagedAddresses.Select(a => a.CoworkingId).Distinct().ToList();
+            var mainPhotos = new Dictionary<int, CoworkingPhoto>();
+            foreach (var coworkingId in coworkingIds)
+            {
+                var mainPhoto = await _context.CoworkingPhotos
+                    .FirstOrDefaultAsync(p => p.CoworkingId == coworkingId && p.IsMain);
+                if (mainPhoto == null)
+                    mainPhoto = await _context.CoworkingPhotos
+                        .Where(p => p.CoworkingId == coworkingId)
+                        .OrderBy(p => p.DisplayOrder)
+                        .ThenBy(p => p.CreatedAt)
+                        .FirstOrDefaultAsync();
+                if (mainPhoto != null)
+                    mainPhotos[coworkingId] = mainPhoto;
+            }
+            ViewBag.MainPhotos = mainPhotos;
+
             ViewBag.Region = region;
+            ViewBag.City = city;
             ViewBag.State = state;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
-            
-            // Filtros: apenas regiões e estados que possuem ao menos uma localidade com endereço
-            var baseWithAddresses = allLocations
-                .Where(l => availableAddressesCount.ContainsKey(l.Id) && availableAddressesCount[l.Id] > 0)
-                .ToList();
-            ViewBag.Regions = baseWithAddresses.Select(l => l.Region).Where(r => !string.IsNullOrEmpty(r)).Distinct().OrderBy(r => r!).ToList();
-            ViewBag.States = baseWithAddresses.Select(l => l.State).Distinct().OrderBy(s => s).ToList();
-            
-            return View(pagedLocations);
+
+            return View(pagedAddresses);
         }
 
         [HttpGet]

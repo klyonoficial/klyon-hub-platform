@@ -1,16 +1,23 @@
 @{
-    ViewData["Title"] = "Contratar Endereço Fiscal - Escolher Localidade";
+    ViewData["Title"] = "Contratar Endereço Fiscal - Escolher Endereço";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-@model List<KlyonHubPlatform.Domain.Entities.Location>
-@using KlyonHubPlatform.Domain.Core.Constants
+@model List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>
 
 @{
-    var availableAddressesCount = ViewBag.AvailableAddressesCount as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var mainPhotos = ViewBag.MainPhotos as Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto> ?? new Dictionary<int, KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
+    var contractedAddressIds = ViewBag.ContractedAddressIds as HashSet<int> ?? new HashSet<int>();
+    var clientHasActiveContract = contractedAddressIds.Count > 0;
+    var activeContractId = ViewBag.ActiveContractId as int?;
+    var urlContratoAtivo = activeContractId.HasValue
+        ? Url.Action("ContractDetails", "Client", new { id = activeContractId.Value })
+        : Url.Action("MyContracts", "Client");
     var regions = ViewBag.Regions as List<string> ?? new List<string>();
+    var cities = ViewBag.Cities as List<string> ?? new List<string>();
     var states = ViewBag.States as List<string> ?? new List<string>();
     var currentRegion = ViewBag.Region as string;
+    var currentCity = ViewBag.City as string;
     var currentState = ViewBag.State as string;
     var currentPage = ViewBag.CurrentPage as int? ?? 1;
     var totalPages = ViewBag.TotalPages as int? ?? 1;
@@ -18,15 +25,15 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-geo-alt"></i> Contratar Endereço Fiscal - Escolher Localidade</h2>
+    <h2><i class="bi bi-building"></i> Contratar Endereço Fiscal</h2>
 </div>
 
-<!-- Filtros -->
+<!-- Filtros por Região, Cidade e Estado -->
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" action="@Url.Action("ChooseLocation", "Client")" id="filterForm">
             <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-6 col-md-3">
                     <label for="region" class="form-label"><i class="bi bi-map"></i> Filtrar por Região</label>
                     <select class="form-select" id="region" name="region" onchange="document.getElementById('filterForm').submit();">
                         <option value="">Todas as Regiões</option>
@@ -43,7 +50,24 @@
                         }
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-6 col-md-3">
+                    <label for="city" class="form-label"><i class="bi bi-geo"></i> Filtrar por Cidade</label>
+                    <select class="form-select" id="city" name="city" onchange="document.getElementById('filterForm').submit();">
+                        <option value="">Todas as Cidades</option>
+                        @foreach (var c in cities)
+                        {
+                            if (currentCity == c)
+                            {
+                                <option value="@c" selected>@c</option>
+                            }
+                            else
+                            {
+                                <option value="@c">@c</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
                     <label for="state" class="form-label"><i class="bi bi-geo-alt"></i> Filtrar por Estado</label>
                     <select class="form-select" id="state" name="state" onchange="document.getElementById('filterForm').submit();">
                         <option value="">Todos os Estados</option>
@@ -60,8 +84,8 @@
                         }
                     </select>
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="button" class="btn btn-secondary w-100" onclick="clearFilters()">
+                <div class="col-6 col-md-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-secondary w-100" onclick="window.location.href='@Url.Action("ChooseLocation", "Client")';">
                         <i class="bi bi-x-circle"></i> Limpar Filtros
                     </button>
                 </div>
@@ -71,60 +95,112 @@
     </div>
 </div>
 
-<!-- Informações de resultados -->
-<div class="mb-3">
-    <p class="text-muted mb-0">
-        <i class="bi bi-info-circle"></i> 
-        Mostrando <strong>@Model.Count</strong> de <strong>@totalItems</strong> localidades
-        @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentState))
-        {
-            <span>(filtradas)</span>
-        }
-        | Ordenadas por disponibilidade
-    </p>
-</div>
-
 @if (Model.Any())
 {
-    <div class="row">
-        @foreach (var location in Model)
+    <p class="text-muted mb-4">
+        <i class="bi bi-info-circle"></i>
+        Mostrando <strong>@Model.Count</strong> de <strong>@totalItems</strong> endereços fiscais disponíveis
+        @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentCity) || !string.IsNullOrEmpty(currentState))
         {
-            var hasAvailableAddresses = availableAddressesCount.ContainsKey(location.Id) && availableAddressesCount[location.Id] > 0;
-            var addressCount = hasAvailableAddresses ? availableAddressesCount[location.Id] : 0;
-            var cityImageUrl = CityImages.GetCityImageUrl(location.City, location.State);
-            
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 @(hasAvailableAddresses ? "border-success" : "border-secondary")" style="position: relative;">
-                    @if (hasAvailableAddresses)
+            <span>(filtrados)</span>
+        }
+        . Escolha um endereço para contratar. Contrato anual, uso do endereço para CNPJ e suporte da Klyon incluídos.
+    </p>
+
+    <div class="row">
+        @foreach (var address in Model)
+        {
+            var alreadyContracted = contractedAddressIds.Contains(address.Id);
+            var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
+            var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
+            var yearlyPrice = address.BasePrice;
+            var monthlyEquivalent = address.BasePrice / 12;
+            var vacancies = address.MaxContracts - address.CurrentContracts;
+            var coworkingName = address.Coworking?.Name ?? "Coworking";
+            var locationLabel = address.Location != null ? $"{address.Location.City}/{address.Location.State}" : $"{address.City}/{address.State}";
+
+            <div class="col-lg-6 col-xl-4 mb-4">
+                <div class="card h-100 shadow-sm border-0 overflow-hidden" style="border-radius: 12px;">
+                    @if (hasMainPhoto && mainPhoto != null)
                     {
-                        <span class="badge bg-success position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                            <i class="bi bi-check-circle"></i> @addressCount @(addressCount == 1 ? "endereço disponível" : "endereços disponíveis")
-                        </span>
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; overflow: hidden; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                            @if (vacancies <= 2)
+                            {
+                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                </span>
+                            }
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
+                            <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = mainPhoto.Id })"
+                                 alt="@coworkingName"
+                                 class="card-img-top"
+                                 style="width: 100%; height: 100%; object-fit: contain; object-position: center;"
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'16\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3EFoto não disponível%3C/text%3E%3C/svg%3E';">
+                        </div>
                     }
                     else
                     {
-                        <span class="badge bg-secondary position-absolute top-0 end-0 m-2" style="z-index: 10;">
-                            <i class="bi bi-x-circle"></i> Sem endereços
-                        </span>
-                    }
-                    
-                    <div class="card-body p-0">
-                        <div class="position-relative" style="height: 250px; overflow: hidden;">
-                            <img src="@cityImageUrl" 
-                                 alt="@location.City" 
-                                 class="card-img-top" 
-                                 style="width: 100%; height: 100%; object-fit: cover;"
-                                 onerror="this.src='https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=400&h=300&fit=crop';">
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                            @if (vacancies <= 2)
+                            {
+                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
+                                </span>
+                            }
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
+                            <div class="text-center text-white opacity-75">
+                                <i class="bi bi-building" style="font-size: 3rem;"></i>
+                                <p class="mt-2 mb-0 small">@coworkingName</p>
+                            </div>
                         </div>
-                        <div class="p-3">
-                            <p class="card-text mb-2">
-                                <strong>Estado:</strong> @location.State<br>
-                                <strong>Região:</strong> @location.Region
-                            </p>
-                            <a href="@Url.Action("AvailableAddresses", "Client", new { locationId = location.Id })" 
-                               class="btn btn-primary w-100 @(hasAvailableAddresses ? "" : "disabled")">
-                                <i class="bi bi-arrow-right"></i> Ver Endereços Disponíveis
-                            </a>
+                    }
+                    <div class="card-body d-flex flex-column">
+                        <h6 class="text-uppercase text-primary fw-bold mb-1" style="font-size: 0.8rem;">@coworkingName</h6>
+                        <h5 class="card-title mb-2">
+                            <i class="bi bi-geo-alt-fill text-primary"></i> @address.Address, @address.Number
+                            @if (!string.IsNullOrEmpty(address.Complement)) { <span class="text-muted">@address.Complement</span> }
+                        </h5>
+                        <p class="card-text text-muted small mb-3">
+                            @address.Neighborhood &middot; @address.City/@address.State<br>
+                            <i class="bi bi-upc"></i> CEP @address.ZipCode
+                        </p>
+
+                        <ul class="list-unstyled small mb-3 flex-grow-1">
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Endereço fiscal para CNPJ</li>
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Contrato anual — preço fixo</li>
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Suporte Klyon incluído</li>
+                        </ul>
+
+                        <div class="mt-auto pt-3 border-top">
+                            <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
+                                <div>
+                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString("N2")</span>
+                                    <span class="text-muted">/ano</span>
+                                    <div class="small text-success fw-semibold">
+                                        <i class="bi bi-tag-fill"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
+                                    </div>
+                                </div>
+                                @if (alreadyContracted)
+                                {
+                                    <button type="button" class="btn btn-secondary rounded-pill px-4" disabled>
+                                        <i class="bi bi-check2-all"></i> Já Contratado!
+                                    </button>
+                                }
+                                else
+                                {
+                                    <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form no-loading" data-already-contracted="@(alreadyContracted ? "true" : "false")" data-client-has-active-contract="@(clientHasActiveContract ? "true" : "false")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="coworkingAddressId" value="@address.Id">
+                                        <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                            <i class="bi bi-check2-all"></i> Contratar
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                            @if (vacancies > 0 && vacancies <= 5)
+                            {
+                                <p class="small text-muted mb-0"><i class="bi bi-people"></i> @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</p>
+                            }
                         </div>
                     </div>
                 </div>
@@ -134,73 +210,117 @@
 
     <!-- Paginação -->
     @if (totalPages > 1)
-{
-    <nav aria-label="Navegação de páginas" class="mt-4">
-        <ul class="pagination justify-content-center">
-            @if (currentPage > 1)
-            {
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = currentPage - 1 })">
-                        <i class="bi bi-chevron-left"></i> Anterior
-                    </a>
-                </li>
-            }
-            else
-            {
-                <li class="page-item disabled">
-                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
-                </li>
-            }
-            
-            @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
-            {
-                <li class="page-item @(i == currentPage ? "active" : "")">
-                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = i })">@i</a>
-                </li>
-            }
-            
-            @if (currentPage < totalPages)
-            {
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, state = currentState, page = currentPage + 1 })">
-                        Próxima <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            }
-            else
-            {
-                <li class="page-item disabled">
-                    <span class="page-link">Próxima <i class="bi bi-chevron-right"></i></span>
-                </li>
-            }
-        </ul>
-    </nav>
+    {
+        <nav aria-label="Navegação de páginas" class="mt-4">
+            <ul class="pagination justify-content-center">
+                @if (currentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = currentPage - 1 })">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                    </li>
+                }
+
+                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = i })">@i</a>
+                    </li>
+                }
+
+                @if (currentPage < totalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = currentPage + 1 })">
+                            Próxima <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">Próxima <i class="bi bi-chevron-right"></i></span>
+                    </li>
+                }
+            </ul>
+        </nav>
     }
 }
 else
 {
     <div class="alert alert-info mt-4">
-        <i class="bi bi-info-circle"></i> 
+        <i class="bi bi-info-circle"></i>
         @if (totalItems == 0)
         {
-            @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentState))
+            @if (!string.IsNullOrEmpty(currentRegion) || !string.IsNullOrEmpty(currentCity) || !string.IsNullOrEmpty(currentState))
             {
-                <span>Nenhuma localidade com endereço disponível encontrada para os filtros aplicados.</span>
+                <span>Nenhum endereço fiscal disponível para os filtros aplicados.</span>
             }
             else
             {
-                <span>Nenhuma localidade com endereço disponível no momento. Tente novamente mais tarde.</span>
+                <span>Nenhum endereço fiscal disponível no momento. Tente novamente mais tarde.</span>
             }
         }
         else
         {
-            <span>Todas as localidades estão sendo exibidas.</span>
+            <span>Nenhum endereço encontrado nesta página.</span>
         }
     </div>
 }
 
 <script>
-    function clearFilters() {
-        window.location.href = '@Url.Action("ChooseLocation", "Client")';
+var urlContratoAtivo = '@Html.Raw(urlContratoAtivo)';
+var msgJaContratado = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual no menu <strong><a href=\"" + urlContratoAtivo + "\" class=\"alert-link text-white text-decoration-underline\">Contrato de Endereço Fiscal</a></strong>.";
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM' || !form.classList.contains('contract-form')) return;
+    var alreadyContracted = form.getAttribute('data-already-contracted') === 'true';
+    var clientHasActiveContract = form.getAttribute('data-client-has-active-contract') === 'true';
+    if (alreadyContracted || clientHasActiveContract) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof showToast === 'function') showToast(msgJaContratado, 'info', 6000);
+        return;
     }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var btn = form.querySelector('.contract-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    }
+    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
+    var formData = new FormData(form);
+    fetch(form.action, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.redirectUrl) {
+                window.location.href = data.redirectUrl;
+                return;
+            }
+            if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar.', 'error', 5000);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+        })
+        .catch(function() {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
+            if (typeof showToast === 'function') showToast('Erro de conexão. Tente novamente.', 'error', 5000);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
+        });
+}, true);
+document.addEventListener('DOMContentLoaded', function() {
+    var errorAlert = document.querySelector('.alert-danger');
+    if (errorAlert) {
+        document.querySelectorAll('.contract-btn').forEach(function(btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar';
+        });
+    }
+});
 </script>
