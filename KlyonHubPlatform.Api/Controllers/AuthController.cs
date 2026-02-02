@@ -25,20 +25,11 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public IActionResult Login(string? returnUrl = null)
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
+            // Se já estiver autenticado, redireciona para o dashboard do perfil
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToDashboardByRole(role, returnUrl);
             }
 
             ViewData["ReturnUrl"] = returnUrl;
@@ -48,20 +39,11 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Login(string email, string password, string? returnUrl = null)
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
+            // Se já estiver autenticado, redireciona para o dashboard do perfil
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToDashboardByRole(role, returnUrl);
             }
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
@@ -122,28 +104,22 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Redirect(returnUrl);
             }
 
-            return RedirectToAction("Index", "Home");
+            // Redireciona para o dashboard conforme o perfil: Admin, Parceiro ou Cliente
+            var primaryRole = roles.FirstOrDefault();
+            return RedirectToDashboardByRole(primaryRole, null);
         }
 
         [HttpGet]
-        public IActionResult Register()
+        public IActionResult Register([FromQuery] string? role = null)
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
             if (User.Identity?.IsAuthenticated == true)
             {
-                var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+                return RedirectToDashboardByRole(userRole, null);
             }
 
+            if (role == "CoworkingPartner")
+                ViewBag.PreSelectedRole = "CoworkingPartner";
             return View();
         }
 
@@ -176,26 +152,34 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             await HttpContext.SignOutAsync("Cookies");
             HttpContext.Session.Clear();
+            TempData["Success"] = "Você deslogou com sucesso.";
             return RedirectToAction("Index", "Home");
+        }
+
+        /// <summary>
+        /// Redireciona para o dashboard conforme o perfil (Admin, Parceiro ou Cliente).
+        /// Se returnUrl for informada e local, usa ela; caso contrário usa o dashboard do perfil.
+        /// </summary>
+        private IActionResult RedirectToDashboardByRole(string? role, string? returnUrl)
+        {
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                return Redirect(returnUrl);
+            return role switch
+            {
+                "Administrator" => RedirectToAction("Dashboard", "Admin"),
+                "CoworkingPartner" => RedirectToAction("Dashboard", "Coworking"),
+                "Client" => RedirectToAction("DashboardDetails", "Client"),
+                _ => RedirectToAction("Index", "Home")
+            };
         }
 
         [HttpGet]
         public IActionResult ForgotPassword()
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToDashboardByRole(role, null);
             }
 
             return View();
@@ -226,20 +210,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public IActionResult ResetPassword(string? token = null)
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToDashboardByRole(role, null);
             }
 
             if (string.IsNullOrEmpty(token))
@@ -326,20 +300,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public IActionResult ResendVerification()
         {
-            // Se já estiver autenticado, redireciona para o dashboard apropriado
             if (User.Identity?.IsAuthenticated == true)
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToDashboardByRole(role, null);
             }
 
             return View();
@@ -463,7 +427,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Redirect(redirect);
             }
 
-            return RedirectToAction("Services", "Client");
+            return RedirectToAction("Index", "Home");
         }
 
         [HttpGet]
@@ -472,7 +436,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (HttpContext.Session.GetString("MustChangePassword") != "true")
             {
-                return RedirectToAction("Services", "Client");
+                return RedirectToAction("Index", "Home");
             }
             return View();
         }
@@ -484,7 +448,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (HttpContext.Session.GetString("MustChangePassword") != "true")
             {
-                return RedirectToAction("Services", "Client");
+                return RedirectToAction("Index", "Home");
             }
 
             if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
@@ -529,7 +493,7 @@ namespace KlyonHubPlatform.Api.Controllers
             await _context.SaveChangesAsync();
 
             HttpContext.Session.Remove("MustChangePassword");
-            var returnUrl = HttpContext.Session.GetString("ChangePasswordReturnUrl") ?? "/Client/Services";
+            var returnUrl = HttpContext.Session.GetString("ChangePasswordReturnUrl") ?? "/";
             HttpContext.Session.Remove("ChangePasswordReturnUrl");
 
             TempData["Success"] = "Senha alterada com sucesso!";

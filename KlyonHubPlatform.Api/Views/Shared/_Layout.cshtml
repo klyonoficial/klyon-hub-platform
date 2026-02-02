@@ -54,9 +54,11 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
-            <a class="navbar-brand" href="@Url.Action("Index", "Home")">
-                <i class="bi bi-building"></i> Klyon Gestão de Endereço Fiscal
-            </a>
+            <div class="navbar-brand d-flex align-items-center">
+                <a href="@Url.Action("Index", "Home")" class="d-flex align-items-center text-decoration-none">
+                    <img src="~/images/logo-klyon-transparente-dourado-horizontal.png" alt="Klyon" class="navbar-brand-logo" />
+                </a>
+            </div>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -71,8 +73,8 @@
                     @if ((!isAuthenticated || (isClient && !isCoworking && !isAdmin)) && showCoworkingMenus)
                     {
                         <li class="nav-item">
-                            <a class="nav-link" href="@Url.Action("Marketplace", "Home")">
-                                <i class="bi bi-search"></i> Encontrar Coworking
+                            <a class="nav-link" href="@Url.Action("Index", "Home")">
+                                <i class="bi bi-house"></i> Inicial
                             </a>
                         </li>
                     }

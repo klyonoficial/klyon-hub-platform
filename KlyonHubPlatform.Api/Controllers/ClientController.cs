@@ -1028,6 +1028,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> ChooseLocation(string? region = null, string? state = null, int page = 1)
         {

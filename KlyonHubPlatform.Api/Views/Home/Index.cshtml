@@ -1,82 +1,86 @@
 @{
     ViewData["Title"] = "Início";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = "~/Views/Shared/_LandingLayout.cshtml";
+    var urlFiscal = User.Identity?.IsAuthenticated == true && User.IsInRole("Client")
+        ? Url.Action("ChooseLocation", "Client")
+        : Url.Action("FiscalAddress", "Home");
+    var urlSalas = User.Identity?.IsAuthenticated == true && User.IsInRole("Client")
+        ? Url.Action("Marketplace", "Home")
+        : Url.Action("Salas", "Home");
+    var urlParceiro = Url.Action("Parceiro", "Home");
+    var enableCoworkingMenus = ViewData["EnableCoworkingMenus"] as bool? ?? true;
 }
 
-<div class="container flex-grow-1 d-flex flex-column">
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-8 text-center">
-            <h1 class="display-4 mb-4">
-                <i class="bi bi-building text-primary"></i> Klyon Endereço Fiscal
-            </h1>
-            <p class="lead mb-5">
-                Plataforma completa para comercialização automatizada de endereço fiscal.
-                Conectamos clientes, coworkings e facilitamos todo o processo.
-            </p>
-            
-            @if (User.Identity?.IsAuthenticated != true)
+<section class="lp-choice-section lp-choice-section-alive">
+    <div class="lp-choice-bg-glow"></div>
+    <div class="lp-container position-relative">
+        <div class="lp-choice-header">
+            <h1 class="lp-choice-title">O que você precisa?</h1>
+            <p class="lp-choice-subtitle">Escolha uma opção abaixo e comece em poucos cliques.</p>
+        </div>
+
+        <div class="lp-choice-cards">
+            <a href="@urlFiscal" class="lp-choice-card lp-choice-card-fiscal">
+                <div class="lp-choice-card-slides">
+                    <div class="lp-choice-card-slide lp-choice-slide-1" style="background-image: url('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900'); background-color: #0a1f3a;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-2" style="background-image: url('https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=900'); background-color: #0d2847;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-3" style="background-image: url('https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=900'); background-color: #0a1f3a;"></div>
+                </div>
+                <div class="lp-choice-card-overlay"></div>
+                <div class="lp-choice-card-content">
+                    <h2><i class="fa-solid fa-building me-2" aria-hidden="true"></i>Endereço Fiscal</h2>
+                    <p class="lp-choice-card-desc">Contrate um endereço comercial válido para CNPJ. Simples, seguro e com suporte.</p>
+                    <div class="lp-choice-card-tags">
+                        <span class="lp-choice-card-tag">CNPJ</span>
+                        <span class="lp-choice-card-tag">Empresa</span>
+                        <span class="lp-choice-card-tag">MEI</span>
+                    </div>
+                    <span class="lp-choice-cta">Buscar endereço fiscal <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+                </div>
+            </a>
+
+            @if (enableCoworkingMenus)
             {
-                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                    <a href="@Url.Action("Register", "Auth")" class="btn btn-primary btn-lg me-md-2">
-                        <i class="bi bi-person-plus"></i> Criar Conta
-                    </a>
-                    <a href="@Url.Action("Login", "Auth")" class="btn btn-outline-primary btn-lg">
-                        <i class="bi bi-box-arrow-in-right"></i> Entrar
-                    </a>
+            <a href="@urlSalas" class="lp-choice-card lp-choice-card-salas">
+                <div class="lp-choice-card-slides">
+                    <div class="lp-choice-card-slide lp-choice-slide-1" style="background-image: url('https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=900'); background-color: #0d2847;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-2" style="background-image: url('https://images.unsplash.com/photo-1573164713988-8665fc963095?w=900'); background-color: #0a1f3a;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-3" style="background-image: url('https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=900'); background-color: #0d2847;"></div>
                 </div>
+                <div class="lp-choice-card-overlay"></div>
+                <div class="lp-choice-card-content">
+                    <h2><i class="fa-solid fa-people-roof me-2" aria-hidden="true"></i>Aluguel de Salas</h2>
+                    <p class="lp-choice-card-desc">Reserve salas de reunião, consultórios, baias e espaços corporativos por hora ou período.</p>
+                    <div class="lp-choice-card-tags">
+                        <span class="lp-choice-card-tag">Sala de reunião</span>
+                        <span class="lp-choice-card-tag">Sala de consulta</span>
+                        <span class="lp-choice-card-tag">Baias</span>
+                        <span class="lp-choice-card-tag">Coworking</span>
+                    </div>
+                    <span class="lp-choice-cta">Buscar salas <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+                </div>
+            </a>
             }
-        </div>
-    </div>
 
-    <div class="row mt-5 mb-5">
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-building display-4 text-primary mb-3"></i>
-                    <h5 class="card-title">Para Empresas</h5>
-                    <p class="card-text">
-                        Contrate um endereço fiscal válido para sua empresa de forma rápida e segura.
-                    </p>
+            <a href="@urlParceiro" class="lp-choice-card lp-choice-card-parceiro">
+                <div class="lp-choice-card-slides">
+                    <div class="lp-choice-card-slide lp-choice-slide-1" style="background-image: url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=900'); background-color: #0a1f3a;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-2" style="background-image: url('https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=900'); background-color: #0d2847;"></div>
+                    <div class="lp-choice-card-slide lp-choice-slide-3" style="background-image: url('https://images.unsplash.com/photo-1552664730-d307ca884978?w=900'); background-color: #0a1f3a;"></div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-shop display-4 text-success mb-3"></i>
-                    <h5 class="card-title">Para Coworkings</h5>
-                    <p class="card-text">
-                        Cadastre seus endereços e receba comissões automáticas pelos contratos.
-                    </p>
+                <div class="lp-choice-card-overlay"></div>
+                <div class="lp-choice-card-content">
+                    <h2><i class="fa-solid fa-handshake me-2" aria-hidden="true"></i>Quero ser Parceiro</h2>
+                    <p class="lp-choice-card-desc">Cadastre seu coworking ou espaço corporativo na Klyon e receba clientes em busca de endereço fiscal e salas.</p>
+                    <div class="lp-choice-card-tags">
+                        <span class="lp-choice-card-tag">Coworking</span>
+                        <span class="lp-choice-card-tag">Endereço fiscal</span>
+                        <span class="lp-choice-card-tag">Salas</span>
+                        <span class="lp-choice-card-tag">Visibilidade</span>
+                    </div>
+                    <span class="lp-choice-cta">Cadastrar como parceiro <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-shield-check display-4 text-info mb-3"></i>
-                    <h5 class="card-title">100% Automatizado</h5>
-                    <p class="card-text">
-                        Contratos, pagamentos e repasses totalmente automatizados.
-                    </p>
-                </div>
-            </div>
+            </a>
         </div>
     </div>
-</div>
-
-<!-- Rodapé -->
-<footer class="bg-dark text-light mt-auto py-4" style="margin-top: 5rem !important;">
-    <div class="container">
-        <div class="row">
-            <div class="col-md-12 text-center">
-                <p class="mb-1 small">
-                    © @DateTime.Now.Year <strong>Klyon Tecnologia</strong>. Todos os direitos reservados.
-                </p>
-                <p class="mb-0 small text-white-50">
-                    <i class="bi bi-image"></i> Todos os direitos de imagens são da <strong>Klyon Tecnologia</strong>.
-                </p>
-            </div>
-        </div>
-    </div>
-</footer>
+</section>

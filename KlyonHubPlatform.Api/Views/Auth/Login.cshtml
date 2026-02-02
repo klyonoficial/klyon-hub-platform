@@ -27,6 +27,10 @@
                     }
 
                     <form method="post" action="@Url.Action("Login", "Auth")">
+                        @if (ViewData["ReturnUrl"] != null)
+                        {
+                            <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                        }
                         <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
                             <input type="email" class="form-control" id="email" name="email" required>

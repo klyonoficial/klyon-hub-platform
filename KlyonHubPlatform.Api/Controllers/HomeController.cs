@@ -5,6 +5,7 @@ using KlyonHubPlatform.Api.ViewModels;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
+using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers
@@ -12,28 +13,72 @@ namespace KlyonHubPlatform.Api.Controllers
     public class HomeController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ISystemConfigurationService _systemConfig;
 
-        public HomeController(ApplicationDbContext context)
+        public HomeController(ApplicationDbContext context, ISystemConfigurationService systemConfig)
         {
             _context = context;
+            _systemConfig = systemConfig;
         }
 
-        public IActionResult Index()
+        /// <summary>
+        /// Página principal: escolha entre Endereço Fiscal ou Aluguel de Salas.
+        /// Se Features.EnableCoworkingMenus for false, redireciona direto para a página de endereço fiscal.
+        /// </summary>
+        /// <summary>
+        /// Página principal: escolha entre Endereço Fiscal, Aluguel de Salas (se habilitado) e Quero ser Parceiro.
+        /// Admin, Parceiro e Cliente podem acessar normalmente sem redirecionamento.
+        /// </summary>
+        [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> Index()
         {
-            if (User.Identity?.IsAuthenticated == true)
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
+            return View();
+        }
+
+        /// <summary>
+        /// Página comercial de contratação de endereço fiscal. Cliente logado vai para ChooseLocation.
+        /// </summary>
+        [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> FiscalAddress()
+        {
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
             {
-                var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                if (role == "Client")
-                {
-                    return RedirectToAction("Services", "Client");
-                }
-                return RedirectToAction("Dashboard", role switch
-                {
-                    "Administrator" => "Admin",
-                    "CoworkingPartner" => "Coworking",
-                    _ => "Home"
-                });
+                return RedirectToAction("ChooseLocation", "Client");
             }
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
+            return View();
+        }
+
+        /// <summary>
+        /// Página comercial de aluguel de salas (reunião, consulta, baias, etc.). Redireciona para Marketplace.
+        /// </summary>
+        [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> Salas()
+        {
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            if (string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase))
+            {
+                return RedirectToAction("Index");
+            }
+            ViewData["EnableCoworkingMenus"] = true;
+            return View();
+        }
+
+        /// <summary>
+        /// Página comercial para quem quer ser parceiro (coworking / espaço corporativo).
+        /// </summary>
+        [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> Parceiro()
+        {
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("CoworkingPartner"))
+            {
+                return RedirectToAction("Dashboard", "Coworking");
+            }
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
             return View();
         }
 

@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Alugar Salas";
+    Layout = "~/Views/Shared/_LandingLayout.cshtml";
+    var urlMarketplace = Url.Action("Marketplace", "Home");
+    var urlRegister = Url.Action("Register", "Auth");
+    var urlLogin = Url.Action("Login", "Auth");
+}
+
+<section class="lp-commercial-hero">
+    <div class="lp-container position-relative">
+        <div class="text-center">
+            <h1 class="lp-section-title mb-3">Salas de reunião, consulta e coworking</h1>
+            <p class="lp-section-subtitle mx-auto mb-4">
+                Reserve por hora ou período. Salas equipadas em várias cidades. Busque por estado e cidade.
+            </p>
+            <a href="@urlMarketplace" class="lp-btn-primary btn-lg mb-3">
+                <i class="bi bi-search"></i> Buscar salas
+            </a>
+        </div>
+        <div class="lp-search-bar mt-4">
+            <form method="get" action="@urlMarketplace" class="d-flex flex-wrap gap-2 align-items-center w-100 justify-content-center">
+                <div class="flex-grow-1" style="min-width: 140px;">
+                    <label class="form-label small text-muted mb-0">Estado</label>
+                    <input type="text" name="State" class="form-control" placeholder="Ex: SP" maxlength="2" style="text-transform: uppercase;" />
+                </div>
+                <div class="flex-grow-1" style="min-width: 180px;">
+                    <label class="form-label small text-muted mb-0">Cidade</label>
+                    <input type="text" name="City" class="form-control" placeholder="Ex: São Paulo" />
+                </div>
+                <div class="d-flex align-items-end">
+                    <button type="submit" class="lp-btn-primary">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<section class="lp-section">
+    <div class="lp-container">
+        <h2 class="lp-section-title text-center mb-2">Tipos de espaço</h2>
+        <p class="lp-section-subtitle text-center mx-auto mb-4">
+            Salas de reunião, consultórios, baias e espaços corporativos.
+        </p>
+        <div class="lp-cards">
+            <div class="lp-card">
+                <div class="lp-card-icon"><i class="bi bi-easel text-white"></i></div>
+                <h3>Sala de Reunião</h3>
+                <p>Reserve por hora. Equipadas para reuniões, apresentações e videoconferências.</p>
+            </div>
+            <div class="lp-card">
+                <div class="lp-card-icon"><i class="bi bi-briefcase text-white"></i></div>
+                <h3>Sala para Consulta</h3>
+                <p>Espaços reservados para consultórios e atendimento ao cliente.</p>
+            </div>
+            <div class="lp-card">
+                <div class="lp-card-icon"><i class="bi bi-grid-3x3-gap text-white"></i></div>
+                <h3>Baias de Trabalho</h3>
+                <p>Estações em coworking para trabalho do dia a dia.</p>
+            </div>
+            <div class="lp-card">
+                <div class="lp-card-icon"><i class="bi bi-people text-white"></i></div>
+                <h3>Coworking</h3>
+                <p>Espaços compartilhados com infraestrutura e networking.</p>
+            </div>
+        </div>
+        <div class="text-center mt-4">
+            <a href="@urlMarketplace" class="lp-btn-primary">Ver todos os espaços</a>
+        </div>
+        <div class="text-center mt-4">
+            <p class="lp-text-muted small mb-2">Ainda não tem conta?</p>
+            <a href="@urlRegister" class="lp-btn-secondary me-2">Cadastrar</a>
+            <a href="@urlLogin" class="lp-btn-secondary">Entrar</a>
+        </div>
+    </div>
+</section>

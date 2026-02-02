@@ -1,0 +1,180 @@
+@using System.Security.Claims
+@{
+    var enableCoworkingMenus = ViewData["EnableCoworkingMenus"] as bool? ?? true;
+}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — " : "")Klyon — Endereço Fiscal e Espaços Corporativos</title>
+    <meta name="description" content="Marketplace que conecta clientes a parceiros: endereço fiscal, coworking, salas de reunião e espaços corporativos. Simples, seguro e premium." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@fortawesome/fontawesome-free@@7.1.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true">
+</head>
+<body class="landing-body">
+    <nav class="navbar navbar-expand-lg landing-nav fixed-top">
+        <div class="lp-container container-fluid">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="@Url.Action("Index", "Home")">
+                <img src="~/images/logo-klyon-transparente-dourado-horizontal.png" alt="Klyon" class="d-inline-block" />
+            </a>
+            <button class="navbar-toggler border-0 text-light" type="button" data-bs-toggle="collapse" data-bs-target="#landingNav" aria-controls="landingNav" aria-expanded="false" aria-label="Menu">
+                <i class="fa-solid fa-bars fs-4" aria-hidden="true"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="landingNav">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link" href="@Url.Action("Index", "Home")">Início</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("ChooseLocation", "Client") : Url.Action("FiscalAddress", "Home"))">Endereço Fiscal</a>
+                    </li>
+                    @if (enableCoworkingMenus)
+                    {
+                    <li class="nav-item">
+                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Salas", "Home"))">Aluguel de Salas</a>
+                    </li>
+                    }
+                    <li class="nav-item">
+                        <a class="nav-link" href="@Url.Action("Parceiro", "Home")">Quero ser Parceiro</a>
+                    </li>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="@(User.IsInRole("Client") ? Url.Action("Services", "Client") : Url.Action("Dashboard", "Coworking"))">
+                                <i class="fa-solid fa-th-large me-1" aria-hidden="true"></i> Área logada
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <form method="post" action="@Url.Action("Logout", "Auth")" class="d-inline ms-lg-2">
+                                <button type="submit" class="btn btn-outline-light btn-sm">
+                                    <i class="fa-solid fa-right-from-bracket me-1" aria-hidden="true"></i> Sair
+                                </button>
+                            </form>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="@Url.Action("Login", "Auth")">Entrar</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="btn btn-primary btn-sm ms-lg-2" href="@Url.Action("Register", "Auth")">
+                                <i class="fa-solid fa-user-plus me-1" aria-hidden="true"></i> Cadastrar
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="pt-0">
+        @RenderBody()
+    </main>
+
+    <footer class="landing-footer" id="contato">
+        <div class="lp-container">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <a href="@Url.Action("Index", "Home")" class="footer-brand d-inline-flex align-items-center mb-3">
+                        <img src="~/images/logo-klyon-transparente-dourado-vertical.png" alt="Klyon" />
+                    </a>
+                    <p class="lp-text-muted small mb-0">
+                        Marketplace de endereço fiscal e espaços corporativos. Conectamos clientes e parceiros com simplicidade e segurança.
+                    </p>
+                </div>
+                <div class="col-md-2 col-6">
+                    <h6 class="text-uppercase small fw-600 text-white mb-3">Institucional</h6>
+                    <ul class="list-unstyled small">
+                        <li class="mb-2"><a href="@Url.Action("Privacy", "Home")">Política de privacidade</a></li>
+                        <li class="mb-2"><a href="@Url.Action("Privacy", "Home")">Termos de uso</a></li>
+                        <li class="mb-2"><a href="#contato">Contato</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-2 col-6">
+                    <h6 class="text-uppercase small fw-600 text-white mb-3">Produto</h6>
+                    <ul class="list-unstyled small">
+                        <li class="mb-2"><a href="@Url.Action("Index", "Home")">Início</a></li>
+                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("ChooseLocation", "Client") : Url.Action("FiscalAddress", "Home"))">Endereço Fiscal</a></li>
+                        @if (enableCoworkingMenus)
+                        {
+                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Salas", "Home"))">Aluguel de Salas</a></li>
+                        }
+                        <li class="mb-2"><a href="@Url.Action("Parceiro", "Home")">Quero ser Parceiro</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <h6 class="text-uppercase small fw-600 text-white mb-3">Redes sociais</h6>
+                    <div class="social-links">
+                        <a href="https://www.instagram.com/klyonoficial" target="_blank" rel="noopener noreferrer" aria-label="Instagram Klyon"><i class="fa-brands fa-instagram" aria-hidden="true"></i></a>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4 border-secondary" />
+            <div class="row">
+                <div class="col-12 text-center lp-text-muted small">
+                    © @DateTime.Now.Year <strong>Klyon</strong>. Todos os direitos reservados.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;" id="toastContainer"></div>
+
+    <!-- Sistema de Notificações Toast (TempData) -->
+    <script>
+        function showToast(message, type, duration) {
+            if (!message) return;
+            var toastTypes = {
+                'success': { class: 'bg-success text-white', icon: 'bi-check-circle-fill', title: 'Sucesso', closeClass: 'btn-close btn-close-white' },
+                'error': { class: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Erro', closeClass: 'btn-close btn-close-white' },
+                'warning': { class: 'bg-warning text-dark', icon: 'bi-exclamation-triangle-fill', title: 'Atenção', closeClass: 'btn-close' },
+                'info': { class: 'bg-info text-white', icon: 'bi-info-circle-fill', title: 'Informação', closeClass: 'btn-close btn-close-white' }
+            };
+            var config = toastTypes[type] || toastTypes['info'];
+            var el = document.createElement('div');
+            el.className = 'toast align-items-center border-0 shadow-lg';
+            el.setAttribute('role', 'alert');
+            el.style.minWidth = '350px';
+            el.style.maxWidth = '500px';
+            el.innerHTML = '<div class="d-flex ' + config.class + ' rounded"><div class="toast-body d-flex align-items-center"><i class="bi ' + config.icon + ' fs-4 me-3"></i><div class="flex-grow-1"><strong>' + config.title + ':</strong> ' + message + '</div><button type="button" class="' + config.closeClass + ' ms-2" data-bs-dismiss="toast" aria-label="Fechar"></button></div></div>';
+            var container = document.getElementById('toastContainer');
+            if (container) {
+                container.appendChild(el);
+                var t = new bootstrap.Toast(el, { autohide: true, delay: duration || 5000 });
+                t.show();
+                el.addEventListener('hidden.bs.toast', function() { el.remove(); });
+            }
+        }
+    </script>
+    @{
+        var _toastSuccess = TempData["Success"]?.ToString();
+        var _toastError = TempData["Error"]?.ToString();
+        var _toastInfo = TempData["Info"]?.ToString();
+        var _toastWarning = TempData["Warning"]?.ToString();
+    }
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var s = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastSuccess ?? ""));
+            var e = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastError ?? ""));
+            var i = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastInfo ?? ""));
+            var w = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastWarning ?? ""));
+            if (s) showToast(s, 'success');
+            if (e) showToast(e, 'error', 7000);
+            if (i) showToast(i, 'info');
+            if (w) showToast(w, 'warning');
+        });
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

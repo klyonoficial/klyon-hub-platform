@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Cadastro";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var initialRole = ViewBag.PreSelectedRole as string ?? "Client";
 }
 
 <div class="container">
@@ -34,6 +35,7 @@
                         </div>
                         <div class="mb-3">
                             <label for="role" class="form-label">Tipo de Conta</label>
+                            <input type="hidden" id="initialRole" value="@initialRole" />
                             <select class="form-select" id="role" name="role">
                                 <option value="Client">Cliente (Empresa/Profissional)</option>
                                 <option value="CoworkingPartner">Coworking Parceiro</option>
@@ -52,3 +54,10 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('initialRole');
+        var sel = document.getElementById('role');
+        if (el && sel && el.value) sel.value = el.value;
+    });
+</script>

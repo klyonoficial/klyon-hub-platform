@@ -1,0 +1,58 @@
+@{
+    ViewData["Title"] = "Contratar Endereço Fiscal";
+    Layout = "~/Views/Shared/_LandingLayout.cshtml";
+    var urlChooseLocation = Url.Action("ChooseLocation", "Client");
+    var urlRegister = Url.Action("Register", "Auth");
+    var urlLogin = Url.Action("Login", "Auth");
+}
+
+<section class="lp-commercial-hero">
+    <div class="lp-container position-relative">
+        <div class="text-center">
+            <h1 class="lp-section-title mb-3">Endereço fiscal para sua empresa</h1>
+            <p class="lp-section-subtitle mx-auto mb-4">
+                Escolha a localidade, compare endereços de parceiros verificados e contrate em poucos cliques. CNPJ válido, sem burocracia.
+            </p>
+            <a href="@urlChooseLocation" class="lp-btn-primary btn-lg">
+                <i class="bi bi-search"></i> Buscar endereço fiscal
+            </a>
+        </div>
+    </div>
+</section>
+
+<section class="lp-section">
+    <div class="lp-container">
+        <h2 class="lp-section-title text-center mb-2">Por que contratar na Klyon</h2>
+        <p class="lp-section-subtitle text-center mx-auto mb-4">
+            Processo digital, parceiros verificados e suporte em todo o fluxo.
+        </p>
+        <div class="lp-benefits justify-content-center">
+            <div class="lp-benefit">
+                <div class="lp-benefit-icon"><i class="bi bi-geo-alt"></i></div>
+                <div>
+                    <h4>Várias localidades</h4>
+                    <p>Escolha o estado e a cidade que fazem sentido para seu negócio.</p>
+                </div>
+            </div>
+            <div class="lp-benefit">
+                <div class="lp-benefit-icon"><i class="bi bi-shield-check"></i></div>
+                <div>
+                    <h4>Parceiros verificados</h4>
+                    <p>Endereços de coworkings e parceiros aprovados pela plataforma.</p>
+                </div>
+            </div>
+            <div class="lp-benefit">
+                <div class="lp-benefit-icon"><i class="bi bi-file-earmark-check"></i></div>
+                <div>
+                    <h4>Contrato digital</h4>
+                    <p>Assinatura e documentação 100% online.</p>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-4">
+            <p class="lp-text-muted small mb-2">Ainda não tem conta?</p>
+            <a href="@urlRegister" class="lp-btn-secondary me-2">Cadastrar</a>
+            <a href="@urlLogin" class="lp-btn-secondary">Entrar</a>
+        </div>
+    </div>
+</section>

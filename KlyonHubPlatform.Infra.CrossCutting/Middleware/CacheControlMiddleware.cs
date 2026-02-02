@@ -37,6 +37,13 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
                 pragmaValue = "no-cache";
                 expiresValue = "0";
             }
+            // Página principal e Home: nunca cachear — a resposta pode ser redirect (FiscalAddress) ou Index conforme EnableCoworkingMenus
+            else if (IsHomeOrRootRoute(path))
+            {
+                cacheControlValue = "no-store, no-cache, must-revalidate, private";
+                pragmaValue = "no-cache";
+                expiresValue = "0";
+            }
             // Rotas sensíveis que NÃO devem ser cacheadas
             // (financeiras, administrativas, contratuais, dados pessoais)
             else if (IsSensitiveRoute(path))
@@ -80,6 +87,20 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
 
             // Processar a requisição
             await _next(context);
+        }
+
+        /// <summary>
+        /// Verifica se é a raiz ou rotas do Home (Index, FiscalAddress, Salas).
+        /// Não cachear: a decisão de redirecionar ou exibir a página depende de EnableCoworkingMenus.
+        /// </summary>
+        private bool IsHomeOrRootRoute(string path)
+        {
+            if (string.IsNullOrEmpty(path) || path == "/")
+                return true;
+            path = path.TrimEnd('/');
+            if (path == "" || path == "/home" || path == "/home/index" || path == "/home/fiscaladdress" || path == "/home/salas")
+                return true;
+            return path.StartsWith("/home/");
         }
 
         /// <summary>
