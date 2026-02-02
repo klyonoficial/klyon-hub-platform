@@ -6,8 +6,8 @@
         : Url.Action("FiscalAddress", "Home");
     var urlSalas = User.Identity?.IsAuthenticated == true && User.IsInRole("Client")
         ? Url.Action("Marketplace", "Home")
-        : Url.Action("Salas", "Home");
-    var urlParceiro = Url.Action("Parceiro", "Home");
+        : Url.Action("Rooms", "Home");
+    var urlParceiro = Url.Action("Partner", "Home");
     var enableCoworkingMenus = ViewData["EnableCoworkingMenus"] as bool? ?? true;
 }
 

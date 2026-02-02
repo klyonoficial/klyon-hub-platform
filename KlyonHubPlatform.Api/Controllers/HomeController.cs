@@ -53,10 +53,10 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
-        /// Página comercial de aluguel de salas (reunião, consulta, baias, etc.). Redireciona para Marketplace.
+        /// Commercial page for room rental (meeting, consulting, coworking). Redirects to Marketplace.
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Salas()
+        public async Task<IActionResult> Rooms()
         {
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
             if (string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase))
@@ -68,10 +68,10 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
-        /// Página comercial para quem quer ser parceiro (coworking / espaço corporativo).
+        /// Commercial page for becoming a partner (coworking / corporate space).
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Parceiro()
+        public async Task<IActionResult> Partner()
         {
             if (User.Identity?.IsAuthenticated == true && User.IsInRole("CoworkingPartner"))
             {

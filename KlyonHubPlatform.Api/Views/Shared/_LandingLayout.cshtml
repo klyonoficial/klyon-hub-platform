@@ -37,11 +37,11 @@
                     @if (enableCoworkingMenus)
                     {
                     <li class="nav-item">
-                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Salas", "Home"))">Aluguel de Salas</a>
+                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Rooms", "Home"))">Aluguel de Salas</a>
                     </li>
                     }
                     <li class="nav-item">
-                        <a class="nav-link" href="@Url.Action("Parceiro", "Home")">Quero ser Parceiro</a>
+                        <a class="nav-link" href="@Url.Action("Partner", "Home")">Quero ser Parceiro</a>
                     </li>
                     @if (User.Identity?.IsAuthenticated == true)
                     {
@@ -104,9 +104,9 @@
                         <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("ChooseLocation", "Client") : Url.Action("FiscalAddress", "Home"))">Endereço Fiscal</a></li>
                         @if (enableCoworkingMenus)
                         {
-                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Salas", "Home"))">Aluguel de Salas</a></li>
+                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Rooms", "Home"))">Aluguel de Salas</a></li>
                         }
-                        <li class="mb-2"><a href="@Url.Action("Parceiro", "Home")">Quero ser Parceiro</a></li>
+                        <li class="mb-2"><a href="@Url.Action("Partner", "Home")">Quero ser Parceiro</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4 text-md-end">
