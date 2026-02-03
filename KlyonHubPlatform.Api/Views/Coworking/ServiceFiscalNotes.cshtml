@@ -27,6 +27,46 @@
     </div>
 </div>
 
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action("ServiceFiscalNotes", "Coworking")" class="row g-3">
+            <div class="col-md-2">
+                <label for="serviceType" class="form-label">Tipo de serviço</label>
+                <select class="form-select" id="serviceType" name="serviceType">
+                    <option value="">Todos</option>
+                    <option value="EnderecoFiscal" selected="@(ViewBag.ServiceType == "EnderecoFiscal")">Endereço Fiscal</option>
+                    <option value="ReservaSala" selected="@(ViewBag.ServiceType == "ReservaSala")">Reserva de Sala</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="client" class="form-label">Cliente</label>
+                <input type="text" class="form-control" id="client" name="client" placeholder="Nome, CNPJ ou CPF" value="@(ViewBag.Client ?? "")" />
+            </div>
+            <div class="col-md-2">
+                <label for="contractNumber" class="form-label">Código contrato</label>
+                <input type="text" class="form-control" id="contractNumber" name="contractNumber" placeholder="Ex.: KLY-2024-001" value="@(ViewBag.ContractNumber ?? "")" />
+            </div>
+            <div class="col-md-2">
+                <label for="pageSize" class="form-label">Por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="10" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 10)">10</option>
+                    <option value="20" selected="@(ViewBag.PageSize == null || (int)ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary" name="page" value="1">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="@Url.Action("ServiceFiscalNotes", "Coworking", new { pageSize = 20 })" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Resumo -->
 <div class="row mb-4">
     <div class="col-md-4">
@@ -42,8 +82,17 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total para Emitir</h6>
-                <h2 class="mb-0">R$ @(Model.Sum(p => p.Amount).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @((ViewBag.TotalAmount ?? 0m).ToString("N2"))</h2>
                 <small class="text-white-50">Valor total (com percentagem)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="card-title text-muted"><i class="bi bi-file-earmark-text"></i> Página</h6>
+                <h2 class="mb-0">@ViewBag.CurrentPage de @(ViewBag.TotalPages ?? 1)</h2>
+                <small class="text-muted">@(ViewBag.PageSize ?? 20) registros por página</small>
             </div>
         </div>
     </div>
@@ -76,7 +125,7 @@
                             var location = payment.Subscription?.Contract?.CoworkingAddress?.Location ?? payment.Reservation?.CoworkingAddress?.Location;
                             var contractNumber = payment.Subscription?.Contract?.ContractNumber;
                             
-                            <tr>
+                            <tr class="payment-row" data-payment-id="@payment.Id" style="cursor: pointer;">
                                 <td>#@payment.Id</td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(contractNumber))
@@ -127,7 +176,7 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td>
+                                <td onclick="event.stopPropagation();">
                                     <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="paymentId" value="@payment.Id" />
@@ -149,12 +198,12 @@
             <!-- Paginação -->
             @if (ViewBag.TotalPages > 1)
             {
-                <nav aria-label="Paginação">
-                    <ul class="pagination justify-content-center">
+                <nav aria-label="Paginação" class="mt-3">
+                    <ul class="pagination justify-content-center flex-wrap">
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
                                     Anterior
                                 </a>
                             </li>
@@ -163,21 +212,22 @@
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = i, pageSize = ViewBag.PageSize })">
-                                    @i
-                                </a>
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = i, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">@i</a>
                             </li>
                         }
 
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
                                     Próximo
                                 </a>
                             </li>
                         }
                     </ul>
+                    <p class="text-center text-muted small mt-2 mb-0">
+                        Exibindo página @ViewBag.CurrentPage de @ViewBag.TotalPages — @ViewBag.TotalItems registro(s) no total
+                    </p>
                 </nav>
             }
         }
@@ -187,6 +237,25 @@
                 <i class="bi bi-info-circle"></i> Nenhum pagamento pendente de emissão de NF encontrado.
             </div>
         }
+    </div>
+</div>
+
+<!-- Modal Detalhes do Pagamento -->
+<div class="modal fade" id="paymentDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Detalhes do Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-5" id="paymentDetailLoading">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 mb-0">Carregando...</p>
+                </div>
+                <div id="paymentDetailContent" class="d-none small"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -223,6 +292,95 @@
 
 @section Scripts {
 <script>
+    (function() {
+        function fmtDate(d) {
+            if (!d) return '—';
+            var dt = new Date(d);
+            return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+        function renderDetail(data) {
+            var html = '';
+            html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-credit-card"></i> Pagamento</h6>';
+            html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+            html += '<tr><td class="text-muted">ID</td><td>#' + (data.payment && data.payment.id) + '</td></tr>';
+            html += '<tr><td class="text-muted">Valor</td><td><strong>R$ ' + (data.payment && parseFloat(data.payment.amount).toFixed(2).replace('.', ',')) + '</strong></td></tr>';
+            html += '<tr><td class="text-muted">Status</td><td>' + (data.payment && data.payment.status) + '</td></tr>';
+            html += '<tr><td class="text-muted">Método</td><td>' + (data.payment && data.payment.method) + '</td></tr>';
+            html += '<tr><td class="text-muted">Vencimento</td><td>' + fmtDate(data.payment && data.payment.dueDate) + '</td></tr>';
+            html += '<tr><td class="text-muted">Pago em</td><td>' + fmtDate(data.payment && data.payment.paidAt) + '</td></tr>';
+            html += '<tr><td class="text-muted">Criado em</td><td>' + fmtDate(data.payment && data.payment.createdAt) + '</td></tr>';
+            if (data.payment && data.payment.transactionId) html += '<tr><td class="text-muted">ID transação</td><td>' + data.payment.transactionId + '</td></tr>';
+            html += '</tbody></table>';
+
+            if (data.contract) {
+                html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-file-text"></i> Contrato (Endereço Fiscal)</h6>';
+                html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                html += '<tr><td class="text-muted">Código</td><td>' + (data.contract.contractNumber || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Início</td><td>' + fmtDate(data.contract.startDate) + '</td></tr>';
+                html += '<tr><td class="text-muted">Fim</td><td>' + fmtDate(data.contract.endDate) + '</td></tr>';
+                html += '<tr><td class="text-muted">Valor mensal</td><td>R$ ' + parseFloat(data.contract.monthlyValue).toFixed(2).replace('.', ',') + '</td></tr>';
+                html += '<tr><td class="text-muted">Status</td><td>' + (data.contract.status || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.contract.address || '—') + '</td></tr>';
+                if (data.contract.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (data.contract.location.city || '') + '/' + (data.contract.location.state || '') + '</td></tr>';
+                html += '</tbody></table>';
+            }
+            if (data.reservation) {
+                html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-calendar-check"></i> Reserva de Sala</h6>';
+                html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                html += '<tr><td class="text-muted">ID</td><td>#' + data.reservation.id + '</td></tr>';
+                html += '<tr><td class="text-muted">Data</td><td>' + fmtDate(data.reservation.reservationDate) + '</td></tr>';
+                html += '<tr><td class="text-muted">Horário</td><td>' + (data.reservation.startTime || '—') + ' a ' + (data.reservation.endTime || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Tipo sala</td><td>' + (data.reservation.roomType || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Valor</td><td>R$ ' + parseFloat(data.reservation.totalValue).toFixed(2).replace('.', ',') + '</td></tr>';
+                html += '<tr><td class="text-muted">Status</td><td>' + (data.reservation.status || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.reservation.address || '—') + '</td></tr>';
+                if (data.reservation.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (data.reservation.location.city || '') + '/' + (data.reservation.location.state || '') + '</td></tr>';
+                html += '</tbody></table>';
+            }
+            if (data.client) {
+                html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-person"></i> Cliente</h6>';
+                html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                html += '<tr><td class="text-muted">Nome / Razão Social</td><td>' + (data.client.name || '—') + '</td></tr>';
+                if (data.client.razaoSocial) html += '<tr><td class="text-muted">Razão Social</td><td>' + data.client.razaoSocial + '</td></tr>';
+                if (data.client.nomeFantasia) html += '<tr><td class="text-muted">Nome Fantasia</td><td>' + data.client.nomeFantasia + '</td></tr>';
+                html += '<tr><td class="text-muted">Contato</td><td>' + (data.client.contactName || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">CNPJ/CPF</td><td>' + (data.client.cnpj || data.client.cpf || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Email</td><td>' + (data.client.contactEmail || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Telefone</td><td>' + (data.client.contactPhone || '—') + '</td></tr>';
+                html += '</tbody></table>';
+            }
+            html += '<p class="text-muted small mb-0"><strong>Tipo de serviço:</strong> ' + (data.serviceType || '—') + '</p>';
+            return html;
+        }
+        document.querySelectorAll('.payment-row').forEach(function(row) {
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('td:last-child')) return;
+                var id = this.getAttribute('data-payment-id');
+                if (!id) return;
+                var modal = document.getElementById('paymentDetailModal');
+                var loading = document.getElementById('paymentDetailLoading');
+                var content = document.getElementById('paymentDetailContent');
+                content.classList.add('d-none');
+                content.innerHTML = '';
+                loading.classList.remove('d-none');
+                var bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+                fetch('@Url.Action("ServiceFiscalNoteDetail", "Coworking")?id=' + encodeURIComponent(id))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        loading.classList.add('d-none');
+                        content.classList.remove('d-none');
+                        content.innerHTML = renderDetail(data);
+                    })
+                    .catch(function() {
+                        loading.classList.add('d-none');
+                        content.classList.remove('d-none');
+                        content.innerHTML = '<div class="alert alert-danger">Não foi possível carregar os detalhes.</div>';
+                    });
+            });
+        });
+    })();
+
     document.getElementById('importNfModal').addEventListener('show.bs.modal', function (e) {
         var btn = e.relatedTarget;
         if (!btn) return;

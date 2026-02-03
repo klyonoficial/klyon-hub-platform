@@ -516,10 +516,18 @@ select[readonly]:focus {
 
 .bg-pending-payment {
     --bs-bg-opacity: 1;
-    background-color: rgba(111, 66, 193, var(--bs-bg-opacity)) !important; /* roxo */
+    background-color: rgba(111, 66, 193, var(--bs-bg-opacity)) !important; /* roxo - aguardando pagamento */
 }
 .card.text-white.bg-pending-payment {
     background: linear-gradient( 135deg, #7e57c2 0%, #b39ddb 100% ) !important;
+}
+
+.bg-awaiting-validation {
+    --bs-bg-opacity: 1;
+    background-color: rgba(13, 110, 253, var(--bs-bg-opacity)) !important; /* azul - aguardando validação */
+}
+.card.text-white.bg-awaiting-validation {
+    background: linear-gradient( 135deg, #0d6efd 0%, #6ea8fe 100% ) !important;
 }
 
 .bg-suspended {

@@ -111,7 +111,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var rejectedDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected).OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt).ToListAsync();
             foreach (var doc in rejectedDocs)
             {
-                var docTypeName = doc.Type switch { CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço", CoworkingDocumentType.AddressProof => "Comprovante de Endereço", CoworkingDocumentType.CNPJCard => "Cartão CNPJ", CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização", CoworkingDocumentType.UtilityBill => "Conta de Utilidade", _ => doc.Type.ToString() };
+                var docTypeName = GetDocumentTypeDisplayName(doc.Type);
                 alerts.Add(new { Type = "danger", Icon = "bi-file-earmark-x-fill", Title = $"Documento Rejeitado: {docTypeName}", Message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Documentos" });
             }
             var pendingDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending).CountAsync();
@@ -295,6 +295,166 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             return RedirectToAction("Dashboard");
+        }
+
+        /// <summary>Retorna as pendências administrativas com detalhes (ex.: lista de documentos em análise) para exibição em modal.</summary>
+        [HttpGet]
+        public async Task<IActionResult> GetPendencyDetails()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+                return Json(new { pendencies = Array.Empty<object>() });
+
+            var pendencies = new List<object>();
+
+            if (coworkingEntity.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
+            {
+                pendencies.Add(new
+                {
+                    type = "danger",
+                    icon = "bi-exclamation-triangle-fill",
+                    title = "Cadastro Aguardando Ajuste",
+                    message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) ? coworkingEntity.RejectionReason : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.",
+                    actionUrl = Url.Action("Profile", "Coworking"),
+                    actionText = "Ver Perfil",
+                    details = (string[]?)null
+                });
+            }
+
+            var rejectedDocs = await _context.CoworkingDocuments
+                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected)
+                .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+                .ToListAsync();
+            foreach (var doc in rejectedDocs)
+            {
+                var docTypeName = GetDocumentTypeDisplayName(doc.Type);
+                pendencies.Add(new
+                {
+                    type = "danger",
+                    icon = "bi-file-earmark-x-fill",
+                    title = $"Documento Rejeitado: {docTypeName}",
+                    message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.",
+                    actionUrl = Url.Action("Profile", "Coworking") + "#documents",
+                    actionText = "Ver Documentos",
+                    details = (string[]?)null
+                });
+            }
+
+            var pendingDocsList = await _context.CoworkingDocuments
+                .Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending)
+                .ToListAsync();
+            if (pendingDocsList.Count > 0)
+            {
+                var docTypeNames = pendingDocsList.Select(d => GetDocumentTypeDisplayName(d.Type)).Distinct().OrderBy(x => x).ToArray();
+                pendencies.Add(new
+                {
+                    type = "info",
+                    icon = "bi-file-earmark-check",
+                    title = "Documentos Em Análise",
+                    message = $"{pendingDocsList.Count} documento(s) aguardando análise administrativa.",
+                    actionUrl = Url.Action("Profile", "Coworking") + "#documents",
+                    actionText = "Ver Documentos",
+                    details = docTypeNames
+                });
+            }
+
+            int pendingNf = 0;
+            try
+            {
+                pendingNf = await _context.Payments
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id) ||
+                                (p.Reservation != null && p.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id))
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .Where(p => (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) || (p.Reservation != null))
+                    .Where(p => !_context.FiscalNotes.Any(fn =>
+                        fn.PaymentId == p.Id && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada")))
+                    .CountAsync();
+            }
+            catch { }
+            if (pendingNf > 0)
+            {
+                pendencies.Add(new
+                {
+                    type = "warning",
+                    icon = "bi-receipt",
+                    title = "NF de Serviço Não Emitidas",
+                    message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.",
+                    actionUrl = Url.Action("ServiceFiscalNotes", "Coworking"),
+                    actionText = "Emitir NF",
+                    details = (string[]?)null
+                });
+            }
+
+            int rejectedNf = 0;
+            try
+            {
+                rejectedNf = await _context.FiscalNotes
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == "Rejeitada")
+                    .Where(fn => !_context.FiscalNotes.Any(fn2 =>
+                        fn2.PaymentId == fn.PaymentId && fn2.Type == "Servico" &&
+                        (fn2.Status == "Emitida" || fn2.Status == "Importada") && fn2.Id != fn.Id))
+                    .CountAsync();
+            }
+            catch { }
+            if (rejectedNf > 0)
+            {
+                pendencies.Add(new
+                {
+                    type = "danger",
+                    icon = "bi-x-circle-fill",
+                    title = "NF Importadas Rejeitadas",
+                    message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.",
+                    actionUrl = Url.Action("ServiceFiscalNotes", "Coworking"),
+                    actionText = "Emitir / Importar NF",
+                    details = (string[]?)null
+                });
+            }
+
+            var addrs = await _context.CoworkingAddresses
+                .Where(a => a.CoworkingId == coworkingEntity.Id && (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected))
+                .ToListAsync();
+            foreach (var a in addrs)
+            {
+                if (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
+                    pendencies.Add(new
+                    {
+                        type = "warning",
+                        icon = "bi-clock-history",
+                        title = "Capacidade Fiscal Aguardando Aprovação",
+                        message = $"A alteração de capacidade do endereço {a.Address}, {a.City} está aguardando aprovação administrativa.",
+                        actionUrl = Url.Action("MyAddresses", "Coworking"),
+                        actionText = "Ver Endereços",
+                        details = (string[]?)null
+                    });
+                else
+                    pendencies.Add(new
+                    {
+                        type = "danger",
+                        icon = "bi-x-circle-fill",
+                        title = "Capacidade Fiscal Rejeitada",
+                        message = $"A alteração de capacidade do endereço {a.Address}, {a.City} foi rejeitada.",
+                        actionUrl = Url.Action("MyAddresses", "Coworking"),
+                        actionText = "Ver Endereços",
+                        details = (string[]?)null
+                    });
+            }
+
+            return Json(new { pendencies });
+        }
+
+        private static string GetDocumentTypeDisplayName(CoworkingDocumentType type)
+        {
+            return type switch
+            {
+                CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço",
+                CoworkingDocumentType.AddressProof => "Comprovante de Endereço",
+                CoworkingDocumentType.CNPJCard => "Cartão CNPJ",
+                CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização",
+                CoworkingDocumentType.UtilityBill => "Conta de Utilidade",
+                _ => type.ToString()
+            };
         }
 
         [HttpGet]
@@ -1327,7 +1487,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ContractDetails(int id)
+        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -1549,6 +1709,16 @@ namespace KlyonHubPlatform.Api.Controllers
             // Ordenar timeline por data
             timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList();
 
+            // Paginação do histórico (timeline)
+            var timelineTotal = timeline.Count;
+            var timelineTotalPages = timelinePageSize > 0 ? (int)Math.Ceiling(timelineTotal / (double)timelinePageSize) : 1;
+            if (timelinePage < 1) timelinePage = 1;
+            if (timelinePage > timelineTotalPages) timelinePage = Math.Max(1, timelineTotalPages);
+            var timelinePaged = timeline
+                .Skip((timelinePage - 1) * timelinePageSize)
+                .Take(timelinePageSize)
+                .ToList();
+
             // Status de exibição do contrato: quando PendingPayment, refletir status do pagamento (Aguardando Pagamento / Aguardando Validação)
             if (contract.Status == ContractStatus.PendingPayment && payments.Any())
             {
@@ -1559,7 +1729,11 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 ViewBag.ContractDisplayStatus = ContractStatusPt(contract.Status);
             }
-            ViewBag.Timeline = timeline;
+            ViewBag.Timeline = timelinePaged;
+            ViewBag.TimelineTotalItems = timelineTotal;
+            ViewBag.TimelineCurrentPage = timelinePage;
+            ViewBag.TimelineTotalPages = timelineTotalPages;
+            ViewBag.TimelinePageSize = timelinePageSize;
             ViewBag.Declarations = declarations;
             ViewBag.Payments = payments;
             ViewBag.PaymentHistories = historiesByPaymentId;
@@ -2156,7 +2330,34 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
 
+            // Para transferências "Aguardando NF": verificar se a NF de serviço já foi emitida,
+            // para exibir "NF Emitida" na tela e alinhar com ListServiceFiscalNotes e Admin/FiscalNotes.
+            var paymentIds = commissions.Select(c => c.PaymentId).Distinct().ToList();
+            var paymentIdsWithEmitidaNf = await _context.FiscalNotes
+                .Where(fn => fn.PaymentId != null && paymentIds.Contains(fn.PaymentId.Value)
+                    && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada"))
+                .Select(fn => fn.PaymentId!.Value)
+                .Distinct()
+                .ToListAsync();
+            var paymentIdsWithEmitidaNfSet = new HashSet<int>(paymentIdsWithEmitidaNf);
+
+            var transferIdsAllNfEmitida = new HashSet<int>();
+            foreach (var transfer in transfers.Where(t => t.Status == TransferStatus.AwaitingInvoice))
+            {
+                var commissionIdsInTransfer = commissionTransferMap
+                    .Where(kv => kv.Value?.Id == transfer.Id)
+                    .Select(kv => kv.Key)
+                    .ToList();
+                var relatedPayments = commissions
+                    .Where(c => commissionIdsInTransfer.Contains(c.Id))
+                    .Select(c => c.PaymentId)
+                    .ToList();
+                if (relatedPayments.Count > 0 && relatedPayments.All(pid => paymentIdsWithEmitidaNfSet.Contains(pid)))
+                    transferIdsAllNfEmitida.Add(transfer.Id);
+            }
+
             ViewBag.CommissionTransferMap = commissionTransferMap;
+            ViewBag.TransferIdsAllNfEmitida = transferIdsAllNfEmitida;
 
             return View(commissions);
         }
@@ -4164,11 +4365,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId)
                     && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
 
+            // Verificar se há algum pagamento "Aguardando Validação" em contratos deste parceiro (desabilita Remover)
+            var contractIdsFromCoworking = await _context.Contracts
+                .Where(c => coworkingAddresses.Contains(c.CoworkingAddressId))
+                .Select(c => c.Id)
+                .ToListAsync();
+            var subscriptionIds = await _context.Subscriptions
+                .Where(s => contractIdsFromCoworking.Contains(s.ContractId))
+                .Select(s => s.Id)
+                .ToListAsync();
+            var hasClientAwaitingValidation = await _context.Payments
+                .AnyAsync(p => p.SubscriptionId != null && subscriptionIds.Contains(p.SubscriptionId.Value)
+                    && p.Status == PaymentStatus.AwaitingValidation);
+
             ViewBag.PartnerServices = partnerServices;
             ViewBag.PartnerServiceIds = partnerServiceIds;
             ViewBag.CoworkingId = coworkingEntity.Id;
             ViewBag.ShowCoworkingMenus = showCoworkingMenus;
             ViewBag.HasActiveContracts = hasActiveContracts;
+            ViewBag.HasClientAwaitingValidation = hasClientAwaitingValidation;
 
             return View(allServices);
         }
@@ -4280,14 +4495,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Services");
                 }
 
-                // Verificar se há contratos ativos relacionados a este serviço
-                // Buscar endereços do coworking que usam este serviço
+                // Verificar se há contratos ativos ou pagamento aguardando validação
                 var coworkingAddresses = await _context.CoworkingAddresses
                     .Where(a => a.CoworkingId == coworkingEntity.Id)
                     .Select(a => a.Id)
                     .ToListAsync();
 
-                // Verificar se há contratos ativos para esses endereços
                 var hasActiveContracts = await _context.Contracts
                     .AnyAsync(c => coworkingAddresses.Contains(c.CoworkingAddressId)
                         && (c.Status == ContractStatus.Active || c.Status == ContractStatus.Suspended));
@@ -4295,6 +4508,24 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (hasActiveContracts)
                 {
                     TempData["Error"] = "Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.";
+                    return RedirectToAction("Services");
+                }
+
+                var contractIdsFromCoworking = await _context.Contracts
+                    .Where(c => coworkingAddresses.Contains(c.CoworkingAddressId))
+                    .Select(c => c.Id)
+                    .ToListAsync();
+                var subscriptionIds = await _context.Subscriptions
+                    .Where(s => contractIdsFromCoworking.Contains(s.ContractId))
+                    .Select(s => s.Id)
+                    .ToListAsync();
+                var hasClientAwaitingValidation = await _context.Payments
+                    .AnyAsync(p => p.SubscriptionId != null && subscriptionIds.Contains(p.SubscriptionId.Value)
+                        && p.Status == PaymentStatus.AwaitingValidation);
+
+                if (hasClientAwaitingValidation)
+                {
+                    TempData["Error"] = "Não é possível solicitar a remoção deste serviço enquanto houver cliente(s) com pagamento aguardando validação.";
                     return RedirectToAction("Services");
                 }
 
@@ -4328,7 +4559,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista pagamentos pendentes de emissão de NF de serviço
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 20)
+        public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 20, string? serviceType = null, string? client = null, string? contractNumber = null)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -4340,8 +4571,6 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço aprovada.
-            // Só aparecem registros para emitir NF quando o contrato teve pagamento realizado com sucesso e está ativo
-            // (para pagamentos de assinatura/contrato). Reservas aparecem se o pagamento estiver pago.
             var query = _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
@@ -4373,10 +4602,51 @@ namespace KlyonHubPlatform.Api.Controllers
                 ))
                 .AsQueryable();
 
+            // Filtro: tipo de serviço
+            if (!string.IsNullOrWhiteSpace(serviceType))
+            {
+                if (serviceType.Equals("EnderecoFiscal", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(p => p.SubscriptionId != null);
+                else if (serviceType.Equals("ReservaSala", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(p => p.ReservationId != null);
+            }
+
+            // Filtro: código do contrato (apenas para pagamentos de assinatura)
+            if (!string.IsNullOrWhiteSpace(contractNumber))
+            {
+                var contractNum = contractNumber.Trim();
+                query = query.Where(p => p.Subscription != null && p.Subscription.Contract != null && p.Subscription.Contract.ContractNumber != null && p.Subscription.Contract.ContractNumber.Contains(contractNum));
+            }
+
+            // Filtro: cliente (nome, razão social, CNPJ, CPF)
+            if (!string.IsNullOrWhiteSpace(client))
+            {
+                var term = client.Trim().ToLower();
+                var termDoc = client.Trim().Replace(".", "").Replace("/", "").Replace("-", "").Replace(" ", "");
+                var matchingClientIds = await _context.Clients
+                    .Where(c =>
+                        (c.RazaoSocial != null && c.RazaoSocial.ToLower().Contains(term)) ||
+                        (c.NomeFantasia != null && c.NomeFantasia.ToLower().Contains(term)) ||
+                        (c.ContactName != null && c.ContactName.ToLower().Contains(term)) ||
+                        (c.CNPJ != null && c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Contains(termDoc)) ||
+                        (c.CPF != null && c.CPF.Replace(".", "").Replace("-", "").Contains(termDoc)))
+                    .Select(c => c.Id)
+                    .ToListAsync();
+                if (matchingClientIds.Any())
+                {
+                    query = query.Where(p =>
+                        (p.Subscription != null && p.Subscription.Contract != null && matchingClientIds.Contains(p.Subscription.Contract.ClientId)) ||
+                        (p.Reservation != null && matchingClientIds.Contains(p.Reservation.ClientId)));
+                }
+                else
+                    query = query.Where(p => false);
+            }
+
             var totalItems = await query.CountAsync();
-            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            var totalAmount = totalItems > 0 ? await query.SumAsync(p => p.Amount) : 0m;
+            var totalPages = pageSize > 0 ? (int)Math.Ceiling(totalItems / (double)pageSize) : 1;
             if (totalPages == 0) totalPages = 1;
-            if (page > totalPages) page = totalPages;
+            if (page > totalPages) page = Math.Max(1, totalPages);
 
             var payments = await query
                 .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
@@ -4384,7 +4654,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            // Buscar comissões para calcular valor líquido
             var paymentIds = payments.Select(p => p.Id).ToList();
             var commissions = await _context.Commissions
                 .Where(c => paymentIds.Contains(c.PaymentId))
@@ -4392,19 +4661,125 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var commissionDict = commissions.ToDictionary(c => c.PaymentId, c => c);
 
-            // Verificar se já existe alguma configuração SEFAZ ativa para este coworking
             var hasSefazConfiguration = await _context.CoworkingSefazConfigurations
                 .AnyAsync(c => c.CoworkingId == coworkingEntity.Id && c.IsActive);
 
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
+            ViewBag.TotalAmount = totalAmount;
             ViewBag.PageSize = pageSize;
+            ViewBag.ServiceType = serviceType;
+            ViewBag.Client = client;
+            ViewBag.ContractNumber = contractNumber;
             ViewBag.CoworkingId = coworkingEntity.Id;
             ViewBag.CommissionDict = commissionDict;
             ViewBag.HasSefazConfiguration = hasSefazConfiguration;
 
             return View(payments);
+        }
+
+        /// <summary>
+        /// Retorna os dados completos de um pagamento (NF de serviço) para exibição em modal (JSON).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> ServiceFiscalNoteDetail(int id)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+                return NotFound();
+
+            var payment = await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.CoworkingAddress)
+                            .ThenInclude(ca => ca.Location)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s.Contract)
+                        .ThenInclude(c => c.Client)
+                            .ThenInclude(cl => cl!.User)
+                .Include(p => p.Reservation)
+                    .ThenInclude(r => r.CoworkingAddress)
+                        .ThenInclude(ca => ca.Location)
+                .Include(p => p.Reservation)
+                    .ThenInclude(r => r.Client)
+                        .ThenInclude(cl => cl!.User)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (payment == null)
+                return NotFound();
+
+            var belongsToCoworking = (payment.Subscription != null && payment.Subscription.Contract?.CoworkingAddress?.CoworkingId == coworkingEntity.Id) ||
+                (payment.Reservation != null && payment.Reservation.CoworkingAddress?.CoworkingId == coworkingEntity.Id);
+            if (!belongsToCoworking)
+                return NotFound();
+
+            var client = payment.Subscription?.Contract?.Client ?? payment.Reservation?.Client;
+            var contract = payment.Subscription?.Contract;
+            var reservation = payment.Reservation;
+            var location = contract?.CoworkingAddress?.Location ?? reservation?.CoworkingAddress?.Location;
+            var addr = contract?.CoworkingAddress ?? reservation?.CoworkingAddress;
+            static string? FormatAddr(CoworkingAddress? a)
+            {
+                if (a == null) return null;
+                var parts = new List<string> { a.Address, a.Number, a.Complement, a.Neighborhood, a.City, a.State, a.ZipCode };
+                return string.Join(", ", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
+            }
+
+            var detail = new
+            {
+                Payment = new
+                {
+                    payment.Id,
+                    payment.Amount,
+                    Status = payment.Status.ToString(),
+                    Method = payment.Method.ToString(),
+                    payment.DueDate,
+                    payment.PaidAt,
+                    payment.CreatedAt,
+                    payment.TransactionId
+                },
+                Contract = contract == null ? null : new
+                {
+                    contract.Id,
+                    contract.ContractNumber,
+                    contract.StartDate,
+                    contract.EndDate,
+                    contract.MonthlyValue,
+                    Status = contract.Status.ToString(),
+                    Address = FormatAddr(contract.CoworkingAddress),
+                    Location = location == null ? null : new { location.City, location.State }
+                },
+                Reservation = reservation == null ? null : new
+                {
+                    reservation.Id,
+                    reservation.ReservationDate,
+                    reservation.StartTime,
+                    reservation.EndTime,
+                    reservation.RoomType,
+                    reservation.TotalValue,
+                    Status = reservation.Status,
+                    Address = FormatAddr(reservation.CoworkingAddress),
+                    Location = location == null ? null : new { location!.City, location.State }
+                },
+                Client = client == null ? null : new
+                {
+                    client.Id,
+                    Name = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName,
+                    client.RazaoSocial,
+                    client.NomeFantasia,
+                    client.ContactName,
+                    client.CNPJ,
+                    client.CPF,
+                    client.ContactEmail,
+                    client.ContactPhone
+                },
+                ServiceType = contract != null ? "Endereço Fiscal" : "Reserva de Sala"
+            };
+
+            return Json(detail);
         }
 
         /// <summary>

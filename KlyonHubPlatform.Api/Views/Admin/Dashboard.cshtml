@@ -1084,7 +1084,11 @@ async function showDashboardList(type, filter = null) {
     modal.show();
     
     try {
-        const url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + filter : ''}`;
+        const page = (type === 'users') ? 1 : undefined;
+        const pageSize = (type === 'users') ? 10 : undefined;
+        let url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}`;
+        if (page != null) url += `&page=${page}`;
+        if (pageSize != null) url += `&pageSize=${pageSize}`;
         const response = await fetch(url);
         const result = await response.json();
         
@@ -1093,10 +1097,37 @@ async function showDashboardList(type, filter = null) {
             return;
         }
         
-        let html = '';
-        if (result.data && result.data.length > 0) {
-            html = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr>';
-            
+        modalBody.innerHTML = buildDashboardListHtml(type, filter, result);
+    } catch (error) {
+        modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados: ${error.message}</div>`;
+    }
+}
+
+// Carrega apenas o conteúdo do modal (para paginação) sem reabrir o modal
+async function loadDashboardListContent(type, filter, page) {
+    const modalBody = document.getElementById('dashboardListModalBody');
+    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+    try {
+        const pageSize = (type === 'users') ? 10 : undefined;
+        let url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}&page=${page}`;
+        if (pageSize != null) url += `&pageSize=${pageSize}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        if (!result.success) {
+            modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${result.message}</div>`;
+            return;
+        }
+        modalBody.innerHTML = buildDashboardListHtml(type, filter, result);
+    } catch (error) {
+        modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados: ${error.message}</div>`;
+    }
+}
+
+function buildDashboardListHtml(type, filter, result) {
+    let html = '';
+    if (result.data && result.data.length > 0) {
+        html = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr>';
+        
             // Cabeçalhos dinâmicos baseados no tipo
             if (type === 'users') {
                 html += '<th>Nome</th><th>Email</th><th>Status</th><th>Verificado</th><th>Ações</th>';
@@ -1159,15 +1190,37 @@ async function showDashboardList(type, filter = null) {
             });
             
             html += '</tbody></table></div>';
-            html += `<div class="mt-3 text-end"><a href="${result.viewAllUrl || '#'}" class="btn btn-primary">Ver Todos</a></div>`;
+            // Paginação para usuários (10 por página)
+            if (type === 'users' && result.totalCount != null && result.pageSize != null) {
+                const totalCount = result.totalCount;
+                const currentPage = result.page || 1;
+                const pageSize = result.pageSize;
+                const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+                const from = (currentPage - 1) * pageSize + 1;
+                const to = Math.min(currentPage * pageSize, totalCount);
+                html += '<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">';
+                html += `<span class="text-muted small">Mostrando ${from}-${to} de ${totalCount}</span>`;
+                html += '<nav><ul class="pagination pagination-sm mb-0">';
+                const filterArg = (filter && filter !== 'null') ? `'${String(filter).replace(/'/g, "\\'")}'` : 'null';
+                html += `<li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${currentPage - 1}); return false;"><i class="bi bi-chevron-left"></i> Anterior</a></li>`;
+                const maxVisible = 5;
+                let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+                for (let p = startPage; p <= endPage; p++) {
+                    html += `<li class="page-item ${p === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${p}); return false;">${p}</a></li>`;
+                }
+                html += `<li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${currentPage + 1}); return false;">Próximo <i class="bi bi-chevron-right"></i></a></li>`;
+                html += '</ul></nav>';
+                html += `<a href="${result.viewAllUrl || '#'}" class="btn btn-primary btn-sm">Ver Todos</a>`;
+                html += '</div>';
+            } else {
+                html += `<div class="mt-3 text-end"><a href="${result.viewAllUrl || '#'}" class="btn btn-primary">Ver Todos</a></div>`;
+            }
         } else {
             html = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhum item encontrado.</div>';
         }
-        
-        modalBody.innerHTML = html;
-    } catch (error) {
-        modalBody.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar dados: ${error.message}</div>`;
-    }
+        return html;
 }
 </script>
 

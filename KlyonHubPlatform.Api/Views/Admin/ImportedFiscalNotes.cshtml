@@ -214,6 +214,21 @@
         }
     });
 
+    const transferStatusDisplay = {
+        Pending: { label: 'Pendente', classes: 'bg-warning text-dark' },
+        AwaitingInvoice: { label: 'Aguardando NF', classes: 'bg-info text-dark' },
+        Processing: { label: 'Processando', classes: 'bg-primary' },
+        Completed: { label: 'Concluído', classes: 'bg-success' },
+        Processed: { label: 'Processado', classes: 'bg-success' },
+        Failed: { label: 'Falhou', classes: 'bg-danger' },
+        Cancelled: { label: 'Cancelado', classes: 'bg-secondary' }
+    };
+
+    function formatTransferStatus(status) {
+        var info = transferStatusDisplay[status] || { label: status || '—', classes: 'bg-secondary' };
+        return '<span class="badge ' + info.classes + '">' + info.label + '</span>';
+    }
+
     function loadFiscalNoteDetails(fiscalNoteId) {
         var modalBody = document.getElementById('detailsModalBody');
         modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
@@ -353,12 +368,10 @@
                     html += '<thead><tr><th>ID</th><th>Valor</th><th>Status</th><th>Data Agendada</th><th>Data Processado</th><th>Descrição</th><th>Motivo Falha</th></tr></thead>';
                     html += '<tbody>';
                     data.transfers.forEach(function(t) {
-                        var statusClass = t.status === 'Completed' || t.status === 'Processed' ? 'success' : 
-                                         t.status === 'Failed' ? 'danger' : 'warning';
                         html += '<tr>';
                         html += '<td>#' + t.id + '</td>';
                         html += '<td><strong>R$ ' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></td>';
-                        html += '<td><span class="badge bg-' + statusClass + '">' + t.status + '</span></td>';
+                        html += '<td>' + formatTransferStatus(t.status) + '</td>';
                         html += '<td>' + (t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString('pt-BR') : '—') + '</td>';
                         html += '<td>' + (t.processedAt ? new Date(t.processedAt).toLocaleDateString('pt-BR') + ' ' + new Date(t.processedAt).toLocaleTimeString('pt-BR') : '—') + '</td>';
                         html += '<td>' + (t.description || '—') + '</td>';

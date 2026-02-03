@@ -118,9 +118,19 @@ else
                                     <p class="mb-2 text-muted small">@alert.Message</p>
                                     @if (alert.ActionUrl != null)
                                     {
-                                        <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1">
-                                            <i class="bi bi-arrow-right"></i> @alert.ActionText
-                                        </a>
+                                        var titleStr = (string)alert.Title;
+                                        if (titleStr != null && titleStr.Contains("Documentos Em Análise"))
+                                        {
+                                            <button type="button" class="btn btn-sm btn-@alert.Type mt-1" onclick="openPendencyModal('documents')">
+                                                <i class="bi bi-arrow-right"></i> @alert.ActionText
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1">
+                                                <i class="bi bi-arrow-right"></i> @alert.ActionText
+                                            </a>
+                                        }
                                     }
                                 </div>
                             </div>
@@ -128,9 +138,9 @@ else
                     }
                 </div>
                 <div class="mt-3 pt-3 border-top text-center">
-                    <a href="@Url.Action("Profile", "Coworking")" class="btn btn-warning btn-lg">
-                        <i class="bi bi-list-check"></i> Verificar Pendências
-                    </a>
+                    <button type="button" class="btn btn-warning btn-lg" onclick="openPendencyModal()">
+                        <i class="bi bi-list-check"></i> Ver todas as pendências
+                    </button>
                 </div>
             </div>
         </div>
@@ -260,3 +270,6 @@ else
         </div>
     </div>
 }
+
+@* Modal de pendências: sempre incluir para que openPendencyModal esteja definida quando os botões forem exibidos *@
+@await Html.PartialAsync("_PendencyModal")

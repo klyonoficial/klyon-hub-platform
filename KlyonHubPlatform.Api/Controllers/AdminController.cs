@@ -265,7 +265,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Log error silently
             }
@@ -301,7 +301,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Log error silently
             }
@@ -345,7 +345,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Log error silently
             }
@@ -397,12 +397,13 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetDashboardList(string type, string? filter = null)
+        public async Task<IActionResult> GetDashboardList(string type, string? filter = null, int page = 1, int pageSize = 10)
         {
             try
             {
                 var data = new List<object>();
                 string viewAllUrl = "#";
+                int? totalCount = null;
 
                 switch (type.ToLower())
                 {
@@ -424,9 +425,14 @@ namespace KlyonHubPlatform.Api.Controllers
                             viewAllUrl = Url.Action("Users", "Admin");
                         }
 
+                        totalCount = await usersQuery.CountAsync();
+                        pageSize = Math.Clamp(pageSize, 1, 100);
+                        page = Math.Max(1, page);
+
                         var users = await usersQuery
                             .OrderByDescending(u => u.CreatedAt)
-                            .Take(50)
+                            .Skip((page - 1) * pageSize)
+                            .Take(pageSize)
                             .ToListAsync();
 
                         data = users.Select(u => new
@@ -585,7 +591,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         return Json(new { success = false, message = "Tipo inválido" });
                 }
 
-                return Json(new { success = true, data = data, viewAllUrl = viewAllUrl });
+                var jsonResult = new { success = true, data = data, viewAllUrl = viewAllUrl, totalCount = totalCount, page = type.ToLower() == "users" ? page : (int?)null, pageSize = type.ToLower() == "users" ? pageSize : (int?)null };
+                return Json(jsonResult);
             }
             catch (Exception ex)
             {
@@ -593,9 +600,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
+        private static readonly int[] AllowedPageSizes = { 10, 15, 25, 50 };
+
         [HttpGet]
         public async Task<IActionResult> Users(string? search = null, string? role = null, string? status = null, string? emailVerified = null, int page = 1, int pageSize = 15)
         {
+            if (page < 1) page = 1;
+            if (!AllowedPageSizes.Contains(pageSize)) pageSize = 15;
             var users = await _adminService.GetUsersFilteredAsync(search, role, status, emailVerified, page, pageSize);
             var totalItems = await _adminService.GetUsersFilteredCountAsync(search, role, status, emailVerified);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
@@ -3523,7 +3534,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                             clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         // Tentar TRUNCATE se DELETE falhar (TRUNCATE já reseta AUTO_INCREMENT automaticamente)
                         try
@@ -5290,6 +5301,116 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         /// <summary>
+        /// Retorna os dados completos de uma comissão para exibição em modal (JSON).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> CommissionFiscalNoteDetail(int id)
+        {
+            var commission = await _context.Commissions
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.CoworkingAddress)
+                                .ThenInclude(ca => ca.Location)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                            .ThenInclude(ct => ct.Client)
+                                .ThenInclude(cl => cl!.User)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.CoworkingAddress)
+                            .ThenInclude(ca => ca.Location)
+                .Include(c => c.Payment)
+                    .ThenInclude(p => p.Reservation)
+                        .ThenInclude(r => r.Client)
+                            .ThenInclude(cl => cl!.User)
+                .Include(c => c.Coworking)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (commission == null)
+                return NotFound();
+
+            var payment = commission.Payment;
+            var client = payment?.Subscription?.Contract?.Client ?? payment?.Reservation?.Client;
+            var contract = payment?.Subscription?.Contract;
+            var reservation = payment?.Reservation;
+            var coworking = commission.Coworking;
+            var location = contract?.CoworkingAddress?.Location ?? reservation?.CoworkingAddress?.Location;
+
+            var detail = new
+            {
+                Commission = new
+                {
+                    commission.Id,
+                    commission.Amount,
+                    commission.Percentage,
+                    commission.TotalPaymentAmount,
+                    commission.CreatedAt,
+                    commission.IsTransferred,
+                    commission.TransferredAt
+                },
+                Coworking = coworking == null ? null : new
+                {
+                    coworking.Id,
+                    coworking.Name,
+                    coworking.CNPJ,
+                    coworking.ContactEmail,
+                    coworking.ContactPhone
+                },
+                Payment = payment == null ? null : new
+                {
+                    payment.Id,
+                    payment.Amount,
+                    Status = payment.Status.ToString(),
+                    Method = payment.Method.ToString(),
+                    payment.DueDate,
+                    payment.PaidAt,
+                    payment.CreatedAt,
+                    payment.TransactionId
+                },
+                Contract = contract == null ? null : new
+                {
+                    contract.Id,
+                    contract.ContractNumber,
+                    contract.StartDate,
+                    contract.EndDate,
+                    contract.MonthlyValue,
+                    Status = contract.Status.ToString(),
+                    Address = FormatAddress(contract.CoworkingAddress),
+                    Location = location == null ? null : new { location.City, location.State }
+                },
+                Reservation = reservation == null ? null : new
+                {
+                    reservation.Id,
+                    reservation.ReservationDate,
+                    reservation.StartTime,
+                    reservation.EndTime,
+                    reservation.RoomType,
+                    reservation.TotalValue,
+                    reservation.Status,
+                    Address = FormatAddress(reservation.CoworkingAddress),
+                    Location = location == null ? null : new { location!.City, location.State }
+                },
+                Client = client == null ? null : new
+                {
+                    client.Id,
+                    Name = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName,
+                    client.RazaoSocial,
+                    client.NomeFantasia,
+                    client.ContactName,
+                    client.CNPJ,
+                    client.CPF,
+                    client.ContactEmail,
+                    client.ContactPhone
+                },
+                ServiceType = contract != null ? "Endereço Fiscal" : "Reserva de Sala"
+            };
+
+            return Json(detail);
+        }
+
+        /// <summary>
         /// Emite NF de comissão para uma comissão específica
         /// </summary>
         [HttpPost]
@@ -6099,6 +6220,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
             ViewBag.PixExpiresAt = payment.PixExpiresAt;
 
             return View();
+        }
+
+        private static string? FormatAddress(CoworkingAddress? addr)
+        {
+            if (addr == null) return null;
+            var parts = new List<string> { addr.Address, addr.Number, addr.Complement, addr.Neighborhood, addr.City, addr.State, addr.ZipCode };
+            return string.Join(", ", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
         }
 
         private static bool IsDuplicateIdempotencyKeyException(DbUpdateException ex)

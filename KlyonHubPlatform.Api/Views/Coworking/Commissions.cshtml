@@ -2,7 +2,12 @@
     ViewData["Title"] = "Meus Ganhos";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
+    var transferIdsAllNfEmitida = ViewBag.TransferIdsAllNfEmitida as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
 }
+<style>
+    .commission-row { cursor: pointer; }
+    .commission-row:hover { background-color: rgba(102, 126, 234, 0.08) !important; }
+</style>
 
 @model List<KlyonHubPlatform.Domain.Entities.Commission>
 
@@ -66,7 +71,44 @@
                         @foreach (var commission in Model)
                         {
                             var valorCreditado = commission.TotalPaymentAmount - commission.Amount;
-                            <tr>
+                            var transfer = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
+                            var nfEmitidaParaTransfer = transfer != null && transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice && transferIdsAllNfEmitida.Contains(transfer.Id);
+                            var statusTexto = transfer != null
+                                ? (transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending ? "Pendente"
+                                    : transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Processing ? "Em Processamento"
+                                    : transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice ? (nfEmitidaParaTransfer ? "NF Emitida" : "Aguardando NF")
+                                    : transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed ? "Repasse Realizado"
+                                    : transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Failed ? "Repasse Falhou"
+                                    : transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Cancelled ? "Repasse Cancelado"
+                                    : "Pendente")
+                                : commission.IsTransferred ? "Repasse Realizado" : "Aguardando Repasse";
+                            var dataRepasse = transfer != null && transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer.ProcessedAt.HasValue
+                                ? transfer.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                : transfer != null && transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice && transfer.ScheduledDate != default
+                                    ? transfer.ScheduledDate.ToString("dd/MM/yyyy")
+                                    : commission.TransferredAt.HasValue ? commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm") : "";
+                            <tr class="commission-row cursor-pointer" role="button" tabindex="0"
+                                data-id="@commission.Id"
+                                data-created="@commission.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
+                                data-total-pago="@commission.TotalPaymentAmount.ToString("N2")"
+                                data-percentual="@commission.Percentage.ToString("F2")"
+                                data-valor-creditado="@valorCreditado.ToString("N2")"
+                                data-status="@statusTexto"
+                                data-repasse="@dataRepasse"
+                                data-transferido="@(commission.IsTransferred ? "Sim" : "Não")"
+                                data-transfer-status="@(transfer?.Status.ToString() ?? "")"
+                                data-transfer-id="@(transfer?.Id.ToString() ?? "")"
+                                data-transfer-amount="@(transfer?.Amount.ToString("N2") ?? "")"
+                                data-transfer-created="@(transfer?.CreatedAt.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-transfer-processed="@(transfer?.ProcessedAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-transfer-scheduled="@(transfer?.ScheduledDate != default ? transfer.ScheduledDate.ToString("dd/MM/yyyy") : "")"
+                                data-transfer-failure="@(transfer?.FailureReason ?? "")"
+                                data-payment-id="@commission.PaymentId"
+                                data-payment-amount="@(commission.Payment?.Amount.ToString("N2") ?? "")"
+                                data-payment-status="@(commission.Payment?.Status.ToString() ?? "")"
+                                data-payment-method="@(commission.Payment?.Method.ToString() ?? "")"
+                                data-payment-paid="@(commission.Payment?.PaidAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-payment-transaction="@(commission.Payment?.TransactionId ?? "")">
                                 <td>@commission.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td>
                                     <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString("N2")</span>
@@ -77,8 +119,6 @@
                                 </td>
                                 <td>
                                     @{
-                                        var transfer = transferMap != null && transferMap.ContainsKey(commission.Id) ? transferMap[commission.Id] : null;
-                                        
                                         if (transfer != null)
                                         {
                                             // Exibir status baseado no status real da transferência
@@ -91,7 +131,14 @@
                                                     <span class="badge bg-primary"><i class="bi bi-arrow-repeat"></i> Em Processamento</span>
                                                     break;
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice:
-                                                    <span class="badge bg-info"><i class="bi bi-file-earmark-check"></i> Aguardando NF</span>
+                                                    if (transferIdsAllNfEmitida.Contains(transfer.Id))
+                                                    {
+                                                        <span class="badge bg-success"><i class="bi bi-file-earmark-check-fill"></i> NF Emitida</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-info"><i class="bi bi-file-earmark-check"></i> Aguardando NF</span>
+                                                    }
                                                     break;
                                                 case KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed:
                                                     <span class="badge bg-success"><i class="bi bi-check-circle"></i> Repasse Realizado</span>
@@ -217,8 +264,140 @@
     </div>
 </div>
 
+@* Modal com detalhes da comissão *@
+<div class="modal fade" id="commissionDetailModal" tabindex="-1" aria-labelledby="commissionDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="modal-title" id="commissionDetailModalLabel">
+                    <i class="bi bi-receipt me-2"></i> Detalhes do Ganho
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="commissionDetailModalBody">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5 text-muted">Data do pagamento</dt>
+                    <dd class="col-sm-7" id="modal-created"></dd>
+
+                    <dt class="col-sm-5 text-muted">Valor pago pelo cliente</dt>
+                    <dd class="col-sm-7" id="modal-total-pago"></dd>
+
+                    <dt class="col-sm-5 text-muted">Percentual de comissão</dt>
+                    <dd class="col-sm-7" id="modal-percentual"></dd>
+
+                    <dt class="col-sm-5 text-muted">Valor creditado para você</dt>
+                    <dd class="col-sm-7"><strong class="text-success" id="modal-valor-creditado"></strong></dd>
+
+                    <dt class="col-sm-5 text-muted">Status</dt>
+                    <dd class="col-sm-7" id="modal-status"></dd>
+
+                    <dt class="col-sm-5 text-muted">Data do repasse</dt>
+                    <dd class="col-sm-7" id="modal-repasse"></dd>
+
+                    <dt class="col-sm-5 text-muted">Já transferido?</dt>
+                    <dd class="col-sm-7" id="modal-transferido"></dd>
+
+                    <hr class="my-3"/>
+
+                    <dt class="col-sm-5 text-muted">ID do pagamento</dt>
+                    <dd class="col-sm-7" id="modal-payment-id"></dd>
+
+                    <dt class="col-sm-5 text-muted">Valor do pagamento</dt>
+                    <dd class="col-sm-7" id="modal-payment-amount"></dd>
+
+                    <dt class="col-sm-5 text-muted">Status do pagamento</dt>
+                    <dd class="col-sm-7" id="modal-payment-status"></dd>
+
+                    <dt class="col-sm-5 text-muted">Forma de pagamento</dt>
+                    <dd class="col-sm-7" id="modal-payment-method"></dd>
+
+                    <dt class="col-sm-5 text-muted">Data do pagamento (confirmação)</dt>
+                    <dd class="col-sm-7" id="modal-payment-paid"></dd>
+
+                    <dt class="col-sm-5 text-muted">ID da transação</dt>
+                    <dd class="col-sm-7 text-break" id="modal-payment-transaction"></dd>
+
+                    <div id="modal-transfer-section" class="w-100 mt-2 d-none">
+                        <hr class="my-3"/>
+                        <h6 class="text-muted mb-2"><i class="bi bi-arrow-down-up me-1"></i> Repasse</h6>
+                        <dt class="col-sm-5 text-muted">Valor do repasse</dt>
+                        <dd class="col-sm-7" id="modal-transfer-amount"></dd>
+                        <dt class="col-sm-5 text-muted">Data da solicitação</dt>
+                        <dd class="col-sm-7" id="modal-transfer-created"></dd>
+                        <dt class="col-sm-5 text-muted">Data do processamento</dt>
+                        <dd class="col-sm-7" id="modal-transfer-processed"></dd>
+                        <dt class="col-sm-5 text-muted">Data agendada</dt>
+                        <dd class="col-sm-7" id="modal-transfer-scheduled"></dd>
+                        <dt class="col-sm-5 text-muted text-danger">Motivo da falha</dt>
+                        <dd class="col-sm-7 text-danger" id="modal-transfer-failure"></dd>
+                    </div>
+                </dl>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
+        (function () {
+            var modalEl = document.getElementById('commissionDetailModal');
+            if (!modalEl) return;
+            var modal = new bootstrap.Modal(modalEl);
+
+            function escapeHtml(s) {
+                if (s == null || s === '') return '-';
+                var div = document.createElement('div');
+                div.textContent = s;
+                return div.innerHTML;
+            }
+
+            function setEl(id, html) {
+                var el = document.getElementById(id);
+                if (el) el.innerHTML = html;
+            }
+
+            document.querySelectorAll('.commission-row').forEach(function (row) {
+                row.addEventListener('click', function () {
+                    setEl('modal-created', escapeHtml(row.dataset.created));
+                    setEl('modal-total-pago', 'R$ ' + escapeHtml(row.dataset.totalPago));
+                    setEl('modal-percentual', escapeHtml(row.dataset.percentual) + '%');
+                    setEl('modal-valor-creditado', 'R$ ' + escapeHtml(row.dataset.valorCreditado));
+                    setEl('modal-status', escapeHtml(row.dataset.status));
+                    setEl('modal-repasse', escapeHtml(row.dataset.repasse) || '-');
+                    setEl('modal-transferido', escapeHtml(row.dataset.transferido));
+                    setEl('modal-payment-id', escapeHtml(row.dataset.paymentId));
+                    setEl('modal-payment-amount', row.dataset.paymentAmount ? 'R$ ' + escapeHtml(row.dataset.paymentAmount) : '-');
+                    setEl('modal-payment-status', escapeHtml(row.dataset.paymentStatus) || '-');
+                    setEl('modal-payment-method', escapeHtml(row.dataset.paymentMethod) || '-');
+                    setEl('modal-payment-paid', escapeHtml(row.dataset.paymentPaid) || '-');
+                    setEl('modal-payment-transaction', escapeHtml(row.dataset.paymentTransaction) || '-');
+
+                    var transferSection = document.getElementById('modal-transfer-section');
+                    if (row.dataset.transferId) {
+                        transferSection.classList.remove('d-none');
+                        setEl('modal-transfer-amount', row.dataset.transferAmount ? 'R$ ' + escapeHtml(row.dataset.transferAmount) : '-');
+                        setEl('modal-transfer-created', escapeHtml(row.dataset.transferCreated) || '-');
+                        setEl('modal-transfer-processed', escapeHtml(row.dataset.transferProcessed) || '-');
+                        setEl('modal-transfer-scheduled', escapeHtml(row.dataset.transferScheduled) || '-');
+                        setEl('modal-transfer-failure', escapeHtml(row.dataset.transferFailure) || '-');
+                    } else {
+                        transferSection.classList.add('d-none');
+                    }
+
+                    modal.show();
+                });
+                row.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        row.click();
+                    }
+                });
+            });
+        })();
+
         async function handleRequestTransfer(button) {
             const confirmed = await showConfirm(
                 'Deseja solicitar o repasse de todos os seus ganhos pendentes? O valor será transferido para sua conta bancária cadastrada.',

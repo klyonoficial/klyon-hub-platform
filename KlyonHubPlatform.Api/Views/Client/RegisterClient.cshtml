@@ -3,15 +3,15 @@
     ViewData["Title"] = Model == null ? "Cadastro de Cliente" : "Editar Cliente";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var client = Model ?? new KlyonHubPlatform.Domain.Entities.Client();
+    var personType = ViewBag.PersonType as string ?? (!string.IsNullOrWhiteSpace(client.CNPJ) ? "Juridica" : "Fisica");
 }
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-person-plus"></i> @(Model == null ? "Cadastro de Cliente" : "Editar Cliente")</h2>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <form method="post" action="@Url.Action("RegisterClient", "Client")">
+        <form method="post" action="@Url.Action("RegisterClient", "Client")" id="formRegisterClient">
             @Html.AntiForgeryToken()
             @if (ViewBag.ReturnUrl != null && !string.IsNullOrEmpty((string)ViewBag.ReturnUrl))
             {
@@ -21,28 +21,52 @@
             {
                 <input type="hidden" name="Id" value="@Model.Id" />
             }
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="RazaoSocial" class="form-label">Razão Social</label>
-                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@client.RazaoSocial">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
-                    <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia" value="@client.NomeFantasia">
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="CNPJ" class="form-label">CNPJ</label>
-                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ">
-                    <div class="invalid-feedback"></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" required>
-                    <div class="invalid-feedback"></div>
+            <input type="hidden" name="PersonType" id="PersonType" value="@personType" />
+
+            <div class="mb-4">
+                <label class="form-label">Tipo de pessoa <span class="text-danger">*</span></label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="PersonTypeRadio" id="personFisica" value="Fisica" @(personType == "Fisica" ? "checked" : "")>
+                        <label class="form-check-label" for="personFisica">Pessoa Física</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="PersonTypeRadio" id="personJuridica" value="Juridica" @(personType == "Juridica" ? "checked" : "")>
+                        <label class="form-check-label" for="personJuridica">Pessoa Jurídica</label>
+                    </div>
                 </div>
             </div>
+
+            <div id="campos-fisica" class="@(personType == "Juridica" ? "d-none" : "")">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" @(personType == "Juridica" ? "" : "required")>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="campos-juridica" class="@(personType == "Fisica" ? "d-none" : "")">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="RazaoSocial" class="form-label">Razão Social <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@client.RazaoSocial" @(personType == "Juridica" ? "required" : "")>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
+                        <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia" value="@client.NomeFantasia">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" @(personType == "Juridica" ? "required" : "")>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
@@ -50,7 +74,7 @@
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ContactEmail" class="form-label">Email de Contato <span class="text-danger">*</span></label>
-                    <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" 
+                    <input type="email" class="form-control" id="ContactEmail" name="ContactEmail"
                            value="@(Model?.ContactEmail ?? ViewBag.UserEmail)" @(Model == null ? "readonly" : "") required>
                     <small class="form-text text-muted">@(Model == null ? "Este email é o mesmo do seu cadastro e não pode ser alterado." : "")</small>
                 </div>
@@ -63,6 +87,7 @@
                 <div class="col-md-6 mb-3">
                     <label for="ZipCode" class="form-label">CEP</label>
                     <input type="text" class="form-control" id="ZipCode" name="ZipCode" placeholder="00000-000" maxlength="9" value="@(client.ZipCode != null && client.ZipCode.Length == 8 ? client.ZipCode.Insert(5, "-") : client.ZipCode)">
+                    <small class="form-text text-muted">Digite o CEP para preencher endereço, cidade e estado automaticamente.</small>
                 </div>
             </div>
             <div class="row">
@@ -116,3 +141,73 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+<script>
+(function() {
+    var personTypeInput = document.getElementById('PersonType');
+    var personFisica = document.getElementById('personFisica');
+    var personJuridica = document.getElementById('personJuridica');
+    var camposFisica = document.getElementById('campos-fisica');
+    var camposJuridica = document.getElementById('campos-juridica');
+    var inputCPF = document.getElementById('CPF');
+    var inputCNPJ = document.getElementById('CNPJ');
+    var inputRazaoSocial = document.getElementById('RazaoSocial');
+
+    function setPersonType(value) {
+        personTypeInput.value = value;
+        if (value === 'Fisica') {
+            camposFisica.classList.remove('d-none');
+            camposJuridica.classList.add('d-none');
+            inputCPF.setAttribute('required', 'required');
+            inputCNPJ.removeAttribute('required');
+            inputRazaoSocial.removeAttribute('required');
+        } else {
+            camposFisica.classList.add('d-none');
+            camposJuridica.classList.remove('d-none');
+            inputCPF.removeAttribute('required');
+            inputCNPJ.setAttribute('required', 'required');
+            inputRazaoSocial.setAttribute('required', 'required');
+        }
+    }
+
+    if (personFisica) personFisica.addEventListener('change', function() { setPersonType('Fisica'); });
+    if (personJuridica) personJuridica.addEventListener('change', function() { setPersonType('Juridica'); });
+
+    // Máscara e busca CEP
+    function formatarCEP(cep) {
+        cep = (cep || '').replace(/\D/g, '');
+        if (cep.length >= 8) return cep.substring(0, 5) + '-' + cep.substring(5, 8);
+        return cep;
+    }
+    var zipInput = document.getElementById('ZipCode');
+    if (zipInput) {
+        zipInput.addEventListener('input', function(e) {
+            e.target.value = formatarCEP(e.target.value);
+        });
+        zipInput.addEventListener('blur', function() {
+            buscarCEP(this.value);
+        });
+    }
+
+    async function buscarCEP(cep) {
+        cep = (cep || '').replace(/\D/g, '');
+        if (cep.length !== 8) return;
+        try {
+            var r = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
+            var data = await r.json();
+            if (!data.erro) {
+                var addr = document.getElementById('Address');
+                var city = document.getElementById('City');
+                var state = document.getElementById('State');
+                if (addr) addr.value = data.logradouro || '';
+                if (city) city.value = data.localidade || '';
+                if (state) state.value = data.uf || '';
+            }
+        } catch (err) {
+            console.error('Erro ao buscar CEP:', err);
+        }
+    }
+})();
+</script>
+}

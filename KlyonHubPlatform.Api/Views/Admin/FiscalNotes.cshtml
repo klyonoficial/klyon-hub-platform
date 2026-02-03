@@ -455,11 +455,12 @@
 </div>
 
 <script>
+    var currentNoteId = null;
+
     document.addEventListener('DOMContentLoaded', function() {
         const rows = document.querySelectorAll('.fiscal-note-row');
         const detailModal = new bootstrap.Modal(document.getElementById('fiscalNoteDetailModal'));
         const downloadPdfBaseUrl = '@Url.Action("DownloadFiscalNotePdf", "Admin")';
-        let currentNoteId = null;
 
         rows.forEach(row => {
             row.addEventListener('click', function(e) {

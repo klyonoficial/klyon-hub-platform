@@ -35,6 +35,12 @@ builder.Services.AddControllersWithViews()
     .AddViewLocalization()
     .AddDataAnnotationsLocalization();
 
+// Antiforgery: aceitar token no header para requisições AJAX (JSON)
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "RequestVerificationToken";
+});
+
 // Localization
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources/Shared");
 builder.Services.Configure<RequestLocalizationOptions>(options =>

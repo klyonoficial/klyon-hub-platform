@@ -105,7 +105,7 @@
                             var location = payment?.Subscription?.Contract?.CoworkingAddress?.Location ?? payment?.Reservation?.CoworkingAddress?.Location;
                             var contractNumber = payment?.Subscription?.Contract?.ContractNumber;
                             
-                            <tr>
+                            <tr class="commission-row" data-commission-id="@commission.Id" style="cursor: pointer;">
                                 <td>#@commission.Id</td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(contractNumber))
@@ -150,7 +150,7 @@
                                     @commission.CreatedAt.ToString("dd/MM/yyyy")<br>
                                     <small class="text-muted">@commission.CreatedAt.ToString("HH:mm")</small>
                                 </td>
-                                <td>
+                                <td onclick="event.stopPropagation();">
                                     <form method="post" action="@Url.Action("IssueCommissionFiscalNote", "Admin")" style="display: inline;" class="confirm-required">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="commissionId" value="@commission.Id" />
@@ -215,6 +215,25 @@
     </div>
 </div>
 
+<!-- Modal Detalhes da Comissão -->
+<div class="modal fade" id="detalhesComissaoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Detalhes da Comissão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="detalhesComissaoBody">
+                <div class="text-center py-5" id="detalhesComissaoLoading">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 mb-0">Carregando...</p>
+                </div>
+                <div id="detalhesComissaoContent" class="d-none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Importar NF -->
 <div class="modal fade" id="importNfModal" tabindex="-1">
     <div class="modal-dialog">
@@ -253,6 +272,120 @@
 @section Scripts {
     <script>
         $(document).ready(function() {
+            // Clique na linha: abrir modal de detalhes (exceto na coluna Ações)
+            $(document).on('click', '.commission-row', function(e) {
+                if ($(e.target).closest('td:last').length) return;
+                var id = $(this).data('commission-id');
+                if (!id) return;
+                openDetalhesModal(id);
+            });
+
+            function openDetalhesModal(commissionId) {
+                var $modal = $('#detalhesComissaoModal');
+                var $loading = $('#detalhesComissaoLoading');
+                var $content = $('#detalhesComissaoContent');
+                $content.addClass('d-none').empty();
+                $loading.removeClass('d-none');
+                $modal.modal('show');
+
+                $.get('@Url.Action("CommissionFiscalNoteDetail", "Admin")', { id: commissionId })
+                    .done(function(data) {
+                        $loading.addClass('d-none');
+                        $content.removeClass('d-none').html(renderDetalhes(data));
+                    })
+                    .fail(function() {
+                        $loading.addClass('d-none');
+                        $content.removeClass('d-none').html('<div class="alert alert-danger">Não foi possível carregar os detalhes.</div>');
+                    });
+            }
+
+            function fmtDate(d) {
+                if (!d) return '—';
+                var dt = new Date(d);
+                return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            function renderDetalhes(d) {
+                var html = '';
+                html += '<div class="small">';
+
+                html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-currency-dollar"></i> Comissão</h6>';
+                html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                html += '<tr><td class="text-muted">ID</td><td>#' + (d.commission && d.commission.id) + '</td></tr>';
+                html += '<tr><td class="text-muted">Valor comissão</td><td><strong>R$ ' + (d.commission && parseFloat(d.commission.amount).toFixed(2).replace('.', ',')) + '</strong></td></tr>';
+                html += '<tr><td class="text-muted">Percentual</td><td>' + (d.commission && parseFloat(d.commission.percentage).toFixed(2)) + '%</td></tr>';
+                html += '<tr><td class="text-muted">Valor total do pagamento</td><td>R$ ' + (d.commission && parseFloat(d.commission.totalPaymentAmount).toFixed(2).replace('.', ',')) + '</td></tr>';
+                html += '<tr><td class="text-muted">Data</td><td>' + fmtDate(d.commission && d.commission.createdAt) + '</td></tr>';
+                html += '</tbody></table>';
+
+                if (d.coworking) {
+                    html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-building"></i> Parceiro</h6>';
+                    html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                    html += '<tr><td class="text-muted">Nome</td><td>' + (d.coworking.name || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">CNPJ</td><td>' + (d.coworking.cnpj || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Email</td><td>' + (d.coworking.contactEmail || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Telefone</td><td>' + (d.coworking.contactPhone || '—') + '</td></tr>';
+                    html += '</tbody></table>';
+                }
+
+                if (d.payment) {
+                    html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-credit-card"></i> Pagamento</h6>';
+                    html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                    html += '<tr><td class="text-muted">ID</td><td>#' + d.payment.id + '</td></tr>';
+                    html += '<tr><td class="text-muted">Valor</td><td>R$ ' + parseFloat(d.payment.amount).toFixed(2).replace('.', ',') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Status</td><td>' + (d.payment.status || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Método</td><td>' + (d.payment.method || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Vencimento</td><td>' + fmtDate(d.payment.dueDate) + '</td></tr>';
+                    html += '<tr><td class="text-muted">Pago em</td><td>' + fmtDate(d.payment.paidAt) + '</td></tr>';
+                    html += '<tr><td class="text-muted">Criado em</td><td>' + fmtDate(d.payment.createdAt) + '</td></tr>';
+                    if (d.payment.transactionId) html += '<tr><td class="text-muted">ID transação</td><td>' + d.payment.transactionId + '</td></tr>';
+                    html += '</tbody></table>';
+                }
+
+                if (d.contract) {
+                    html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-file-text"></i> Contrato (Endereço Fiscal)</h6>';
+                    html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                    html += '<tr><td class="text-muted">Código</td><td>' + (d.contract.contractNumber || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Início</td><td>' + fmtDate(d.contract.startDate) + '</td></tr>';
+                    html += '<tr><td class="text-muted">Fim</td><td>' + fmtDate(d.contract.endDate) + '</td></tr>';
+                    html += '<tr><td class="text-muted">Valor mensal</td><td>R$ ' + parseFloat(d.contract.monthlyValue).toFixed(2).replace('.', ',') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Status</td><td>' + (d.contract.status || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Endereço</td><td>' + (d.contract.address || '—') + '</td></tr>';
+                    if (d.contract.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (d.contract.location.city || '') + '/' + (d.contract.location.state || '') + '</td></tr>';
+                    html += '</tbody></table>';
+                }
+
+                if (d.reservation) {
+                    html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-calendar-check"></i> Reserva de Sala</h6>';
+                    html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                    html += '<tr><td class="text-muted">ID</td><td>#' + d.reservation.id + '</td></tr>';
+                    html += '<tr><td class="text-muted">Data</td><td>' + fmtDate(d.reservation.reservationDate) + '</td></tr>';
+                    html += '<tr><td class="text-muted">Horário</td><td>' + (d.reservation.startTime || '—') + ' a ' + (d.reservation.endTime || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Tipo sala</td><td>' + (d.reservation.roomType || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Valor</td><td>R$ ' + parseFloat(d.reservation.totalValue).toFixed(2).replace('.', ',') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Status</td><td>' + (d.reservation.status || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Endereço</td><td>' + (d.reservation.address || '—') + '</td></tr>';
+                    if (d.reservation.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (d.reservation.location.city || '') + '/' + (d.reservation.location.state || '') + '</td></tr>';
+                    html += '</tbody></table>';
+                }
+
+                if (d.client) {
+                    html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-person"></i> Cliente</h6>';
+                    html += '<table class="table table-sm table-borderless mb-3"><tbody>';
+                    html += '<tr><td class="text-muted">Nome / Razão Social</td><td>' + (d.client.name || '—') + '</td></tr>';
+                    if (d.client.razaoSocial) html += '<tr><td class="text-muted">Razão Social</td><td>' + d.client.razaoSocial + '</td></tr>';
+                    if (d.client.nomeFantasia) html += '<tr><td class="text-muted">Nome Fantasia</td><td>' + d.client.nomeFantasia + '</td></tr>';
+                    html += '<tr><td class="text-muted">Contato</td><td>' + (d.client.contactName || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">CNPJ/CPF</td><td>' + (d.client.cnpj || d.client.cpf || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Email</td><td>' + (d.client.contactEmail || '—') + '</td></tr>';
+                    html += '<tr><td class="text-muted">Telefone</td><td>' + (d.client.contactPhone || '—') + '</td></tr>';
+                    html += '</tbody></table>';
+                }
+
+                html += '</div>';
+                return html;
+            }
+
             // Inicializar Select2 com AJAX para busca de clientes
             $('#clientId').select2({
                 theme: 'bootstrap-5',

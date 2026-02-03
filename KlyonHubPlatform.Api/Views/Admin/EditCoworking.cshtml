@@ -250,7 +250,31 @@
                                         var addrStatus = address.AddressStatus;
                                         var (badge, label) = addrStatus == AddressStatus.Active ? ("success", "Ativo")
                                             : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") : ("secondary", "Removido");
-                                        <tr>
+                                        <tr class="address-row" style="cursor: pointer;" 
+                                            data-id="@address.Id"
+                                            data-address="@(address.Address ?? "")"
+                                            data-number="@(address.Number ?? "")"
+                                            data-complement="@(address.Complement ?? "")"
+                                            data-neighborhood="@(address.Neighborhood ?? "")"
+                                            data-city="@(address.City ?? "")"
+                                            data-state="@(address.State ?? "")"
+                                            data-zipcode="@(address.ZipCode ?? "")"
+                                            data-baseprice="@address.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-isavailable="@(address.IsAvailable ? "Sim" : "Não")"
+                                            data-addressstatus="@label"
+                                            data-maxcontracts="@address.MaxContracts"
+                                            data-currentcontracts="@address.CurrentContracts"
+                                            data-requestedfiscalcapacity="@address.RequestedFiscalCapacity"
+                                            data-approvedfiscalcapacity="@address.ApprovedFiscalCapacity"
+                                            data-requestedmaxcontracts="@address.RequestedMaxContracts"
+                                            data-offerssharedroom="@(address.OffersSharedRoom ? "Sim" : "Não")"
+                                            data-sharedroomprice="@(address.SharedRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "—")"
+                                            data-sharedroommaxseats="@(address.SharedRoomMaxSeats?.ToString() ?? "—")"
+                                            data-offersprivateroom="@(address.OffersPrivateRoom ? "Sim" : "Não")"
+                                            data-privateroomprice="@(address.PrivateRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "—")"
+                                            data-privateroommaxseats="@(address.PrivateRoomMaxSeats?.ToString() ?? "—")"
+                                            data-createdat="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
+                                            data-updatedat="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")">
                                             <td>@address.Address, @address.Number</td>
                                             <td>@address.City</td>
                                             <td>@address.State</td>
@@ -320,9 +344,12 @@
                     <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios (@(Model.Documents?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
                 </div>
                 <div class="card-body collapse" id="documentosBody">
-                    <p class="text-muted small">
-                        <i class="bi bi-info-circle"></i> Para gerenciar documentos, utilize a tela de visualização.
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-info-circle"></i> Nesta tela você só visualiza a quantidade de documentos. Para aprovar, reprovar ou ver detalhes, use a tela de visualização do coworking.
                     </p>
+                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })#documentos" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> Ir para Documentos na tela de visualização
+                    </a>
                 </div>
             </div>
         </div>
@@ -342,7 +369,66 @@
     </div>
 </form>
 
+<!-- Modal Detalhes do Endereço -->
+<div class="modal fade" id="addressDetailModal" tabindex="-1" aria-labelledby="addressDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addressDetailModalLabel"><i class="bi bi-geo-alt"></i> Detalhes do Endereço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="addressDetailModalBody">
+                <table class="table table-sm table-borderless">
+                    <tbody id="addressDetailTableBody">
+                        <!-- Preenchido via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // Clique na linha de endereço: abrir modal com todos os dados
+    document.querySelectorAll('.address-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+            var tbody = document.getElementById('addressDetailTableBody');
+            if (!tbody) return;
+            var rowData = this;
+            function val(name) { return rowData.getAttribute('data-' + name) || '—'; }
+            var rows = [
+                { label: 'ID', value: val('id') },
+                { label: 'Logradouro', value: val('address') },
+                { label: 'Número', value: val('number') },
+                { label: 'Complemento', value: val('complement') },
+                { label: 'Bairro', value: val('neighborhood') },
+                { label: 'Cidade', value: val('city') },
+                { label: 'Estado', value: val('state') },
+                { label: 'CEP', value: val('zipcode') },
+                { label: 'Preço base', value: val('baseprice') === '—' ? '—' : 'R$ ' + parseFloat(val('baseprice')).toFixed(2).replace('.', ',') },
+                { label: 'Disponível', value: val('isavailable') },
+                { label: 'Status do endereço', value: val('addressstatus') },
+                { label: 'Contratos', value: val('currentcontracts') + ' / ' + val('maxcontracts') },
+                { label: 'Capacidade fiscal solicitada', value: val('requestedfiscalcapacity') },
+                { label: 'Capacidade fiscal aprovada', value: val('approvedfiscalcapacity') },
+                { label: 'Máx. contratos solicitado', value: val('requestedmaxcontracts') },
+                { label: 'Oferece sala compartilhada', value: val('offerssharedroom') },
+                { label: 'Preço/hora sala compartilhada', value: val('sharedroomprice') === '—' ? '—' : 'R$ ' + parseFloat(val('sharedroomprice')).toFixed(2).replace('.', ',') },
+                { label: 'Lugares sala compartilhada', value: val('sharedroommaxseats') },
+                { label: 'Oferece sala privada', value: val('offersprivateroom') },
+                { label: 'Preço/hora sala privada', value: val('privateroomprice') === '—' ? '—' : 'R$ ' + parseFloat(val('privateroomprice')).toFixed(2).replace('.', ',') },
+                { label: 'Lugares sala privada', value: val('privateroommaxseats') },
+                { label: 'Criado em', value: val('createdat') },
+                { label: 'Atualizado em', value: val('updatedat') }
+            ];
+            tbody.innerHTML = rows.map(function(r) {
+                return '<tr><td class="text-muted" style="width: 45%;">' + r.label + '</td><td>' + (r.value || '—') + '</td></tr>';
+            }).join('');
+            var modal = new bootstrap.Modal(document.getElementById('addressDetailModal'));
+            modal.show();
+        });
+    });
+
     // Rotacionar ícones de chevron ao expandir/colapsar seções
     document.addEventListener('DOMContentLoaded', function() {
         const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]');

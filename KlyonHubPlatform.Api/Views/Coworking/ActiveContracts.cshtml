@@ -107,7 +107,88 @@
                     <tbody>
                         @foreach (var contract in Model)
                         {
-                            <tr>
+                            var addressDisplay = !string.IsNullOrEmpty(contract.SnapshotAddress)
+                                ? contract.SnapshotAddress
+                                : (contract.CoworkingAddress != null
+                                    ? $"{contract.CoworkingAddress.Address ?? "N/A"}, {contract.CoworkingAddress.Number ?? ""}" + (!string.IsNullOrEmpty(contract.CoworkingAddress.Complement) ? $" - {contract.CoworkingAddress.Complement}" : "")
+                                    : "N/A");
+                            var valueDisplay = contract.SnapshotMonthlyValue > 0
+                                ? contract.SnapshotMonthlyValue.ToString("N2")
+                                : (contract.Subscription?.MonthlyAmount.ToString("N2") ?? contract.MonthlyValue.ToString("N2"));
+                            var locationDisplay = $"{contract.CoworkingAddress?.Location?.City ?? "N/A"}/{contract.CoworkingAddress?.Location?.State ?? ""}";
+                            string statusLabel;
+                            string statusBadgeClass;
+                            string statusIcon;
+                            if (contract.Status == ContractStatus.PendingPayment && contract.Subscription?.Payments != null && contract.Subscription.Payments.Any())
+                            {
+                                var latestPaymentStatus = contract.Subscription.Payments.OrderByDescending(p => p.CreatedAt).First().Status;
+                                if (latestPaymentStatus == PaymentStatus.AwaitingValidation || latestPaymentStatus == PaymentStatus.Processing)
+                                {
+                                    statusLabel = "Aguardando Validação";
+                                    statusBadgeClass = "bg-awaiting-validation";
+                                    statusIcon = "bi-clock-history";
+                                }
+                                else
+                                {
+                                    statusLabel = "Aguardando Pagamento";
+                                    statusBadgeClass = "bg-pending-payment";
+                                    statusIcon = "bi-cash-coin";
+                                }
+                            }
+                            else
+                            {
+                                switch (contract.Status)
+                                {
+                                    case ContractStatus.Active:
+                                        statusLabel = "Ativo";
+                                        statusBadgeClass = "bg-active";
+                                        statusIcon = "bi-check-circle-fill";
+                                        break;
+                                    case ContractStatus.Suspended:
+                                        statusLabel = "Suspenso";
+                                        statusBadgeClass = "bg-suspended";
+                                        statusIcon = "bi-pause-circle-fill";
+                                        break;
+                                    case ContractStatus.PendingPayment:
+                                        statusLabel = "Aguardando Pagamento";
+                                        statusBadgeClass = "bg-pending-payment";
+                                        statusIcon = "bi-cash-coin";
+                                        break;
+                                    case ContractStatus.PendingCancellation:
+                                        statusLabel = "Cancelamento Pendente";
+                                        statusBadgeClass = "bg-pending-cancellation";
+                                        statusIcon = "bi-clock-history";
+                                        break;
+                                    case ContractStatus.Cancelled:
+                                        statusLabel = "Cancelado";
+                                        statusBadgeClass = "bg-cancelled";
+                                        statusIcon = "bi-x-circle-fill";
+                                        break;
+                                    case ContractStatus.Expired:
+                                        statusLabel = "Expirado";
+                                        statusBadgeClass = "bg-expired";
+                                        statusIcon = "bi-calendar-x-fill";
+                                        break;
+                                    default:
+                                        statusLabel = contract.Status.ToString();
+                                        statusBadgeClass = "bg-expired";
+                                        statusIcon = "bi-question-circle-fill";
+                                        break;
+                                }
+                            }
+                            <tr class="contract-row cursor-pointer" role="button" tabindex="0"
+                                data-contract-id="@contract.Id"
+                                data-contract-number="@(contract.ContractNumber ?? contract.Id.ToString())"
+                                data-client-name="@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? "N/A")"
+                                data-client-doc="@(contract.Client?.CNPJ ?? contract.Client?.CPF ?? "")"
+                                data-address="@addressDisplay"
+                                data-location="@locationDisplay"
+                                data-value="@valueDisplay"
+                                data-start-date="@contract.StartDate.ToString("dd/MM/yyyy")"
+                                data-status-label="@statusLabel"
+                                data-status-badge="@statusBadgeClass"
+                                data-status-icon="@statusIcon"
+                                data-details-url="@Url.Action("ContractDetails", "Coworking", new { id = contract.Id })">
                                 <td><strong>@(contract.ContractNumber ?? contract.Id.ToString())</strong></td>
                                 <td>
                                     <strong>@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? "N/A")</strong><br>
@@ -127,81 +208,15 @@
                                         }
                                     }
                                 </td>
-                                <td>
-                                    @(contract.CoworkingAddress?.Location?.City ?? "N/A")/@(contract.CoworkingAddress?.Location?.State ?? "")
-                                </td>
-                                <td>
-                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("N2") : (contract.Subscription?.MonthlyAmount.ToString("N2") ?? contract.MonthlyValue.ToString("N2")))</strong>
-                                </td>
+                                <td>@locationDisplay</td>
+                                <td><strong>R$ @valueDisplay</strong></td>
                                 <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
                                 <td>
-                                    @{
-                                        string statusLabel;
-                                        string statusBadgeClass;
-                                        string statusIcon;
-                                        if (contract.Status == ContractStatus.PendingPayment && contract.Subscription?.Payments != null && contract.Subscription.Payments.Any())
-                                        {
-                                            var latestPaymentStatus = contract.Subscription.Payments.OrderByDescending(p => p.CreatedAt).First().Status;
-                                            if (latestPaymentStatus == PaymentStatus.AwaitingValidation || latestPaymentStatus == PaymentStatus.Processing)
-                                            {
-                                                statusLabel = "Aguardando Validação";
-                                                statusBadgeClass = "bg-pending-payment";
-                                                statusIcon = "bi-clock-history";
-                                            }
-                                            else
-                                            {
-                                                statusLabel = "Aguardando Pagamento";
-                                                statusBadgeClass = "bg-pending-payment";
-                                                statusIcon = "bi-cash-coin";
-                                            }
-                                        }
-                                        else
-                                        {
-                                            switch (contract.Status)
-                                            {
-                                                case ContractStatus.Active:
-                                                    statusLabel = "Ativo";
-                                                    statusBadgeClass = "bg-active";
-                                                    statusIcon = "bi-check-circle-fill";
-                                                    break;
-                                                case ContractStatus.Suspended:
-                                                    statusLabel = "Suspenso";
-                                                    statusBadgeClass = "bg-suspended";
-                                                    statusIcon = "bi-pause-circle-fill";
-                                                    break;
-                                                case ContractStatus.PendingPayment:
-                                                    statusLabel = "Aguardando Pagamento";
-                                                    statusBadgeClass = "bg-pending-payment";
-                                                    statusIcon = "bi-cash-coin";
-                                                    break;
-                                                case ContractStatus.PendingCancellation:
-                                                    statusLabel = "Cancelamento Pendente";
-                                                    statusBadgeClass = "bg-pending-cancellation";
-                                                    statusIcon = "bi-clock-history";
-                                                    break;
-                                                case ContractStatus.Cancelled:
-                                                    statusLabel = "Cancelado";
-                                                    statusBadgeClass = "bg-cancelled";
-                                                    statusIcon = "bi-x-circle-fill";
-                                                    break;
-                                                case ContractStatus.Expired:
-                                                    statusLabel = "Expirado";
-                                                    statusBadgeClass = "bg-expired";
-                                                    statusIcon = "bi-calendar-x-fill";
-                                                    break;
-                                                default:
-                                                    statusLabel = contract.Status.ToString();
-                                                    statusBadgeClass = "bg-expired";
-                                                    statusIcon = "bi-question-circle-fill";
-                                                    break;
-                                            }
-                                        }
-                                    }
                                     <span class="badge @statusBadgeClass"><i class="bi @statusIcon me-1"></i> @statusLabel</span>
                                 </td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-info" 
-                                            onclick="showContractDetails(@contract.Id)" 
+                                <td onclick="event.stopPropagation();">
+                                    <button type="button" class="btn btn-sm btn-info"
+                                            onclick="event.stopPropagation(); showContractDetails(@contract.Id)"
                                             title="Ver Detalhes">
                                         <i class="bi bi-eye"></i>
                                     </button>
@@ -252,8 +267,95 @@
     </div>
 </div>
 
+<!-- Modal com dados do contrato -->
+<div class="modal fade" id="contractModal" tabindex="-1" aria-labelledby="contractModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="contractModalLabel">
+                    <i class="bi bi-file-earmark-text me-2"></i> Contrato <span id="modalContractNumber"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-borderless table-sm mb-0">
+                    <tr>
+                        <th class="text-muted" style="width: 38%;">Código:</th>
+                        <td><strong id="modalContractCode"></strong></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Cliente:</th>
+                        <td><strong id="modalClientName"></strong><br><small class="text-muted" id="modalClientDoc"></small></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Endereço:</th>
+                        <td id="modalAddress"></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Localidade:</th>
+                        <td id="modalLocation"></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Valor mensal:</th>
+                        <td><strong class="text-success">R$ <span id="modalValue"></span></strong></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Data de início:</th>
+                        <td id="modalStartDate"></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted">Status:</th>
+                        <td><span id="modalStatusBadge"></span></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a id="modalDetailsLink" href="#" class="btn btn-primary">
+                    <i class="bi bi-eye me-1"></i> Ver detalhes completos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .contract-row.cursor-pointer { cursor: pointer; }
+    .contract-row:hover { background-color: rgba(0, 0, 0, 0.04); }
+</style>
+
 <script>
 function showContractDetails(contractId) {
     window.location.href = '@Url.Action("ContractDetails", "Coworking")?id=' + contractId;
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    var modal = new bootstrap.Modal(document.getElementById('contractModal'));
+    var rows = document.querySelectorAll('.contract-row');
+    rows.forEach(function (row) {
+        row.addEventListener('click', function (e) {
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            var d = row.dataset;
+            document.getElementById('modalContractNumber').textContent = d.contractNumber;
+            document.getElementById('modalContractCode').textContent = d.contractNumber;
+            document.getElementById('modalClientName').textContent = d.clientName;
+            document.getElementById('modalClientDoc').textContent = d.clientDoc || '';
+            document.getElementById('modalAddress').textContent = d.address || '—';
+            document.getElementById('modalLocation').textContent = d.location || '—';
+            document.getElementById('modalValue').textContent = d.value || '—';
+            document.getElementById('modalStartDate').textContent = d.startDate || '—';
+            var badge = document.getElementById('modalStatusBadge');
+            badge.className = 'badge ' + (d.statusBadge || 'bg-secondary');
+            badge.innerHTML = '<i class="bi ' + (d.statusIcon || 'bi-circle') + ' me-1"></i> ' + (d.statusLabel || '—');
+            document.getElementById('modalDetailsLink').href = d.detailsUrl || '#';
+            modal.show();
+        });
+        row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                row.click();
+            }
+        });
+    });
+});
 </script>

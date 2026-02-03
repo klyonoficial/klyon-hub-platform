@@ -196,20 +196,47 @@
 
             <!-- Capacidade Fiscal -->
             <div class="card mb-3 border-primary">
-                <div class="card-header bg-primary text-white">
-                    <i class="bi bi-building"></i> Capacidade Fiscal
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#capacidadeFiscalBody" aria-expanded="true" aria-controls="capacidadeFiscalBody">
+                    <span><i class="bi bi-building"></i> Capacidade Fiscal</span>
+                    <i class="bi bi-chevron-down"></i>
                 </div>
-                <div class="card-body">
+                <div class="card-body collapse show" id="capacidadeFiscalBody">
+                    @{
+                        var capStatus = Model.CapacityApprovalStatus;
+                        var addressInAnalysis = Model.AddressStatus == KlyonHubPlatform.Domain.Core.Enums.AddressStatus.PendingApproval;
+                        var capacityStatusText = addressInAnalysis
+                            ? "Em análise"
+                            : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending
+                                ? "Em análise"
+                                : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected
+                                    ? "Aprovada (vigente)"
+                                    : "Aprovada";
+                        var capacityStatusWarning = addressInAnalysis || capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending;
+                        var capacityHelpText = capacityStatusWarning
+                            ? (addressInAnalysis ? "Endereço em análise pelo administrador" : "Valor em análise pelo administrador")
+                            : "Capacidade fiscal aprovada pela plataforma";
+                    }
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Capacidade Aprovada</label>
+                            <label class="form-label">Capacidade <span class="badge @(capacityStatusWarning ? "bg-warning text-dark" : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected ? "bg-secondary" : "bg-success")">@capacityStatusText</span></label>
                             <div class="input-group">
                                 <input type="number" class="form-control" value="@Model.ApprovedFiscalCapacity" readonly>
                                 <span class="input-group-text">
-                                    <i class="bi bi-check-circle text-success"></i>
+                                    @if (capacityStatusWarning)
+                                    {
+                                        <i class="bi bi-hourglass-split text-warning" title="Em análise"></i>
+                                    }
+                                    else if (capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved || capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None)
+                                    {
+                                        <i class="bi bi-check-circle text-success"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-check-circle text-success"></i>
+                                    }
                                 </span>
                             </div>
-                            <small class="form-text text-muted">Capacidade fiscal aprovada pela plataforma</small>
+                            <small class="form-text text-muted">@capacityHelpText</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Contratos Ativos</label>
@@ -224,9 +251,15 @@
                     </div>
                     @{
                         var hasPendingRequest = Model.CapacityApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending;
-                        var canRequestChange = !hasPendingRequest && Model.RequestedFiscalCapacity != Model.ApprovedFiscalCapacity;
+                        var canRequestChange = !addressInAnalysis && !hasPendingRequest && Model.RequestedFiscalCapacity != Model.ApprovedFiscalCapacity;
                     }
-                    @if (hasPendingRequest)
+                    @if (addressInAnalysis)
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-hourglass-split"></i> <strong>Endereço em análise:</strong> Este endereço está aguardando aprovação administrativa. A capacidade fiscal será definida após a aprovação do endereço.
+                        </div>
+                    }
+                    else if (hasPendingRequest)
                     {
                         <div class="alert alert-warning">
                             <i class="bi bi-clock-history"></i> <strong>Solicitação pendente:</strong> Você solicitou alteração da capacidade fiscal para <strong>@Model.RequestedFiscalCapacity</strong>. Aguardando aprovação administrativa.
@@ -254,7 +287,7 @@
                             <small class="form-text text-muted">Obrigatório ao solicitar alteração</small>
                         </div>
                     </div>
-                    @if (!hasPendingRequest)
+                    @if (!addressInAnalysis && !hasPendingRequest)
                     {
                         <button type="button" class="btn btn-primary" id="btnRequestCapacityChange">
                             <i class="bi bi-send"></i> Solicitar Alteração de Capacidade
@@ -441,61 +474,87 @@ if (!hasActiveContracts) {
     }
 }
 
-// Solicitar alteração de capacidade fiscal
-document.getElementById('btnRequestCapacityChange')?.addEventListener('click', async function() {
-    const requestedCapacity = parseInt(document.getElementById('RequestedFiscalCapacity').value);
-    const justification = document.getElementById('CapacityJustification').value.trim();
-    const currentContracts = @Model.CurrentContracts;
-    const approvedCapacity = @Model.ApprovedFiscalCapacity;
+// Solicitar alteração de capacidade fiscal (registrar após DOM pronto)
+(function() {
+    function initRequestCapacityChange() {
+        var btn = document.getElementById('btnRequestCapacityChange');
+        if (!btn) return;
 
-    if (!requestedCapacity || requestedCapacity < currentContracts) {
-        showToast('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').', 'warning');
-        document.getElementById('RequestedFiscalCapacity').focus();
-        return;
-    }
+        btn.addEventListener('click', async function() {
+            var requestedCapacity = parseInt(document.getElementById('RequestedFiscalCapacity').value, 10);
+            var justification = (document.getElementById('CapacityJustification').value || '').trim();
+            var currentContracts = @Model.CurrentContracts;
+            var approvedCapacity = @Model.ApprovedFiscalCapacity;
 
-    if (requestedCapacity === approvedCapacity) {
-        showToast('A capacidade solicitada é igual à capacidade aprovada. Não é necessário solicitar alteração.', 'info');
-        return;
-    }
+            if (isNaN(requestedCapacity) || requestedCapacity < currentContracts) {
+                if (typeof showToast === 'function') showToast('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').', 'warning');
+                else alert('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').');
+                document.getElementById('RequestedFiscalCapacity').focus();
+                return;
+            }
 
-    if (!justification) {
-        showToast('Por favor, informe a justificativa para a alteração de capacidade.', 'warning');
-        document.getElementById('CapacityJustification').focus();
-        return;
-    }
+            if (requestedCapacity === approvedCapacity) {
+                if (typeof showToast === 'function') showToast('A capacidade solicitada é igual à capacidade aprovada. Não é necessário solicitar alteração.', 'info');
+                else alert('A capacidade solicitada é igual à capacidade aprovada.');
+                return;
+            }
 
-    if (!confirm('Deseja solicitar alteração da capacidade fiscal de ' + approvedCapacity + ' para ' + requestedCapacity + '?')) {
-        return;
-    }
+            if (!justification) {
+                if (typeof showToast === 'function') showToast('Por favor, informe a justificativa para a alteração de capacidade.', 'warning');
+                else alert('Por favor, informe a justificativa para a alteração de capacidade.');
+                document.getElementById('CapacityJustification').focus();
+                return;
+            }
 
-    try {
-        const response = await fetch('/Parceiro/RequestCapacityChange', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-            },
-            body: JSON.stringify({
-                addressId: @Model.Id,
-                requestedCapacity: requestedCapacity,
-                justification: justification
-            })
+            if (!confirm('Deseja solicitar alteração da capacidade fiscal de ' + approvedCapacity + ' para ' + requestedCapacity + '?')) {
+                return;
+            }
+
+            var form = btn.closest('form');
+            var tokenEl = form ? form.querySelector('input[name="__RequestVerificationToken"]') : document.querySelector('input[name="__RequestVerificationToken"]');
+            var token = tokenEl ? tokenEl.value : '';
+            if (!token) {
+                if (typeof showToast === 'function') showToast('Token de segurança não encontrado. Recarregue a página e tente novamente.', 'error');
+                else alert('Token de segurança não encontrado. Recarregue a página e tente novamente.');
+                return;
+            }
+
+            try {
+                var response = await fetch('@Url.Action("RequestCapacityChange", "Coworking")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify({
+                        addressId: @Model.Id,
+                        requestedCapacity: requestedCapacity,
+                        justification: justification
+                    })
+                });
+
+                var result = await response.json().catch(function() { return { success: false, message: 'Resposta inválida do servidor.' }; });
+
+                if (result.success) {
+                    if (typeof showToast === 'function') showToast('Solicitação de alteração de capacidade enviada com sucesso! Aguardando aprovação administrativa.', 'success');
+                    else alert('Solicitação enviada com sucesso!');
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else {
+                    if (typeof showToast === 'function') showToast(result.message || 'Erro ao enviar solicitação.', 'error');
+                    else alert(result.message || 'Erro ao enviar solicitação.');
+                }
+            } catch (error) {
+                console.error('Erro ao solicitar alteração de capacidade:', error);
+                if (typeof showToast === 'function') showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
+                else alert('Erro ao enviar solicitação. Tente novamente.');
+            }
         });
-
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast('Solicitação de alteração de capacidade enviada com sucesso! Aguardando aprovação administrativa.', 'success');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else {
-            showToast(result.message || 'Erro ao enviar solicitação.', 'error');
-        }
-    } catch (error) {
-        console.error('Erro ao solicitar alteração de capacidade:', error);
-        showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
     }
-});
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRequestCapacityChange);
+    } else {
+        initRequestCapacityChange();
+    }
+})();
 </script>

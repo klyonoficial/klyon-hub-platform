@@ -157,7 +157,30 @@
                                         : addrStatus == AddressStatus.Active ? ("success", "Ativo")
                                         : addrStatus == AddressStatus.Suspended ? ("warning", "Suspenso") 
                                         : ("secondary", "Removido");
-                                    <tr>
+                                    <tr class="row-clickable row-address-detail"
+                                        data-address="@(System.Net.WebUtility.HtmlEncode(address.Address))"
+                                        data-number="@(System.Net.WebUtility.HtmlEncode(address.Number))"
+                                        data-complement="@(System.Net.WebUtility.HtmlEncode(address.Complement ?? ""))"
+                                        data-neighborhood="@(System.Net.WebUtility.HtmlEncode(address.Neighborhood))"
+                                        data-city="@(System.Net.WebUtility.HtmlEncode(address.City))"
+                                        data-state="@(System.Net.WebUtility.HtmlEncode(address.State))"
+                                        data-zip="@(System.Net.WebUtility.HtmlEncode(address.ZipCode))"
+                                        data-base-price="@address.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-available="@(address.IsAvailable ? "Sim" : "Não")"
+                                        data-status-label="@label"
+                                        data-status-badge="@badge"
+                                        data-max-contracts="@address.MaxContracts"
+                                        data-current-contracts="@address.CurrentContracts"
+                                        data-fiscal-capacity="@address.ApprovedFiscalCapacity"
+                                        data-created-at="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
+                                        data-updated-at="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")"
+                                        data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
+                                        data-shared-price="@(address.SharedRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "-")"
+                                        data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? "-")"
+                                        data-private-room="@(address.OffersPrivateRoom ? "Sim" : "Não")"
+                                        data-private-price="@(address.PrivateRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "-")"
+                                        data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? "-")"
+                                        style="cursor: pointer;">
                                         <td>@address.Address, @address.Number</td>
                                         <td>@address.City</td>
                                         <td>@address.State</td>
@@ -225,8 +248,8 @@
                                                 </small>
                                             }
                                         </td>
-                                        <td class="text-end">
-                                            <form asp-action="SetAddressStatus" asp-controller="Admin" method="post" class="d-inline">
+                                        <td class="text-end no-row-click">
+                                            <form asp-action="SetAddressStatus" asp-controller="Admin" method="post" class="d-inline" onclick="event.stopPropagation();">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="addressId" value="@address.Id" />
                                                 <input type="hidden" name="coworkingId" value="@Model.Id" />
@@ -545,7 +568,12 @@
                             <tbody>
                                 @foreach (var ps in partnerServices.Where(ps => ps.Service != null).OrderBy(ps => ps.Service.Name))
                                 {
-                                    <tr>
+                                    <tr class="row-clickable row-service-detail"
+                                        data-service-name="@(System.Net.WebUtility.HtmlEncode(ps.Service?.Name ?? "Serviço removido"))"
+                                        data-service-desc="@(System.Net.WebUtility.HtmlEncode(ps.Service?.Description ?? ""))"
+                                        data-percentage="@ps.Percentage.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-created-at="@ps.CreatedAt.ToString("dd/MM/yyyy")"
+                                        style="cursor: pointer;">
                                         <td>
                                             <strong>@(ps.Service?.Name ?? "Serviço removido")</strong>
                                             @if (ps.Service != null && !string.IsNullOrEmpty(ps.Service.Description))
@@ -561,11 +589,11 @@
                                             <span class="badge bg-primary fs-6">@ps.Percentage.ToString("F2")%</span>
                                         </td>
                                         <td>@ps.CreatedAt.ToString("dd/MM/yyyy")</td>
-                                        <td>
+                                        <td class="no-row-click">
                                             @if (ps.Service != null)
                                             {
                                                 <button type="button" class="btn btn-sm btn-warning" 
-                                                        onclick="editService(@ps.Id, @ps.ServiceId, '@(ps.Service.Name.Replace("'", "\\'"))', @(ps.Percentage.ToString("0.0##########", System.Globalization.CultureInfo.InvariantCulture)))">
+                                                        onclick="event.stopPropagation(); editService(@ps.Id, @ps.ServiceId, '@(ps.Service.Name.Replace("'", "\\'"))', @(ps.Percentage.ToString("0.0##########", System.Globalization.CultureInfo.InvariantCulture)))">
                                                     <i class="bi bi-pencil"></i> Editar
                                                 </button>
                                             }
@@ -574,7 +602,7 @@
                                                 <span class="text-muted">Serviço removido</span>
                                             }
                                             <form method="post" action="@Url.Action("DeletePartnerService", "Admin")" class="d-inline" 
-                                                  onsubmit="event.preventDefault(); handleDeleteService(this); return false;">
+                                                  onsubmit="event.stopPropagation(); event.preventDefault(); handleDeleteService(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@ps.Id" />
                                                 <input type="hidden" name="coworkingId" value="@Model.Id" />
@@ -595,6 +623,117 @@
                         <i class="bi bi-info-circle"></i> Nenhum serviço cadastrado para este parceiro.
                     </div>
                 }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Serviço -->
+<div class="modal fade" id="viewServiceModal" tabindex="-1" aria-labelledby="viewServiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewServiceModalLabel"><i class="bi bi-grid"></i> Detalhes do Serviço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">Serviço</label>
+                    <p class="mb-0" id="viewServiceName">—</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">Descrição</label>
+                    <p class="mb-0" id="viewServiceDesc">—</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">Percentagem (%)</label>
+                    <p class="mb-0"><span class="badge bg-primary" id="viewServicePercentage">—</span></p>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold text-muted small">Data do contrato</label>
+                    <p class="mb-0" id="viewServiceCreatedAt">—</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Endereço -->
+<div class="modal fade" id="viewAddressModal" tabindex="-1" aria-labelledby="viewAddressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAddressModalLabel"><i class="bi bi-geo-alt"></i> Detalhes do Endereço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Endereço</label>
+                        <p class="mb-0" id="viewAddrStreet">—</p>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label fw-bold text-muted small">Número</label>
+                        <p class="mb-0" id="viewAddrNumber">—</p>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label fw-bold text-muted small">Complemento</label>
+                        <p class="mb-0" id="viewAddrComplement">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Bairro</label>
+                        <p class="mb-0" id="viewAddrNeighborhood">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Cidade</label>
+                        <p class="mb-0" id="viewAddrCity">—</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold text-muted small">Estado</label>
+                        <p class="mb-0" id="viewAddrState">—</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold text-muted small">CEP</label>
+                        <p class="mb-0" id="viewAddrZip">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Preço base</label>
+                        <p class="mb-0" id="viewAddrBasePrice">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Disponível</label>
+                        <p class="mb-0" id="viewAddrAvailable">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Status do endereço</label>
+                        <p class="mb-0" id="viewAddrStatus">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Contratos</label>
+                        <p class="mb-0" id="viewAddrContracts">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Capacidade fiscal aprovada</label>
+                        <p class="mb-0" id="viewAddrFiscalCapacity">—</p>
+                    </div>
+                    <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
+                        <p class="mb-0" id="viewAddrSharedRoom">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Sala privada</label>
+                        <p class="mb-0" id="viewAddrPrivateRoom">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Cadastrado em</label>
+                        <p class="mb-0" id="viewAddrCreatedAt">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Atualizado em</label>
+                        <p class="mb-0" id="viewAddrUpdatedAt">—</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -674,6 +813,60 @@
         if (document.getElementById('serviceId').value === '0') {
             document.getElementById('serviceIdHidden').value = document.getElementById('serviceSelect').value;
         }
+    });
+
+    // Abrir modal de visualização ao clicar na linha (Serviços)
+    document.querySelectorAll('.row-service-detail').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('.no-row-click') || e.target.closest('button') || e.target.closest('form')) return;
+            var name = this.getAttribute('data-service-name') || '—';
+            var desc = this.getAttribute('data-service-desc') || '—';
+            var pct = this.getAttribute('data-percentage') || '—';
+            var created = this.getAttribute('data-created-at') || '—';
+            document.getElementById('viewServiceName').textContent = name;
+            document.getElementById('viewServiceDesc').textContent = desc ? desc : '—';
+            document.getElementById('viewServicePercentage').textContent = pct !== '—' ? pct + '%' : '—';
+            document.getElementById('viewServiceCreatedAt').textContent = created;
+            var modal = new bootstrap.Modal(document.getElementById('viewServiceModal'));
+            modal.show();
+        });
+    });
+
+    // Abrir modal de visualização ao clicar na linha (Endereços)
+    document.querySelectorAll('.row-address-detail').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('.no-row-click') || e.target.closest('select') || e.target.closest('form')) return;
+            document.getElementById('viewAddrStreet').textContent = this.getAttribute('data-address') || '—';
+            document.getElementById('viewAddrNumber').textContent = this.getAttribute('data-number') || '—';
+            document.getElementById('viewAddrComplement').textContent = this.getAttribute('data-complement') || '—';
+            document.getElementById('viewAddrNeighborhood').textContent = this.getAttribute('data-neighborhood') || '—';
+            document.getElementById('viewAddrCity').textContent = this.getAttribute('data-city') || '—';
+            document.getElementById('viewAddrState').textContent = this.getAttribute('data-state') || '—';
+            document.getElementById('viewAddrZip').textContent = this.getAttribute('data-zip') || '—';
+            var basePrice = this.getAttribute('data-base-price');
+            document.getElementById('viewAddrBasePrice').textContent = basePrice ? 'R$ ' + basePrice : '—';
+            document.getElementById('viewAddrAvailable').innerHTML = (this.getAttribute('data-available') === 'Sim')
+                ? '<span class="badge bg-success">Sim</span>' : '<span class="badge bg-danger">Não</span>';
+            var statusLabel = this.getAttribute('data-status-label') || '—';
+            var statusBadge = this.getAttribute('data-status-badge') || 'secondary';
+            document.getElementById('viewAddrStatus').innerHTML = '<span class="badge bg-' + statusBadge + '">' + statusLabel + '</span>';
+            document.getElementById('viewAddrContracts').textContent = (this.getAttribute('data-current-contracts') || '0') + ' / ' + (this.getAttribute('data-max-contracts') || '0');
+            document.getElementById('viewAddrFiscalCapacity').textContent = this.getAttribute('data-fiscal-capacity') || '—';
+            var shared = this.getAttribute('data-shared-room');
+            var sharedPrice = this.getAttribute('data-shared-price');
+            var sharedSeats = this.getAttribute('data-shared-seats');
+            document.getElementById('viewAddrSharedRoom').textContent = shared === 'Sim'
+                ? 'Sim — R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
+            var priv = this.getAttribute('data-private-room');
+            var privPrice = this.getAttribute('data-private-price');
+            var privSeats = this.getAttribute('data-private-seats');
+            document.getElementById('viewAddrPrivateRoom').textContent = priv === 'Sim'
+                ? 'Sim — R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
+            document.getElementById('viewAddrCreatedAt').textContent = this.getAttribute('data-created-at') || '—';
+            document.getElementById('viewAddrUpdatedAt').textContent = this.getAttribute('data-updated-at') || '—';
+            var modal = new bootstrap.Modal(document.getElementById('viewAddressModal'));
+            modal.show();
+        });
     });
 
     async function handleDeleteService(form) {

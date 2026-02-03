@@ -92,16 +92,32 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                 <p class="mb-2 text-muted small">@alert.Message</p>
                                 @if (alert.ActionUrl != null)
                                 {
-                                    <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1"><i class="bi bi-arrow-right"></i> @alert.ActionText</a>
+                                    var titleStr = (string)alert.Title;
+                                    if (titleStr != null && titleStr.Contains("Documentos Em Análise"))
+                                    {
+                                        <a href="#documents" class="btn btn-sm btn-@alert.Type mt-1"><i class="bi bi-arrow-right"></i> @alert.ActionText</a>
+                                    }
+                                    else
+                                    {
+                                        <a href="@alert.ActionUrl" class="btn btn-sm btn-@alert.Type mt-1"><i class="bi bi-arrow-right"></i> @alert.ActionText</a>
+                                    }
                                 }
                             </div>
                         </div>
                     </div>
                 }
             </div>
+            <div class="card-footer bg-transparent border-0 pt-0">
+                <button type="button" class="btn btn-warning btn-sm" onclick="openPendencyModal()">
+                    <i class="bi bi-list-check"></i> Ver todas as pendências em detalhe
+                </button>
+            </div>
         </div>
     </div>
 }
+
+@* Modal de pendências: sempre incluir para que openPendencyModal esteja definida quando os botões forem exibidos *@
+@await Html.PartialAsync("_PendencyModal")
 
 <!-- Abas -->
 <ul class="nav nav-tabs mb-0" id="profileTabs" role="tablist">
@@ -566,7 +582,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <!-- Sócios -->
     <div class="tab-pane fade" id="partners" role="tabpanel">
         <div class="card">
-            <div class="card-body">
+            <div class="card-body" id="partnersCardBody">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="bi bi-people"></i> Sócios e Parceiros</h5>
                     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPartnerModal">
@@ -2321,58 +2337,49 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                 var tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
                 
-                // Encontrar a tabela de sócios no HTML retornado
                 var newTableBody = tempDiv.querySelector('#partnersTableBody');
                 var currentTableBody = document.getElementById('partnersTableBody');
+                var newCardBody = tempDiv.querySelector('#partnersCardBody');
+                var currentCardBody = document.getElementById('partnersCardBody');
                 
-                if (newTableBody && currentTableBody) {
-                    // Atualizar apenas o tbody da tabela
-                    currentTableBody.innerHTML = newTableBody.innerHTML;
-                    
-                    // Forçar atualização das imagens adicionando timestamp para evitar cache
+                function refreshPartnerImages(container) {
+                    if (!container) return;
                     var imageTimestamp = new Date().getTime();
-                    var images = currentTableBody.querySelectorAll('img[src*="GetPartnerPhoto"]');
+                    var images = container.querySelectorAll('img[src*="GetPartnerPhoto"]');
                     images.forEach(function(img) {
                         var src = img.src;
-                        // Remover timestamp anterior se existir
                         src = src.split('&t=')[0].split('?t=')[0];
-                        // Adicionar novo timestamp
-                        if (src.indexOf('?') > -1) {
-                            img.src = src + '&t=' + imageTimestamp;
-                        } else {
-                            img.src = src + '?t=' + imageTimestamp;
-                        }
-                        // Forçar reload da imagem removendo do cache do navegador
+                        img.src = src + (src.indexOf('?') > -1 ? '&t=' : '?t=') + imageTimestamp;
                         var newImg = new Image();
-                        newImg.onload = function() {
-                            img.src = this.src;
-                        };
+                        newImg.onload = function() { img.src = this.src; };
                         newImg.src = img.src;
                     });
-                    
-                    // Re-inicializar Select2 nos novos elementos se necessário
-                    if (typeof window.KlyonAutocomplete !== 'undefined' && window.KlyonAutocomplete.init) {
-                        window.KlyonAutocomplete.init();
-                    }
-
-                    // Esconder loading após receber a resposta
-                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                        window.KlyonLoading.hide();
-                    }                    
+                }
+                
+                if (currentTableBody && newTableBody) {
+                    // Já existe tabela na página: atualizar apenas o tbody
+                    currentTableBody.innerHTML = newTableBody.innerHTML;
+                    refreshPartnerImages(currentTableBody);
+                } else if (currentCardBody && newCardBody) {
+                    // Primeiro sócio ou página em estado vazio: substituir todo o conteúdo da seção de sócios
+                    currentCardBody.innerHTML = newCardBody.innerHTML;
+                    refreshPartnerImages(currentCardBody);
                 } else {
-                    // Esconder loading mesmo em caso de erro
-                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                        window.KlyonLoading.hide();
-                    }
                     showToast('Erro ao carregar tabela de sócios. Por favor, tente novamente.', 'error');
                 }
-            })
-            .catch(error => {
-                // Esconder loading em caso de erro
+                
+                if (typeof window.KlyonAutocomplete !== 'undefined' && window.KlyonAutocomplete.init) {
+                    window.KlyonAutocomplete.init();
+                }
                 if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                     window.KlyonLoading.hide();
                 }
-                showToast('Erro ao salvar sócios. Por favor, tente novamente.', 'error');
+            })
+            .catch(error => {
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                    window.KlyonLoading.hide();
+                }
+                showToast('Erro ao carregar tabela de sócios. Por favor, tente novamente.', 'error');
             });
         }
 
@@ -2837,3 +2844,20 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         box-shadow: 0 2px 8px rgba(25, 135, 84, 0.2);
     }
 </style>
+<script>
+    // Ativar aba Documentos Obrigatórios quando a URL tiver #documents (ao carregar ou ao clicar em "Ver Documentos")
+    function activateDocumentsTab() {
+        if (window.location.hash === '#documents') {
+            var docTab = document.getElementById('documents-tab');
+            if (docTab) {
+                docTab.click();
+                var docPanel = document.getElementById('documents');
+                if (docPanel) docPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }
+    (function () {
+        activateDocumentsTab();
+        window.addEventListener('hashchange', activateDocumentsTab);
+    })();
+</script>

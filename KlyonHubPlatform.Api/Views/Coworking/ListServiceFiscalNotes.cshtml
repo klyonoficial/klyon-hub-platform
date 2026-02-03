@@ -18,28 +18,36 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" class="row g-3">
-            <input type="hidden" name="pageSize" value="@(ViewBag.PageSize ?? 20)" />
-            <div class="col-md-3">
+        <form method="get" action="@Url.Action("ListServiceFiscalNotes", "Coworking")" class="row g-3">
+            <div class="col-md-2">
                 <label class="form-label">Status</label>
-                <select class="form-select" name="status" onchange="this.form.submit()">
+                <select class="form-select" name="status">
                     <option value="">Todos</option>
                     <option value="Pendente" selected="@(ViewBag.Status == "Pendente")">Pendente</option>
                     <option value="Emitida" selected="@(ViewBag.Status == "Emitida")">Emitida</option>
+                    <option value="Importada" selected="@(ViewBag.Status == "Importada")">Importada</option>
                     <option value="Cancelada" selected="@(ViewBag.Status == "Cancelada")">Cancelada</option>
                     <option value="Erro" selected="@(ViewBag.Status == "Erro")">Erro</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Número da nota</label>
                 <input type="text" class="form-control" name="noteNumber" placeholder="Ex: 12345" value="@(ViewBag.NoteNumber ?? "")" />
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Cliente</label>
                 <input type="text" class="form-control" name="client" placeholder="Nome, CNPJ ou CPF" value="@(ViewBag.Client ?? "")" />
             </div>
-            <div class="col-md-3 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-primary">
+            <div class="col-md-2">
+                <label class="form-label">Por página</label>
+                <select class="form-select" name="pageSize">
+                    <option value="10" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 10)">10</option>
+                    <option value="20" selected="@(ViewBag.PageSize == null || (int)ViewBag.PageSize == 20)">20</option>
+                    <option value="50" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary" name="page" value="1">
                     <i class="bi bi-funnel"></i> Filtrar
                 </button>
                 <a href="@Url.Action("ListServiceFiscalNotes", "Coworking")" class="btn btn-outline-secondary">
@@ -168,6 +176,7 @@
                                         {
                                             "Emitida" => "success",
                                             "Pendente" => "warning",
+                                            "Importada" => "info",
                                             "Cancelada" => "danger",
                                             "Erro" => "danger",
                                             _ => "secondary"
@@ -176,6 +185,7 @@
                                         {
                                             "Emitida" => "Emitida",
                                             "Pendente" => "Pendente",
+                                            "Importada" => "Importada",
                                             "Cancelada" => "Cancelada",
                                             "Erro" => "Erro",
                                             _ => note.Status
@@ -210,12 +220,12 @@
             <!-- Paginação -->
             @if (totalPages > 1)
             {
-                <nav aria-label="Paginação">
-                    <ul class="pagination justify-content-center">
+                <nav aria-label="Paginação" class="mt-3">
+                    <ul class="pagination justify-content-center flex-wrap">
                         @if (currentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", new { page = currentPage - 1, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">
+                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", "Coworking", new { page = currentPage - 1, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
                             </li>
@@ -224,24 +234,27 @@
                         @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                         {
                             <li class="page-item @(i == currentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", new { page = i, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">@i</a>
+                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", "Coworking", new { page = i, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">@i</a>
                             </li>
                         }
 
                         @if (currentPage < totalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", new { page = currentPage + 1, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">
+                                <a class="page-link" href="@Url.Action("ListServiceFiscalNotes", "Coworking", new { page = currentPage + 1, pageSize, status = ViewBag.Status, noteNumber = ViewBag.NoteNumber, client = ViewBag.Client })">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
                             </li>
                         }
                     </ul>
+                    <p class="text-center text-muted small mt-2 mb-0">
+                        Página @currentPage de @totalPages — @totalItems nota(s) fiscal(is) no total
+                    </p>
                 </nav>
             }
 
             <div class="text-center text-muted mt-3">
-                Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems nota(s) fiscal(is)
+                Exibindo @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems nota(s) fiscal(is)
             </div>
         }
         else

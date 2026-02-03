@@ -13,6 +13,7 @@
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" action="@Url.Action("Users", "Admin")" class="row g-3">
+            <input type="hidden" name="page" value="1" />
             <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
@@ -44,7 +45,16 @@
                     <option value="unverified" selected="@(ViewBag.EmailVerified == "unverified")">Não Verificados</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex align-items-end gap-2">
+            <div class="col-md-1">
+                <label for="pageSize" class="form-label">Por página</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="10" selected="@(ViewBag.PageSize == 10)">10</option>
+                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
+                    <option value="25" selected="@(ViewBag.PageSize == 25)">25</option>
+                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
@@ -57,12 +67,13 @@
 </div>
 
 <!-- Informações de paginação -->
-@if (ViewBag.TotalItems != null)
+@if (ViewBag.TotalItems != null && (int)ViewBag.TotalItems > 0)
 {
+    var from = (ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1;
+    var to = Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems);
     <div class="mb-3">
         <small class="text-muted">
-            Mostrando @((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1) a @(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems)) 
-            de @ViewBag.TotalItems usuário(s)
+            Mostrando @from a @to de @ViewBag.TotalItems usuário(s)
         </small>
     </div>
 }
@@ -171,7 +182,8 @@
                         role = ViewBag.SelectedRole, 
                         status = ViewBag.Status, 
                         emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.CurrentPage - 1 
+                        page = ViewBag.CurrentPage - 1,
+                        pageSize = ViewBag.PageSize
                     })">
                         <i class="bi bi-chevron-left"></i> Anterior
                     </a>
@@ -212,7 +224,8 @@
                         role = ViewBag.SelectedRole, 
                         status = ViewBag.Status, 
                         emailVerified = ViewBag.EmailVerified, 
-                        page = i 
+                        page = i,
+                        pageSize = ViewBag.PageSize
                     })">
                         @i
                     </a>
@@ -233,7 +246,8 @@
                         role = ViewBag.SelectedRole, 
                         status = ViewBag.Status, 
                         emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.TotalPages 
+                        page = ViewBag.TotalPages,
+                        pageSize = ViewBag.PageSize
                     })">
                         @ViewBag.TotalPages
                     </a>
@@ -248,7 +262,8 @@
                         role = ViewBag.SelectedRole, 
                         status = ViewBag.Status, 
                         emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.CurrentPage + 1 
+                        page = ViewBag.CurrentPage + 1,
+                        pageSize = ViewBag.PageSize
                     })">
                         Próxima <i class="bi bi-chevron-right"></i>
                     </a>

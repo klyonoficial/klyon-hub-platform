@@ -35,7 +35,7 @@
                                 {
                                     ContractStatus.Active => "bg-active",
                                     ContractStatus.Suspended => "bg-suspended",
-                                    ContractStatus.PendingPayment => "bg-pending-payment",
+                                    ContractStatus.PendingPayment => (displayStatus == "Aguardando Validação" ? "bg-awaiting-validation" : "bg-pending-payment"),
                                     ContractStatus.PendingCancellation => "bg-pending-cancellation",
                                     ContractStatus.Cancelled => "bg-cancelled",
                                     ContractStatus.Expired => "bg-expired",
@@ -251,7 +251,7 @@
                                                         break;
                                                     case PaymentStatus.AwaitingValidation:
                                                         payStatusLabel = "Aguardando Validação";
-                                                        payStatusClass = "bg-pending-payment";
+                                                        payStatusClass = "bg-awaiting-validation";
                                                         payStatusIcon = "bi-clock-history";
                                                         break;
                                                     case PaymentStatus.Paid:
@@ -306,7 +306,7 @@
                                                 }
                                                 else if (payment.Status == PaymentStatus.AwaitingValidation)
                                                 {
-                                                    <span class="badge bg-pending-payment"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
+                                                    <span class="badge bg-awaiting-validation"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
                                                 }
                                                 else if (payment.Status == PaymentStatus.Paid && histories != null && histories.ContainsKey(payment.Id) && histories[payment.Id].Any(h => h.Action == "Approved"))
                                                 {
@@ -372,6 +372,12 @@
                 <h5 class="card-title-tight"><i class="bi bi-clock-history"></i> Histórico</h5>
             </div>
             <div class="card-body">
+                @{
+                    var timelineTotalItems = ViewBag.TimelineTotalItems as int? ?? 0;
+                    var timelineCurrentPage = ViewBag.TimelineCurrentPage as int? ?? 1;
+                    var timelineTotalPages = ViewBag.TimelineTotalPages as int? ?? 1;
+                    var timelinePageSizeVal = ViewBag.TimelinePageSize as int? ?? 5;
+                }
                 @if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())
                 {
                     <div class="timeline">
@@ -398,6 +404,32 @@
                             </div>
                         }
                     </div>
+                    @if (timelineTotalPages > 1)
+                    {
+                        <nav aria-label="Paginação do histórico" class="mt-3">
+                            <ul class="pagination justify-content-center mb-0">
+                                <li class="page-item @(timelineCurrentPage <= 1 ? "disabled" : "")">
+                                    <a class="page-link" href="@(timelineCurrentPage <= 1 ? "#" : Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = timelineCurrentPage - 1, timelinePageSize = timelinePageSizeVal }))">
+                                        Anterior
+                                    </a>
+                                </li>
+                                @for (int p = 1; p <= timelineTotalPages; p++)
+                                {
+                                    <li class="page-item @(p == timelineCurrentPage ? "active" : "")">
+                                        <a class="page-link" href="@Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
+                                    </li>
+                                }
+                                <li class="page-item @(timelineCurrentPage >= timelineTotalPages ? "disabled" : "")">
+                                    <a class="page-link" href="@(timelineCurrentPage >= timelineTotalPages ? "#" : Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = timelineCurrentPage + 1, timelinePageSize = timelinePageSizeVal }))">
+                                        Próximo
+                                    </a>
+                                </li>
+                            </ul>
+                            <p class="text-center text-muted small mt-2 mb-0">
+                                Exibindo @(((timelineCurrentPage - 1) * timelinePageSizeVal) + 1)–@(Math.Min(timelineCurrentPage * timelinePageSizeVal, timelineTotalItems)) de @timelineTotalItems registro(s).
+                            </p>
+                        </nav>
+                    }
                 }
                 else
                 {

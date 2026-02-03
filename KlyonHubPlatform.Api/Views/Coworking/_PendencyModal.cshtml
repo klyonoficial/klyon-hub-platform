@@ -1,0 +1,109 @@
+@* Modal de pendências administrativas - exibe detalhes (ex.: lista de documentos em análise) *@
+<div class="modal fade" id="pendencyModal" tabindex="-1" aria-labelledby="pendencyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="pendencyModalLabel">
+                    <i class="bi bi-list-check me-2"></i> Suas pendências
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0" id="pendencyModalBody">
+                <div class="text-center py-5" id="pendencyModalLoading">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Carregando pendências...</p>
+                </div>
+                <div id="pendencyModalContent" class="d-none p-4"></div>
+                <div id="pendencyModalEmpty" class="d-none text-center py-5 text-muted">
+                    <i class="bi bi-check-circle display-4"></i>
+                    <p class="mt-2 mb-0">Nenhuma pendência no momento.</p>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <a href="@Url.Action("Profile", "Coworking")" class="btn btn-outline-primary" id="pendencyModalProfileLink">
+                    <i class="bi bi-person-badge"></i> Meu Perfil
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var pendencyModalEl = document.getElementById('pendencyModal');
+    var pendencyDetailsUrl = '@Url.Action("GetPendencyDetails", "Coworking")';
+
+    window.openPendencyModal = function (scrollToSection) {
+        if (!pendencyModalEl) {
+            window.location.href = '@Url.Action("Profile", "Coworking")';
+            return;
+        }
+        var modal = bootstrap.Modal.getOrCreateInstance(pendencyModalEl);
+        var loading = document.getElementById('pendencyModalLoading');
+        var content = document.getElementById('pendencyModalContent');
+        var empty = document.getElementById('pendencyModalEmpty');
+        if (!loading || !content || !empty) return;
+        loading.classList.remove('d-none');
+        content.classList.add('d-none');
+        content.innerHTML = '';
+        empty.classList.add('d-none');
+        modal.show();
+
+        fetch(pendencyDetailsUrl, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                loading.classList.add('d-none');
+                var pendencies = data.pendencies || [];
+                if (pendencies.length === 0) {
+                    empty.classList.remove('d-none');
+                    return;
+                }
+                var html = '';
+                pendencies.forEach(function (p, idx) {
+                    var idAttr = (p.title && p.title.indexOf('Documentos Em Análise') !== -1) ? ' id="pendency-section-documents"' : '';
+                    html += '<div class="pendency-item border-start border-' + (p.type || 'secondary') + ' border-3 rounded-end mb-3 p-3 bg-light"' + idAttr + '>';
+                    html += '  <div class="d-flex align-items-start">';
+                    html += '    <i class="bi ' + (p.icon || 'bi-circle') + ' text-' + (p.type || 'secondary') + ' me-3 mt-1" style="font-size: 1.25rem;"></i>';
+                    html += '    <div class="flex-grow-1">';
+                    html += '      <h6 class="mb-1 fw-bold">' + escapeHtml(p.title || '') + '</h6>';
+                    html += '      <p class="mb-2 text-muted small">' + escapeHtml(p.message || '') + '</p>';
+                    if (p.details && p.details.length > 0) {
+                        html += '      <ul class="list-unstyled mb-2 ms-2">';
+                        p.details.forEach(function (d) {
+                            html += '        <li class="small"><i class="bi bi-file-earmark text-' + (p.type || 'info') + ' me-1"></i> ' + escapeHtml(d) + '</li>';
+                        });
+                        html += '      </ul>';
+                    }
+                    if (p.actionUrl) {
+                        html += '      <a href="' + escapeHtml(p.actionUrl) + '" class="btn btn-sm btn-' + (p.type || 'primary') + ' mt-1">';
+                        html += '        <i class="bi bi-arrow-right"></i> ' + escapeHtml(p.actionText || 'Ver') + '</a>';
+                    }
+                    html += '    </div>';
+                    html += '  </div>';
+                    html += '</div>';
+                });
+                content.innerHTML = html;
+                content.classList.remove('d-none');
+                if (scrollToSection === 'documents') {
+                    var el = document.getElementById('pendency-section-documents');
+                    if (el) setTimeout(function () { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 300);
+                }
+            })
+            .catch(function () {
+                loading.classList.add('d-none');
+                content.classList.remove('d-none');
+                content.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Não foi possível carregar as pendências. Tente novamente.</div>';
+            });
+    };
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+})();
+</script>

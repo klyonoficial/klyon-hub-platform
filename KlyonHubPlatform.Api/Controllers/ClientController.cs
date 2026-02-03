@@ -281,10 +281,10 @@ namespace KlyonHubPlatform.Api.Controllers
             return View(services);
         }
 
-        public async Task<IActionResult> Dashboard()
+        public Task<IActionResult> Dashboard()
         {
             // Redirecionar para a página de Serviços (página principal do cliente)
-            return RedirectToAction("Services");
+            return Task.FromResult<IActionResult>(RedirectToAction("Services"));
         }
 
         [HttpGet]
@@ -716,6 +716,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Se for admin ou o próprio cliente, permitir edição
                     if (User.IsInRole("Administrator") || client.UserId == int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)))
                     {
+                        ViewBag.PersonType = string.IsNullOrWhiteSpace(client.CNPJ) ? "Fisica" : "Juridica";
                         return View(client);
                     }
                 }
@@ -726,14 +727,27 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null)
+        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null, string? PersonType = null)
         {
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
                 var userEmail = User.FindFirstValue(ClaimTypes.Email);
                 var isAdmin = User.IsInRole("Administrator");
-                
+                var personType = (PersonType ?? "").Trim();
+                ViewBag.PersonType = string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) ? "Juridica" : "Fisica";
+
+                if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase))
+                {
+                    client.CPF = null;
+                }
+                else
+                {
+                    client.CNPJ = null;
+                    client.RazaoSocial = null;
+                    client.NomeFantasia = null;
+                }
+
                 // Se houver ID, é uma edição
                 if (client.Id > 0)
                 {
@@ -852,12 +866,29 @@ namespace KlyonHubPlatform.Api.Controllers
                         existingClient.CPF = null;
                     }
 
-                    // Verificar se pelo menos um está preenchido
-                    if (string.IsNullOrWhiteSpace(existingClient.CNPJ) && string.IsNullOrWhiteSpace(existingClient.CPF))
+                    if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase))
                     {
-                        TempData["Error"] = "É necessário informar CPF ou CNPJ.";
-                        ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
-                        return View(existingClient);
+                        if (string.IsNullOrWhiteSpace(existingClient.CNPJ))
+                        {
+                            TempData["Error"] = "O CNPJ é obrigatório para Pessoa Jurídica.";
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+                        if (string.IsNullOrWhiteSpace(existingClient.RazaoSocial))
+                        {
+                            TempData["Error"] = "A Razão Social é obrigatória para Pessoa Jurídica.";
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(existingClient.CPF))
+                        {
+                            TempData["Error"] = "O CPF é obrigatório para Pessoa Física.";
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
                     }
                     
                     // Remover máscaras do telefone e CEP
@@ -969,12 +1000,29 @@ namespace KlyonHubPlatform.Api.Controllers
                     client.CPF = null;
                 }
 
-                // CPF é obrigatório no cadastro de cliente
-                if (string.IsNullOrWhiteSpace(client.CPF))
+                if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase))
                 {
-                    TempData["Error"] = "O CPF é obrigatório.";
-                    ViewBag.UserEmail = userEmail;
-                    return View(client);
+                    if (string.IsNullOrWhiteSpace(client.CNPJ))
+                    {
+                        TempData["Error"] = "O CNPJ é obrigatório para Pessoa Jurídica.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+                    if (string.IsNullOrWhiteSpace(client.RazaoSocial))
+                    {
+                        TempData["Error"] = "A Razão Social é obrigatória para Pessoa Jurídica.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(client.CPF))
+                    {
+                        TempData["Error"] = "O CPF é obrigatório para Pessoa Física.";
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
                 }
 
                 // Telefone é obrigatório no cadastro de cliente
@@ -1544,7 +1592,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ContractDetails(int id)
+        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5)
         {
             var contract = await _contractService.GetByIdAsync(id);
             if (contract == null)
@@ -1760,7 +1808,19 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList<object>();
-            ViewBag.Timeline = timeline;
+            var timelineTotal = timeline.Count;
+            var timelineTotalPages = timelinePageSize > 0 ? (int)Math.Ceiling(timelineTotal / (double)timelinePageSize) : 1;
+            if (timelinePage < 1) timelinePage = 1;
+            if (timelinePage > timelineTotalPages) timelinePage = Math.Max(1, timelineTotalPages);
+            var timelinePaged = timeline
+                .Skip((timelinePage - 1) * timelinePageSize)
+                .Take(timelinePageSize)
+                .ToList<object>();
+            ViewBag.Timeline = timelinePaged;
+            ViewBag.TimelineTotalItems = timelineTotal;
+            ViewBag.TimelineCurrentPage = timelinePage;
+            ViewBag.TimelineTotalPages = timelineTotalPages;
+            ViewBag.TimelinePageSize = timelinePageSize;
 
             // Exibir o contrato em qualquer status (incl. PendingCancellation, Cancelled, Expired) para o dono visualizar detalhes e documentos
             return View(contract);
@@ -2150,7 +2210,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Error"] = ex.Message;
                     return RedirectToAction("Profile");
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Outros erros - logar mas não impedir visualização
                     TempData["Warning"] = $"Aviso: Não foi possível gerar o código de pagamento automaticamente. Você pode tentar novamente mais tarde.";
@@ -2936,11 +2996,11 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> BuyCredits()
+        public Task<IActionResult> BuyCredits()
         {
             // Sistema de créditos removido - redirecionar para dashboard
             TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
-            return RedirectToAction("DashboardDetails");
+            return Task.FromResult<IActionResult>(RedirectToAction("DashboardDetails"));
         }
 
         [HttpGet]
