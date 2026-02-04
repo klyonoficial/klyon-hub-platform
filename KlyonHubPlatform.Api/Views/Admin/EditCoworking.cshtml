@@ -161,11 +161,16 @@
                 </div>
                 <div class="card-body collapse" id="endereco">
                     <div class="row">
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label fw-bold">CEP</label>
+                            <input type="text" class="form-control" id="AddressZipCode" name="AddressZipCode" value="@(Model.AddressZipCode ?? "")" 
+                                   placeholder="00000-000" maxlength="9" />
+                        </div>
                         <div class="col-md-8 mb-3">
                             <label class="form-label fw-bold">Logradouro</label>
                             <input type="text" class="form-control" name="Address" value="@(Model.Address ?? "")" />
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-2 mb-3">
                             <label class="form-label fw-bold">Número</label>
                             <input type="text" class="form-control" name="AddressNumber" value="@(Model.AddressNumber ?? "")" />
                         </div>
@@ -181,13 +186,9 @@
                             <label class="form-label fw-bold">Cidade</label>
                             <input type="text" class="form-control" name="AddressCity" value="@(Model.AddressCity ?? "")" />
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Estado</label>
                             <input type="text" class="form-control" name="AddressState" value="@(Model.AddressState ?? "")" maxlength="2" placeholder="Ex: SP" />
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <label class="form-label fw-bold">CEP</label>
-                            <input type="text" class="form-control" name="AddressZipCode" value="@(Model.AddressZipCode ?? "")" />
                         </div>
                     </div>
                 </div>
@@ -428,6 +429,50 @@
             modal.show();
         });
     });
+
+    // CEP: máscara e busca ViaCEP ao completar 8 dígitos
+    (function() {
+        var cepInput = document.getElementById('AddressZipCode');
+        if (!cepInput) return;
+        function formatarCEP(cep) {
+            cep = (cep || '').replace(/\D/g, '');
+            if (cep.length >= 8) return cep.substring(0, 5) + '-' + cep.substring(5, 8);
+            return cep;
+        }
+        cepInput.addEventListener('input', function(e) {
+            e.target.value = formatarCEP(e.target.value);
+            var cep = e.target.value.replace(/\D/g, '');
+            if (cep.length === 8) buscarCEPEditCoworking(cep);
+        });
+        cepInput.addEventListener('blur', function() {
+            var cep = this.value.replace(/\D/g, '');
+            if (cep.length === 8) buscarCEPEditCoworking(cep);
+        });
+    })();
+    async function buscarCEPEditCoworking(cep) {
+        cep = (cep || '').replace(/\D/g, '');
+        if (cep.length !== 8) return;
+        try {
+            var r = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
+            var data = await r.json();
+            if (!data.erro) {
+                var addr = document.querySelector('input[name="Address"]');
+                var neighborhood = document.querySelector('input[name="AddressNeighborhood"]');
+                var city = document.querySelector('input[name="AddressCity"]');
+                var state = document.querySelector('input[name="AddressState"]');
+                if (addr) addr.value = data.logradouro || '';
+                if (neighborhood) neighborhood.value = data.bairro || '';
+                if (city) city.value = data.localidade || '';
+                if (state) state.value = data.uf || '';
+                if (typeof showToast === 'function') showToast('Endereço preenchido automaticamente.', 'success');
+            } else {
+                if (typeof showToast === 'function') showToast('CEP não encontrado. Preencha os dados manualmente.', 'warning');
+            }
+        } catch (err) {
+            console.error('Erro ao buscar CEP:', err);
+            if (typeof showToast === 'function') showToast('Erro ao buscar CEP. Preencha os dados manualmente.', 'error');
+        }
+    }
 
     // Rotacionar ícones de chevron ao expandir/colapsar seções
     document.addEventListener('DOMContentLoaded', function() {

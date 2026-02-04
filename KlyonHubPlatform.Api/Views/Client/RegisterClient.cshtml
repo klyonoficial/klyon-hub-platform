@@ -50,28 +50,32 @@
             <div id="campos-juridica" class="@(personType == "Fisica" ? "d-none" : "")">
                 <div class="row">
                     <div class="col-md-6 mb-3">
+                        <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" @(personType == "Juridica" ? "required" : "")>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    <div class="col-md-6 mb-3">
                         <label for="RazaoSocial" class="form-label">Razão Social <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@client.RazaoSocial" @(personType == "Juridica" ? "required" : "")>
                     </div>
+                </div>
+                <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
                         <input type="text" class="form-control" id="NomeFantasia" name="NomeFantasia" value="@client.NomeFantasia">
                     </div>
                 </div>
+            </div>
+
+            <div id="campos-nome-completo" class="@(personType == "Juridica" ? "d-none" : "")">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" @(personType == "Juridica" ? "required" : "")>
-                        <div class="invalid-feedback"></div>
+                        <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ContactName" name="ContactName" value="@client.ContactName" @(personType == "Fisica" ? "required" : "")>
                     </div>
                 </div>
             </div>
-
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="ContactName" name="ContactName" value="@client.ContactName" required>
-                </div>
                 <div class="col-md-6 mb-3">
                     <label for="ContactEmail" class="form-label">Email de Contato <span class="text-danger">*</span></label>
                     <input type="email" class="form-control" id="ContactEmail" name="ContactEmail"
@@ -150,21 +154,27 @@
     var personJuridica = document.getElementById('personJuridica');
     var camposFisica = document.getElementById('campos-fisica');
     var camposJuridica = document.getElementById('campos-juridica');
+    var camposNomeCompleto = document.getElementById('campos-nome-completo');
     var inputCPF = document.getElementById('CPF');
     var inputCNPJ = document.getElementById('CNPJ');
     var inputRazaoSocial = document.getElementById('RazaoSocial');
+    var inputContactName = document.getElementById('ContactName');
 
     function setPersonType(value) {
         personTypeInput.value = value;
         if (value === 'Fisica') {
             camposFisica.classList.remove('d-none');
             camposJuridica.classList.add('d-none');
+            if (camposNomeCompleto) camposNomeCompleto.classList.remove('d-none');
+            if (inputContactName) inputContactName.setAttribute('required', 'required');
             inputCPF.setAttribute('required', 'required');
             inputCNPJ.removeAttribute('required');
             inputRazaoSocial.removeAttribute('required');
         } else {
             camposFisica.classList.add('d-none');
             camposJuridica.classList.remove('d-none');
+            if (camposNomeCompleto) camposNomeCompleto.classList.add('d-none');
+            if (inputContactName) inputContactName.removeAttribute('required');
             inputCPF.removeAttribute('required');
             inputCNPJ.setAttribute('required', 'required');
             inputRazaoSocial.setAttribute('required', 'required');

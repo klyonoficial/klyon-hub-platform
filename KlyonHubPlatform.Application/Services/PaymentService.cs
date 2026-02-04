@@ -782,6 +782,15 @@ namespace KlyonHubPlatform.Application.Services
                         new { Status = payment.Status.ToString(), PaidAt = payment.PaidAt, TransactionId = payment.TransactionId, Amount = payment.Amount }
                     );
 
+                    // Registrar histórico de validação para a coluna "Validação" mostrar "Aprovado" (manual) ou "Aprovado automaticamente" (PIX/webhook)
+                    _context.PaymentHistories.Add(new PaymentHistory
+                    {
+                        PaymentId = payment.Id,
+                        Action = "Approved",
+                        ActionBy = userId,
+                        ActionAt = DateTime.UtcNow
+                    });
+
                     // Atualizar assinatura
                     if (payment.SubscriptionId.HasValue)
                     {

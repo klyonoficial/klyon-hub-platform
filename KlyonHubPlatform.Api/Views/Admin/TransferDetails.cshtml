@@ -347,8 +347,8 @@
                                 <dt class="col-sm-2">Número do Contrato:</dt>
                                 <dd class="col-sm-4"><strong>@payment.Subscription.Contract.ContractNumber</strong></dd>
 
-                                <dt class="col-sm-2">Valor Mensal:</dt>
-                                <dd class="col-sm-4"><strong>R$ @payment.Subscription.Contract.MonthlyValue.ToString("N2")</strong></dd>
+                                <dt class="col-sm-2">Valor Anual:</dt>
+                                <dd class="col-sm-4"><strong>R$ @((payment.Subscription.Contract.MonthlyValue * 12).ToString("N2"))</strong></dd>
 
                                 <dt class="col-sm-2">Data de Início:</dt>
                                 <dd class="col-sm-4">@payment.Subscription.Contract.StartDate.ToString("dd/MM/yyyy")</dd>

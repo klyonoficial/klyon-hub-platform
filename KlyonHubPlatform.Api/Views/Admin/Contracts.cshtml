@@ -1,10 +1,14 @@
 @using KlyonHubPlatform.Domain.Core.Enums
+@removeTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.OptionTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     ViewData["Title"] = "Gerenciar Contratos de Endereço Fiscal";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Contract>
+@{
+    var pageSizeVal = ViewBag.PageSize != null ? (int)ViewBag.PageSize : 10;
+}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-file-earmark-text"></i> Gerenciar Contratos de Endereço Fiscal</h2>
@@ -47,11 +51,11 @@
             <div class="col-md-2">
                 <label for="pageSize" class="form-label">Itens por página</label>
                 <select class="form-select" id="pageSize" name="pageSize">
-                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
-                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
-                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
-                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
-                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                    <option value="5" @(pageSizeVal == 5 ? "selected" : null)>5</option>
+                    <option value="10" @(pageSizeVal == 10 ? "selected" : null)>10</option>
+                    <option value="15" @(pageSizeVal == 15 ? "selected" : null)>15</option>
+                    <option value="20" @(pageSizeVal == 20 ? "selected" : null)>20</option>
+                    <option value="50" @(pageSizeVal == 50 ? "selected" : null)>50</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
@@ -71,8 +75,8 @@
 {
     <div class="mb-3">
         <p class="text-muted mb-0">
-            Mostrando <strong>@((ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1)</strong> a 
-            <strong>@(Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems))</strong> de 
+            Mostrando <strong>@((ViewBag.CurrentPage - 1) * pageSizeVal + 1)</strong> a 
+            <strong>@(Math.Min(ViewBag.CurrentPage * pageSizeVal, ViewBag.TotalItems))</strong> de 
             <strong>@ViewBag.TotalItems</strong> contrato(s)
         </p>
     </div>
@@ -249,7 +253,7 @@
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
                                     page = ViewBag.CurrentPage - 1,
-                                    pageSize = ViewBag.PageSize
+                                    pageSize = pageSizeVal
                                 })">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
@@ -264,7 +268,7 @@
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
                                     page = i,
-                                    pageSize = ViewBag.PageSize
+                                    pageSize = pageSizeVal
                                 })">
                                     @i
                                 </a>
@@ -279,7 +283,7 @@
                                     status = ViewBag.Status, 
                                     clientId = ViewBag.ClientId, 
                                     page = ViewBag.CurrentPage + 1,
-                                    pageSize = ViewBag.PageSize
+                                    pageSize = pageSizeVal
                                 })">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>

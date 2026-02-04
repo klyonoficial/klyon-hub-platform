@@ -95,7 +95,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             
-            // Cliente recém-cadastrado deve completar CPF, Nome Completo e Estado em RegisterClient antes de acessar os serviços
+            // Cliente recém-cadastrado deve completar CPF ou CNPJ, Nome Completo, Telefone e Estado em RegisterClient antes de acessar os serviços
             if (User.IsInRole("Client") && !User.IsInRole("Administrator"))
             {
                 var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -104,10 +104,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Info"] = "Complete seu cadastro para continuar.";
                     return RedirectToAction("RegisterClient");
                 }
-                var missingRequired = string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State);
+                var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
+                var missingRequired = !hasDocument || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State);
                 if (missingRequired)
                 {
-                    TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo e Estado) para continuar.";
+                    TempData["Info"] = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar.";
                     return RedirectToAction("RegisterClient");
                 }
             }
@@ -548,10 +549,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     _context.Entry(existingClient).Property(c => c.CPF).IsModified = true;
                 }
 
-                // CPF é obrigatório (mesmo padrão da tela RegisterClient)
-                if (string.IsNullOrWhiteSpace(client.CPF))
+                // CPF ou CNPJ é obrigatório: pessoa jurídica = CNPJ, pessoa física = CPF
+                var cnpjPreenchido = !string.IsNullOrWhiteSpace(cnpjInput);
+                var cpfPreenchido = !string.IsNullOrWhiteSpace(cpfInput);
+                if (!cnpjPreenchido && !cpfPreenchido)
                 {
-                    var err = "O CPF é obrigatório.";
+                    var err = "Informe o CPF (pessoa física) ou o CNPJ (pessoa jurídica).";
                     TempData["Error"] = err;
                     if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
@@ -769,13 +772,15 @@ namespace KlyonHubPlatform.Api.Controllers
                         return RedirectToAction("DashboardDetails");
                     }
                     
-                    // Nome Completo é obrigatório
-                    if (string.IsNullOrWhiteSpace(client.ContactName))
+                    // Nome Completo é obrigatório apenas para Pessoa Física
+                    if (!string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(client.ContactName))
                     {
                         TempData["Error"] = "O Nome Completo é obrigatório.";
                         ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
                         return View(existingClient);
                     }
+                    if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(client.ContactName))
+                        client.ContactName = client.RazaoSocial ?? client.NomeFantasia ?? existingClient.ContactName;
                     
                     // Telefone é obrigatório
                     if (string.IsNullOrWhiteSpace(client.ContactPhone))
@@ -928,13 +933,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("DashboardDetails");
                 }
 
-                // Nome Completo é obrigatório
-                if (string.IsNullOrWhiteSpace(client.ContactName))
+                // Nome Completo é obrigatório apenas para Pessoa Física
+                if (!string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(client.ContactName))
                 {
                     TempData["Error"] = "O Nome Completo é obrigatório.";
                     ViewBag.UserEmail = userEmail;
                     return View(client);
                 }
+                if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(client.ContactName))
+                    client.ContactName = client.RazaoSocial?.Trim() ?? client.NomeFantasia?.Trim() ?? "";
 
                 // Validar CNPJ e CPF usando DocumentValidator
                 if (!string.IsNullOrWhiteSpace(client.CNPJ))
@@ -1094,9 +1101,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Info"] = "Complete seu cadastro para continuar.";
                     return RedirectToAction("RegisterClient");
                 }
-                if (string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State))
+                var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
+                if (!hasDocument || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State))
                 {
-                    TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo e Estado) para continuar.";
+                    TempData["Info"] = "Complete seu cadastro (CPF ou CNPJ, Nome Completo e Estado) para continuar.";
                     return RedirectToAction("RegisterClient");
                 }
             }
@@ -1349,11 +1357,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("RegisterClient", new { returnUrl = returnUrlComplete });
             }
 
-            var missingRequired = string.IsNullOrWhiteSpace(client.CPF) || string.IsNullOrWhiteSpace(client.ContactName)
+            var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
+            var missingRequired = !hasDocument || string.IsNullOrWhiteSpace(client.ContactName)
                 || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.State);
             if (missingRequired)
             {
-                TempData["Info"] = "Complete seu cadastro (CPF, Nome Completo, Telefone e Estado) para continuar com a contratação.";
+                TempData["Info"] = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar com a contratação.";
                 return RedirectToAction("RegisterClient", new { id = client.Id, returnUrl = returnUrlComplete });
             }
 
@@ -3004,25 +3013,25 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CheckoutCredits(int creditPlanId)
+        public Task<IActionResult> CheckoutCredits(int creditPlanId)
         {
             // Sistema de créditos removido
             TempData["Info"] = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
-            return RedirectToAction("DashboardDetails");
+            return Task.FromResult<IActionResult>(RedirectToAction("DashboardDetails"));
         }
 
         [HttpPost]
-        public async Task<IActionResult> GenerateCreditPurchasePix([FromBody] CreditPlanIdRequest req)
+        public Task<IActionResult> GenerateCreditPurchasePix([FromBody] CreditPlanIdRequest req)
         {
             // Sistema de créditos removido
-            return Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." }));
         }
 
         [HttpPost]
-        public async Task<IActionResult> GenerateCreditPurchaseBoleto([FromBody] CreditPlanIdRequest req)
+        public Task<IActionResult> GenerateCreditPurchaseBoleto([FromBody] CreditPlanIdRequest req)
         {
             // Sistema de créditos removido
-            return Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$." }));
         }
 
         [HttpPost]
@@ -3896,11 +3905,11 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20)
+        public Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20)
         {
             // Clientes não emitem notas fiscais de comissão, apenas visualizam as notas dos serviços que pagaram
             // Redirecionar para a página de visualização de notas fiscais
-            return RedirectToAction("FiscalNotes");
+            return Task.FromResult<IActionResult>(RedirectToAction("FiscalNotes"));
         }
 
         [HttpGet]

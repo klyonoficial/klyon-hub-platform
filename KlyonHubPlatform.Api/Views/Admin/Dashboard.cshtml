@@ -1284,4 +1284,8 @@ document.addEventListener('DOMContentLoaded', function() {
 .card-header[data-bs-toggle="collapse"]:hover {
     background-color: rgba(0,0,0,0.03);
 }
+/* Evita o “lift” do card no hover nos blocos colapsáveis (evita card subir ao passar o mouse) */
+.card:has(.card-header[data-bs-toggle="collapse"]):hover {
+    transform: none;
+}
 </style>

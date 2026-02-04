@@ -3207,6 +3207,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 payment.ValidatedBy = userId;
                 payment.ValidatedAt = DateTime.UtcNow;
                 payment.UpdatedAt = DateTime.UtcNow;
+
+                _context.PaymentHistories.Add(new PaymentHistory
+                {
+                    PaymentId = paymentId,
+                    Action = "Approved",
+                    ActionBy = userId,
+                    ActionAt = DateTimeHelper.GetBrazilianTime()
+                });
                 await _context.SaveChangesAsync();
 
                 // Verificar se é o primeiro pagamento (não há pagamentos anteriores pagos)

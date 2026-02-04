@@ -162,10 +162,10 @@
     <!-- Endereço Fiscal -->
     <div class="col-md-6 mb-4">
         <div class="card">
-            <div class="card-header bg-success text-white">
-                <h5 class="card-title-tight"><i class="bi bi-geo-alt"></i> Endereço Fiscal</h5>
+            <div class="card-header bg-success text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecoFiscalBody" aria-expanded="false" aria-controls="enderecoFiscalBody">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço Fiscal <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="enderecoFiscalBody">
                 <p>
                     <strong>@Model.CoworkingAddress?.Address</strong>, @Model.CoworkingAddress?.Number<br>
                     @if (!string.IsNullOrEmpty(Model.CoworkingAddress?.Complement))
@@ -191,10 +191,10 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="card-title-tight"><i class="bi bi-cash-coin"></i> Histórico de Pagamentos</h5>
+            <div class="card-header bg-warning text-dark" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#historicoPagamentosBody" aria-expanded="false" aria-controls="historicoPagamentosBody">
+                <h5 class="mb-0"><i class="bi bi-cash-coin"></i> Histórico de Pagamentos <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="historicoPagamentosBody">
                 @if (ViewBag.Payments != null && ((List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments).Any())
                 {
                     <div class="table-responsive">
@@ -312,7 +312,7 @@
                                                 {
                                                     var lastApproved = histories[payment.Id].Where(h => h.Action == "Approved").OrderByDescending(h => h.ActionAt).First();
                                                     <span class="badge bg-active">
-                                                        <i class="bi bi-check-circle-fill me-1"></i> Aprovado por @(lastApproved.ActionByUser?.FullName ?? "Admin")
+                                                        <i class="bi bi-check-circle-fill me-1"></i> Aprovado @(lastApproved.ActionByUser != null ? "por " + lastApproved.ActionByUser.FullName : "automaticamente (PIX)")
                                                     </span>
                                                 }
                                                 else if (payment.Status == PaymentStatus.Failed || payment.Status == PaymentStatus.Cancelled)
@@ -331,7 +331,7 @@
                                                     if (lastHistory.Action == "Approved")
                                                     {
                                                         <span class="badge bg-active">
-                                                            <i class="bi bi-check-circle-fill me-1"></i> Aprovado por @(lastHistory.ActionByUser?.FullName ?? "Admin")
+                                                            <i class="bi bi-check-circle-fill me-1"></i> Aprovado @(lastHistory.ActionByUser != null ? "por " + lastHistory.ActionByUser.FullName : "automaticamente (PIX)")
                                                         </span>
                                                     }
                                                     else

@@ -791,6 +791,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.ActionByUser)
                     .WithMany()
                     .HasForeignKey(e => e.ActionBy)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.Property(e => e.Action).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.RejectionReason).HasMaxLength(1000);

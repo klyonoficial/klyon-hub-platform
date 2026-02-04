@@ -176,6 +176,10 @@
                                         break;
                                 }
                             }
+                            var latestPayment = contract.Subscription?.Payments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+                            var paymentMethodLabel = latestPayment != null
+                                ? (latestPayment.Method == PaymentMethod.PIX ? "PIX" : latestPayment.Method == PaymentMethod.CreditCard ? "Cartão" : latestPayment.Method == PaymentMethod.BankTransfer ? "Boleto" : latestPayment.Method.ToString())
+                                : "—";
                             <tr class="contract-row cursor-pointer" role="button" tabindex="0"
                                 data-contract-id="@contract.Id"
                                 data-contract-number="@(contract.ContractNumber ?? contract.Id.ToString())"
@@ -188,6 +192,7 @@
                                 data-status-label="@statusLabel"
                                 data-status-badge="@statusBadgeClass"
                                 data-status-icon="@statusIcon"
+                                data-payment-method="@paymentMethodLabel"
                                 data-details-url="@Url.Action("ContractDetails", "Coworking", new { id = contract.Id })">
                                 <td><strong>@(contract.ContractNumber ?? contract.Id.ToString())</strong></td>
                                 <td>
@@ -307,6 +312,10 @@
                         <th class="text-muted">Status:</th>
                         <td><span id="modalStatusBadge"></span></td>
                     </tr>
+                    <tr>
+                        <th class="text-muted">Forma de pagamento:</th>
+                        <td><strong id="modalPaymentMethod"></strong></td>
+                    </tr>
                 </table>
             </div>
             <div class="modal-footer">
@@ -348,6 +357,7 @@ document.addEventListener('DOMContentLoaded', function () {
             badge.className = 'badge ' + (d.statusBadge || 'bg-secondary');
             badge.innerHTML = '<i class="bi ' + (d.statusIcon || 'bi-circle') + ' me-1"></i> ' + (d.statusLabel || '—');
             document.getElementById('modalDetailsLink').href = d.detailsUrl || '#';
+            document.getElementById('modalPaymentMethod').textContent = d.paymentMethod || '—';
             modal.show();
         });
         row.addEventListener('keydown', function (e) {

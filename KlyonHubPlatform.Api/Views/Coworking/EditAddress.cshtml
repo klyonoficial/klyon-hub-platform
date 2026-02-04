@@ -187,8 +187,8 @@
                     }
                     else
                     {
-                        <input type="number" class="form-control" id="MaxContracts" name="MaxContracts" 
-                               value="@Model.MaxContracts" min="@Model.CurrentContracts" required>
+                        <input type="number" step="1" min="@Model.CurrentContracts" class="form-control" id="MaxContracts" name="MaxContracts" 
+                               value="@Model.MaxContracts" required title="Somente números inteiros">
                         <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
                     }
                 </div>
@@ -275,7 +275,7 @@
                         <div class="col-md-6 mb-3">
                             <label for="RequestedFiscalCapacity" class="form-label">Nova Capacidade Solicitada</label>
                             <input type="number" class="form-control" id="RequestedFiscalCapacity" 
-                                   value="@Model.RequestedFiscalCapacity" min="@Model.CurrentContracts" 
+                                   value="@Model.RequestedFiscalCapacity" min="@Model.CurrentContracts" step="1"
                                    @(hasPendingRequest ? "readonly" : "")>
                             <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
                         </div>
@@ -360,6 +360,22 @@ function onlyNumbers(event) {
     return true;
 }
 
+// Bloquear vírgula, ponto e outros caracteres não inteiros (para campos que aceitam só inteiro)
+function allowOnlyIntegerInput(event) {
+    var k = event.key;
+    if (k === ',' || k === '.' || k === 'e' || k === 'E' || k === '+' || k === '-') {
+        event.preventDefault();
+        return;
+    }
+}
+// Remover vírgula/ponto ao digitar ou colar
+function stripDecimalChars(e) {
+    var v = e.target.value;
+    if (/[,.]/.test(v)) {
+        e.target.value = v.replace(/[,.]/g, '');
+    }
+}
+
 // Aplicar máscara de CEP
 if (!hasActiveContracts) {
     var zipCodeInput = document.getElementById('ZipCode');
@@ -436,13 +452,24 @@ if (!hasActiveContracts) {
         });
     }
 
-    // Validar maxContracts (não pode ser menor que currentContracts)
+    // Validar maxContracts: somente inteiro e não pode ser menor que currentContracts
     var maxContractsInput = document.getElementById('MaxContracts');
     if (maxContractsInput) {
+        maxContractsInput.addEventListener('keydown', allowOnlyIntegerInput);
+        maxContractsInput.addEventListener('input', stripDecimalChars);
         maxContractsInput.addEventListener('input', function(e) {
-            const minValue = parseInt(e.target.min);
-            const value = parseInt(e.target.value);
-            if (value < minValue) {
+            var raw = e.target.value;
+            if (raw === '' || raw === '-') {
+                e.target.setCustomValidity('');
+                return;
+            }
+            var num = parseFloat(raw);
+            if (!Number.isInteger(num) || num !== Math.floor(num)) {
+                e.target.setCustomValidity('O máximo de contratos deve ser um número inteiro.');
+                return;
+            }
+            var minValue = parseInt(e.target.min, 10);
+            if (!isNaN(minValue) && num < minValue) {
                 e.target.setCustomValidity('O máximo de contratos não pode ser menor que ' + minValue + '.');
             } else {
                 e.target.setCustomValidity('');
@@ -462,17 +489,49 @@ if (!hasActiveContracts) {
                 return false;
             }
 
-            const maxContracts = parseInt(document.getElementById('MaxContracts').value);
-            const minContracts = parseInt(document.getElementById('MaxContracts').min);
-            if (maxContracts < minContracts) {
-                e.preventDefault();
-                showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
-                document.getElementById('MaxContracts').focus();
-                return false;
+            var maxContractsEl = document.getElementById('MaxContracts');
+            if (maxContractsEl) {
+                var maxContractsVal = maxContractsEl.value.trim();
+                var maxContractsNum = parseFloat(maxContractsVal);
+                if (maxContractsVal === '' || isNaN(maxContractsNum)) {
+                    e.preventDefault();
+                    showToast('Informe o máximo de contratos.', 'warning');
+                    maxContractsEl.focus();
+                    return false;
+                }
+                if (!Number.isInteger(maxContractsNum) || maxContractsNum !== Math.floor(maxContractsNum)) {
+                    e.preventDefault();
+                    showToast('O campo Máximo de Contratos aceita somente números inteiros.', 'warning');
+                    maxContractsEl.focus();
+                    return false;
+                }
+                var minContracts = parseInt(maxContractsEl.min, 10);
+                if (!isNaN(minContracts) && maxContractsNum < minContracts) {
+                    e.preventDefault();
+                    showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
+                    maxContractsEl.focus();
+                    return false;
+                }
             }
         });
     }
 }
+
+// Nova Capacidade Solicitada: bloquear vírgula e ponto
+(function() {
+    function initIntegerOnlyCapacity() {
+        var capInput = document.getElementById('RequestedFiscalCapacity');
+        if (capInput && !capInput.readOnly) {
+            capInput.addEventListener('keydown', allowOnlyIntegerInput);
+            capInput.addEventListener('input', stripDecimalChars);
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initIntegerOnlyCapacity);
+    } else {
+        initIntegerOnlyCapacity();
+    }
+})();
 
 // Solicitar alteração de capacidade fiscal (registrar após DOM pronto)
 (function() {
@@ -481,12 +540,20 @@ if (!hasActiveContracts) {
         if (!btn) return;
 
         btn.addEventListener('click', async function() {
-            var requestedCapacity = parseInt(document.getElementById('RequestedFiscalCapacity').value, 10);
+            var rawValue = document.getElementById('RequestedFiscalCapacity').value;
+            var requestedCapacity = parseInt(rawValue, 10);
             var justification = (document.getElementById('CapacityJustification').value || '').trim();
             var currentContracts = @Model.CurrentContracts;
             var approvedCapacity = @Model.ApprovedFiscalCapacity;
 
-            if (isNaN(requestedCapacity) || requestedCapacity < currentContracts) {
+            if (rawValue === '' || isNaN(requestedCapacity) || requestedCapacity !== parseFloat(rawValue) || !Number.isInteger(requestedCapacity)) {
+                if (typeof showToast === 'function') showToast('Nova Capacidade Solicitada deve ser um número inteiro.', 'warning');
+                else alert('Nova Capacidade Solicitada deve ser um número inteiro.');
+                document.getElementById('RequestedFiscalCapacity').focus();
+                return;
+            }
+
+            if (requestedCapacity < currentContracts) {
                 if (typeof showToast === 'function') showToast('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').', 'warning');
                 else alert('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').');
                 document.getElementById('RequestedFiscalCapacity').focus();

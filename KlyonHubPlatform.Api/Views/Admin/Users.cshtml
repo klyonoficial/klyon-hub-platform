@@ -1,3 +1,4 @@
+@removeTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.OptionTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     ViewData["Title"] = "Gerenciar Usuários";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -48,10 +49,13 @@
             <div class="col-md-1">
                 <label for="pageSize" class="form-label">Por página</label>
                 <select class="form-select" id="pageSize" name="pageSize">
-                    <option value="10" selected="@(ViewBag.PageSize == 10)">10</option>
-                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
-                    <option value="25" selected="@(ViewBag.PageSize == 25)">25</option>
-                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
+                    @{
+                        var currentPageSize = ViewBag.PageSize as int? ?? 15;
+                    }
+                    <option value="10" @(currentPageSize == 10 ? "selected" : null)>10</option>
+                    <option value="15" @(currentPageSize == 15 ? "selected" : null)>15</option>
+                    <option value="25" @(currentPageSize == 25 ? "selected" : null)>25</option>
+                    <option value="50" @(currentPageSize == 50 ? "selected" : null)>50</option>
                 </select>
             </div>
             <div class="col-md-2 d-flex align-items-end gap-2">
@@ -67,14 +71,21 @@
 </div>
 
 <!-- Informações de paginação -->
-@if (ViewBag.TotalItems != null && (int)ViewBag.TotalItems > 0)
+@if (ViewBag.TotalItems != null)
 {
-    var from = (ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1;
-    var to = Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems);
     <div class="mb-3">
-        <small class="text-muted">
-            Mostrando @from a @to de @ViewBag.TotalItems usuário(s)
-        </small>
+        <p class="text-muted mb-0">
+            @if ((int)ViewBag.TotalItems > 0)
+            {
+                var from = (ViewBag.CurrentPage - 1) * ViewBag.PageSize + 1;
+                var to = Math.Min(ViewBag.CurrentPage * ViewBag.PageSize, ViewBag.TotalItems);
+                <text>Mostrando <strong>@from</strong> a <strong>@to</strong> de <strong>@ViewBag.TotalItems</strong> usuário(s)</text>
+            }
+            else
+            {
+                <text><strong>0</strong> usuário(s) encontrado(s)</text>
+            }
+        </p>
     </div>
 }
 
@@ -159,6 +170,117 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Paginação -->
+            @if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Paginação de usuários">
+                    <ul class="pagination justify-content-center mt-4">
+                        @if (ViewBag.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    role = ViewBag.SelectedRole, 
+                                    status = ViewBag.Status, 
+                                    emailVerified = ViewBag.EmailVerified, 
+                                    page = ViewBag.CurrentPage - 1,
+                                    pageSize = ViewBag.PageSize
+                                })">
+                                    <i class="bi bi-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        }
+
+                        @{
+                            int startPage = Math.Max(1, ViewBag.CurrentPage - 2);
+                            int endPage = Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2);
+                        }
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    role = ViewBag.SelectedRole, 
+                                    status = ViewBag.Status, 
+                                    emailVerified = ViewBag.EmailVerified, 
+                                    page = 1,
+                                    pageSize = ViewBag.PageSize
+                                })">
+                                    1
+                                </a>
+                            </li>
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (int i = startPage; i <= endPage; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    role = ViewBag.SelectedRole, 
+                                    status = ViewBag.Status, 
+                                    emailVerified = ViewBag.EmailVerified, 
+                                    page = i,
+                                    pageSize = ViewBag.PageSize
+                                })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        @if (endPage < ViewBag.TotalPages)
+                        {
+                            @if (endPage < ViewBag.TotalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    role = ViewBag.SelectedRole, 
+                                    status = ViewBag.Status, 
+                                    emailVerified = ViewBag.EmailVerified, 
+                                    page = ViewBag.TotalPages,
+                                    pageSize = ViewBag.PageSize
+                                })">
+                                    @ViewBag.TotalPages
+                                </a>
+                            </li>
+                        }
+
+                        @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                    search = ViewBag.Search, 
+                                    role = ViewBag.SelectedRole, 
+                                    status = ViewBag.Status, 
+                                    emailVerified = ViewBag.EmailVerified, 
+                                    page = ViewBag.CurrentPage + 1,
+                                    pageSize = ViewBag.PageSize
+                                })">
+                                    Próxima <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+            else if (ViewBag.TotalPages != null && ViewBag.TotalPages == 1 && ViewBag.TotalItems > 0)
+            {
+                <div class="text-center mt-3">
+                    <small class="text-muted">Todos os @ViewBag.TotalItems usuário(s) estão sendo exibidos nesta página.</small>
+                </div>
+            }
         }
         else
         {
@@ -168,110 +290,6 @@
         }
     </div>
 </div>
-
-<!-- Paginação -->
-@if (ViewBag.TotalPages != null && ViewBag.TotalPages > 1)
-{
-    <nav aria-label="Paginação de usuários" class="mt-4">
-        <ul class="pagination justify-content-center">
-            @if (ViewBag.CurrentPage > 1)
-            {
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
-                        search = ViewBag.Search, 
-                        role = ViewBag.SelectedRole, 
-                        status = ViewBag.Status, 
-                        emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.CurrentPage - 1,
-                        pageSize = ViewBag.PageSize
-                    })">
-                        <i class="bi bi-chevron-left"></i> Anterior
-                    </a>
-                </li>
-            }
-
-            @{
-                int startPage = Math.Max(1, ViewBag.CurrentPage - 2);
-                int endPage = Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2);
-            }
-
-            @if (startPage > 1)
-            {
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
-                        search = ViewBag.Search, 
-                        role = ViewBag.SelectedRole, 
-                        status = ViewBag.Status, 
-                        emailVerified = ViewBag.EmailVerified, 
-                        page = 1 
-                    })">
-                        1
-                    </a>
-                </li>
-                @if (startPage > 2)
-                {
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                }
-            }
-
-            @for (int i = startPage; i <= endPage; i++)
-            {
-                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
-                        search = ViewBag.Search, 
-                        role = ViewBag.SelectedRole, 
-                        status = ViewBag.Status, 
-                        emailVerified = ViewBag.EmailVerified, 
-                        page = i,
-                        pageSize = ViewBag.PageSize
-                    })">
-                        @i
-                    </a>
-                </li>
-            }
-
-            @if (endPage < ViewBag.TotalPages)
-            {
-                @if (endPage < ViewBag.TotalPages - 1)
-                {
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                }
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
-                        search = ViewBag.Search, 
-                        role = ViewBag.SelectedRole, 
-                        status = ViewBag.Status, 
-                        emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.TotalPages,
-                        pageSize = ViewBag.PageSize
-                    })">
-                        @ViewBag.TotalPages
-                    </a>
-                </li>
-            }
-
-            @if (ViewBag.CurrentPage < ViewBag.TotalPages)
-            {
-                <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Users", "Admin", new { 
-                        search = ViewBag.Search, 
-                        role = ViewBag.SelectedRole, 
-                        status = ViewBag.Status, 
-                        emailVerified = ViewBag.EmailVerified, 
-                        page = ViewBag.CurrentPage + 1,
-                        pageSize = ViewBag.PageSize
-                    })">
-                        Próxima <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            }
-        </ul>
-    </nav>
-}
 
 @section Scripts {
     <script>

@@ -124,9 +124,23 @@ function validateCPForCNPJ(value) {
     }
 }
 
+/**
+ * Obtém o tipo de pessoa do formulário (Fisica ou Juridica)
+ * @param {HTMLFormElement} form
+ * @returns {string|null} 'Fisica', 'Juridica' ou null se o formulário não tem seletor de tipo
+ */
+function getPersonTypeFromForm(form) {
+    if (!form) return null;
+    var radio = form.querySelector('input[name="PersonTypeRadio"]:checked');
+    if (radio) return radio.value;
+    var hidden = form.querySelector('input[name="PersonType"], input#PersonType');
+    if (hidden && hidden.value) return hidden.value;
+    return null;
+}
+
 // Aplicar validação em tempo real nos campos CPF e CNPJ
 document.addEventListener('DOMContentLoaded', function() {
-    // Validação para campo CPF
+    // Validação para campo CPF - só valida quando tipo de pessoa é Física
     document.querySelectorAll('input[id="CPF"], input[name="CPF"]').forEach(function(input) {
         if (input.type !== 'hidden') {
             let feedbackDiv = null;
@@ -140,8 +154,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 feedbackDiv = input.nextElementSibling;
             }
             
-            // Validação ao perder o foco
+            // Validação ao perder o foco - só valida CPF se tipo for Pessoa Física
             input.addEventListener('blur', function() {
+                var form = input.form;
+                var personType = getPersonTypeFromForm(form);
+                if (personType === 'Juridica') {
+                    input.classList.remove('is-invalid', 'is-valid');
+                    feedbackDiv.style.display = 'none';
+                    return;
+                }
                 const value = input.value.trim();
                 if (value) {
                     const validation = validateCPForCNPJ(value);
@@ -171,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Validação para campo CNPJ
+    // Validação para campo CNPJ - só valida quando tipo de pessoa é Jurídica
     document.querySelectorAll('input[id="CNPJ"], input[name="CNPJ"]').forEach(function(input) {
         if (input.type !== 'hidden') {
             let feedbackDiv = null;
@@ -185,8 +206,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 feedbackDiv = input.nextElementSibling;
             }
             
-            // Validação ao perder o foco
+            // Validação ao perder o foco - só valida CNPJ se tipo for Pessoa Jurídica
             input.addEventListener('blur', function() {
+                var form = input.form;
+                var personType = getPersonTypeFromForm(form);
+                if (personType === 'Fisica') {
+                    input.classList.remove('is-invalid', 'is-valid');
+                    feedbackDiv.style.display = 'none';
+                    return;
+                }
                 const value = input.value.trim();
                 if (value) {
                     const validation = validateCPForCNPJ(value);
@@ -227,9 +255,15 @@ document.addEventListener('DOMContentLoaded', function() {
             form.addEventListener('submit', function(e) {
                 let isValid = true;
                 let errorMessage = '';
+                var focusedOnCPF = false;
+                var personType = getPersonTypeFromForm(form);
                 
-                // Validar CPF se preenchido
-                if (hasCPF) {
+                // Se o formulário tem seletor de tipo de pessoa, validar apenas o documento correspondente
+                var shouldValidateCPF = !personType || personType === 'Fisica';
+                var shouldValidateCNPJ = !personType || personType === 'Juridica';
+                
+                // Validar CPF apenas se tipo for Pessoa Física
+                if (hasCPF && shouldValidateCPF) {
                     const cpfInput = hasCPF;
                     const cpfValue = cpfInput.value.trim();
                     if (cpfValue) {
@@ -239,12 +273,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             errorMessage = validation.message;
                             cpfInput.classList.add('is-invalid');
                             cpfInput.focus();
+                            focusedOnCPF = true;
                         }
                     }
                 }
                 
-                // Validar CNPJ se preenchido
-                if (hasCNPJ) {
+                // Validar CNPJ apenas se tipo for Pessoa Jurídica
+                if (hasCNPJ && shouldValidateCNPJ) {
                     const cnpjInput = hasCNPJ;
                     const cnpjValue = cnpjInput.value.trim();
                     if (cnpjValue) {
@@ -254,18 +289,36 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (errorMessage) errorMessage += ' ';
                             errorMessage += validation.message;
                             cnpjInput.classList.add('is-invalid');
-                            if (!hasCPF || !hasCPF.value.trim()) {
+                            if (!focusedOnCPF) {
                                 cnpjInput.focus();
                             }
                         }
                     }
                 }
                 
-                // Verificar se pelo menos um está preenchido
+                // Verificar se o documento obrigatório está preenchido conforme o tipo
                 const cpfValue = hasCPF ? hasCPF.value.trim() : '';
                 const cnpjValue = hasCNPJ ? hasCNPJ.value.trim() : '';
                 
-                if (!cpfValue && !cnpjValue) {
+                if (personType === 'Fisica') {
+                    if (!cpfValue) {
+                        isValid = false;
+                        errorMessage = 'É necessário informar o CPF para Pessoa Física.';
+                        if (hasCPF) {
+                            hasCPF.classList.add('is-invalid');
+                            hasCPF.focus();
+                        }
+                    }
+                } else if (personType === 'Juridica') {
+                    if (!cnpjValue) {
+                        isValid = false;
+                        errorMessage = 'É necessário informar o CNPJ para Pessoa Jurídica.';
+                        if (hasCNPJ) {
+                            hasCNPJ.classList.add('is-invalid');
+                            hasCNPJ.focus();
+                        }
+                    }
+                } else if (!cpfValue && !cnpjValue) {
                     isValid = false;
                     errorMessage = 'É necessário informar CPF ou CNPJ.';
                     if (hasCNPJ) {

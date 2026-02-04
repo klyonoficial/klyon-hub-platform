@@ -2515,21 +2515,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("Payments");
                 }
 
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-
-                // Confirmar pagamento (usa transação interna)
+                // Confirmar pagamento (já registra PaymentHistory "Approved" internamente quando há usuário no contexto)
                 await _paymentService.ConfirmPaymentAsync(paymentId, Guid.NewGuid().ToString());
-
-                // Registrar histórico após confirmação (commit separado para evitar deadlock)
-                var history = new PaymentHistory
-                {
-                    PaymentId = paymentId,
-                    Action = "Approved",
-                    ActionBy = userId,
-                    ActionAt = DateTimeHelper.GetBrazilianTime()
-                };
-                _context.PaymentHistories.Add(history);
-                await _context.SaveChangesAsync();
 
                 TempData["Success"] = "Pagamento aprovado com sucesso!";
             }
@@ -5232,6 +5219,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, int? clientId = null)
         {
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100;
+            if (page < 1) page = 1;
+
             var query = _context.Commissions
                 .Include(c => c.Payment)
                     .ThenInclude(p => p.Subscription)

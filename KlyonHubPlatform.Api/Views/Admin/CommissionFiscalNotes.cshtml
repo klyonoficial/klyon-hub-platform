@@ -16,6 +16,8 @@
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" action="@Url.Action("CommissionFiscalNotes", "Admin")" class="row g-3">
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="@(ViewBag.PageSize ?? 10)" />
             <div class="col-md-4">
                 <label for="coworkingId" class="form-label">Parceiro</label>
                 <select class="form-select" id="coworkingId" name="coworkingId">
@@ -80,6 +82,28 @@
     <div class="card-body">
         @if (Model.Any())
         {
+            var totalItems = (int)ViewBag.TotalItems;
+            var currentPage = (int)ViewBag.CurrentPage;
+            var totalPages = (int)ViewBag.TotalPages;
+            var pageSize = (int)ViewBag.PageSize;
+            var from = (currentPage - 1) * pageSize + 1;
+            var to = Math.Min(currentPage * pageSize, totalItems);
+
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <span class="text-muted">
+                    Mostrando <strong>@from</strong> a <strong>@to</strong> de <strong>@totalItems</strong> comissões
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">Itens por página:</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        @foreach (var size in new[] { 10, 20, 50 })
+                        {
+                            <a href="@Url.Action("CommissionFiscalNotes", new { page = 1, pageSize = size, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })"
+                               class="btn @(pageSize == size ? "btn-primary" : "btn-outline-secondary")">@size</a>
+                        }
+                    </div>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>

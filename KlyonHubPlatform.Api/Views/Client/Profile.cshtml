@@ -1,6 +1,8 @@
 @{
     ViewData["Title"] = "Meu Perfil";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var cnpjDigits = Model?.CNPJ != null ? System.Text.RegularExpressions.Regex.Replace(Model.CNPJ, @"\D", "") : "";
+    var cpfObrigatorio = string.IsNullOrEmpty(cnpjDigits) || cnpjDigits.Length < 14;
 }
 
 @model KlyonHubPlatform.Domain.Entities.Client
@@ -81,8 +83,9 @@
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14" required>
+                    <label for="CPF" class="form-label">CPF <span id="cpfRequiredMarker" class="text-danger @(cpfObrigatorio ? "" : "d-none")">*</span></label>
+                    <input type="text" class="form-control" id="CPF" name="CPF" value="@Model.CPF" placeholder="000.000.000-00" maxlength="14" @(cpfObrigatorio ? "required" : "")>
+                    <small class="form-text text-muted" id="cpfHelper">Obrigatório para pessoa física. Não necessário se CNPJ estiver preenchido.</small>
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
@@ -189,6 +192,29 @@
 @section Scripts {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // CPF é obrigatório apenas quando CNPJ não está preenchido (pessoa física)
+    var cnpjInput = document.getElementById('CNPJ');
+    var cpfInput = document.getElementById('CPF');
+    var cpfMarker = document.getElementById('cpfRequiredMarker');
+    function updateCpfRequired() {
+        var cnpjVal = (cnpjInput && cnpjInput.value || '').replace(/\D/g, '');
+        var cpfIsRequired = cnpjVal.length < 14;
+        if (cpfInput) {
+            if (cpfIsRequired) {
+                cpfInput.setAttribute('required', 'required');
+                if (cpfMarker) cpfMarker.classList.remove('d-none');
+            } else {
+                cpfInput.removeAttribute('required');
+                cpfInput.setCustomValidity('');
+                if (cpfMarker) cpfMarker.classList.add('d-none');
+            }
+        }
+    }
+    if (cnpjInput) {
+        cnpjInput.addEventListener('input', updateCpfRequired);
+        cnpjInput.addEventListener('change', updateCpfRequired);
+    }
+
     var form = document.getElementById('clientProfileForm');
     if (!form) return;
     form.addEventListener('submit', function(e) {
