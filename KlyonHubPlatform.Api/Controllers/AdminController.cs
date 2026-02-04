@@ -35,6 +35,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ICommissionService _commissionService;
         private readonly IMonthlySettlementService _monthlySettlementService;
         private readonly StorageServiceFactory _storageFactory;
+        private readonly IAppBaseUrlProvider _appBaseUrlProvider;
 
         public AdminController(
             IUserService userService,
@@ -53,7 +54,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IEmailService emailService,
             ICommissionService commissionService,
             IMonthlySettlementService monthlySettlementService,
-            StorageServiceFactory storageFactory)
+            StorageServiceFactory storageFactory,
+            IAppBaseUrlProvider appBaseUrlProvider)
         {
             _userService = userService;
             _reportService = reportService;
@@ -72,6 +74,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _commissionService = commissionService;
             _monthlySettlementService = monthlySettlementService;
             _storageFactory = storageFactory;
+            _appBaseUrlProvider = appBaseUrlProvider;
         }
 
         public IActionResult Index()
@@ -785,12 +788,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 var savedUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
                 var hashValid = savedUser?.PasswordHash?.StartsWith("$2a$") ?? false;
 
+                var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
+                var loginUrl = $"{baseUrl.TrimEnd('/')}/Auth/Login";
+
                 return Content($"<h1>Senha Resetada!</h1>" +
                     $"<p><strong>Email:</strong> {user.Email}</p>" +
                     $"<p><strong>Nova Senha:</strong> {newPassword}</p>" +
                     $"<p><strong>Hash válido:</strong> {(hashValid ? "SIM ✓" : "NÃO ✗")}</p>" +
                     $"<p><strong>Hash (primeiros 30 chars):</strong> {(savedUser?.PasswordHash != null ? savedUser.PasswordHash.Substring(0, Math.Min(30, savedUser.PasswordHash.Length)) : "N/A")}</p>" +
-                    $"<hr><p><a href='/Auth/Login'>Fazer Login</a></p>", "text/html");
+                    $"<hr><p><a href='{loginUrl}'>Fazer Login</a></p>", "text/html");
             }
             catch (Exception ex)
             {
@@ -2703,10 +2709,6 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                // Corrige migrações órfãs (aplicadas parcialmente ou que dependem de tabelas opcionais)
-                foreach (var m in new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" })
-                    await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
-
                 // Verificar se a tabela CreditPlans já existe e marcar a migration como aplicada se necessário
                 try
                 {
@@ -3184,8 +3186,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         /// <summary>
         /// Adiciona colunas de confirmação dupla (ClientConfirmedAt, CoworkingConfirmedAt em Reservations;
-        /// ReservationId em Transfers) quando a migração AddReservationDoubleConfirmAndPlatformCredits não foi aplicada.
-        /// Idempotente: ignora se a coluna já existir.
+        /// ReservationId em Transfers). Idempotente: ignora se a coluna já existir.
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -3218,9 +3219,8 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
-        /// Adiciona colunas de pagamento (PIX, Boleto, Cartão) em CreditPurchases quando a migração
-        /// AddCreditPurchasePaymentColumns não foi aplicada. Resolve erro "Unknown column 'c.BoletoBarcode'".
-        /// Idempotente: ignora se a coluna já existir.
+        /// Adiciona colunas de pagamento (PIX, Boleto, Cartão) em CreditPurchases.
+        /// Idempotente: ignora se a coluna já existir. Resolve erro "Unknown column 'c.BoletoBarcode'".
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -6037,7 +6037,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 {
                     try
                     {
-                        var baseUrl = await _systemConfigurationService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+                        var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
                         var defaultPassword = contactEmail.Length >= 4
                             ? contactEmail.Substring(0, 4).ToLower()
                             : contactEmail.ToLower();

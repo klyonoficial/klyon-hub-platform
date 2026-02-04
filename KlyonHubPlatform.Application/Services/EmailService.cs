@@ -10,11 +10,13 @@ namespace KlyonHubPlatform.Application.Services
     public class EmailService : IEmailService
     {
         private readonly ISystemConfigurationService _systemConfigService;
+        private readonly IAppBaseUrlProvider _appBaseUrlProvider;
         private readonly ILogger<EmailService> _logger;
 
-        public EmailService(ISystemConfigurationService systemConfigService, ILogger<EmailService> logger)
+        public EmailService(ISystemConfigurationService systemConfigService, IAppBaseUrlProvider appBaseUrlProvider, ILogger<EmailService> logger)
         {
             _systemConfigService = systemConfigService;
+            _appBaseUrlProvider = appBaseUrlProvider;
             _logger = logger;
         }
 
@@ -83,7 +85,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<bool> SendVerificationEmailAsync(string to, string name, string token, string? returnUrl = null)
         {
-            var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+            var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var verificationUrl = $"{baseUrl}/Auth/VerifyEmail?token={Uri.EscapeDataString(token)}";
             if (!string.IsNullOrEmpty(returnUrl))
                 verificationUrl += "&returnUrl=" + Uri.EscapeDataString(returnUrl);
@@ -133,7 +135,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<bool> SendPasswordResetEmailAsync(string to, string name, string token)
         {
-            var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+            var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var resetUrl = $"{baseUrl}/Auth/ResetPassword?token={token}";
 
             var subject = "Redefinição de Senha - Klyon Endereço Fiscal";
@@ -184,7 +186,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<bool> SendContractExpiryNotificationAsync(string to, string clientName, string contractNumber, DateTime expiryDate, int daysRemaining)
         {
-            var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+            var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var paymentsUrl = $"{baseUrl}/Client/MyPayments";
 
             var subject = $"⚠️ Seu contrato de endereço fiscal vence em {daysRemaining} dia(s) - {contractNumber}";
@@ -246,7 +248,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<bool> SendReservationRequestToCoworkingAsync(string to, string coworkingName, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items)
         {
-            var baseUrl = await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+            var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var reservationsUrl = $"{baseUrl}/Coworking/Reservations?status=Pending";
 
             string RoomTypeDisplay(string rt) => rt == "Shared" ? "Sala compartilhada" : rt == "Private" ? "Sala privativa" : rt == "Auditorium" ? "Auditório" : rt;
