@@ -699,8 +699,7 @@ namespace KlyonHubPlatform.Application.Services
                 throw new Exception($"Erro ao fazer seed de SystemConfigurations: {ex.Message}", ex);
             }
 
-            // Garantir que existe uma linha em PlatformCreditBalances (conta do administrador).
-            // Só roda se a tabela já existir (após a migração AddReservationDoubleConfirmAndPlatformCredits).
+            // Garantir que existe uma linha em PlatformCreditBalances (conta do administrador), se a tabela existir.
             try
             {
                 if (_context.PlatformCreditBalances.Any() == false)
@@ -709,7 +708,7 @@ namespace KlyonHubPlatform.Application.Services
                     await _context.SaveChangesAsync();
                 }
             }
-            catch (Exception) { /* Tabela PlatformCreditBalances pode não existir ainda; executar a migração AddReservationDoubleConfirmAndPlatformCredits. */ }
+            catch (Exception) { /* Tabela PlatformCreditBalances pode não existir ainda. */ }
         }
     }
 }

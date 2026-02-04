@@ -26,6 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="appsettings.Production.json" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\KlyonHubPlatform.Application\KlyonHubPlatform.Application.csproj" />
     <ProjectReference Include="..\KlyonHubPlatform.Domain\KlyonHubPlatform.Domain.csproj" />
     <ProjectReference Include="..\KlyonHubPlatform.Infra.Data\KlyonHubPlatform.Infra.Data.csproj" />

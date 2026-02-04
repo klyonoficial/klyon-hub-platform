@@ -25,6 +25,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IAuditService _auditService;
+        private readonly IAppBaseUrlProvider _appBaseUrlProvider;
 
         public QuickClientApiController(
             ApplicationDbContext context,
@@ -33,7 +34,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IEmailService emailService,
             IPaymentService paymentService,
             ISystemConfigurationService systemConfigurationService,
-            IAuditService auditService)
+            IAuditService auditService,
+            IAppBaseUrlProvider appBaseUrlProvider)
         {
             _context = context;
             _contractService = contractService;
@@ -42,6 +44,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _paymentService = paymentService;
             _systemConfigurationService = systemConfigurationService;
             _auditService = auditService;
+            _appBaseUrlProvider = appBaseUrlProvider;
         }
 
         /// <summary>
@@ -299,7 +302,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     try
                     {
-                        var baseUrl = await _systemConfigurationService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+                        var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
                         var defaultPassword = request.ContactEmail.Length >= 4
                             ? request.ContactEmail.Substring(0, 4).ToLower()
                             : request.ContactEmail.ToLower();

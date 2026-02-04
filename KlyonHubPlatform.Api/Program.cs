@@ -15,8 +15,17 @@ using System.Globalization;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Em produção atrás de proxy (Nginx): usar X-Forwarded-Proto e X-Forwarded-Host para links corretos
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Configurar Kestrel para desabilitar HTTP/2 em desenvolvimento (corrige ERR_HTTP2_PROTOCOL_ERROR)
 if (builder.Environment.IsDevelopment())
@@ -128,6 +137,7 @@ builder.Services.AddScoped<IFocusNFeService, FocusNFeService>();
 builder.Services.AddScoped<IMonthlySettlementService, MonthlySettlementService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
+builder.Services.AddScoped<IAppBaseUrlProvider, AppBaseUrlProvider>();
 builder.Services.AddScoped<IReservationTransferService, ReservationTransferService>();
 
 // Chatbot Services
@@ -179,6 +189,9 @@ builder.Services.AddSession(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+// ForwardedHeaders deve vir primeiro para Request.Scheme/Host refletirem o domínio público (Nginx)
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -220,56 +233,45 @@ using (var scope = app.Services.CreateScope())
     
     try
     {
-        // Verificar se o banco existe e pode conectar
+        // Usar sempre Migrate quando o banco conecta. NÃO usar EnsureCreated aqui:
+        // EnsureCreated cria as tabelas mas NÃO grava em __EFMigrationsHistory; depois
+        // MigrateAsync tenta aplicar a primeira migration e falha com "tabela já existe".
         if (dbContext.Database.CanConnect())
         {
-            // Verificar se a tabela Roles existe (indicador de que as tabelas foram criadas)
-            var rolesTableExists = false;
-            try
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            // Se o banco foi criado com EnsureCreated ou está desatualizado, algumas migrations
+            // podem falhar com "table already exists". Marcamos como aplicada e tentamos a próxima.
+            while (true)
             {
-                await dbContext.Database.ExecuteSqlRawAsync("SELECT 1 FROM Roles LIMIT 1");
-                rolesTableExists = true;
-            }
-            catch
-            {
-                // Tabela não existe
-                rolesTableExists = false;
-            }
-            
-            if (!rolesTableExists)
-            {
-                // Se o banco existe mas não tem tabelas, criar todas as tabelas
-                await dbContext.Database.EnsureCreatedAsync();
-            }
-            else
-            {
-                // Corrige migrações órfãs (aplicadas parcialmente ou que dependem de tabelas opcionais)
-                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-                var orphanMigrations = new[] { "20260124120000_AddReservationDoubleConfirmAndPlatformCredits", "20260125120000_AddCreditPurchasePaymentColumns" };
-                foreach (var m in orphanMigrations)
-                {
-                    try
-                    {
-                        await dbContext.Database.ExecuteSqlRawAsync(
-                            "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, '8.0.0')", m);
-                    }
-                    catch (Exception ex) { logger.LogWarning(ex, "Ao registrar migração órfã {M}: {Message}", m, ex.Message); }
-                }
-
-                // Se as tabelas existem, aplicar migrações pendentes
+                var pending = await dbContext.Database.GetPendingMigrationsAsync();
+                if (pending.Count() == 0)
+                    break;
+                var firstPending = pending.First();
                 try
                 {
                     await dbContext.Database.MigrateAsync();
+                    break;
+                }
+                catch (Exception ex) when (ex.InnerException?.Message?.Contains("already exists", StringComparison.OrdinalIgnoreCase) == true
+                    || ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogWarning(ex, "MigrateAsync: tabela já existe. Marcando migration {Migration} como aplicada e tentando novamente.", firstPending);
+                    await dbContext.Database.ExecuteSqlRawAsync(
+                        "INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                        firstPending,
+                        "8.0.0");
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "MigrateAsync: {Message}", ex.Message);
+                    break;
                 }
             }
         }
         else
         {
-            // Se não conseguir conectar, criar o banco e as tabelas
+            // Só cria o banco/schema quando não consegue conectar (ex.: banco não existe).
+            // Atenção: isso não popula __EFMigrationsHistory; use Migrate após o banco existir.
             await dbContext.Database.EnsureCreatedAsync();
         }
         
