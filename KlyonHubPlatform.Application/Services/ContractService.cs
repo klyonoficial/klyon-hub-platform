@@ -89,7 +89,7 @@ namespace KlyonHubPlatform.Application.Services
             return await _contractRepository.GetByClientIdAsync(clientId);
         }
 
-        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null)
+        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -153,7 +153,7 @@ namespace KlyonHubPlatform.Application.Services
                     await _paymentService.CreatePaymentAsync(
                         subscription.Id,
                         monthlyValue,
-                        PaymentMethod.PIX
+                        initialPaymentMethod ?? PaymentMethod.PIX
                     );
 
                     try

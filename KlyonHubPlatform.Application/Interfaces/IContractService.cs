@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 
 namespace KlyonHubPlatform.Application.Interfaces
 {
@@ -6,7 +7,7 @@ namespace KlyonHubPlatform.Application.Interfaces
     {
         Task<Contract?> GetByIdAsync(int id);
         Task<List<Contract>> GetByClientIdAsync(int clientId);
-        Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null);
+        Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null);
         Task<Contract> CancelContractAsync(int contractId, string reason);
         Task<Contract> SuspendContractAsync(int contractId);
         Task<Contract> ActivateContractAsync(int contractId);

@@ -1366,19 +1366,66 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("RegisterClient", new { id = client.Id, returnUrl = returnUrlComplete });
             }
 
-            ViewBag.CoworkingAddressId = coworkingAddressId;
-            return View(coworkingAddressId);
+            return RedirectToAction("SelectPaymentPlan", new { coworkingAddressId });
+        }
+
+        /// <summary>
+        /// Página para escolher a forma de pagamento (PIX ou opções de cartão configuradas pelo parceiro) antes de criar o contrato.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> SelectPaymentPlan(int coworkingAddressId)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId }) });
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                TempData["Info"] = "Complete seu cadastro para continuar com a contratação do endereço fiscal.";
+                return RedirectToAction("RegisterClient", new { returnUrl = Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId }) });
+            }
+
+            var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
+            var missingRequired = !hasDocument || string.IsNullOrWhiteSpace(client.ContactName)
+                || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.State);
+            if (missingRequired)
+            {
+                TempData["Info"] = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar com a contratação.";
+                return RedirectToAction("RegisterClient", new { id = client.Id, returnUrl = Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId }) });
+            }
+
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Location)
+                .Include(a => a.Coworking)
+                .FirstOrDefaultAsync(a => a.Id == coworkingAddressId);
+
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado.";
+                return RedirectToAction("ChooseLocation");
+            }
+
+            if (!address.Coworking.IsActive || address.AddressStatus != AddressStatus.Active || !address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
+            {
+                TempData["Error"] = "Este endereço não está disponível para contratação no momento.";
+                return RedirectToAction("ChooseLocation");
+            }
+
+            return View(address);
         }
 
         [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateContract(int coworkingAddressId)
+        public async Task<IActionResult> CreateContract(int coworkingAddressId, string? paymentOption)
         {
-            // Se não estiver autenticado, redirecionar para Login com returnUrl para continuar a contratação após login/cadastro/confirmação de email
+            // Se não estiver autenticado, redirecionar para Login com returnUrl para continuar na escolha do plano e pagamento
             if (User?.Identity?.IsAuthenticated != true)
             {
-                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("CompleteContractAfterLogin", "Client", new { coworkingAddressId }) });
+                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId }) });
             }
 
             var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
@@ -1503,10 +1550,37 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("AvailableAddresses", new { locationId = addressEntity.LocationId });
                 }
 
+                // Definir valor mensal e método de pagamento conforme opção escolhida (SelectPaymentPlan)
+                decimal monthlyValueForContract;
+                PaymentMethod? initialPaymentMethod = null;
+                var option = (paymentOption ?? "PIX").Trim();
+                if (option == "Card1x" && addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0)
+                {
+                    monthlyValueForContract = addressEntity.CardPrice1x.Value;
+                    initialPaymentMethod = PaymentMethod.CreditCard;
+                }
+                else if (option == "CardMonthly" && addressEntity.CardPriceMonthly.HasValue && addressEntity.CardPriceMonthly.Value > 0)
+                {
+                    monthlyValueForContract = addressEntity.CardPriceMonthly.Value;
+                    initialPaymentMethod = PaymentMethod.CreditCard;
+                }
+                else if (option == "Card12x" && addressEntity.CardPrice12x.HasValue && addressEntity.CardPrice12x.Value > 0)
+                {
+                    monthlyValueForContract = addressEntity.CardPrice12x.Value;
+                    initialPaymentMethod = PaymentMethod.CreditCard;
+                }
+                else
+                {
+                    monthlyValueForContract = addressEntity.BasePrice;
+                    initialPaymentMethod = null; // PIX
+                }
+
                 var contract = await _contractService.CreateContractAsync(
                     client.Id,
                     coworkingAddressId,
-                    addressEntity.BasePrice
+                    monthlyValueForContract,
+                    assistedSaleAdminId: null,
+                    initialPaymentMethod
                 );
 
                 // O ContractService já cria a subscription e o primeiro pagamento
@@ -2415,6 +2489,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("PaymentDetails", new { id = paymentId });
                 }
 
+                if (paymentMethod == PaymentMethod.BankTransfer)
+                {
+                    TempData["Error"] = "Boleto bancário não está mais disponível como opção de pagamento.";
+                    return RedirectToAction("PaymentDetails", new { id = paymentId });
+                }
+
                 await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod);
                 TempData["Success"] = "Método de pagamento atualizado com sucesso!";
 
@@ -3109,6 +3189,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (!Enum.TryParse<PaymentMethod>(paymentMethod, out method))
                 {
                     TempData["Error"] = "Método de pagamento inválido.";
+                    return RedirectToAction("CheckoutCredits", new { creditPlanId });
+                }
+
+                if (method == PaymentMethod.BankTransfer)
+                {
+                    TempData["Error"] = "Boleto bancário não está mais disponível. Escolha PIX ou Cartão de Crédito.";
                     return RedirectToAction("CheckoutCredits", new { creditPlanId });
                 }
 

@@ -17,6 +17,11 @@ namespace KlyonHubPlatform.Domain.Entities
         /// </summary>
         public string? D4SignDocumentUuid { get; set; }
 
+        /// <summary>
+        /// ID do envelope na Clicksign (quando enviado para assinatura eletrônica via Clicksign).
+        /// </summary>
+        public string? ClicksignEnvelopeId { get; set; }
+
         // Navigation properties
         public virtual Contract Contract { get; set; } = null!;
     }

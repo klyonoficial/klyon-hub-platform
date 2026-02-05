@@ -115,8 +115,8 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     Category = "Pagamentos",
                     Question = "Quais formas de pagamento são aceitas?",
-                    Answer = "Aceitamos as seguintes formas de pagamento:\n\n💳 Cartão de crédito (Visa, Mastercard, Elo)\n💰 PIX (aprovação instantânea)\n📄 Boleto bancário (aprovação em até 2 dias úteis)\n\nPagamentos via PIX têm desconto especial! 🎉",
-                    Keywords = "pagamento,pagar,forma,método,cartão,pix,boleto,aceita",
+                    Answer = "Aceitamos as seguintes formas de pagamento:\n\n💳 Cartão de crédito (Visa, Mastercard, Elo)\n💰 PIX (aprovação instantânea)\n\nPagamentos via PIX têm desconto especial! 🎉",
+                    Keywords = "pagamento,pagar,forma,método,cartão,pix,aceita",
                     Intentions = "pagamento",
                     DisplayOrder = 8,
                     IsActive = true,

@@ -287,7 +287,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             modelBuilder.Entity<CreditCard>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.HasOne(e => e.Client).WithMany().HasForeignKey(e => e.ClientId);
+                entity.HasOne(e => e.Client).WithMany(c => c.CreditCards).HasForeignKey(e => e.ClientId);
                 entity.HasIndex(e => new { e.ClientId, e.LastFourDigits, e.ExpiryMonth, e.ExpiryYear }).IsUnique();
             });
 

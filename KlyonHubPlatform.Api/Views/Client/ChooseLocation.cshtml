@@ -225,13 +225,9 @@
                                 }
                                 else
                                 {
-                                    <form method="post" action="@Url.Action("CreateContract", "Client")" class="contract-form no-loading" data-already-contracted="@(alreadyContracted ? "true" : "false")" data-client-has-active-contract="@(clientHasActiveContract ? "true" : "false")">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="coworkingAddressId" value="@address.Id">
-                                        <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
-                                            <i class="bi bi-file-earmark-text me-1"></i> Contratar
-                                        </button>
-                                    </form>
+                                    <a href="@Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId = address.Id })" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                        <i class="bi bi-file-earmark-text me-1"></i> Contratar
+                                    </a>
                                 }
                             </div>
                             @if (vacancies > 0 && vacancies <= 5)

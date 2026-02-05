@@ -1,15 +1,24 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace KlyonHubPlatform.Application.Services
 {
+    /// <summary>
+    /// Integração com a API D4Sign para assinatura eletrônica de contratos.
+    /// Documentação: https://docapi.d4sign.com.br/docs/introdução-a-api
+    /// Para testes use ambiente Sandbox (D4Sign.UseSandbox = true).
+    /// </summary>
     public class D4SignService : ID4SignService
     {
-        private const string ProductionBaseUrl = "https://secure.d4sign.com.br/api/v1";
-        private const string SandboxBaseUrl = "https://sandbox.d4sign.com.br/api/v1";
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
 
         private readonly ISystemConfigurationService _config;
         private readonly ILogger<D4SignService> _logger;
@@ -23,12 +32,20 @@ namespace KlyonHubPlatform.Application.Services
             _config = config;
             _logger = logger;
             _httpClient = httpClient;
+            ConfigureHttpClient();
+        }
+
+        private void ConfigureHttpClient()
+        {
+            _httpClient.DefaultRequestHeaders.Accept.Clear();
+            _httpClient.DefaultRequestHeaders.Accept.Add(
+                new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
         }
 
         public async Task<bool> IsConfiguredAsync()
         {
-            var token = await _config.GetValueAsync("D4Sign.TokenAPI");
-            var safeUuid = await _config.GetValueAsync("D4Sign.SafeUuid");
+            var token = await _config.GetValueAsync(D4SignConfigKeys.TokenAPI);
+            var safeUuid = await _config.GetValueAsync(D4SignConfigKeys.SafeUuid);
             return !string.IsNullOrWhiteSpace(token) && !string.IsNullOrWhiteSpace(safeUuid);
         }
 
@@ -45,15 +62,17 @@ namespace KlyonHubPlatform.Application.Services
                 return null;
             }
 
-            var token = await _config.GetValueAsync("D4Sign.TokenAPI");
-            var cryptKey = await _config.GetValueAsync("D4Sign.CryptKey");
-            var safeUuid = await _config.GetValueAsync("D4Sign.SafeUuid");
-            var baseUrl = await GetBaseUrlAsync();
+            var token = await _config.GetValueAsync(D4SignConfigKeys.TokenAPI);
+            var cryptKey = await _config.GetValueAsync(D4SignConfigKeys.CryptKey);
+            var safeUuid = await _config.GetValueAsync(D4SignConfigKeys.SafeUuid);
+            var environment = await GetEnvironmentAsync();
+            var baseUrl = environment.GetBaseUrl();
             var authQuery = BuildAuthQuery(token!, cryptKey);
+
+            _logger.LogDebug("D4Sign usando ambiente {Environment} ({BaseUrl}).", environment, baseUrl);
 
             try
             {
-                // 1. Upload do documento (uploadbinary)
                 var documentUuid = await UploadDocumentAsync(baseUrl, authQuery, safeUuid!, pdfBytes, fileName);
                 if (string.IsNullOrEmpty(documentUuid))
                 {
@@ -61,7 +80,6 @@ namespace KlyonHubPlatform.Application.Services
                     return null;
                 }
 
-                // 2. Cadastrar signatário (createlist)
                 var signerOk = await CreateSignersAsync(baseUrl, authQuery, documentUuid, signerEmail, signerName);
                 if (!signerOk)
                 {
@@ -69,15 +87,22 @@ namespace KlyonHubPlatform.Application.Services
                     return null;
                 }
 
-                // 3. Enviar para assinatura (sendtosigner) — skip_email 0 para enviar e-mail ao signatário
-                var sendOk = await SendToSignerAsync(baseUrl, authQuery, documentUuid, message, skipEmail: "0", workflow: "0");
+                var sendOk = await SendToSignerAsync(
+                    baseUrl,
+                    authQuery,
+                    documentUuid,
+                    message,
+                    D4SignSkipEmail.SendEmail,
+                    D4SignWorkflow.Sequential);
                 if (!sendOk)
                 {
                     _logger.LogWarning("D4Sign: falha ao enviar documento {DocumentUuid} para assinatura.", documentUuid);
                     return null;
                 }
 
-                _logger.LogInformation("D4Sign: contrato enviado para assinatura. DocumentUuid={DocumentUuid}, Signatário={Email}.", documentUuid, signerEmail);
+                _logger.LogInformation(
+                    "D4Sign: contrato enviado para assinatura. DocumentUuid={DocumentUuid}, Signatário={Email}, Ambiente={Environment}.",
+                    documentUuid, signerEmail, environment);
                 return documentUuid;
             }
             catch (Exception ex)
@@ -87,10 +112,17 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
-        private async Task<string> GetBaseUrlAsync()
+        /// <summary>
+        /// Obtém o ambiente configurado. Se não definido ou inválido, assume Sandbox para segurança em testes.
+        /// </summary>
+        private async Task<D4SignEnvironment> GetEnvironmentAsync()
         {
-            var useSandbox = await _config.GetValueAsync("D4Sign.UseSandbox");
-            return useSandbox?.ToLowerInvariant() == "true" ? SandboxBaseUrl : ProductionBaseUrl;
+            var useSandbox = await _config.GetValueAsync(D4SignConfigKeys.UseSandbox);
+            if (string.IsNullOrWhiteSpace(useSandbox))
+                return D4SignEnvironment.Sandbox;
+            return useSandbox.Trim().ToLowerInvariant() == "true"
+                ? D4SignEnvironment.Sandbox
+                : D4SignEnvironment.Production;
         }
 
         private static string BuildAuthQuery(string token, string? cryptKey)
@@ -138,19 +170,18 @@ namespace KlyonHubPlatform.Application.Services
                 new Dictionary<string, object>
                 {
                     ["email"] = email,
-                    ["act"] = "1",
-                    ["foreign"] = "0",
-                    ["certificadoicpbr"] = "0",
-                    ["assinatura_presencial"] = "0",
-                    ["docauth"] = "0",
-                    ["docauthandselfie"] = "0",
-                    ["embed_methodauth"] = "email",
-                    ["upload_allow"] = "0"
+                    ["act"] = D4SignSignerAct.Sign.ToApiValue(),
+                    ["foreign"] = D4SignSignerForeign.National.ToApiValue(),
+                    ["certificadoicpbr"] = D4SignCertificadoIcpBr.No.ToApiValue(),
+                    ["assinatura_presencial"] = D4SignAssinaturaPresencial.No.ToApiValue(),
+                    ["docauth"] = D4SignDocAuth.No.ToApiValue(),
+                    ["docauthandselfie"] = D4SignDocAuthAndSelfie.No.ToApiValue(),
+                    ["embed_methodauth"] = D4SignEmbedMethodAuth.Email.ToApiValue(),
+                    ["upload_allow"] = D4SignUploadAllow.No.ToApiValue()
                 }
             };
             var body = new { signers };
-            var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = false };
-            var json = JsonSerializer.Serialize(body, opts);
+            var json = JsonSerializer.Serialize(body, JsonOptions);
 
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync(url, content);
@@ -164,13 +195,19 @@ namespace KlyonHubPlatform.Application.Services
             return true;
         }
 
-        private async Task<bool> SendToSignerAsync(string baseUrl, string authQuery, string documentUuid, string? message, string skipEmail, string workflow)
+        private async Task<bool> SendToSignerAsync(
+            string baseUrl,
+            string authQuery,
+            string documentUuid,
+            string? message,
+            D4SignSkipEmail skipEmail,
+            D4SignWorkflow workflow)
         {
             var url = $"{baseUrl}/documents/{documentUuid}/sendtosigner?{authQuery}";
             var body = new Dictionary<string, string>
             {
-                ["skip_email"] = skipEmail,
-                ["workflow"] = workflow
+                ["skip_email"] = skipEmail.ToApiValue(),
+                ["workflow"] = workflow.ToApiValue()
             };
             if (!string.IsNullOrWhiteSpace(message))
                 body["message"] = message;

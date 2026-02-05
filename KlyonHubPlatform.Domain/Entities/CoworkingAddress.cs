@@ -42,6 +42,13 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool OffersPrivateRoom { get; set; } = false;
         public decimal? PrivateRoomPricePerHour { get; set; }
         public int? PrivateRoomMaxSeats { get; set; }
+
+        /// <summary>Valor da venda à vista no cartão (1x) - informado pelo parceiro.</summary>
+        public decimal? CardPrice1x { get; set; }
+        /// <summary>Valor da venda mensal no cartão - informado pelo parceiro.</summary>
+        public decimal? CardPriceMonthly { get; set; }
+        /// <summary>Valor de cada parcela na venda em 12x no cartão - informado pelo parceiro.</summary>
+        public decimal? CardPrice12x { get; set; }
         
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

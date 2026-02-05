@@ -145,7 +145,6 @@
                     <label class="form-label fw-bold">Método de Pagamento:</label>
                     <select class="form-select" id="paymentMethodSelect" style="max-width: 320px;">
                         <option value="PIX" selected>PIX</option>
-                        <option value="Boleto">Boleto Bancário</option>
                         <option value="CreditCard">Cartão de Crédito</option>
                     </select>
                     <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Você pode alterar o método de pagamento a qualquer momento</small>
@@ -175,46 +174,6 @@
                                     </div>
                                     <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> <span id="pixExpiresText">Escaneie o QR Code ou copie o código para pagar via PIX</span></p>
                                     <div class="alert alert-info mt-3 mb-0"><i class="bi bi-info-circle"></i> Após o pagamento, os créditos serão creditados automaticamente em sua conta.</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Boleto (igual Detalhes do Pagamento / Boleto Bancário) -->
-                    <div id="boletoSection" class="payment-section d-none">
-                        <div class="card mb-0">
-                            <div class="card-header bg-secondary text-white">
-                                <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto Bancário</h5>
-                            </div>
-                            <div class="card-body">
-                                <div id="boletoGenerateBlock">
-                                    <button type="button" class="btn btn-secondary btn-lg w-100" id="btnGenerateBoleto">
-                                        <i class="bi bi-bank"></i> Gerar Boleto Bancário
-                                    </button>
-                                </div>
-                                <div id="boletoResultBlock" class="d-none">
-                                    <div class="mb-3">
-                                        <label class="form-label"><strong>Código de Barras:</strong></label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control font-monospace" id="boletoBarcodeInput" readonly>
-                                            <button class="btn btn-outline-secondary" type="button" id="btnCopyBoletoBarcode"><i class="bi bi-clipboard"></i> Copiar</button>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label"><strong>Linha Digitável:</strong></label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control font-monospace" id="boletoCodeInput" readonly>
-                                            <button class="btn btn-outline-secondary" type="button" id="btnCopyBoletoCode"><i class="bi bi-clipboard"></i> Copiar</button>
-                                        </div>
-                                    </div>
-                                    <div class="alert alert-info">
-                                        <i class="bi bi-info-circle"></i> <strong>Instruções:</strong>
-                                        <ul class="mb-0 mt-2">
-                                            <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
-                                            <li>O boleto vence em: <strong id="boletoVencimento"></strong></li>
-                                            <li>Após o pagamento, os créditos serão creditados em até 2 dias úteis</li>
-                                        </ul>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -369,7 +328,7 @@
     <script>
         (function() {
             var planId = parseInt(document.getElementById('paymentMethodCard').getAttribute('data-credit-plan-id'), 10);
-            var pixData = null, boletoData = null;
+            var pixData = null;
 
             // Função para exibir mensagens de erro de forma bonita (na página ou no modal)
             function showErrorMessage(message, inModal) {
@@ -447,10 +406,9 @@
             sel.addEventListener('change', function() {
                 var v = this.value;
                 if (v === 'PIX') showSection('pix');
-                else if (v === 'Boleto') showSection('boleto');
                 else if (v === 'CreditCard') showSection('card');
             });
-            showSection(sel.value === 'Boleto' ? 'boleto' : (sel.value === 'CreditCard' ? 'card' : 'pix'));
+            showSection(sel.value === 'CreditCard' ? 'card' : 'pix');
 
             // Função para verificar se a biblioteca QRCode está carregada
             function waitForQRCode(callback, maxAttempts) {
@@ -519,48 +477,6 @@
                 i.select();
                 document.execCommand('copy');
                 showSuccessMessage('Código PIX copiado para a área de transferência!');
-            });
-
-            // Boleto - Gerar
-            document.getElementById('btnGenerateBoleto').addEventListener('click', async function() {
-                var btn = this;
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...';
-                try {
-                    var res = await fetch('@Url.Action("GenerateCreditPurchaseBoleto", "Client")', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ creditPlanId: planId })
-                    });
-                    var data = await res.json();
-                    if (data.success && data.boletoBarcode) {
-                        boletoData = data;
-                        document.getElementById('boletoGenerateBlock').classList.add('d-none');
-                        document.getElementById('boletoResultBlock').classList.remove('d-none');
-                        document.getElementById('boletoBarcodeInput').value = data.boletoBarcode;
-                        document.getElementById('boletoCodeInput').value = data.boletoCode || '';
-                        try { JsBarcode('#boletoBarcodeSvg', data.boletoBarcode, { format: 'CODE128', width: 2, height: 60, displayValue: true }); } catch (e) { console.error(e); }
-                        var exp = data.boletoExpiresAt ? new Date(data.boletoExpiresAt).toLocaleDateString('pt-BR') : '';
-                        document.getElementById('boletoVencimento').textContent = exp || '-';
-                    } else {
-                        showErrorMessage(data.error || 'Erro ao gerar boleto.');
-                    }
-                } catch (e) {
-                    showErrorMessage('Erro: ' + e.message);
-                }
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-bank"></i> Gerar Boleto Bancário';
-            });
-
-            document.getElementById('btnCopyBoletoBarcode').addEventListener('click', function() {
-                document.getElementById('boletoBarcodeInput').select();
-                document.execCommand('copy');
-                showSuccessMessage('Código de barras copiado para a área de transferência!');
-            });
-            document.getElementById('btnCopyBoletoCode').addEventListener('click', function() {
-                document.getElementById('boletoCodeInput').select();
-                document.execCommand('copy');
-                showSuccessMessage('Linha digitável copiada para a área de transferência!');
             });
 
             // Cartão - formatação

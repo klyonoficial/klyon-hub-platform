@@ -13,6 +13,7 @@ using PdfDocument = iTextSharp.text.Document;
 using DocumentModel = KlyonHubPlatform.Domain.Entities.Document;
 using KlyonHubPlatform.Domain.Interfaces;
 using System.Linq;
+using static KlyonHubPlatform.Domain.Core.Constants.ContractSigningConfigKeys;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -27,6 +28,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly StorageServiceFactory _storageFactory;
         private readonly ISystemConfigurationService _systemConfigService;
         private readonly ID4SignService _d4SignService;
+        private readonly IClicksignService _clicksignService;
 
         public DocumentService(
             IDocumentRepository documentRepository,
@@ -37,7 +39,8 @@ namespace KlyonHubPlatform.Application.Services
             IHostEnvironment environment,
             StorageServiceFactory storageFactory,
             ISystemConfigurationService systemConfigService,
-            ID4SignService d4SignService)
+            ID4SignService d4SignService,
+            IClicksignService clicksignService)
         {
             _documentRepository = documentRepository;
             _contractRepository = contractRepository;
@@ -48,6 +51,7 @@ namespace KlyonHubPlatform.Application.Services
             _storageFactory = storageFactory;
             _systemConfigService = systemConfigService;
             _d4SignService = d4SignService;
+            _clicksignService = clicksignService;
         }
 
         public async Task<DocumentModel> GenerateContractDocumentAsync(int contractId)
@@ -196,20 +200,38 @@ namespace KlyonHubPlatform.Application.Services
             
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
+            var signerEmail = contract.Client.ContactName ?? contract.Client.RazaoSocial ?? contract.Client.NomeFantasia;
+            var message = $"Contrato de Endereço Fiscal {contract.ContractNumber}. Por favor, assine o documento.";
             string? d4SignUuid = null;
-            if (await _d4SignService.IsConfiguredAsync())
+            string? clicksignEnvelopeId = null;
+
+            var signingProvider = await _systemConfigService.GetValueAsync(Provider);
+            var useClicksign = string.Equals(signingProvider?.Trim(), ProviderClicksign, StringComparison.OrdinalIgnoreCase)
+                && await _clicksignService.IsConfiguredAsync();
+            var useD4Sign = (!useClicksign || string.Equals(signingProvider?.Trim(), ProviderD4Sign, StringComparison.OrdinalIgnoreCase))
+                && await _d4SignService.IsConfiguredAsync();
+
+            var signerEmailAddress = contract.Client.ContactEmail ?? contract.Client.User?.Email;
+            if (!string.IsNullOrWhiteSpace(signerEmailAddress))
             {
-                var signerEmail = contract.Client.ContactEmail ?? contract.Client.User?.Email;
-                if (!string.IsNullOrWhiteSpace(signerEmail))
+                if (useClicksign)
+                {
+                    try
+                    {
+                        clicksignEnvelopeId = await _clicksignService.SendContractForSignatureAsync(
+                            pdfBytes, fileName, signerEmailAddress, signerEmail, message);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Clicksign: erro ao enviar contrato para assinatura: {ex.Message}");
+                    }
+                }
+                else if (useD4Sign)
                 {
                     try
                     {
                         d4SignUuid = await _d4SignService.SendContractForSignatureAsync(
-                            pdfBytes,
-                            fileName,
-                            signerEmail,
-                            contract.Client.ContactName ?? contract.Client.RazaoSocial ?? contract.Client.NomeFantasia,
-                            message: $"Contrato de Endereço Fiscal {contract.ContractNumber}. Por favor, assine o documento.");
+                            pdfBytes, fileName, signerEmailAddress, signerEmail, message);
                     }
                     catch (Exception ex)
                     {
@@ -225,7 +247,8 @@ namespace KlyonHubPlatform.Application.Services
                 FileName = fileName,
                 FilePath = filePath,
                 Description = "Contrato de Endereço Fiscal",
-                D4SignDocumentUuid = d4SignUuid
+                D4SignDocumentUuid = d4SignUuid,
+                ClicksignEnvelopeId = clicksignEnvelopeId
             };
 
             return await _documentRepository.CreateAsync(documentEntity);

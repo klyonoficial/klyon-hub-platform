@@ -5,6 +5,7 @@ using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using KlyonHubPlatform.Infra.Data.Context;
+using KlyonHubPlatform.Application.Handlers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -152,6 +153,11 @@ builder.Services.AddScoped<IPagBankService, PagBankService>();
 
 // D4Sign - Assinatura eletrônica de contratos (endereço fiscal)
 builder.Services.AddHttpClient<ID4SignService, D4SignService>();
+
+// Clicksign - Assinatura eletrônica (v3 Envelope) com tratamento de rate limit (429)
+builder.Services.AddTransient<ClicksignRateLimitHandler>();
+builder.Services.AddHttpClient<IClicksignService, ClicksignService>()
+    .AddHttpMessageHandler<ClicksignRateLimitHandler>();
 
 // Address Declaration Service
 builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService>();

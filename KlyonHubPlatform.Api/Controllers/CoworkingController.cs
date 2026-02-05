@@ -1159,6 +1159,85 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> CardPrices(int? id)
+        {
+            if (!id.HasValue || id.Value <= 0)
+            {
+                TempData["Error"] = "ID do endereço inválido.";
+                return RedirectToAction("MyAddresses");
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                return RedirectToAction("Register");
+            }
+
+            var address = await _context.CoworkingAddresses
+                .Include(a => a.Location)
+                .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
+            if (address == null)
+            {
+                TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                return RedirectToAction("MyAddresses");
+            }
+
+            return View(address);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CardPrices(int id)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+                if (coworkingEntity == null)
+                {
+                    TempData["Error"] = "Coworking não encontrado.";
+                    return RedirectToAction("MyAddresses");
+                }
+
+                var address = await _context.CoworkingAddresses
+                    .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
+                if (address == null)
+                {
+                    TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                    return RedirectToAction("MyAddresses");
+                }
+
+                decimal? cardPrice1x = decimal.TryParse(Request.Form["CardPrice1x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v1) ? v1 : (decimal?)null;
+                decimal? cardPriceMonthly = decimal.TryParse(Request.Form["CardPriceMonthly"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v2) ? v2 : (decimal?)null;
+                decimal? cardPrice12x = decimal.TryParse(Request.Form["CardPrice12x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v3) ? v3 : (decimal?)null;
+                if (cardPrice1x.HasValue && cardPrice1x.Value < 0) cardPrice1x = null;
+                if (cardPriceMonthly.HasValue && cardPriceMonthly.Value < 0) cardPriceMonthly = null;
+                if (cardPrice12x.HasValue && cardPrice12x.Value < 0) cardPrice12x = null;
+
+                address.CardPrice1x = cardPrice1x;
+                address.CardPriceMonthly = cardPriceMonthly;
+                address.CardPrice12x = cardPrice12x;
+                address.UpdatedAt = DateTime.UtcNow;
+                await _coworkingService.UpdateAddressAsync(address);
+
+                TempData["Success"] = "Preços de venda no cartão atualizados com sucesso!";
+                return RedirectToAction("MyAddresses");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao salvar: {ex.Message}";
+                var address = await _context.CoworkingAddresses
+                    .Include(a => a.Location)
+                    .FirstOrDefaultAsync(a => a.Id == id);
+                return address != null ? View(address) : RedirectToAction("MyAddresses");
+            }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> EditMaxContracts(int? id)
         {
             if (!id.HasValue || id.Value <= 0)

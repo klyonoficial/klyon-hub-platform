@@ -1,4 +1,5 @@
 @model KlyonHubPlatform.Domain.Entities.SystemConfiguration
+@using KlyonHubPlatform.Domain.Core.Constants
 @{
     ViewData["Title"] = "Editar Configuração";
 }
@@ -53,7 +54,7 @@
                                 <a href="https://pagseguro.uol.com.br/" target="_blank">PagBank Produção</a> - Integrações - APIs
                             </text>
                         }
-                        @if (Model.Key == "D4Sign.TokenAPI" || Model.Key == "D4Sign.CryptKey")
+                        @if (Model.Key == D4SignConfigKeys.TokenAPI || Model.Key == D4SignConfigKeys.CryptKey)
                         {
                             <text>
                                 <br />
@@ -76,7 +77,7 @@
                             <i class="bi bi-info-circle"></i> Use <strong>true</strong> para testes ou <strong>false</strong> para pagamentos reais.
                         </small>
                     }
-                    else if (Model.Key == "D4Sign.UseSandbox")
+                    else if (Model.Key == D4SignConfigKeys.UseSandbox)
                     {
                         <select class="form-control" id="value" name="value" required>
                             <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Sandbox - sem validade jurídica)</option>

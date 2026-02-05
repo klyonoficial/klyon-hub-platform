@@ -5,6 +5,7 @@ using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
+using static KlyonHubPlatform.Domain.Core.Constants.D4SignConfigKeys;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -2098,8 +2099,8 @@ namespace KlyonHubPlatform.Api.Controllers
             var currentProvider = await _systemConfigurationService.GetValueAsync("Storage.Provider") ?? "AWS";
 
             // D4Sign: considerar configurado quando TokenAPI e SafeUuid preenchidos
-            var d4Token = await _systemConfigurationService.GetValueAsync("D4Sign.TokenAPI");
-            var d4Safe = await _systemConfigurationService.GetValueAsync("D4Sign.SafeUuid");
+            var d4Token = await _systemConfigurationService.GetValueAsync(TokenAPI);
+            var d4Safe = await _systemConfigurationService.GetValueAsync(SafeUuid);
             ViewBag.D4SignConfigured = !string.IsNullOrWhiteSpace(d4Token) && !string.IsNullOrWhiteSpace(d4Safe);
 
             ViewBag.GroupedConfigurations = groupedByCategory;

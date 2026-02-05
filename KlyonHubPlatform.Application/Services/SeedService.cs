@@ -617,10 +617,10 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // D4Sign - Assinatura eletrônica de contratos (endereço fiscal)
+                    // D4Sign - Assinatura eletrônica de contratos (endereço fiscal). Sandbox = true para testes.
                     new SystemConfiguration
                     {
-                        Key = "D4Sign.TokenAPI",
+                        Key = D4SignConfigKeys.TokenAPI,
                         Value = "",
                         Description = "Token da API D4Sign (menu Dev API na conta D4Sign)",
                         Category = "D4Sign",
@@ -629,7 +629,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "D4Sign.CryptKey",
+                        Key = D4SignConfigKeys.CryptKey,
                         Value = "",
                         Description = "Chave criptográfica D4Sign (obrigatória se habilitada na conta)",
                         Category = "D4Sign",
@@ -638,16 +638,16 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "D4Sign.UseSandbox",
+                        Key = D4SignConfigKeys.UseSandbox,
                         Value = "true",
-                        Description = "Usar ambiente sandbox D4Sign (true/false). Produção: false.",
+                        Description = "Usar ambiente sandbox D4Sign (true/false). true = testes; false = produção.",
                         Category = "D4Sign",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "D4Sign.SafeUuid",
+                        Key = D4SignConfigKeys.SafeUuid,
                         Value = "",
                         Description = "UUID do cofre D4Sign onde os contratos serão armazenados (GET /safes)",
                         Category = "D4Sign",

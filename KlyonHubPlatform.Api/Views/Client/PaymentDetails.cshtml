@@ -133,14 +133,6 @@
                                     {
                                         <option value="PIX">PIX</option>
                                     }
-                                    @if (Model.Method == PaymentMethod.BankTransfer)
-                                    {
-                                        <option value="BankTransfer" selected>Boleto Bancário</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="BankTransfer">Boleto Bancário</option>
-                                    }
                                     @if (Model.Method == PaymentMethod.CreditCard)
                                     {
                                         <option value="CreditCard" selected>Cartão de Crédito</option>

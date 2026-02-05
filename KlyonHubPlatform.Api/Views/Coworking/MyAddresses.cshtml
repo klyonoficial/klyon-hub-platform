@@ -218,6 +218,9 @@
                                                           address.CurrentContracts < address.MaxContracts &&
                                                           address.AddressStatus == AddressStatus.Active;
                                     }
+                                    <a href="/Parceiro/CardPrices?id=@address.Id" class="btn btn-sm btn-outline-info me-1" title="Preços no cartão">
+                                        <i class="bi bi-credit-card"></i> Preços Cartão
+                                    </a>
                                     @if (!hasActiveContracts)
                                     {
                                         <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
