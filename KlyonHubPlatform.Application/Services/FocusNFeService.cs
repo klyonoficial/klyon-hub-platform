@@ -337,7 +337,7 @@ namespace KlyonHubPlatform.Application.Services
             switch (payload.Status?.ToLower())
             {
                 case "autorizado":
-                    fiscalNote.Status = "Emitida";
+                    fiscalNote.Status = FiscalNoteStatus.Emitida;
                     fiscalNote.Number = payload.Numero;
                     fiscalNote.VerificationCode = payload.CodigoVerificacao;
                     fiscalNote.ViewUrl = payload.Url;
@@ -352,12 +352,12 @@ namespace KlyonHubPlatform.Application.Services
                     break;
 
                 case "cancelado":
-                    fiscalNote.Status = "Cancelada";
+                    fiscalNote.Status = FiscalNoteStatus.Cancelada;
                     fiscalNote.CancelledAt = DateTime.UtcNow;
                     break;
 
                 case "erro_autorizacao":
-                    fiscalNote.Status = "Erro";
+                    fiscalNote.Status = FiscalNoteStatus.Erro;
                     if (payload.Erros?.Any() == true)
                     {
                         fiscalNote.ErrorMessage = string.Join("; ", payload.Erros.Select(e => e.Mensagem));
@@ -365,7 +365,7 @@ namespace KlyonHubPlatform.Application.Services
                     break;
 
                 case "processando_autorizacao":
-                    fiscalNote.Status = "Processando";
+                    fiscalNote.Status = FiscalNoteStatus.Processando;
                     break;
             }
 
@@ -463,7 +463,7 @@ namespace KlyonHubPlatform.Application.Services
                 // Atualizar nota fiscal com resposta
                 if (response.Status == "autorizado" || response.Status == "processando_autorizacao")
                 {
-                    fiscalNote.Status = response.Status == "autorizado" ? "Emitida" : "Processando";
+                    fiscalNote.Status = response.Status == "autorizado" ? FiscalNoteStatus.Emitida : FiscalNoteStatus.Processando;
                     fiscalNote.Number = response.Numero;
                     fiscalNote.VerificationCode = response.CodigoVerificacao;
                     fiscalNote.ViewUrl = response.Url;
@@ -477,7 +477,7 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 else
                 {
-                    fiscalNote.Status = "Erro";
+                    fiscalNote.Status = FiscalNoteStatus.Erro;
                     fiscalNote.ErrorMessage = response.Mensagem ?? 
                         (response.Erros?.Any() == true ? string.Join("; ", response.Erros.Select(e => e.Mensagem)) : "Erro desconhecido");
                 }
@@ -493,7 +493,7 @@ namespace KlyonHubPlatform.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao emitir nota de intermediação via Focus NFe");
-                fiscalNote.Status = "Erro";
+                fiscalNote.Status = FiscalNoteStatus.Erro;
                 fiscalNote.ErrorMessage = ex.Message;
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 throw;
@@ -578,7 +578,7 @@ namespace KlyonHubPlatform.Application.Services
                 // Atualizar nota fiscal com resposta
                 if (response.Status == "autorizado" || response.Status == "processando_autorizacao")
                 {
-                    fiscalNote.Status = response.Status == "autorizado" ? "Emitida" : "Processando";
+                    fiscalNote.Status = response.Status == "autorizado" ? FiscalNoteStatus.Emitida : FiscalNoteStatus.Processando;
                     fiscalNote.Number = response.Numero;
                     fiscalNote.VerificationCode = response.CodigoVerificacao;
                     fiscalNote.ViewUrl = response.Url;
@@ -592,7 +592,7 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 else
                 {
-                    fiscalNote.Status = "Erro";
+                    fiscalNote.Status = FiscalNoteStatus.Erro;
                     fiscalNote.ErrorMessage = response.Mensagem ?? 
                         (response.Erros?.Any() == true ? string.Join("; ", response.Erros.Select(e => e.Mensagem)) : "Erro desconhecido");
                 }
@@ -608,7 +608,7 @@ namespace KlyonHubPlatform.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao emitir nota de serviço via Focus NFe");
-                fiscalNote.Status = "Erro";
+                fiscalNote.Status = FiscalNoteStatus.Erro;
                 fiscalNote.ErrorMessage = ex.Message;
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 throw;

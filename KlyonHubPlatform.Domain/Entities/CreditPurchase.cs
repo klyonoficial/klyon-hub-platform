@@ -10,7 +10,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public decimal AmountPaid { get; set; }
         public int CreditsReceived { get; set; }
         public int BonusCredits { get; set; }
-        public string Status { get; set; } = "Pending"; // "Pending", "Paid", "Cancelled", "Processing"
+        public CreditPurchaseStatus Status { get; set; } = CreditPurchaseStatus.Pending;
         public PaymentMethod? PaymentMethod { get; set; }
         public string? ExternalPaymentId { get; set; }
         public string? PixCode { get; set; }

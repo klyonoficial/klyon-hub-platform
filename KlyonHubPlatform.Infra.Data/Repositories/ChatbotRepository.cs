@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -204,7 +205,18 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(status))
-                query = query.Where(q => q.Status == status);
+            {
+                var statusEnum = status.ToLowerInvariant() switch
+                {
+                    "pending" => UnansweredQuestionStatus.Pending,
+                    "under_review" => UnansweredQuestionStatus.UnderReview,
+                    "resolved" => UnansweredQuestionStatus.Resolved,
+                    "added_to_faq" => UnansweredQuestionStatus.AddedToFaq,
+                    _ => (UnansweredQuestionStatus?)null
+                };
+                if (statusEnum.HasValue)
+                    query = query.Where(q => q.Status == statusEnum.Value);
+            }
 
             if (minFrequency.HasValue)
                 query = query.Where(q => q.Frequency >= minFrequency.Value);
@@ -259,7 +271,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             var redirectedToHuman = await conversationQuery.CountAsync(c => c.WasRedirectedToHuman, cancellationToken);
             var totalMessages = await messageQuery.CountAsync(cancellationToken);
             var answeredMessages = await messageQuery.CountAsync(m => m.WasAnswered, cancellationToken);
-            var unansweredCount = await unansweredQuery.CountAsync(q => q.Status == "pending", cancellationToken);
+            var unansweredCount = await unansweredQuery.CountAsync(q => q.Status == UnansweredQuestionStatus.Pending, cancellationToken);
             var averageMessagesPerConversation = totalConversations > 0
                 ? (decimal)totalMessages / totalConversations
                 : 0;

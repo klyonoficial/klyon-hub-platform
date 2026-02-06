@@ -130,7 +130,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
                         fn.Type == "Servico" &&
-                        (fn.Status == "Emitida" || fn.Status == "Importada")
+                        (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                     ))
                     .CountAsync();
             }
@@ -142,11 +142,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Contar apenas notas rejeitadas que não têm uma NF aprovada (Emitida ou Importada) posteriormente para o mesmo PaymentId
                 // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
                 rejectedNf = await _context.FiscalNotes
-                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == "Rejeitada")
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Rejeitada)
                     .Where(fn => !_context.FiscalNotes.Any(fn2 =>
                         fn2.PaymentId == fn.PaymentId &&
                         fn2.Type == "Servico" &&
-                        (fn2.Status == "Emitida" || fn2.Status == "Importada") &&
+                        (fn2.Status == FiscalNoteStatus.Emitida || fn2.Status == FiscalNoteStatus.Importada) &&
                         fn2.Id != fn.Id
                     ))
                     .CountAsync();
@@ -207,7 +207,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     pendingInterests = await _context.Interests
                         .Include(i => i.CoworkingAddress)
-                        .Where(i => i.CoworkingAddress.CoworkingId == coworkingEntity.Id && i.Status == "Pending")
+                        .Where(i => i.CoworkingAddress.CoworkingId == coworkingEntity.Id && i.Status == InterestStatus.Pending)
                         .CountAsync();
                 }
                 catch
@@ -218,7 +218,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Contar reservas confirmadas
                 var confirmedReservations = await _context.Reservations
                     .Include(r => r.CoworkingAddress)
-                    .Where(r => r.CoworkingAddress.CoworkingId == coworkingEntity.Id && r.Status == "Confirmed")
+                    .Where(r => r.CoworkingAddress.CoworkingId == coworkingEntity.Id && r.Status == ReservationStatus.Confirmed)
                     .CountAsync();
 
                 pendingReservationsCount = pendingInterests + confirmedReservations;
@@ -244,7 +244,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
                         fn.Type == "Servico" &&
-                        (fn.Status == "Emitida" || fn.Status == "Importada")
+                        (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                     ))
                     .CountAsync();
             }
@@ -369,7 +369,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(p => p.Status == PaymentStatus.Paid)
                     .Where(p => (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) || (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
-                        fn.PaymentId == p.Id && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada")))
+                        fn.PaymentId == p.Id && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)))
                     .CountAsync();
             }
             catch { }
@@ -391,10 +391,10 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 rejectedNf = await _context.FiscalNotes
-                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == "Rejeitada")
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Rejeitada)
                     .Where(fn => !_context.FiscalNotes.Any(fn2 =>
                         fn2.PaymentId == fn.PaymentId && fn2.Type == "Servico" &&
-                        (fn2.Status == "Emitida" || fn2.Status == "Importada") && fn2.Id != fn.Id))
+                        (fn2.Status == FiscalNoteStatus.Emitida || fn2.Status == FiscalNoteStatus.Importada) && fn2.Id != fn.Id))
                     .CountAsync();
             }
             catch { }
@@ -1982,7 +1982,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Status válidos: Confirmed, Completed, Cancelled
                 if (status == "Confirmed" || status == "Completed" || status == "Cancelled")
                 {
-                    reservationsQuery = reservationsQuery.Where(r => r.Status == status);
+                    var resStatus = status == "Confirmed" ? ReservationStatus.Confirmed : status == "Completed" ? ReservationStatus.Completed : ReservationStatus.Cancelled;
+                    reservationsQuery = reservationsQuery.Where(r => r.Status == resStatus);
                 }
                 // Se o status for de Interests (Pending, Contacted, etc), não mostrar Reservations
                 else
@@ -2036,7 +2037,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Status válidos: Pending, Contacted, Converted, Rejected
                     if (status == "Pending" || status == "Contacted" || status == "Converted" || status == "Rejected")
                     {
-                        interestsQuery = interestsQuery.Where(i => i.Status == status);
+                        var intStatus = status == "Pending" ? InterestStatus.Pending : status == "Contacted" ? InterestStatus.Contacted : status == "Converted" ? InterestStatus.Converted : InterestStatus.Rejected;
+                        interestsQuery = interestsQuery.Where(i => i.Status == intStatus);
                     }
                     // Se o status for de Reservations (Confirmed, Completed, etc), não mostrar Interests
                     else
@@ -2066,7 +2068,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ["ClientEmail"] = r.Client.ContactEmail ?? r.Client.User.Email ?? "",
                 ["ClientPhone"] = r.Client.ContactPhone ?? r.Client.User.Phone ?? "",
                 ["Address"] = r.CoworkingAddress,
-                ["Status"] = r.Status ?? "",
+                ["Status"] = r.Status.ToString(),
                 ["CreatedAt"] = r.CreatedAt,
                 ["RoomType"] = r.RoomType ?? "",
                 ["TotalValue"] = (object?)r.TotalValue ?? DBNull.Value,
@@ -2083,7 +2085,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ["ClientEmail"] = i.Email ?? "",
                 ["ClientPhone"] = i.Phone ?? "",
                 ["Address"] = i.CoworkingAddress,
-                ["Status"] = i.Status ?? "",
+                ["Status"] = i.Status.ToString(),
                 ["CreatedAt"] = i.CreatedAt,
                 ["RoomType"] = (object?)null ?? DBNull.Value,
                 ["TotalValue"] = DBNull.Value,
@@ -2146,11 +2148,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Reservations");
             }
 
-            interest.Status = status;
+            if (!Enum.TryParse<InterestStatus>(status, ignoreCase: true, out var statusEnum))
+            {
+                TempData["Error"] = "Status inválido.";
+                return RedirectToAction("Reservations");
+            }
+            interest.Status = statusEnum;
             interest.Notes = notes;
             interest.UpdatedAt = DateTime.UtcNow;
 
-            if (status == "Contacted")
+            if (statusEnum == InterestStatus.Contacted)
             {
                 interest.ContactedByUserId = userId;
                 interest.ContactedAt = DateTime.UtcNow;
@@ -2179,8 +2186,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(x => x.CoworkingAddress)
                 .FirstOrDefaultAsync(x => x.Id == id && x.CoworkingAddress != null && x.CoworkingAddress.CoworkingId == coworkingEntity.Id);
             if (r == null) { TempData["Error"] = "Reserva não encontrada."; return RedirectToAction("Reservations"); }
-            if (string.Equals(r.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("Reservations"); }
-            if (string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase)) { TempData["Success"] = "Reserva já concluída e créditos repassados."; return RedirectToAction("Reservations"); }
+            if (r.Status == ReservationStatus.Cancelled) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("Reservations"); }
+            if (r.Status == ReservationStatus.Completed) { TempData["Success"] = "Reserva já concluída e créditos repassados."; return RedirectToAction("Reservations"); }
 
             if (r.CoworkingConfirmedAt == null)
             {
@@ -2207,7 +2214,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var q = _context.Reservations
                 .Include(r => r.Client)
                 .Include(r => r.CoworkingAddress)
-                .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == cow.Id && r.Status != "Cancelled");
+                .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == cow.Id && r.Status != ReservationStatus.Cancelled);
 
             if (dateFrom.HasValue)
                 q = q.Where(r => r.ReservationDate >= dateFrom.Value.Date);
@@ -2440,7 +2447,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var paymentIds = commissions.Select(c => c.PaymentId).Distinct().ToList();
             var paymentIdsWithEmitidaNf = await _context.FiscalNotes
                 .Where(fn => fn.PaymentId != null && paymentIds.Contains(fn.PaymentId.Value)
-                    && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada"))
+                    && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada))
                 .Select(fn => fn.PaymentId!.Value)
                 .Distinct()
                 .ToListAsync();
@@ -4723,7 +4730,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Where(p => !_context.FiscalNotes.Any(fn =>
                     fn.PaymentId == p.Id &&
                     fn.Type == "Servico" &&
-                    (fn.Status == "Emitida" || fn.Status == "Importada")
+                    (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                 ))
                 .AsQueryable();
 
@@ -4970,7 +4977,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se já existe NF emitida
                 var existingNote = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && fn.Status == "Emitida");
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Emitida);
 
                 if (existingNote != null)
                 {
@@ -5005,7 +5012,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Amount = payment.Amount, // Valor total (com percentagem)
                     ServiceAmount = payment.Amount,
                     IssueDate = DateTime.UtcNow,
-                    Status = "Pendente",
+                    Status = FiscalNoteStatus.Pendente,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -5075,7 +5082,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 var existing = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && (fn.Status == "Emitida" || fn.Status == "Importada"));
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada));
                 if (existing != null)
                 {
                     TempData["Error"] = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
@@ -5110,7 +5117,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Amount = payment.Amount, // Valor total (com percentagem)
                     ServiceAmount = payment.Amount,
                     IssueDate = DateTime.UtcNow,
-                    Status = "Importada",
+                    Status = FiscalNoteStatus.Importada,
                     PdfUrl = pdfPath,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -5157,9 +5164,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 .AsQueryable();
 
             // Aplicar filtros
-            if (!string.IsNullOrWhiteSpace(status))
+            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<FiscalNoteStatus>(status, true, out var fiscalStatus))
             {
-                query = query.Where(fn => fn.Status == status);
+                query = query.Where(fn => fn.Status == fiscalStatus);
             }
 
             if (!string.IsNullOrWhiteSpace(noteNumber))

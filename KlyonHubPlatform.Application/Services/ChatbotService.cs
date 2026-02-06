@@ -1,6 +1,7 @@
 using KlyonHubPlatform.Application.DTOs;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Interfaces;
 using System.Text.Json;
 
@@ -147,7 +148,7 @@ namespace KlyonHubPlatform.Application.Services
                     Question = request.Message,
                     DetectedIntention = intentionResult.IntentionName,
                     SuggestedCategory = intentionResult.Category,
-                    Status = "pending",
+                    Status = UnansweredQuestionStatus.Pending,
                     Frequency = 1,
                     CreatedAt = DateTime.Now
                 };
@@ -367,7 +368,7 @@ namespace KlyonHubPlatform.Application.Services
                 Question = q.Question,
                 DetectedIntention = q.DetectedIntention,
                 SuggestedCategory = q.SuggestedCategory,
-                Status = q.Status,
+                Status = q.Status.ToString(),
                 Frequency = q.Frequency,
                 CreatedAt = q.CreatedAt,
                 ReviewedByName = q.Reviewer?.FullName,
@@ -379,9 +380,9 @@ namespace KlyonHubPlatform.Application.Services
         public async Task UpdateUnansweredQuestionStatusAsync(int questionId, string status, int reviewedBy, string? notes = null)
         {
             var question = await _repository.GetUnansweredQuestionByIdAsync(questionId);
-            if (question != null)
+            if (question != null && Enum.TryParse<UnansweredQuestionStatus>(status, true, out var statusEnum))
             {
-                question.Status = status;
+                question.Status = statusEnum;
                 question.ReviewedBy = reviewedBy;
                 question.ReviewedAt = DateTime.Now;
                 question.ReviewNotes = notes;

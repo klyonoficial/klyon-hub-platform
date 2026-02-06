@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     /// <summary>
@@ -40,8 +42,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? DueDate { get; set; }
         
         // Status
-        /// <summary>Status: Pendente, Emitida, Cancelada, Erro</summary>
-        public string Status { get; set; } = "Pendente";
+        /// <summary>Status: Pendente, Emitida, Cancelada, Erro, etc.</summary>
+        public FiscalNoteStatus Status { get; set; } = FiscalNoteStatus.Pendente;
         /// <summary>Mensagem de erro (se houver)</summary>
         public string? ErrorMessage { get; set; }
         /// <summary>XML da NF (retornado pela SEFAZ)</summary>

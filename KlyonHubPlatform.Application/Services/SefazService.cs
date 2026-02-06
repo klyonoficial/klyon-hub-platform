@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -178,7 +179,7 @@ namespace KlyonHubPlatform.Application.Services
                 fiscalNote.Number = GenerateFiscalNoteNumber();
                 fiscalNote.AccessKey = GenerateAccessKey();
                 fiscalNote.VerificationCode = GenerateVerificationCode();
-                fiscalNote.Status = "Emitida";
+                fiscalNote.Status = FiscalNoteStatus.Emitida;
                 fiscalNote.AuthorizedAt = DateTime.UtcNow;
                 fiscalNote.AuthorizationProtocol = $"PROT-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 fiscalNote.XmlContent = GenerateMockXml(fiscalNote, client, coworking, config);
@@ -214,7 +215,7 @@ namespace KlyonHubPlatform.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Erro ao emitir NF de intermediação: {ex.Message}");
-                fiscalNote.Status = "Erro";
+                fiscalNote.Status = FiscalNoteStatus.Erro;
                 fiscalNote.ErrorMessage = ex.Message;
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 throw;
@@ -231,13 +232,13 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException("Nota fiscal não encontrada.");
                 }
 
-                if (fiscalNote.Status != "Emitida")
+                if (fiscalNote.Status != FiscalNoteStatus.Emitida)
                 {
                     throw new InvalidOperationException("Apenas notas fiscais emitidas podem ser canceladas.");
                 }
 
                 // TODO: Implementar cancelamento real na SEFAZ ES
-                fiscalNote.Status = "Cancelada";
+                fiscalNote.Status = FiscalNoteStatus.Cancelada;
                 fiscalNote.CancelledAt = DateTime.UtcNow;
                 fiscalNote.CancellationReason = cancellationReason;
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
@@ -250,7 +251,7 @@ namespace KlyonHubPlatform.Application.Services
                     "NF cancelada (SEFAZ)",
                     "FiscalNote",
                     fiscalNoteId,
-                    new { Status = "Emitida", AccessKey = fiscalNote.AccessKey },
+                    new { Status = nameof(FiscalNoteStatus.Emitida), AccessKey = fiscalNote.AccessKey },
                     new { Status = fiscalNote.Status, CancelledAt = fiscalNote.CancelledAt, CancellationReason = cancellationReason }
                 );
 
@@ -328,7 +329,7 @@ namespace KlyonHubPlatform.Application.Services
                 fiscalNote.Number = GenerateFiscalNoteNumber();
                 fiscalNote.AccessKey = GenerateAccessKeyForPartner(config.PartnerCNPJ, config.State);
                 fiscalNote.VerificationCode = GenerateVerificationCode();
-                fiscalNote.Status = "Emitida";
+                fiscalNote.Status = FiscalNoteStatus.Emitida;
                 fiscalNote.AuthorizedAt = DateTime.UtcNow;
                 fiscalNote.AuthorizationProtocol = $"PROT-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 fiscalNote.XmlContent = GenerateMockXmlForService(fiscalNote, client, coworking, config);
@@ -365,7 +366,7 @@ namespace KlyonHubPlatform.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Erro ao emitir NF de serviço: {ex.Message}");
-                fiscalNote.Status = "Erro";
+                fiscalNote.Status = FiscalNoteStatus.Erro;
                 fiscalNote.ErrorMessage = ex.Message;
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 throw;

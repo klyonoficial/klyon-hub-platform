@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Interest
@@ -11,7 +13,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string LastName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Phone { get; set; } = string.Empty;
-        public string Status { get; set; } = "Pending"; // Pending, Contacted, Converted, Rejected
+        public InterestStatus Status { get; set; } = InterestStatus.Pending;
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

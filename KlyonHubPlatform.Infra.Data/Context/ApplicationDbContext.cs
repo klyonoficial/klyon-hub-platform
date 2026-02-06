@@ -261,7 +261,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.CNPJ).IsRequired().HasMaxLength(18);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
-                entity.Property(e => e.ApprovalStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.ApprovalStatus).HasColumnType("int");
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
             });
 
@@ -272,7 +272,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Coworking).WithMany(c => c.Addresses).HasForeignKey(e => e.CoworkingId);
                 entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId);
                 entity.HasIndex(e => new { e.CoworkingId, e.Address }).IsUnique();
-                entity.Property(e => e.MaxContractsApprovalStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.MaxContractsApprovalStatus).HasColumnType("int");
             });
 
             // Client configuration
@@ -300,7 +300,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.CoworkingAddress).WithMany().HasForeignKey(e => e.CoworkingAddressId);
                 entity.HasOne(e => e.Subscription).WithOne(s => s.Contract).HasForeignKey<Subscription>(s => s.ContractId);
                 entity.HasOne(e => e.AssistedSaleAdmin).WithMany().HasForeignKey(e => e.AssistedSaleAdminId).OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Status).HasConversion<string>();
+                entity.Property(e => e.Status).HasColumnType("int");
             });
 
             // Payment configuration
@@ -310,8 +310,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Subscription).WithMany(s => s.Payments).HasForeignKey(e => e.SubscriptionId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Reservation).WithMany().HasForeignKey(e => e.ReservationId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Validator).WithMany().HasForeignKey(e => e.ValidatedBy).OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Status).HasConversion<string>();
-                entity.Property(e => e.Method).HasConversion<string>();
+                entity.Property(e => e.Status).HasColumnType("int");
+                entity.Property(e => e.Method).HasColumnType("int");
             });
 
             // Subscription configuration
@@ -319,7 +319,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             {
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Contract).WithOne(c => c.Subscription).HasForeignKey<Subscription>(s => s.ContractId);
-                entity.Property(e => e.Status).HasConversion<string>();
+                entity.Property(e => e.Status).HasColumnType("int");
             });
 
             // Commission configuration
@@ -335,7 +335,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
             {
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Coworking).WithMany().HasForeignKey(e => e.CoworkingId);
-                entity.Property(e => e.Status).HasConversion<string>();
+                entity.Property(e => e.Status).HasColumnType("int");
             });
 
             // Document configuration
@@ -391,7 +391,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany(c => c.Documents)
                     .HasForeignKey(e => e.CoworkingId);
                 entity.Property(e => e.Type).HasConversion<string>();
-                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
             });
 
@@ -465,7 +465,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
                 entity.Property(e => e.Phone).HasMaxLength(50);
-                entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("Pending");
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.StartTime).HasColumnType("TIME");
                 entity.Property(e => e.EndTime).HasColumnType("TIME");
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
@@ -543,8 +543,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.CreditPlanId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.Property(e => e.AmountPaid).IsRequired().HasColumnType("DECIMAL(10,2)");
-                entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Pending");
-                entity.Property(e => e.PaymentMethod).HasConversion<string>();
+                entity.Property(e => e.Status).HasColumnType("int");
+                entity.Property(e => e.PaymentMethod).HasColumnType("int");
                 entity.Property(e => e.ExternalPaymentId).HasMaxLength(255);
                 entity.Property(e => e.PixCode).HasMaxLength(500);
                 entity.Property(e => e.BoletoCode).HasMaxLength(100);
@@ -575,7 +575,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.EndTime).HasColumnType("TIME");
                 entity.Property(e => e.RoomType).IsRequired().HasMaxLength(20).HasDefaultValue("Shared");
                 entity.Property(e => e.TotalValue).HasColumnType("DECIMAL(10,2)").IsRequired();
-                entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Confirmed");
+                entity.Property(e => e.Status).HasColumnType("int");
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
                 // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
@@ -681,7 +681,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(e => new { e.CoworkingId, e.ServiceId }).IsUnique();
                 entity.Property(e => e.Percentage).HasColumnType("DECIMAL(5,2)").IsRequired();
-                entity.Property(e => e.RemovalRequestStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.RemovalRequestStatus).HasColumnType("int");
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
                 // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
@@ -753,7 +753,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.ClientId)
                     .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Type).IsRequired().HasMaxLength(20);
-                entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.Number).HasMaxLength(50);
                 entity.Property(e => e.VerificationCode).HasMaxLength(50);
                 entity.Property(e => e.AccessKey).HasMaxLength(50);
@@ -814,7 +814,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.ReviewedBy)
                     .OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.Justification).HasMaxLength(2000);
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
                 entity.HasIndex(e => e.CoworkingAddressId);
@@ -833,7 +833,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.ReviewedBy)
                     .OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.Justification).HasMaxLength(2000);
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
                 entity.HasIndex(e => e.CoworkingAddressId);
@@ -852,6 +852,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.ReviewedBy)
                     .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
                 entity.HasIndex(e => e.CoworkingAddressId);
                 entity.HasIndex(e => e.Status);
@@ -946,7 +947,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Question).IsRequired().HasMaxLength(1000);
                 entity.Property(e => e.DetectedIntention).HasMaxLength(100);
                 entity.Property(e => e.SuggestedCategory).HasMaxLength(100);
-                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.ReviewNotes).HasMaxLength(2000);
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => e.Frequency);
@@ -962,7 +963,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.ResourceId).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.ReferenceId).HasMaxLength(100);
                 entity.Property(e => e.ResourceStatus).HasMaxLength(50);
-                entity.Property(e => e.ProcessingStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.ProcessingStatus).HasColumnType("int");
                 entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
                 entity.Property(e => e.RawPayload).HasColumnType("TEXT");
                 entity.Property(e => e.ReceivedSignature).HasMaxLength(255);
@@ -992,7 +993,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.CodigoVerificacao).HasMaxLength(50);
                 entity.Property(e => e.Url).HasMaxLength(500);
                 entity.Property(e => e.CaminhoXml).HasMaxLength(500);
-                entity.Property(e => e.ProcessingStatus).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.ProcessingStatus).HasColumnType("int");
                 entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
                 entity.Property(e => e.RawPayload).HasColumnType("TEXT");
                 entity.Property(e => e.SourceIp).HasMaxLength(50);
@@ -1020,7 +1021,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.ApprovedBy)
                     .OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.TotalAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
                 entity.Property(e => e.TotalGrossAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
                 entity.Property(e => e.TotalPlatformCommission).HasColumnType("DECIMAL(12,2)").IsRequired();
@@ -1068,8 +1069,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .WithMany()
                     .HasForeignKey(e => e.ValidatedBy)
                     .OnDelete(DeleteBehavior.SetNull);
-                entity.Property(e => e.Type).HasConversion<string>().HasMaxLength(50);
-                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
+                entity.Property(e => e.Type).HasColumnType("int");
+                entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.InvoiceAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
                 entity.Property(e => e.ExpectedAmount).HasColumnType("DECIMAL(12,2)").IsRequired();
                 entity.Property(e => e.InvoiceNumber).HasMaxLength(50);

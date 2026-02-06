@@ -21,7 +21,7 @@ namespace KlyonHubPlatform.Application.Services
         {
             if (reservation.ClientConfirmedAt == null || reservation.CoworkingConfirmedAt == null)
                 return;
-            if (string.Equals(reservation.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+            if (reservation.Status == ReservationStatus.Completed)
                 return;
 
             var r = await _context.Reservations
@@ -101,7 +101,7 @@ namespace KlyonHubPlatform.Application.Services
                 // Tabela PlatformCreditBalances pode não existir ainda; ignorar e continuar
             }
 
-            r.Status = "Completed";
+            r.Status = ReservationStatus.Completed;
             r.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }

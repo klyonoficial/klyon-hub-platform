@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Minhas Reservas";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -100,15 +101,15 @@ else
                             <small class="text-muted">Total de Reservas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-success">@(ViewBag.TotalConfirmed ?? Model.Count(r => r.Status == "Confirmed"))</h5>
+                            <h5 class="text-success">@(ViewBag.TotalConfirmed ?? Model.Count(r => r.Status == ReservationStatus.Confirmed))</h5>
                             <small class="text-muted">Confirmadas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-info">@(ViewBag.TotalCompleted ?? Model.Count(r => r.Status == "Completed"))</h5>
+                            <h5 class="text-info">@(ViewBag.TotalCompleted ?? Model.Count(r => r.Status == ReservationStatus.Completed))</h5>
                             <small class="text-muted">Concluídas</small>
                         </div>
                         <div class="col-md-3">
-                            <h5 class="text-danger">@(ViewBag.TotalCancelled ?? Model.Count(r => r.Status == "Cancelled"))</h5>
+                            <h5 class="text-danger">@(ViewBag.TotalCancelled ?? Model.Count(r => r.Status == ReservationStatus.Cancelled))</h5>
                             <small class="text-muted">Canceladas</small>
                         </div>
                     </div>
@@ -134,18 +135,18 @@ else
         {
             var statusClass = reservation.Status switch
             {
-                "Confirmed" => "success",
-                "Completed" => "info",
-                "Cancelled" => "danger",
+                ReservationStatus.Confirmed => "success",
+                ReservationStatus.Completed => "info",
+                ReservationStatus.Cancelled => "danger",
                 _ => "secondary"
             };
 
             var statusText = reservation.Status switch
             {
-                "Confirmed" => "Confirmada",
-                "Completed" => "Concluída",
-                "Cancelled" => "Cancelada",
-                _ => reservation.Status
+                ReservationStatus.Confirmed => "Confirmada",
+                ReservationStatus.Completed => "Concluída",
+                ReservationStatus.Cancelled => "Cancelada",
+                _ => reservation.Status.ToString()
             };
 
             <div class="col-md-6 mb-4">
@@ -218,7 +219,7 @@ else
                                 </small>
                             </div>
                         }
-                        @if (reservation.Status == "Confirmed" && !reservation.ClientConfirmedAt.HasValue)
+                        @if (reservation.Status == ReservationStatus.Confirmed && !reservation.ClientConfirmedAt.HasValue)
                         {
                             <div class="mt-3">
                                 <form method="post" action="@Url.Action("ConfirmReservationUsed", "Client")" class="d-inline">
@@ -231,7 +232,7 @@ else
                                 <small class="d-block text-muted mt-1">Após você e o coworking confirmarem, o pagamento será processado.</small>
                             </div>
                         }
-                        @if (reservation.ClientConfirmedAt.HasValue && reservation.Status == "Confirmed")
+                        @if (reservation.ClientConfirmedAt.HasValue && reservation.Status == ReservationStatus.Confirmed)
                         {
                             <div class="mt-2">
                                 <small class="text-success"><i class="bi bi-check-circle"></i> Você confirmou uso em @reservation.ClientConfirmedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"). Aguardando confirmação do coworking.</small>

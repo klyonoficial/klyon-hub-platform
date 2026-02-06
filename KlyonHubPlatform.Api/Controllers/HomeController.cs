@@ -376,7 +376,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 LastName = model.LastName,
                 Email = model.Email,
                 Phone = model.Phone,
-                Status = "Pending",
+                Status = KlyonHubPlatform.Domain.Core.Enums.InterestStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -568,7 +568,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         .AnyAsync(r => r.CoworkingAddressId == CoworkingAddressId &&
                                       r.ReservationDate.Date == ReservationDate.Date &&
                                       r.RoomType == "Private" &&
-                                      r.Status != "Cancelled" &&
+                                      r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled &&
                                       r.StartTime.HasValue && r.EndTime.HasValue &&
                                       !(r.EndTime <= startTimeSpan || r.StartTime >= endTimeSpan));
                 }
@@ -579,7 +579,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         .Where(r => r.CoworkingAddressId == CoworkingAddressId &&
                                    r.ReservationDate.Date == ReservationDate.Date &&
                                    r.RoomType == "Shared" &&
-                                   r.Status != "Cancelled" &&
+                                   r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled &&
                                    r.StartTime.HasValue && r.EndTime.HasValue &&
                                    !(r.EndTime <= startTimeSpan || r.StartTime >= endTimeSpan))
                         .CountAsync();
@@ -614,7 +614,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     EndTime = endTimeSpan,
                     RoomType = RoomType,
                     TotalValue = totalValue,
-                    Status = "Pending", // Pendente até pagamento ser confirmado
+                    Status = KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Pending, // Pendente até pagamento ser confirmado
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -687,7 +687,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(r => r.CoworkingAddressId == addressId &&
                                r.ReservationDate >= first && r.ReservationDate <= last &&
                                r.RoomType == roomType &&
-                               r.Status != "Cancelled" &&
+                               r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled &&
                                r.StartTime.HasValue && r.EndTime.HasValue)
                     .Select(r => new { r.ReservationDate, r.StartTime, r.EndTime })
                     .ToListAsync();
@@ -740,7 +740,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             .OrderBy(x => x.s)
                             .ToList();
                         var merged = new List<(TimeSpan s, TimeSpan e)>();
-                        foreach (var (s, e) in intervals)
+                        foreach ((TimeSpan s, TimeSpan e) in intervals)
                         {
                             if (merged.Count > 0 && s <= merged[merged.Count - 1].e)
                                 merged[merged.Count - 1] = (merged[merged.Count - 1].s, merged[merged.Count - 1].e > e ? merged[merged.Count - 1].e : e);
@@ -873,7 +873,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         .Where(r => r.CoworkingAddressId == addressId &&
                                    r.ReservationDate.Date == date.Value.Date &&
                                    r.RoomType == roomType &&
-                                   r.Status != "Cancelled" &&
+                                   r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled &&
                                    r.StartTime.HasValue && r.EndTime.HasValue)
                         .Select(r => new { r.StartTime, r.EndTime })
                         .ToListAsync();
@@ -968,7 +968,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                    r.ReservationDate >= startDate &&
                                    r.ReservationDate <= endDate &&
                                    r.RoomType == "Private" &&
-                                   r.Status != "Cancelled")
+                                   r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled)
                         .Select(r => r.ReservationDate.Date)
                         .Distinct()
                         .ToListAsync();
@@ -985,7 +985,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                    r.ReservationDate >= startDate &&
                                    r.ReservationDate <= endDate &&
                                    r.RoomType == "Shared" &&
-                                   r.Status != "Cancelled")
+                                   r.Status != KlyonHubPlatform.Domain.Core.Enums.ReservationStatus.Cancelled)
                         .GroupBy(r => r.ReservationDate.Date)
                         .Select(g => new { Date = g.Key, Count = g.Count() })
                         .ToListAsync();

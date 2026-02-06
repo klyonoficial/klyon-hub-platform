@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Reservation
@@ -12,7 +14,7 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Quando preenchido, a reserva é por sala individual; conflito verificado por sala.</summary>
         public int? CoworkingRoomId { get; set; }
         public decimal TotalValue { get; set; }
-        public string Status { get; set; } = "Confirmed"; // "Confirmed", "Cancelled", "Completed"
+        public ReservationStatus Status { get; set; } = ReservationStatus.Confirmed;
         /// <summary>Cliente confirmou que realizou/utilizou a reserva.</summary>
         public DateTime? ClientConfirmedAt { get; set; }
         /// <summary>Coworking confirmou que o cliente compareceu e utilizou o espaço.</summary>

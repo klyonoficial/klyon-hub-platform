@@ -309,7 +309,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 try
                 {
                     reservationsCount = await _context.Reservations
-                        .Where(r => r.ClientId == client.Id && r.Status == "Confirmed")
+                        .Where(r => r.ClientId == client.Id && r.Status == ReservationStatus.Confirmed)
                         .CountAsync();
                 }
                 catch
@@ -3138,7 +3138,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     AmountPaid = plan.Price,
                     CreditsReceived = plan.Credits,
                     BonusCredits = plan.BonusCredits,
-                    Status = "Processing",
+                    Status = CreditPurchaseStatus.Processing,
                     PaymentMethod = PaymentMethod.CreditCard,
                     ExternalPaymentId = Guid.NewGuid().ToString()
                 };
@@ -3206,7 +3206,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     AmountPaid = plan.Price,
                     CreditsReceived = plan.Credits,
                     BonusCredits = plan.BonusCredits,
-                    Status = "Pending",
+                    Status = CreditPurchaseStatus.Pending,
                     PaymentMethod = method,
                     ExternalPaymentId = Guid.NewGuid().ToString()
                 };
@@ -3255,7 +3255,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         purchase.PixExpiresAt = qrCode.ExpirationDate;
                     }
 
-                    purchase.Status = "Processing";
+                    purchase.Status = CreditPurchaseStatus.Processing;
                     await _context.SaveChangesAsync();
 
                     // Redirecionar para página de pagamento PIX
@@ -3288,7 +3288,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         }
                     }
 
-                    purchase.Status = "Processing";
+                    purchase.Status = CreditPurchaseStatus.Processing;
                     await _context.SaveChangesAsync();
 
                     // Redirecionar para página de pagamento Boleto
@@ -3297,7 +3297,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (method == PaymentMethod.CreditCard)
                 {
                     // Para cartão, redirecionar para página com modal de cartão
-                    purchase.Status = "Processing";
+                    purchase.Status = CreditPurchaseStatus.Processing;
                     await _context.SaveChangesAsync();
                     
                     return RedirectToAction("CreditPurchasePayment", new { purchaseId = purchase.Id });
@@ -3425,7 +3425,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     var status = charge.Status?.ToUpper();
                     if (status == "PAID")
                     {
-                        purchase.Status = "Paid";
+                        purchase.Status = CreditPurchaseStatus.Paid;
                         purchase.PaidAt = charge.PaidAt ?? DateTimeHelper.GetBrazilianTime();
                         
                         // Adicionar créditos ao cliente
@@ -3460,21 +3460,21 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     else if (status == "DECLINED" || status == "CANCELLED")
                     {
-                        purchase.Status = "Cancelled";
+                        purchase.Status = CreditPurchaseStatus.Cancelled;
                     }
                     else
                     {
-                        purchase.Status = "Processing";
+                        purchase.Status = CreditPurchaseStatus.Processing;
                     }
                 }
 
                 await _context.SaveChangesAsync();
 
-                if (purchase.Status == "Paid")
+                if (purchase.Status == CreditPurchaseStatus.Paid)
                 {
                     return Json(new { success = true, message = "Pagamento aprovado! Créditos creditados em sua conta." });
                 }
-                else if (purchase.Status == "Cancelled")
+                else if (purchase.Status == CreditPurchaseStatus.Cancelled)
                 {
                     return Json(new { success = false, error = "Pagamento recusado. Verifique os dados do cartão e tente novamente." });
                 }
@@ -3654,7 +3654,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     hasConflict = await _context.Reservations
                         .AnyAsync(r => r.ClientId == client.Id && r.CoworkingAddressId == CoworkingAddressId &&
-                            r.ReservationDate.Date == Date && r.RoomType == RoomType && r.Status != "Cancelled" &&
+                            r.ReservationDate.Date == Date && r.RoomType == RoomType && r.Status != ReservationStatus.Cancelled &&
                             r.StartTime.HasValue && r.EndTime.HasValue && !(r.EndTime <= Start || r.StartTime >= End));
                 }
                 if (hasConflict)
@@ -3667,14 +3667,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     hasConflict = await _context.Reservations
                         .AnyAsync(r => r.CoworkingAddressId == CoworkingAddressId && r.ReservationDate.Date == Date &&
-                            r.RoomType == "Private" && r.Status != "Cancelled" && r.StartTime.HasValue && r.EndTime.HasValue &&
+                            r.RoomType == "Private" && r.Status != ReservationStatus.Cancelled && r.StartTime.HasValue && r.EndTime.HasValue &&
                             !(r.EndTime <= Start || r.StartTime >= End));
                 }
                 else
                 {
                     var countDb = await _context.Reservations
                         .CountAsync(r => r.CoworkingAddressId == CoworkingAddressId && r.ReservationDate.Date == Date &&
-                            r.RoomType == "Shared" && r.Status != "Cancelled" && r.StartTime.HasValue && r.EndTime.HasValue &&
+                            r.RoomType == "Shared" && r.Status != ReservationStatus.Cancelled && r.StartTime.HasValue && r.EndTime.HasValue &&
                             !(r.EndTime <= Start || r.StartTime >= End));
                     var countAdded = addedInRequest.Count(t => t.Date == Date && !(t.End <= Start || t.Start >= End));
                     hasConflict = maxSeats > 0 && (countDb + countAdded >= maxSeats);
@@ -3694,7 +3694,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     EndTime = End,
                     RoomType = RoomType,
                     TotalValue = totalValue,
-                    Status = "Confirmed",
+                    Status = ReservationStatus.Confirmed,
                     CreatedAt = DateTimeHelper.GetBrazilianTime()
                 };
                 _context.Reservations.Add(reservation);
@@ -3746,7 +3746,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     var s = status.Trim();
                     if (s == "Confirmed" || s == "Completed" || s == "Cancelled")
-                        query = query.Where(r => r.Status == s);
+                        if (Enum.TryParse<ReservationStatus>(s, true, out var resStatus))
+                            query = query.Where(r => r.Status == resStatus);
                 }
 
                 // Filtro por data (de/até)
@@ -3802,9 +3803,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Calcular estatísticas do total (antes da paginação)
                 var allReservations = await query.ToListAsync();
                 ViewBag.TotalReservations = allReservations.Count;
-                ViewBag.TotalConfirmed = allReservations.Count(r => r.Status == "Confirmed");
-                ViewBag.TotalCompleted = allReservations.Count(r => r.Status == "Completed");
-                ViewBag.TotalCancelled = allReservations.Count(r => r.Status == "Cancelled");
+                ViewBag.TotalConfirmed = allReservations.Count(r => r.Status == ReservationStatus.Confirmed);
+                ViewBag.TotalCompleted = allReservations.Count(r => r.Status == ReservationStatus.Completed);
+                ViewBag.TotalCancelled = allReservations.Count(r => r.Status == ReservationStatus.Cancelled);
 
                 ViewBag.SortBy = sortBy ?? "date_asc";
                 ViewBag.Status = status;
@@ -3840,8 +3841,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var r = await _context.Reservations.FirstOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id);
             if (r == null) { TempData["Error"] = "Reserva não encontrada."; return RedirectToAction("MyReservations"); }
-            if (string.Equals(r.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("MyReservations"); }
-            if (string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase)) { TempData["Success"] = "Reserva já concluída."; return RedirectToAction("MyReservations"); }
+            if (r.Status == ReservationStatus.Cancelled) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("MyReservations"); }
+            if (r.Status == ReservationStatus.Completed) { TempData["Success"] = "Reserva já concluída."; return RedirectToAction("MyReservations"); }
 
             if (r.ClientConfirmedAt == null)
             {
@@ -3881,7 +3882,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(fn => fn.Payment)
                 .Where(fn => fn.ClientId == client.Id 
                     && (fn.Type == "Intermediacao" || fn.Type == "Servico")
-                    && fn.Status == "Emitida") // Apenas notas aprovadas/emitidas
+                    && fn.Status == FiscalNoteStatus.Emitida) // Apenas notas aprovadas/emitidas
                 .AsQueryable();
 
             // Filtro por tipo
@@ -3932,7 +3933,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(fn => fn.Coworking)
                 .Where(fn => fn.ClientId == client.Id 
                     && (fn.Type == "Intermediacao" || fn.Type == "Servico")
-                    && fn.Status == "Emitida"
+                    && fn.Status == FiscalNoteStatus.Emitida
                     && fn.CoworkingId != null
                     && fn.Coworking != null)
                 .Select(fn => fn.Coworking)
@@ -3969,7 +3970,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .FirstOrDefaultAsync(f => f.Id == fiscalNoteId 
                     && f.ClientId == client.Id 
                     && (f.Type == "Intermediacao" || f.Type == "Servico")
-                    && f.Status == "Emitida"); // Apenas notas aprovadas/emitidas
+                    && f.Status == FiscalNoteStatus.Emitida); // Apenas notas aprovadas/emitidas
 
             if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
             {

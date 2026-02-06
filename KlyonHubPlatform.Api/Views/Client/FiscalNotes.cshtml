@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Notas Fiscais";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -221,20 +222,13 @@
                                     @{
                                         var statusClass = note.Status switch
                                         {
-                                            "Emitida" => "success",
-                                            "Pendente" => "warning",
-                                            "Cancelada" => "danger",
-                                            "Erro" => "danger",
+                                            FiscalNoteStatus.Emitida => "success",
+                                            FiscalNoteStatus.Pendente => "warning",
+                                            FiscalNoteStatus.Cancelada => "danger",
+                                            FiscalNoteStatus.Erro => "danger",
                                             _ => "secondary"
                                         };
-                                        var statusText = note.Status switch
-                                        {
-                                            "Emitida" => "Emitida",
-                                            "Pendente" => "Pendente",
-                                            "Cancelada" => "Cancelada",
-                                            "Erro" => "Erro",
-                                            _ => note.Status
-                                        };
+                                        var statusText = note.Status.ToString();
                                     }
                                     <span class="badge bg-@statusClass">@statusText</span>
                                 </td>

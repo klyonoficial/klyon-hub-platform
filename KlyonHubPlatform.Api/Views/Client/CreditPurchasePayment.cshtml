@@ -66,16 +66,16 @@
                         <div class="col-md-6 text-end">
                             @switch (purchase.Status)
                             {
-                                case "Pending":
+                                case KlyonHubPlatform.Domain.Core.Enums.CreditPurchaseStatus.Pending:
                                     <span class="badge bg-warning">Pendente</span>
                                     break;
-                                case "Processing":
+                                case KlyonHubPlatform.Domain.Core.Enums.CreditPurchaseStatus.Processing:
                                     <span class="badge bg-info">Processando</span>
                                     break;
-                                case "Paid":
+                                case KlyonHubPlatform.Domain.Core.Enums.CreditPurchaseStatus.Paid:
                                     <span class="badge bg-success">Pago</span>
                                     break;
-                                case "Cancelled":
+                                case KlyonHubPlatform.Domain.Core.Enums.CreditPurchaseStatus.Cancelled:
                                     <span class="badge bg-danger">Cancelado</span>
                                     break;
                                 default:

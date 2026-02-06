@@ -608,10 +608,10 @@ namespace KlyonHubPlatform.Api.Controllers
                             coworkingName = r.CoworkingAddress?.Coworking?.Name ?? "N/A",
                             reservationDate = r.ReservationDate.ToString("dd/MM/yyyy"),
                             status = r.Status,
-                            statusDisplay = r.Status == "Confirmed" ? "Confirmada" :
-                                          r.Status == "Pending" ? "Pendente" :
-                                          r.Status == "Cancelled" ? "Cancelada" :
-                                          r.Status == "Completed" ? "Concluída" : r.Status
+                            statusDisplay = r.Status == ReservationStatus.Confirmed ? "Confirmada" :
+                                          r.Status == ReservationStatus.Pending ? "Pendente" :
+                                          r.Status == ReservationStatus.Cancelled ? "Cancelada" :
+                                          r.Status == ReservationStatus.Completed ? "Concluída" : r.Status.ToString()
                         }).Cast<object>().ToList();
                         viewAllUrl = Url.Action("ReportCoworkingRevenue", "Admin");
                         break;
@@ -4643,7 +4643,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             .Include(r => r.Client)
                             .Include(r => r.CoworkingAddress)
                                 .ThenInclude(a => a.Coworking)
-                            .Where(r => r.Status == "Completed" &&
+                            .Where(r => r.Status == ReservationStatus.Completed &&
                                        r.ReservationDate >= startDate &&
                                        r.ReservationDate <= endDate &&
                                        !_context.FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
@@ -4705,7 +4705,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     CommissionAmount = commissionAmount,
                                     ServiceAmount = reservation.TotalValue,
                                     IssueDate = executedAt,
-                                    Status = "Pendente",
+                                    Status = FiscalNoteStatus.Pendente,
                                     CreatedAt = executedAt
                                 };
                                 _context.FiscalNotes.Add(fiscalNote);
@@ -4785,7 +4785,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     CommissionAmount = commissionAmount,
                                     ServiceAmount = contract.MonthlyValue,
                                     IssueDate = executedAt,
-                                    Status = "Pendente",
+                                    Status = FiscalNoteStatus.Pendente,
                                     CreatedAt = executedAt
                                 };
                                 _context.FiscalNotes.Add(fiscalNote);
@@ -4814,7 +4814,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     var pendingNotes = await _context.FiscalNotes
                         .Include(fn => fn.Coworking)
                             .ThenInclude(c => c.Addresses)
-                        .Where(fn => fn.Status == "Pendente" && fn.Type == "Intermediacao")
+                        .Where(fn => fn.Status == FiscalNoteStatus.Pendente && fn.Type == "Intermediacao")
                         .ToListAsync();
 
                     int emittedCount = 0;
@@ -4860,7 +4860,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         {
                             emissionErrors++;
                             errorMessages.Add($"NF #{note.Id}: {ex.Message}");
-                            note.Status = "Erro";
+                            note.Status = FiscalNoteStatus.Erro;
                             note.ErrorMessage = ex.Message;
                             note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                             _context.FiscalNotes.Update(note);
@@ -4869,7 +4869,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         {
                             emissionErrors++;
                             errorMessages.Add($"NF #{note.Id}: {ex.Message}");
-                            note.Status = "Erro";
+                            note.Status = FiscalNoteStatus.Erro;
                             note.ErrorMessage = ex.Message;
                             note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                             _context.FiscalNotes.Update(note);
@@ -4945,11 +4945,11 @@ CREATE TABLE IF NOT EXISTS Reservations (
             // Notas "Rejeitada" já foram processadas e não devem aparecer na lista principal
             if (string.IsNullOrEmpty(status))
             {
-                query = query.Where(fn => fn.Status != "Rejeitada" && fn.Status != "Importada");
+                query = query.Where(fn => fn.Status != FiscalNoteStatus.Rejeitada && fn.Status != FiscalNoteStatus.Importada);
             }
-            else
+            else if (Enum.TryParse<FiscalNoteStatus>(status, true, out var fiscalStatus))
             {
-                query = query.Where(fn => fn.Status == status);
+                query = query.Where(fn => fn.Status == fiscalStatus);
             }
 
             if (!string.IsNullOrEmpty(type))
@@ -4990,7 +4990,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .Include(fn => fn.Payment)
                     .Include(fn => fn.Client).ThenInclude(c => c.User)
                     .Include(fn => fn.Coworking)
-                    .Where(fn => fn.Type == "Servico" && fn.Status == "Importada")
+                    .Where(fn => fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Importada)
                     .AsQueryable();
 
                 if (coworkingId.HasValue)
@@ -5030,12 +5030,12 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public async Task<IActionResult> ApproveImportedFiscalNote(int fiscalNoteId)
         {
             var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
-            if (fn == null || fn.Type != "Servico" || fn.Status != "Importada")
+            if (fn == null || fn.Type != "Servico" || fn.Status != FiscalNoteStatus.Importada)
             {
                 TempData["Error"] = "Nota fiscal importada não encontrada ou já processada.";
                 return RedirectToAction("ImportedFiscalNotes");
             }
-            fn.Status = "Emitida";
+            fn.Status = FiscalNoteStatus.Emitida;
             fn.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             TempData["Success"] = "NF importada aprovada com sucesso.";
@@ -5052,12 +5052,12 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 return RedirectToAction("ImportedFiscalNotes");
             }
             var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
-            if (fn == null || fn.Type != "Servico" || fn.Status != "Importada")
+            if (fn == null || fn.Type != "Servico" || fn.Status != FiscalNoteStatus.Importada)
             {
                 TempData["Error"] = "Nota fiscal importada não encontrada ou já processada.";
                 return RedirectToAction("ImportedFiscalNotes");
             }
-            fn.Status = "Rejeitada";
+            fn.Status = FiscalNoteStatus.Rejeitada;
             fn.ErrorMessage = rejectionReason;
             fn.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -5577,7 +5577,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 var existingNote = await _context.FiscalNotes
                     .FirstOrDefaultAsync(fn =>
                         (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
-                        (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao" && fn.Status == "Emitida")
+                        (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao" && fn.Status == FiscalNoteStatus.Emitida)
                     );
 
                 if (existingNote != null)
@@ -5624,7 +5624,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     Amount = commission.Amount,
                     CommissionAmount = commission.Amount,
                     IssueDate = DateTime.UtcNow,
-                    Status = "Pendente",
+                    Status = FiscalNoteStatus.Pendente,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -5733,7 +5733,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     Amount = commission.Amount,
                     CommissionAmount = commission.Amount,
                     IssueDate = DateTime.UtcNow,
-                    Status = "Emitida", // Status direto como "Emitida" - sem validação
+                    Status = FiscalNoteStatus.Emitida, // Status direto como Emitida - sem validação
                     PdfUrl = pdfPath,
                     CreatedAt = DateTime.UtcNow
                 };

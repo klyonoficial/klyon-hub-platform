@@ -1,4 +1,5 @@
 @using KlyonHubPlatform.Domain.Entities
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -109,17 +110,17 @@
                     <h6 class="opacity-75 mb-2">Status</h6>
                     <h2 class="mb-0">
                         <span class="badge bg-light text-dark fs-6">
-                            @if (reservation?.Status == "Completed")
+                            @if (reservation?.Status == ReservationStatus.Completed)
                             {
                                 <text><i class="bi bi-check-circle text-success"></i> Concluída</text>
                             }
-                            else if (reservation?.Status == "Confirmed")
+                            else if (reservation?.Status == ReservationStatus.Confirmed)
                             {
                                 <text><i class="bi bi-clock-history text-info"></i> Confirmada</text>
                             }
                             else
                             {
-                                @reservation?.Status
+                                @(reservation != null ? reservation.Status.ToString() : "")
                             }
                         </span>
                     </h2>

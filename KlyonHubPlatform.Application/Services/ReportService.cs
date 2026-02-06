@@ -495,7 +495,7 @@ namespace KlyonHubPlatform.Application.Services
             }
 
             var reserved = await _context.Reservations
-                .Where(r => r.Status != "Cancelled")
+                .Where(r => r.Status != ReservationStatus.Cancelled)
                 .Select(r => r.ClientId)
                 .Distinct()
                 .ToListAsync();
@@ -522,7 +522,7 @@ namespace KlyonHubPlatform.Application.Services
 
                 // Reservas do cliente
                 var resList = await _context.Reservations
-                    .Where(r => r.ClientId == cid && r.Status != "Cancelled")
+                    .Where(r => r.ClientId == cid && r.Status != ReservationStatus.Cancelled)
                     .Include(r => r.CoworkingAddress)
                         .ThenInclude(a => a.Coworking)
                     .ToListAsync();
@@ -578,7 +578,7 @@ namespace KlyonHubPlatform.Application.Services
                 .Sum(p => p.Amount);
 
             var totalSpent = await _context.Reservations
-                .Where(r => r.ClientId == clientId && r.Status != "Cancelled")
+                .Where(r => r.ClientId == clientId && r.Status != ReservationStatus.Cancelled)
                 .SumAsync(r => r.TotalValue);
 
             var balance = totalPaid - totalSpent;
@@ -599,7 +599,7 @@ namespace KlyonHubPlatform.Application.Services
                 .ToList();
 
             var reservations = await _context.Reservations
-                .Where(r => r.ClientId == clientId && r.Status != "Cancelled")
+                .Where(r => r.ClientId == clientId && r.Status != ReservationStatus.Cancelled)
                 .Include(r => r.CoworkingAddress)
                     .ThenInclude(a => a!.Coworking)
                 .ToListAsync();
@@ -676,7 +676,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // 1. Buscar coworkings através de reservas (Aluguel de Salas)
             var reservationCoworkings = await _context.Reservations
-                .Where(r => (r.Status == "Confirmed" || r.Status == "Completed") && r.CoworkingAddress != null)
+                .Where(r => (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Completed) && r.CoworkingAddress != null)
                 .Select(r => r.CoworkingAddress!.CoworkingId)
                 .Distinct()
                 .ToListAsync();
@@ -714,7 +714,7 @@ namespace KlyonHubPlatform.Application.Services
                 var reservations = await _context.Reservations
                     .Where(r => r.CoworkingAddress != null && 
                                r.CoworkingAddress.CoworkingId == coworkingId &&
-                               (r.Status == "Confirmed" || r.Status == "Completed"))
+                               (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Completed))
                     .ToListAsync();
                 
                 if (reservations.Any())
@@ -827,7 +827,7 @@ namespace KlyonHubPlatform.Application.Services
             }
 
             IQueryable<Reservation> q = _context.Reservations
-                .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == coworkingId && (r.Status == "Confirmed" || r.Status == "Completed"))
+                .Where(r => r.CoworkingAddress != null && r.CoworkingAddress.CoworkingId == coworkingId && (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Completed))
                 .Include(r => r.Client)
                 .Include(r => r.CoworkingAddress);
 
@@ -850,7 +850,7 @@ namespace KlyonHubPlatform.Application.Services
                 TotalValue = r.TotalValue,
                 CreditsUsed = 0, // Não usamos mais créditos
                 ClientName = r.Client == null ? "Cliente não identificado" : (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "N/A"),
-                Status = r.Status == "Completed" ? "Concluída" : "Confirmada",
+                Status = r.Status == ReservationStatus.Completed ? "Concluída" : "Confirmada",
                 CommissionPercentage = defaultCommissionPercentage
             }).ToList();
 

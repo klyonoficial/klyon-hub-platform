@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     /// <summary>
@@ -45,7 +47,7 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>
         /// Status (pending, under_review, resolved, added_to_faq)
         /// </summary>
-        public string Status { get; set; } = "pending";
+        public UnansweredQuestionStatus Status { get; set; } = UnansweredQuestionStatus.Pending;
         
         /// <summary>
         /// ID do admin que revisou
