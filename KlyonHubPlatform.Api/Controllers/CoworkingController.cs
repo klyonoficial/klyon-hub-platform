@@ -1178,6 +1178,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             var address = await _context.CoworkingAddresses
                 .Include(a => a.Location)
+                .Include(a => a.CardPriceChangeRequests)
                 .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
             if (address == null)
             {
@@ -1204,11 +1205,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 var address = await _context.CoworkingAddresses
+                    .Include(a => a.CardPriceChangeRequests)
                     .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
                 if (address == null)
                 {
                     TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
                     return RedirectToAction("MyAddresses");
+                }
+
+                // Não permite nova solicitação se já existe uma pendente
+                if (address.CardPricesApprovalStatus == CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Já existe uma solicitação de alteração de preços no cartão pendente para este endereço. Aguarde a aprovação administrativa.";
+                    return RedirectToAction("CardPrices", new { id });
                 }
 
                 decimal? cardPrice1x = decimal.TryParse(Request.Form["CardPrice1x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v1) ? v1 : (decimal?)null;
@@ -1218,13 +1227,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (cardPriceMonthly.HasValue && cardPriceMonthly.Value < 0) cardPriceMonthly = null;
                 if (cardPrice12x.HasValue && cardPrice12x.Value < 0) cardPrice12x = null;
 
-                address.CardPrice1x = cardPrice1x;
-                address.CardPriceMonthly = cardPriceMonthly;
-                address.CardPrice12x = cardPrice12x;
+                // Cria solicitação para aprovação administrativa — os preços só são exibidos aos clientes após aprovação
+                var request = new CardPriceChangeRequest
+                {
+                    CoworkingAddressId = address.Id,
+                    RequestedCardPrice1x = cardPrice1x,
+                    RequestedCardPriceMonthly = cardPriceMonthly,
+                    RequestedCardPrice12x = cardPrice12x,
+                    PreviousCardPrice1x = address.CardPrice1x,
+                    PreviousCardPriceMonthly = address.CardPriceMonthly,
+                    PreviousCardPrice12x = address.CardPrice12x,
+                    Status = CapacityApprovalStatus.Pending,
+                    CreatedAt = DateTimeHelper.GetBrazilianTime()
+                };
+                _context.CardPriceChangeRequests.Add(request);
+                address.CardPricesApprovalStatus = CapacityApprovalStatus.Pending;
                 address.UpdatedAt = DateTime.UtcNow;
-                await _coworkingService.UpdateAddressAsync(address);
+                await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Preços de venda no cartão atualizados com sucesso!";
+                TempData["Success"] = "Solicitação de alteração de preços no cartão enviada com sucesso! Os valores só serão exibidos aos clientes após aprovação administrativa.";
                 return RedirectToAction("MyAddresses");
             }
             catch (Exception ex)
@@ -1232,6 +1253,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData["Error"] = $"Erro ao salvar: {ex.Message}";
                 var address = await _context.CoworkingAddresses
                     .Include(a => a.Location)
+                    .Include(a => a.CardPriceChangeRequests)
                     .FirstOrDefaultAsync(a => a.Id == id);
                 return address != null ? View(address) : RedirectToAction("MyAddresses");
             }
@@ -1899,6 +1921,10 @@ namespace KlyonHubPlatform.Api.Controllers
             int page = 1,
             int pageSize = 15)
         {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("Dashboard");
+
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -4185,6 +4211,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form)
         {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("Profile");
+
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -4262,6 +4292,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime)
         {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("Profile");
+
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -4315,6 +4349,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteBlockedDate(int id)
         {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("Profile");
+
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));

@@ -34,6 +34,9 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Status da aprovação de alteração de MaxContracts</summary>
         public CapacityApprovalStatus MaxContractsApprovalStatus { get; set; } = CapacityApprovalStatus.None;
         
+        /// <summary>Status da aprovação de preços no cartão</summary>
+        public CapacityApprovalStatus CardPricesApprovalStatus { get; set; } = CapacityApprovalStatus.None;
+        
         // Configurações de salas para aluguel
         public bool OffersSharedRoom { get; set; } = false;
         public decimal? SharedRoomPricePerHour { get; set; }
@@ -59,6 +62,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CoworkingRoom> Rooms { get; set; } = new List<CoworkingRoom>();
         public virtual ICollection<CapacityChangeRequest> CapacityChangeRequests { get; set; } = new List<CapacityChangeRequest>();
         public virtual ICollection<MaxContractsChangeRequest> MaxContractsChangeRequests { get; set; } = new List<MaxContractsChangeRequest>();
+        public virtual ICollection<CardPriceChangeRequest> CardPriceChangeRequests { get; set; } = new List<CardPriceChangeRequest>();
     }
 }
 

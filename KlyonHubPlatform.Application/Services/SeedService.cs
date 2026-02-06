@@ -693,6 +693,14 @@ namespace KlyonHubPlatform.Application.Services
                     );
                     await _context.SaveChangesAsync();
                 }
+
+                // Garantir que Features.EnableCoworkingMenus está desativada (Reservas, Reservar Sala, etc.)
+                var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == "Features.EnableCoworkingMenus");
+                if (coworkingMenusConfig != null)
+                {
+                    coworkingMenusConfig.Value = "false";
+                    await _context.SaveChangesAsync();
+                }
             }
             catch (Exception ex)
             {

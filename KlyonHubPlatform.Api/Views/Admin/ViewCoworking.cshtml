@@ -129,6 +129,100 @@
             </div>
         </div>
 
+        @{
+            var pendingCardPriceRequests = (Model.Addresses ?? new List<CoworkingAddress>())
+                .SelectMany(a => (a.CardPriceChangeRequests ?? new List<CardPriceChangeRequest>())
+                    .Where(r => r.Status == CapacityApprovalStatus.Pending)
+                    .Select(r => new { Address = a, Request = r }))
+                .ToList();
+        }
+        @if (pendingCardPriceRequests.Any())
+        {
+            <div class="card mb-3 border-warning">
+                <div class="card-header bg-warning bg-opacity-25">
+                    <h5 class="mb-0"><i class="bi bi-credit-card"></i> Preços no cartão — Aguardando aprovação</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">O parceiro solicitou alteração dos preços de venda no cartão. Os valores só serão exibidos aos clientes após sua aprovação.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Endereço</th>
+                                    <th>Valores solicitados</th>
+                                    <th>Valores atuais</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in pendingCardPriceRequests)
+                                {
+                                    var req = item.Request;
+                                    var addr = item.Address;
+                                    <tr>
+                                        <td>@addr.Address, @addr.Number — @addr.City/@addr.State</td>
+                                        <td>
+                                            @if (req.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @req.RequestedCardPrice1x.Value.ToString("N2")</span> }
+                                            @if (req.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @req.RequestedCardPriceMonthly.Value.ToString("N2")</span> }
+                                            @if (req.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @req.RequestedCardPrice12x.Value.ToString("N2")</span> }
+                                            @if (!req.RequestedCardPrice1x.HasValue && !req.RequestedCardPriceMonthly.HasValue && !req.RequestedCardPrice12x.HasValue) { <span class="text-muted">—</span> }
+                                        </td>
+                                        <td>
+                                            @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString("N2")</span> }
+                                            @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString("N2")</span> }
+                                            @if (addr.CardPrice12x.HasValue) { <span class="badge bg-secondary">12x: R$ @addr.CardPrice12x.Value.ToString("N2")</span> }
+                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue && !addr.CardPrice12x.HasValue) { <span class="text-muted">Nenhum</span> }
+                                        </td>
+                                        <td class="text-end">
+                                            <form asp-action="ApproveCardPriceChange" asp-controller="Admin" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="requestId" value="@req.Id" />
+                                                <button type="submit" class="btn btn-sm btn-success" title="Aprovar preços"><i class="bi bi-check-circle"></i> Aprovar</button>
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-danger" title="Reprovar" data-bs-toggle="modal" data-bs-target="#modalReprovarCardPrice" data-request-id="@req.Id">
+                                                <i class="bi bi-x-octagon"></i> Reprovar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Modal Reprovar Preços no Cartão -->
+            <div class="modal fade" id="modalReprovarCardPrice" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form asp-action="RejectCardPriceChange" asp-controller="Admin" method="post" id="formRejectCardPrice">
+                            <input type="hidden" name="requestId" id="rejectCardPriceRequestId" value="" />
+                            @Html.AntiForgeryToken()
+                            <div class="modal-header">
+                                <h5 class="modal-title">Reprovar preços no cartão</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Informe o <strong>motivo da reprovação</strong>. O parceiro verá esta mensagem.</p>
+                                <textarea name="rejectionReason" class="form-control" rows="4" required placeholder="Ex.: Valores fora do padrão de mercado. Sugerimos revisar os preços."></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <script>
+                document.getElementById('modalReprovarCardPrice')?.addEventListener('show.bs.modal', function (e) {
+                    var btn = e.relatedTarget;
+                    var reqId = btn?.getAttribute('data-request-id');
+                    var inp = document.getElementById('rejectCardPriceRequestId');
+                    if (inp && reqId) inp.value = reqId;
+                });
+            </script>
+        }
+
         <div class="card mb-3" id="enderecos">
             <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecosBody" aria-expanded="false" aria-controls="enderecosBody">
                 <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>

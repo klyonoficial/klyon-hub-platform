@@ -202,6 +202,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<PaymentHistory> PaymentHistories { get; set; }
         public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
         public DbSet<MaxContractsChangeRequest> MaxContractsChangeRequests { get; set; }
+        public DbSet<CardPriceChangeRequest> CardPriceChangeRequests { get; set; }
 
         // KlyonBoot Chatbot
         public DbSet<ChatFaqItem> ChatFaqItems { get; set; }
@@ -343,6 +344,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Contract).WithMany(c => c.Documents).HasForeignKey(e => e.ContractId);
                 entity.Property(e => e.Type).HasConversion<string>();
+                entity.Property(e => e.ClicksignEnvelopeId).HasColumnName("ClicksignEnvelopeId");
             });
 
             // AuditLog configuration
@@ -833,6 +835,23 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
                 entity.Property(e => e.Justification).HasMaxLength(2000);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.HasIndex(e => e.CoworkingAddressId);
+                entity.HasIndex(e => e.Status);
+            });
+
+            // CardPriceChangeRequest configuration
+            modelBuilder.Entity<CardPriceChangeRequest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.CoworkingAddress)
+                    .WithMany(a => a.CardPriceChangeRequests)
+                    .HasForeignKey(e => e.CoworkingAddressId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReviewedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
                 entity.HasIndex(e => e.CoworkingAddressId);
                 entity.HasIndex(e => e.Status);

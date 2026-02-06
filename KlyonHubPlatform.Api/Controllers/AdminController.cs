@@ -395,6 +395,31 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Log error silently
             }
 
+            try
+            {
+                // 6. Preços no cartão aguardando aprovação
+                var pendingCardPriceCount = await _context.CardPriceChangeRequests
+                    .CountAsync(r => r.Status == CapacityApprovalStatus.Pending);
+
+                if (pendingCardPriceCount > 0)
+                {
+                    alerts.Add(new
+                    {
+                        Type = "warning",
+                        Icon = "bi-credit-card",
+                        Title = "Preços no Cartão Aguardando Aprovação",
+                        Message = $"{pendingCardPriceCount} solicitação(ões) de alteração de preços no cartão aguardando aprovação.",
+                        Count = pendingCardPriceCount,
+                        ActionUrl = Url.Action("Coworkings", "Admin"),
+                        ActionText = "Ver Coworkings"
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Log error silently
+            }
+
             ViewBag.AdminAlerts = alerts;
 
             return View();
@@ -889,6 +914,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(c => c.User)
                 .Include(c => c.Addresses)
                     .ThenInclude(a => a.Location)
+                .Include(c => c.Addresses)
+                    .ThenInclude(a => a.CardPriceChangeRequests)
                 .Include(c => c.Photos)
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == id);
@@ -1296,6 +1323,115 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao reprovar alteração de quantidade máxima: {ex.Message}";
+                return RedirectToAction("Dashboard");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveCardPriceChange(int requestId)
+        {
+            try
+            {
+                var request = await _context.CardPriceChangeRequests
+                    .Include(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(r => r.Id == requestId);
+
+                if (request == null)
+                {
+                    TempData["Error"] = "Solicitação de alteração de preços no cartão não encontrada.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                if (request.Status != CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var address = request.CoworkingAddress;
+
+                // Aprovar os preços — passam a ser exibidos aos clientes
+                address.CardPrice1x = request.RequestedCardPrice1x;
+                address.CardPriceMonthly = request.RequestedCardPriceMonthly;
+                address.CardPrice12x = request.RequestedCardPrice12x;
+                address.CardPricesApprovalStatus = CapacityApprovalStatus.Approved;
+                address.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                request.Status = CapacityApprovalStatus.Approved;
+                request.ReviewedBy = userId;
+                request.ReviewedAt = DateTimeHelper.GetBrazilianTime();
+                request.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                await _auditService.LogActionAsync(userId, "CardPriceChangeApproved", "CardPriceChangeRequest", requestId,
+                    $"{{\"Status\":\"Pending\"}}",
+                    $"{{\"CardPrice1x\":{request.RequestedCardPrice1x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPriceMonthly\":{request.RequestedCardPriceMonthly?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPrice12x\":{request.RequestedCardPrice12x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"Status\":\"Approved\"}}");
+
+                TempData["Success"] = "Preços no cartão aprovados. Os valores já estão visíveis aos clientes.";
+                return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao aprovar preços no cartão: {ex.Message}";
+                return RedirectToAction("Dashboard");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectCardPriceChange(int requestId, string rejectionReason)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    TempData["Error"] = "Informe o motivo da reprovação.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                var request = await _context.CardPriceChangeRequests
+                    .Include(r => r.CoworkingAddress)
+                    .FirstOrDefaultAsync(r => r.Id == requestId);
+
+                if (request == null)
+                {
+                    TempData["Error"] = "Solicitação de alteração de preços no cartão não encontrada.";
+                    return RedirectToAction("Dashboard");
+                }
+
+                if (request.Status != CapacityApprovalStatus.Pending)
+                {
+                    TempData["Error"] = "Esta solicitação já foi processada.";
+                    return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var address = request.CoworkingAddress;
+
+                address.CardPricesApprovalStatus = CapacityApprovalStatus.Rejected;
+                address.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                request.Status = CapacityApprovalStatus.Rejected;
+                request.RejectionReason = rejectionReason.Trim();
+                request.ReviewedBy = userId;
+                request.ReviewedAt = DateTimeHelper.GetBrazilianTime();
+                request.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+
+                await _context.SaveChangesAsync();
+
+                await _auditService.LogActionAsync(userId, "CardPriceChangeRejected", "CardPriceChangeRequest", requestId,
+                    $"{{\"Status\":\"Pending\"}}",
+                    $"{{\"Status\":\"Rejected\",\"RejectionReason\":{System.Text.Json.JsonSerializer.Serialize(rejectionReason)}}}");
+
+                TempData["Success"] = "Preços no cartão reprovados. O parceiro foi notificado.";
+                return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Erro ao reprovar preços no cartão: {ex.Message}";
                 return RedirectToAction("Dashboard");
             }
         }

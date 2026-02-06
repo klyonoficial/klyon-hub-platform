@@ -161,14 +161,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             <i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios
         </button>
     </li>
-    @if (showCoworkingMenus)
-    {
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="hours-tab" data-bs-toggle="tab" data-bs-target="#hours" type="button" role="tab">
-                <i class="bi bi-clock"></i> Horários de Funcionamento
-            </button>
-        </li>
-    }
+    @* Aba Horários de Funcionamento desativada *@
 </ul>
 
 <div class="tab-content" id="profileTabContent">
@@ -859,9 +852,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         </div>
     </div>
 
-    @if (showCoworkingMenus)
+    @* Seção Horários de Funcionamento desativada *@
+    @if (false)
     {
-        <!-- Horários de Funcionamento -->
+        <!-- Horários de Funcionamento (oculta) -->
         <div class="tab-pane fade" id="hours" role="tabpanel">
         <div class="card">
             <div class="card-body">

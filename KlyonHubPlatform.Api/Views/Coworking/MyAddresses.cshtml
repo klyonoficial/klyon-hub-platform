@@ -143,7 +143,56 @@
                     <tbody>
                         @foreach (var address in Model)
                         {
-                            <tr>
+                            var addressStatusLabel = address.AddressStatus switch
+                            {
+                                AddressStatus.PendingApproval => "Em análise",
+                                AddressStatus.Active => address.IsAvailable ? "Disponível" : "Indisponível",
+                                AddressStatus.Suspended => "Suspenso",
+                                AddressStatus.Removed => "Removido",
+                                _ => "Indisponível"
+                            };
+                            var addressStatusBadge = address.AddressStatus switch
+                            {
+                                AddressStatus.PendingApproval => "warning",
+                                AddressStatus.Active => address.IsAvailable ? "success" : "danger",
+                                AddressStatus.Suspended => "warning",
+                                AddressStatus.Removed => "secondary",
+                                _ => "danger"
+                            };
+                            var capApprovalLabel = address.CapacityApprovalStatus switch { KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None => "Nenhum", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending => "Pendente", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved => "Aprovado", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected => "Rejeitado", _ => "—" };
+                            var maxContractsApprovalLabel = address.MaxContractsApprovalStatus switch { KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None => "Nenhum", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending => "Pendente", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved => "Aprovado", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected => "Rejeitado", _ => "—" };
+                            <tr class="row-address-detail"
+                                data-address="@address.Address"
+                                data-number="@address.Number"
+                                data-complement="@(address.Complement ?? "")"
+                                data-neighborhood="@address.Neighborhood"
+                                data-city="@address.City"
+                                data-state="@address.State"
+                                data-zip="@address.ZipCode"
+                                data-base-price="@address.BasePrice.ToString("F2")"
+                                data-available="@(address.IsAvailable ? "Sim" : "Não")"
+                                data-status-label="@addressStatusLabel"
+                                data-status-badge="@addressStatusBadge"
+                                data-current-contracts="@address.CurrentContracts"
+                                data-max-contracts="@address.MaxContracts"
+                                data-requested-fiscal-capacity="@address.RequestedFiscalCapacity"
+                                data-approved-fiscal-capacity="@address.ApprovedFiscalCapacity"
+                                data-capacity-approval-status="@capApprovalLabel"
+                                data-requested-max-contracts="@address.RequestedMaxContracts"
+                                data-max-contracts-approval-status="@maxContractsApprovalLabel"
+                                data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
+                                data-shared-price="@(address.SharedRoomPricePerHour?.ToString("F2") ?? "—")"
+                                data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? "—")"
+                                data-private-room="@(address.OffersPrivateRoom ? "Sim" : "Não")"
+                                data-private-price="@(address.PrivateRoomPricePerHour?.ToString("F2") ?? "—")"
+                                data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? "—")"
+                                data-card-1x="@(address.CardPrice1x?.ToString("F2") ?? "—")"
+                                data-card-monthly="@(address.CardPriceMonthly?.ToString("F2") ?? "—")"
+                                data-card-12x="@(address.CardPrice12x?.ToString("F2") ?? "—")"
+                                data-location="@(address.Location != null ? $"{address.Location.City}/{address.Location.State}" : "—")"
+                                data-created-at="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
+                                data-updated-at="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")"
+                                style="cursor: pointer;">
                                 <td>
                                     @address.Address, @address.Number
                                     @if (!string.IsNullOrEmpty(address.Complement))
@@ -182,24 +231,6 @@
                                     </span>
                                 </td>
                                 <td>
-                                    @{
-                                        var addressStatusLabel = address.AddressStatus switch
-                                        {
-                                            AddressStatus.PendingApproval => "Em análise",
-                                            AddressStatus.Active => address.IsAvailable ? "Disponível" : "Indisponível",
-                                            AddressStatus.Suspended => "Suspenso",
-                                            AddressStatus.Removed => "Removido",
-                                            _ => "Indisponível"
-                                        };
-                                        var addressStatusBadge = address.AddressStatus switch
-                                        {
-                                            AddressStatus.PendingApproval => "warning",
-                                            AddressStatus.Active => address.IsAvailable ? "success" : "danger",
-                                            AddressStatus.Suspended => "warning",
-                                            AddressStatus.Removed => "secondary",
-                                            _ => "danger"
-                                        };
-                                    }
                                     <span class="badge bg-@addressStatusBadge" title="@(address.AddressStatus == AddressStatus.PendingApproval ? "Aguardando aprovação do administrador" : "")">
                                         @if (address.AddressStatus == AddressStatus.PendingApproval)
                                         {
@@ -220,6 +251,10 @@
                                     }
                                     <a href="/Parceiro/CardPrices?id=@address.Id" class="btn btn-sm btn-outline-info me-1" title="Preços no cartão">
                                         <i class="bi bi-credit-card"></i> Preços Cartão
+                                        @if (address.CardPricesApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending)
+                                        {
+                                            <span class="badge bg-warning text-dark ms-1" title="Aguardando aprovação">!</span>
+                                        }
                                     </a>
                                     @if (!hasActiveContracts)
                                     {
@@ -322,6 +357,122 @@
     </div>
 </div>
 
+<!-- Modal Detalhes do Endereço -->
+<div class="modal fade" id="viewAddressModal" tabindex="-1" aria-labelledby="viewAddressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAddressModalLabel"><i class="bi bi-geo-alt"></i> Detalhes do Endereço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12 mb-2"><label class="form-label fw-bold text-muted small">Endereço</label></div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Logradouro</label>
+                        <p class="mb-0" id="viewAddrStreet">—</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold text-muted small">Número</label>
+                        <p class="mb-0" id="viewAddrNumber">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Complemento</label>
+                        <p class="mb-0" id="viewAddrComplement">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Bairro</label>
+                        <p class="mb-0" id="viewAddrNeighborhood">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Cidade</label>
+                        <p class="mb-0" id="viewAddrCity">—</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold text-muted small">Estado</label>
+                        <p class="mb-0" id="viewAddrState">—</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold text-muted small">CEP</label>
+                        <p class="mb-0" id="viewAddrZip">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Localidade (Klyon)</label>
+                        <p class="mb-0" id="viewAddrLocation">—</p>
+                    </div>
+                    <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Comercial</label></div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Preço base</label>
+                        <p class="mb-0" id="viewAddrBasePrice">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Disponível</label>
+                        <p class="mb-0" id="viewAddrAvailable">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Status do endereço</label>
+                        <p class="mb-0" id="viewAddrStatus">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Contratos (atual / máximo)</label>
+                        <p class="mb-0" id="viewAddrContracts">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Capacidade fiscal solicitada</label>
+                        <p class="mb-0" id="viewAddrRequestedFiscal">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Capacidade fiscal aprovada</label>
+                        <p class="mb-0" id="viewAddrApprovedFiscal">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Status aprovação capacidade</label>
+                        <p class="mb-0" id="viewAddrCapacityApproval">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Máx. contratos solicitado</label>
+                        <p class="mb-0" id="viewAddrRequestedMax">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Status aprovação máx. contratos</label>
+                        <p class="mb-0" id="viewAddrMaxContractsApproval">—</p>
+                    </div>
+                    <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Preços no cartão</label></div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">À vista (1x)</label>
+                        <p class="mb-0" id="viewAddrCard1x">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">Mensal</label>
+                        <p class="mb-0" id="viewAddrCardMonthly">—</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold text-muted small">12x</label>
+                        <p class="mb-0" id="viewAddrCard12x">—</p>
+                    </div>
+                    <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
+                        <p class="mb-0" id="viewAddrSharedRoom">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Sala privada</label>
+                        <p class="mb-0" id="viewAddrPrivateRoom">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Cadastrado em</label>
+                        <p class="mb-0" id="viewAddrCreatedAt">—</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Atualizado em</label>
+                        <p class="mb-0" id="viewAddrUpdatedAt">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // Resetar página para 1 quando o tamanho da página mudar
     document.addEventListener('DOMContentLoaded', function() {
@@ -340,5 +491,55 @@
                 document.getElementById('pageInput').value = '1';
             });
         }
+
+        // Abrir modal de detalhes ao clicar na linha (exceto em links/botões)
+        document.querySelectorAll('.row-address-detail').forEach(function(row) {
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('a') || e.target.closest('button')) return;
+                var r = this;
+                function val(attr) { return r.getAttribute(attr) || '—'; }
+                document.getElementById('viewAddrStreet').textContent = val('data-address');
+                document.getElementById('viewAddrNumber').textContent = val('data-number');
+                document.getElementById('viewAddrComplement').textContent = val('data-complement') || '—';
+                document.getElementById('viewAddrNeighborhood').textContent = val('data-neighborhood');
+                document.getElementById('viewAddrCity').textContent = val('data-city');
+                document.getElementById('viewAddrState').textContent = val('data-state');
+                document.getElementById('viewAddrZip').textContent = val('data-zip');
+                document.getElementById('viewAddrLocation').textContent = val('data-location');
+                var basePrice = val('data-base-price');
+                document.getElementById('viewAddrBasePrice').textContent = basePrice !== '—' ? 'R$ ' + basePrice : '—';
+                document.getElementById('viewAddrAvailable').innerHTML = val('data-available') === 'Sim'
+                    ? '<span class="badge bg-success">Sim</span>' : '<span class="badge bg-danger">Não</span>';
+                var statusLabel = val('data-status-label');
+                var statusBadge = val('data-status-badge');
+                document.getElementById('viewAddrStatus').innerHTML = '<span class="badge bg-' + statusBadge + '">' + statusLabel + '</span>';
+                document.getElementById('viewAddrContracts').textContent = val('data-current-contracts') + ' / ' + val('data-max-contracts');
+                document.getElementById('viewAddrRequestedFiscal').textContent = val('data-requested-fiscal-capacity');
+                document.getElementById('viewAddrApprovedFiscal').textContent = val('data-approved-fiscal-capacity');
+                document.getElementById('viewAddrCapacityApproval').textContent = val('data-capacity-approval-status');
+                document.getElementById('viewAddrRequestedMax').textContent = val('data-requested-max-contracts');
+                document.getElementById('viewAddrMaxContractsApproval').textContent = val('data-max-contracts-approval-status');
+                var card1x = val('data-card-1x');
+                var cardMon = val('data-card-monthly');
+                var card12x = val('data-card-12x');
+                document.getElementById('viewAddrCard1x').textContent = card1x !== '—' ? 'R$ ' + card1x : '—';
+                document.getElementById('viewAddrCardMonthly').textContent = cardMon !== '—' ? 'R$ ' + cardMon : '—';
+                document.getElementById('viewAddrCard12x').textContent = card12x !== '—' ? 'R$ ' + card12x : '—';
+                var shared = val('data-shared-room');
+                var sharedPrice = val('data-shared-price');
+                var sharedSeats = val('data-shared-seats');
+                document.getElementById('viewAddrSharedRoom').textContent = shared === 'Sim'
+                    ? 'Sim — R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
+                var priv = val('data-private-room');
+                var privPrice = val('data-private-price');
+                var privSeats = val('data-private-seats');
+                document.getElementById('viewAddrPrivateRoom').textContent = priv === 'Sim'
+                    ? 'Sim — R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
+                document.getElementById('viewAddrCreatedAt').textContent = val('data-created-at');
+                document.getElementById('viewAddrUpdatedAt').textContent = val('data-updated-at');
+                var modal = new bootstrap.Modal(document.getElementById('viewAddressModal'));
+                modal.show();
+            });
+        });
     });
 </script>
