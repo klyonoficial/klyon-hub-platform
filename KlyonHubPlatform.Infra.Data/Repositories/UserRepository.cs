@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -14,71 +16,71 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             _context = context;
         }
 
-        public async Task<User?> GetByIdAsync(int id)
+        public async Task<User?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
         }
 
-        public async Task<User?> GetByEmailAsync(string email)
+        public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.Email == email);
+                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
         }
 
-        public async Task<User?> GetByEmailForAuthenticationAsync(string email)
+        public async Task<User?> GetByEmailForAuthenticationAsync(string email, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.Email == email);
+                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
         }
 
-        public async Task<User> CreateAsync(User user)
+        public async Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
         {
             _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return user;
         }
 
-        public async Task<User> UpdateAsync(User user)
+        public async Task<User> UpdateAsync(User user, CancellationToken cancellationToken = default)
         {
             user.UpdatedAt = DateTime.UtcNow;
             _context.Users.Update(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return user;
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
-            var user = await GetByIdAsync(id);
+            var user = await GetByIdAsync(id, cancellationToken);
             if (user == null) return false;
 
             _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
 
-        public async Task<List<User>> GetAllAsync()
+        public async Task<List<User>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<User>> GetByRoleAsync(string roleName)
+        public async Task<List<User>> GetByRoleAsync(string roleName, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                 .Where(u => u.UserRoles.Any(ur => ur.Role.Name == roleName))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
     }
 }

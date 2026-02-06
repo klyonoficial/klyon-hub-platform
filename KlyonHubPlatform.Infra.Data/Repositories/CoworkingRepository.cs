@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -16,70 +18,70 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             _context = context;
         }
 
-        public async Task<Coworking?> GetByIdAsync(int id)
+        public async Task<Coworking?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Coworkings
                 .Include(c => c.User)
                 .Include(c => c.Addresses)
                     .ThenInclude(a => a.Location)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         }
 
-        public async Task<List<Coworking>> GetAllAsync()
+        public async Task<List<Coworking>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Coworkings
                 .Include(c => c.User)
                 .Include(c => c.Addresses)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<Coworking>> GetByUserIdAsync(int userId)
+        public async Task<List<Coworking>> GetByUserIdAsync(int userId, CancellationToken cancellationToken = default)
         {
             return await _context.Coworkings
                 .Include(c => c.Addresses)
                     .ThenInclude(a => a.Location)
                 .Where(c => c.UserId == userId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<Coworking> CreateAsync(Coworking coworking)
+        public async Task<Coworking> CreateAsync(Coworking coworking, CancellationToken cancellationToken = default)
         {
             _context.Coworkings.Add(coworking);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return coworking;
         }
 
-        public async Task<Coworking> UpdateAsync(Coworking coworking)
+        public async Task<Coworking> UpdateAsync(Coworking coworking, CancellationToken cancellationToken = default)
         {
             coworking.UpdatedAt = DateTime.UtcNow;
             _context.Coworkings.Update(coworking);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return coworking;
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
-            var coworking = await GetByIdAsync(id);
+            var coworking = await GetByIdAsync(id, cancellationToken);
             if (coworking == null) return false;
 
             _context.Coworkings.Remove(coworking);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
 
-        public async Task<CoworkingAddress?> GetAddressByIdAsync(int id)
+        public async Task<CoworkingAddress?> GetAddressByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.CoworkingAddresses
                 .Include(a => a.Coworking)
                 .Include(a => a.Location)
-                .FirstOrDefaultAsync(a => a.Id == id);
+                .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         }
 
-        public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null)
+        public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null, CancellationToken cancellationToken = default)
         {
             // Buscar o ID do serviço "Ofertar Endereço Fiscal"
             var fiscalAddressService = await _context.Services
-                .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive);
+                .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive, cancellationToken);
 
             if (fiscalAddressService == null)
             {
@@ -92,7 +94,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Where(ps => ps.ServiceId == fiscalAddressService.Id && ps.Percentage > 0)
                 .Select(ps => ps.CoworkingId)
                 .Distinct()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             // Se não houver coworkings com o serviço configurado, retornar lista vazia
             if (!coworkingIdsWithService.Any())
@@ -117,21 +119,21 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 query = query.Where(a => a.LocationId == locationId.Value);
             }
 
-            return await query.ToListAsync();
+            return await query.ToListAsync(cancellationToken);
         }
 
-        public async Task<CoworkingAddress> CreateAddressAsync(CoworkingAddress address)
+        public async Task<CoworkingAddress> CreateAddressAsync(CoworkingAddress address, CancellationToken cancellationToken = default)
         {
             _context.CoworkingAddresses.Add(address);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return address;
         }
 
-        public async Task<CoworkingAddress> UpdateAddressAsync(CoworkingAddress address)
+        public async Task<CoworkingAddress> UpdateAddressAsync(CoworkingAddress address, CancellationToken cancellationToken = default)
         {
             address.UpdatedAt = DateTime.UtcNow;
             _context.CoworkingAddresses.Update(address);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return address;
         }
     }

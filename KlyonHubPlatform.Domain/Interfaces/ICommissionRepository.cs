@@ -1,13 +1,15 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
 
 namespace KlyonHubPlatform.Domain.Interfaces
 {
     public interface ICommissionRepository
     {
-        Task<Commission?> GetByIdAsync(int id);
-        Task<List<Commission>> GetByCoworkingIdAsync(int coworkingId);
-        Task<List<Commission>> GetPendingTransfersAsync(int coworkingId);
-        Task<Commission> CreateAsync(Commission commission);
-        Task<Commission> UpdateAsync(Commission commission);
+        Task<Commission?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+        Task<List<Commission>> GetByCoworkingIdAsync(int coworkingId, CancellationToken cancellationToken = default);
+        Task<List<Commission>> GetPendingTransfersAsync(int coworkingId, CancellationToken cancellationToken = default);
+        Task<Commission> CreateAsync(Commission commission, CancellationToken cancellationToken = default);
+        Task<Commission> UpdateAsync(Commission commission, CancellationToken cancellationToken = default);
     }
 }

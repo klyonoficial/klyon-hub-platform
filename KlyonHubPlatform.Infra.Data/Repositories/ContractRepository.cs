@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +17,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             _context = context;
         }
 
-        public async Task<Contract?> GetByIdAsync(int id)
+        public async Task<Contract?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.Client)
@@ -24,10 +26,10 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                     .ThenInclude(a => a.Coworking)
                 .Include(c => c.Subscription)
                 .Include(c => c.Documents)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         }
 
-        public async Task<List<Contract>> GetByClientIdAsync(int clientId)
+        public async Task<List<Contract>> GetByClientIdAsync(int clientId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.CoworkingAddress)
@@ -35,60 +37,60 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Include(c => c.Subscription)
                 .Where(c => c.ClientId == clientId)
                 .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<Contract>> GetByCoworkingAddressIdAsync(int addressId)
+        public async Task<List<Contract>> GetByCoworkingAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.Subscription)
                 .Where(c => c.CoworkingAddressId == addressId)
                 .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<Contract?> GetActiveContractByAddressIdAsync(int addressId)
+        public async Task<Contract?> GetActiveContractByAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.Subscription)
                 .Where(c => c.CoworkingAddressId == addressId && c.Status == ContractStatus.Active)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
-        public async Task<Contract> CreateAsync(Contract contract)
+        public async Task<Contract> CreateAsync(Contract contract, CancellationToken cancellationToken = default)
         {
             _context.Contracts.Add(contract);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return contract;
         }
 
-        public async Task<Contract> UpdateAsync(Contract contract)
+        public async Task<Contract> UpdateAsync(Contract contract, CancellationToken cancellationToken = default)
         {
             contract.UpdatedAt = DateTime.UtcNow;
             _context.Contracts.Update(contract);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return contract;
         }
 
-        public async Task<List<Contract>> GetAllAsync()
+        public async Task<List<Contract>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.CoworkingAddress)
                 .Include(c => c.Subscription)
                 .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<Contract>> GetByStatusAsync(ContractStatus status)
+        public async Task<List<Contract>> GetByStatusAsync(ContractStatus status, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
                 .Include(c => c.Client)
                 .Include(c => c.CoworkingAddress)
                 .Where(c => c.Status == status)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
     }
 }

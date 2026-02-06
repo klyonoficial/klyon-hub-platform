@@ -1,6 +1,7 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
-using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Domain.Interfaces;
 
 namespace KlyonHubPlatform.Application.Services
@@ -14,49 +15,49 @@ namespace KlyonHubPlatform.Application.Services
             _coworkingRepository = coworkingRepository;
         }
 
-        public async Task<Coworking?> GetByIdAsync(int id)
+        public async Task<Coworking?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.GetByIdAsync(id);
+            return await _coworkingRepository.GetByIdAsync(id, cancellationToken);
         }
 
-        public async Task<List<Coworking>> GetAllAsync()
+        public async Task<List<Coworking>> GetAllAsync(CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.GetAllAsync();
+            return await _coworkingRepository.GetAllAsync(cancellationToken);
         }
 
-        public async Task<List<Coworking>> GetByUserIdAsync(int userId)
+        public async Task<List<Coworking>> GetByUserIdAsync(int userId, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.GetByUserIdAsync(userId);
+            return await _coworkingRepository.GetByUserIdAsync(userId, cancellationToken);
         }
 
-        public async Task<Coworking> CreateAsync(Coworking coworking)
+        public async Task<Coworking> CreateAsync(Coworking coworking, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.CreateAsync(coworking);
+            return await _coworkingRepository.CreateAsync(coworking, cancellationToken);
         }
 
-        public async Task<Coworking> UpdateAsync(Coworking coworking)
+        public async Task<Coworking> UpdateAsync(Coworking coworking, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.UpdateAsync(coworking);
+            return await _coworkingRepository.UpdateAsync(coworking, cancellationToken);
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.DeleteAsync(id);
+            return await _coworkingRepository.DeleteAsync(id, cancellationToken);
         }
 
-        public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null)
+        public async Task<List<CoworkingAddress>> GetAvailableAddressesAsync(int? locationId = null, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.GetAvailableAddressesAsync(locationId);
+            return await _coworkingRepository.GetAvailableAddressesAsync(locationId, cancellationToken);
         }
 
-        public async Task<CoworkingAddress> CreateAddressAsync(CoworkingAddress address)
+        public async Task<CoworkingAddress> CreateAddressAsync(CoworkingAddress address, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.CreateAddressAsync(address);
+            return await _coworkingRepository.CreateAddressAsync(address, cancellationToken);
         }
 
-        public async Task<CoworkingAddress> UpdateAddressAsync(CoworkingAddress address)
+        public async Task<CoworkingAddress> UpdateAddressAsync(CoworkingAddress address, CancellationToken cancellationToken = default)
         {
-            return await _coworkingRepository.UpdateAddressAsync(address);
+            return await _coworkingRepository.UpdateAddressAsync(address, cancellationToken);
         }
     }
 }

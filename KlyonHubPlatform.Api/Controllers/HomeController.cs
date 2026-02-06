@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
@@ -30,9 +31,9 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Admin, Parceiro e Cliente podem acessar normalmente sem redirecionamento.
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
             return View();
         }
@@ -41,13 +42,13 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Página comercial de contratação de endereço fiscal. Cliente logado vai para ChooseLocation.
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> FiscalAddress()
+        public async Task<IActionResult> FiscalAddress(CancellationToken cancellationToken = default)
         {
             if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
             {
                 return RedirectToAction("ChooseLocation", "Client");
             }
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
             return View();
         }
@@ -56,9 +57,9 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Commercial page for room rental (meeting, consulting, coworking). Redirects to Marketplace.
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Rooms()
+        public async Task<IActionResult> Rooms(CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
             if (string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase))
             {
                 return RedirectToAction("Index");
@@ -71,13 +72,13 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Commercial page for becoming a partner (coworking / corporate space).
         /// </summary>
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Partner()
+        public async Task<IActionResult> Partner(CancellationToken cancellationToken = default)
         {
             if (User.Identity?.IsAuthenticated == true && User.IsInRole("CoworkingPartner"))
             {
                 return RedirectToAction("Dashboard", "Coworking");
             }
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus"))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
             return View();
         }

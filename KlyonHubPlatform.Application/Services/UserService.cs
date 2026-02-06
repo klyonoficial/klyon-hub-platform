@@ -1,6 +1,7 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
-using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -18,32 +19,32 @@ namespace KlyonHubPlatform.Application.Services
             _context = context;
         }
 
-        public async Task<User?> GetByIdAsync(int id)
+        public async Task<User?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _userRepository.GetByIdAsync(id);
+            return await _userRepository.GetByIdAsync(id, cancellationToken);
         }
 
-        public async Task<List<User>> GetAllAsync()
+        public async Task<List<User>> GetAllAsync(CancellationToken cancellationToken = default)
         {
-            return await _userRepository.GetAllAsync();
+            return await _userRepository.GetAllAsync(cancellationToken);
         }
 
-        public async Task<User> UpdateAsync(User user)
+        public async Task<User> UpdateAsync(User user, CancellationToken cancellationToken = default)
         {
-            return await _userRepository.UpdateAsync(user);
+            return await _userRepository.UpdateAsync(user, cancellationToken);
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _userRepository.DeleteAsync(id);
+            return await _userRepository.DeleteAsync(id, cancellationToken);
         }
 
-        public async Task<bool> AssignRoleAsync(int userId, string roleName)
+        public async Task<bool> AssignRoleAsync(int userId, string roleName, CancellationToken cancellationToken = default)
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
             if (user == null) return false;
 
-            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName, cancellationToken);
             if (role == null) return false;
 
             var existingRole = user.UserRoles.FirstOrDefault(ur => ur.RoleId == role.Id);
@@ -56,23 +57,23 @@ namespace KlyonHubPlatform.Application.Services
             };
 
             _context.UserRoles.Add(userRole);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
 
-        public async Task<bool> RemoveRoleAsync(int userId, string roleName)
+        public async Task<bool> RemoveRoleAsync(int userId, string roleName, CancellationToken cancellationToken = default)
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
             if (user == null) return false;
 
-            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName, cancellationToken);
             if (role == null) return false;
 
             var userRole = user.UserRoles.FirstOrDefault(ur => ur.RoleId == role.Id);
             if (userRole == null) return false;
 
             _context.UserRoles.Remove(userRole);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
     }

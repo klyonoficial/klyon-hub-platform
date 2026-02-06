@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -16,21 +18,21 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
 
         #region FAQ Items
 
-        public async Task<IEnumerable<ChatFaqItem>> GetAllActiveFaqItemsAsync()
+        public async Task<IEnumerable<ChatFaqItem>> GetAllActiveFaqItemsAsync(CancellationToken cancellationToken = default)
         {
             return await _context.ChatFaqItems
                 .Where(f => f.IsActive)
                 .OrderBy(f => f.DisplayOrder)
                 .ThenBy(f => f.Category)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<ChatFaqItem?> GetFaqItemByIdAsync(int id)
+        public async Task<ChatFaqItem?> GetFaqItemByIdAsync(int id, CancellationToken cancellationToken = default)
         {
-            return await _context.ChatFaqItems.FindAsync(id);
+            return await _context.ChatFaqItems.FindAsync(new object[] { id }, cancellationToken);
         }
 
-        public async Task<IEnumerable<ChatFaqItem>> SearchFaqItemsAsync(string query)
+        public async Task<IEnumerable<ChatFaqItem>> SearchFaqItemsAsync(string query, CancellationToken cancellationToken = default)
         {
             var lowerQuery = query.ToLower();
             return await _context.ChatFaqItems
@@ -40,29 +42,29 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                      f.Answer.ToLower().Contains(lowerQuery)))
                 .OrderByDescending(f => f.UsageCount)
                 .ThenBy(f => f.DisplayOrder)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<ChatFaqItem> CreateFaqItemAsync(ChatFaqItem faqItem)
+        public async Task<ChatFaqItem> CreateFaqItemAsync(ChatFaqItem faqItem, CancellationToken cancellationToken = default)
         {
             _context.ChatFaqItems.Add(faqItem);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return faqItem;
         }
 
-        public async Task UpdateFaqItemAsync(ChatFaqItem faqItem)
+        public async Task UpdateFaqItemAsync(ChatFaqItem faqItem, CancellationToken cancellationToken = default)
         {
             _context.ChatFaqItems.Update(faqItem);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task IncrementFaqUsageCountAsync(int faqItemId)
+        public async Task IncrementFaqUsageCountAsync(int faqItemId, CancellationToken cancellationToken = default)
         {
-            var faqItem = await _context.ChatFaqItems.FindAsync(faqItemId);
+            var faqItem = await _context.ChatFaqItems.FindAsync(new object[] { faqItemId }, cancellationToken);
             if (faqItem != null)
             {
                 faqItem.UsageCount++;
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(cancellationToken);
             }
         }
 
@@ -70,93 +72,93 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
 
         #region Conversations
 
-        public async Task<ChatConversation> CreateConversationAsync(ChatConversation conversation)
+        public async Task<ChatConversation> CreateConversationAsync(ChatConversation conversation, CancellationToken cancellationToken = default)
         {
             _context.ChatConversations.Add(conversation);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return conversation;
         }
 
-        public async Task<ChatConversation?> GetConversationByIdAsync(int id)
+        public async Task<ChatConversation?> GetConversationByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.ChatConversations
                 .Include(c => c.Messages)
                 .Include(c => c.Intentions)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         }
 
-        public async Task<ChatConversation?> GetActiveConversationBySessionIdAsync(string sessionId)
+        public async Task<ChatConversation?> GetActiveConversationBySessionIdAsync(string sessionId, CancellationToken cancellationToken = default)
         {
             return await _context.ChatConversations
                 .Include(c => c.Messages)
                 .Include(c => c.Intentions)
                 .Where(c => c.SessionId == sessionId && c.IsActive)
                 .OrderByDescending(c => c.StartedAt)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
-        public async Task UpdateConversationAsync(ChatConversation conversation)
+        public async Task UpdateConversationAsync(ChatConversation conversation, CancellationToken cancellationToken = default)
         {
             _context.ChatConversations.Update(conversation);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task<IEnumerable<ChatConversation>> GetRecentConversationsAsync(int take = 50)
+        public async Task<IEnumerable<ChatConversation>> GetRecentConversationsAsync(int take = 50, CancellationToken cancellationToken = default)
         {
             return await _context.ChatConversations
                 .Include(c => c.User)
                 .Include(c => c.Messages)
                 .OrderByDescending(c => c.StartedAt)
                 .Take(take)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
         #endregion
 
         #region Messages
 
-        public async Task<ChatMessage> CreateMessageAsync(ChatMessage message)
+        public async Task<ChatMessage> CreateMessageAsync(ChatMessage message, CancellationToken cancellationToken = default)
         {
             _context.ChatMessages.Add(message);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return message;
         }
 
-        public async Task<IEnumerable<ChatMessage>> GetMessagesByConversationIdAsync(int conversationId)
+        public async Task<IEnumerable<ChatMessage>> GetMessagesByConversationIdAsync(int conversationId, CancellationToken cancellationToken = default)
         {
             return await _context.ChatMessages
                 .Include(m => m.FaqItem)
                 .Where(m => m.ConversationId == conversationId)
                 .OrderBy(m => m.SentAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task UpdateMessageAsync(ChatMessage message)
+        public async Task UpdateMessageAsync(ChatMessage message, CancellationToken cancellationToken = default)
         {
             _context.ChatMessages.Update(message);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         #endregion
 
         #region Intentions
 
-        public async Task<ChatIntention> CreateIntentionAsync(ChatIntention intention)
+        public async Task<ChatIntention> CreateIntentionAsync(ChatIntention intention, CancellationToken cancellationToken = default)
         {
             _context.ChatIntentions.Add(intention);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return intention;
         }
 
-        public async Task<IEnumerable<ChatIntention>> GetIntentionsByConversationIdAsync(int conversationId)
+        public async Task<IEnumerable<ChatIntention>> GetIntentionsByConversationIdAsync(int conversationId, CancellationToken cancellationToken = default)
         {
             return await _context.ChatIntentions
                 .Where(i => i.ConversationId == conversationId)
                 .OrderBy(i => i.DetectedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<Dictionary<string, int>> GetTopIntentionsAsync(DateTime? from = null, DateTime? to = null, int top = 10)
+        public async Task<Dictionary<string, int>> GetTopIntentionsAsync(DateTime? from = null, DateTime? to = null, int top = 10, CancellationToken cancellationToken = default)
         {
             var query = _context.ChatIntentions.AsQueryable();
 
@@ -171,30 +173,30 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Select(g => new { Intention = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .Take(top)
-                .ToDictionaryAsync(x => x.Intention, x => x.Count);
+                .ToDictionaryAsync(x => x.Intention, x => x.Count, cancellationToken);
         }
 
         #endregion
 
         #region Unanswered Questions
 
-        public async Task<ChatUnansweredQuestion> CreateUnansweredQuestionAsync(ChatUnansweredQuestion question)
+        public async Task<ChatUnansweredQuestion> CreateUnansweredQuestionAsync(ChatUnansweredQuestion question, CancellationToken cancellationToken = default)
         {
             _context.ChatUnansweredQuestions.Add(question);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return question;
         }
 
-        public async Task<ChatUnansweredQuestion?> GetUnansweredQuestionByIdAsync(int id)
+        public async Task<ChatUnansweredQuestion?> GetUnansweredQuestionByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.ChatUnansweredQuestions
                 .Include(q => q.Conversation)
                 .Include(q => q.Message)
                 .Include(q => q.Reviewer)
-                .FirstOrDefaultAsync(q => q.Id == id);
+                .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
         }
 
-        public async Task<IEnumerable<ChatUnansweredQuestion>> GetUnansweredQuestionsAsync(string? status = null, int? minFrequency = null)
+        public async Task<IEnumerable<ChatUnansweredQuestion>> GetUnansweredQuestionsAsync(string? status = null, int? minFrequency = null, CancellationToken cancellationToken = default)
         {
             var query = _context.ChatUnansweredQuestions
                 .Include(q => q.Conversation)
@@ -210,29 +212,29 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             return await query
                 .OrderByDescending(q => q.Frequency)
                 .ThenByDescending(q => q.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task UpdateUnansweredQuestionAsync(ChatUnansweredQuestion question)
+        public async Task UpdateUnansweredQuestionAsync(ChatUnansweredQuestion question, CancellationToken cancellationToken = default)
         {
             _context.ChatUnansweredQuestions.Update(question);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task<ChatUnansweredQuestion?> FindSimilarUnansweredQuestionAsync(string question)
+        public async Task<ChatUnansweredQuestion?> FindSimilarUnansweredQuestionAsync(string question, CancellationToken cancellationToken = default)
         {
             var lowerQuestion = question.ToLower();
             return await _context.ChatUnansweredQuestions
                 .Where(q => q.Question.ToLower() == lowerQuestion)
                 .OrderByDescending(q => q.Frequency)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         #endregion
 
         #region Statistics
 
-        public async Task<Dictionary<string, object>> GetDashboardStatisticsAsync(DateTime? from = null, DateTime? to = null)
+        public async Task<Dictionary<string, object>> GetDashboardStatisticsAsync(DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
         {
             var conversationQuery = _context.ChatConversations.AsQueryable();
             var messageQuery = _context.ChatMessages.AsQueryable();
@@ -252,17 +254,17 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 unansweredQuery = unansweredQuery.Where(q => q.CreatedAt <= to.Value);
             }
 
-            var totalConversations = await conversationQuery.CountAsync();
-            var resolvedConversations = await conversationQuery.CountAsync(c => c.WasResolved == true);
-            var redirectedToHuman = await conversationQuery.CountAsync(c => c.WasRedirectedToHuman);
-            var totalMessages = await messageQuery.CountAsync();
-            var answeredMessages = await messageQuery.CountAsync(m => m.WasAnswered);
-            var unansweredCount = await unansweredQuery.CountAsync(q => q.Status == "pending");
-            var averageMessagesPerConversation = totalConversations > 0 
-                ? (decimal)totalMessages / totalConversations 
+            var totalConversations = await conversationQuery.CountAsync(cancellationToken);
+            var resolvedConversations = await conversationQuery.CountAsync(c => c.WasResolved == true, cancellationToken);
+            var redirectedToHuman = await conversationQuery.CountAsync(c => c.WasRedirectedToHuman, cancellationToken);
+            var totalMessages = await messageQuery.CountAsync(cancellationToken);
+            var answeredMessages = await messageQuery.CountAsync(m => m.WasAnswered, cancellationToken);
+            var unansweredCount = await unansweredQuery.CountAsync(q => q.Status == "pending", cancellationToken);
+            var averageMessagesPerConversation = totalConversations > 0
+                ? (decimal)totalMessages / totalConversations
                 : 0;
-            var resolutionRate = totalConversations > 0 
-                ? (decimal)resolvedConversations / totalConversations * 100 
+            var resolutionRate = totalConversations > 0
+                ? (decimal)resolvedConversations / totalConversations * 100
                 : 0;
 
             return new Dictionary<string, object>
@@ -278,7 +280,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             };
         }
 
-        public async Task<IEnumerable<object>> GetConversationMetricsAsync(DateTime? from = null, DateTime? to = null)
+        public async Task<IEnumerable<object>> GetConversationMetricsAsync(DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
         {
             var query = _context.ChatConversations.AsQueryable();
 
@@ -298,7 +300,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                     RedirectedToHuman = g.Count(c => c.WasRedirectedToHuman)
                 })
                 .OrderByDescending(x => x.Date)
-                .ToListAsync<object>();
+                .ToListAsync<object>(cancellationToken);
         }
 
         #endregion

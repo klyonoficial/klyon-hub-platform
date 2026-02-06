@@ -1,19 +1,21 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
 
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface ILocationService
     {
-        Task<List<Location>> GetAllAsync();
-        Task<List<Location>> GetFilteredAsync(string? search = null, string? state = null, string? region = null, string? status = null, int page = 1, int pageSize = 12);
-        Task<int> GetFilteredCountAsync(string? search = null, string? state = null, string? region = null, string? status = null);
-        Task<Location?> GetByIdAsync(int id);
-        Task<Location> CreateAsync(string city, string state, string? region, bool isActive, decimal commissionPercentage);
-        Task<Location> UpdateAsync(int id, string city, string state, string? region, bool isActive);
-        Task<bool> DeleteAsync(int id);
-        Task UpdateCommissionAsync(int locationId, decimal commissionPercentage);
-        Task<List<string>> GetStatesAsync();
-        Task<List<string>> GetRegionsAsync();
-        Task<List<LocationCommission>> GetActiveCommissionsAsync();
+        Task<List<Location>> GetAllAsync(CancellationToken cancellationToken = default);
+        Task<List<Location>> GetFilteredAsync(string? search = null, string? state = null, string? region = null, string? status = null, int page = 1, int pageSize = 12, CancellationToken cancellationToken = default);
+        Task<int> GetFilteredCountAsync(string? search = null, string? state = null, string? region = null, string? status = null, CancellationToken cancellationToken = default);
+        Task<Location?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+        Task<Location> CreateAsync(string city, string state, string? region, bool isActive, decimal commissionPercentage, CancellationToken cancellationToken = default);
+        Task<Location> UpdateAsync(int id, string city, string state, string? region, bool isActive, CancellationToken cancellationToken = default);
+        Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default);
+        Task UpdateCommissionAsync(int locationId, decimal commissionPercentage, CancellationToken cancellationToken = default);
+        Task<List<string>> GetStatesAsync(CancellationToken cancellationToken = default);
+        Task<List<string>> GetRegionsAsync(CancellationToken cancellationToken = default);
+        Task<List<LocationCommission>> GetActiveCommissionsAsync(CancellationToken cancellationToken = default);
     }
 }

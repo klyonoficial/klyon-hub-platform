@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -14,35 +16,35 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             _context = context;
         }
 
-        public async Task<Document?> GetByIdAsync(int id)
+        public async Task<Document?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Documents
                 .Include(d => d.Contract)
-                .FirstOrDefaultAsync(d => d.Id == id);
+                .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         }
 
-        public async Task<List<Document>> GetByContractIdAsync(int contractId)
+        public async Task<List<Document>> GetByContractIdAsync(int contractId, CancellationToken cancellationToken = default)
         {
             return await _context.Documents
                 .Where(d => d.ContractId == contractId)
                 .OrderByDescending(d => d.GeneratedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<Document> CreateAsync(Document document)
+        public async Task<Document> CreateAsync(Document document, CancellationToken cancellationToken = default)
         {
             _context.Documents.Add(document);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return document;
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
-            var document = await GetByIdAsync(id);
+            var document = await GetByIdAsync(id, cancellationToken);
             if (document == null) return false;
 
             _context.Documents.Remove(document);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
     }

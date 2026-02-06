@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -15,75 +17,75 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             _context = context;
         }
 
-        public async Task<PagBankWebhookLog?> GetByIdAsync(int id)
+        public async Task<PagBankWebhookLog?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
-                .FirstOrDefaultAsync(w => w.Id == id);
+                .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
         }
 
-        public async Task<PagBankWebhookLog?> GetByEventIdAsync(string eventId)
+        public async Task<PagBankWebhookLog?> GetByEventIdAsync(string eventId, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
-                .FirstOrDefaultAsync(w => w.EventId == eventId);
+                .FirstOrDefaultAsync(w => w.EventId == eventId, cancellationToken);
         }
 
-        public async Task<bool> ExistsEventIdAsync(string eventId)
+        public async Task<bool> ExistsEventIdAsync(string eventId, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
-                .AnyAsync(w => w.EventId == eventId);
+                .AnyAsync(w => w.EventId == eventId, cancellationToken);
         }
 
-        public async Task<PagBankWebhookLog> CreateAsync(PagBankWebhookLog log)
+        public async Task<PagBankWebhookLog> CreateAsync(PagBankWebhookLog log, CancellationToken cancellationToken = default)
         {
             _context.PagBankWebhookLogs.Add(log);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return log;
         }
 
-        public async Task<PagBankWebhookLog> UpdateAsync(PagBankWebhookLog log)
+        public async Task<PagBankWebhookLog> UpdateAsync(PagBankWebhookLog log, CancellationToken cancellationToken = default)
         {
             _context.PagBankWebhookLogs.Update(log);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             return log;
         }
 
-        public async Task<List<PagBankWebhookLog>> GetByResourceIdAsync(string resourceId)
+        public async Task<List<PagBankWebhookLog>> GetByResourceIdAsync(string resourceId, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
                 .Where(w => w.ResourceId == resourceId)
                 .OrderByDescending(w => w.ReceivedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<PagBankWebhookLog>> GetByStatusAsync(WebhookProcessingStatus status)
+        public async Task<List<PagBankWebhookLog>> GetByStatusAsync(WebhookProcessingStatus status, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
                 .Where(w => w.ProcessingStatus == status)
                 .OrderByDescending(w => w.ReceivedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<PagBankWebhookLog>> GetRecentLogsAsync(int count = 100)
+        public async Task<List<PagBankWebhookLog>> GetRecentLogsAsync(int count = 100, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
                 .OrderByDescending(w => w.ReceivedAt)
                 .Take(count)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<PagBankWebhookLog>> GetFailedLogsForRetryAsync(int maxAttempts = 3)
+        public async Task<List<PagBankWebhookLog>> GetFailedLogsForRetryAsync(int maxAttempts = 3, CancellationToken cancellationToken = default)
         {
             return await _context.PagBankWebhookLogs
                 .Include(w => w.Payment)
                 .Where(w => w.ProcessingStatus == WebhookProcessingStatus.Failed 
                          && w.ProcessingAttempts < maxAttempts)
                 .OrderBy(w => w.ReceivedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
         }
     }
 }

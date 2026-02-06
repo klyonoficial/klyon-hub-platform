@@ -162,10 +162,10 @@ namespace KlyonHubPlatform.Api.Controllers
             return alerts;
         }
 
-        public async Task<IActionResult> Dashboard()
+        public async Task<IActionResult> Dashboard(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
@@ -278,10 +278,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DismissStatusNotification()
+        public async Task<IActionResult> DismissStatusNotification(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity != null)

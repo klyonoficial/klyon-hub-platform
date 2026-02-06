@@ -1,7 +1,8 @@
+using System.Threading;
+using System.Threading.Tasks;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
-using KlyonHubPlatform.Infra.Data.Repositories;
 
 namespace KlyonHubPlatform.Application.Services
 {
@@ -30,7 +31,7 @@ namespace KlyonHubPlatform.Application.Services
         /// <param name="newValues">Valores novos (JSON ou texto)</param>
         /// <param name="ipAddress">Endereço IP de origem</param>
         /// <param name="userAgent">User Agent do navegador/cliente</param>
-        public async Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null, string? ipAddress = null, string? userAgent = null)
+        public async Task LogActionAsync(int? userId, string action, string entityType, int? entityId, string? oldValues = null, string? newValues = null, string? ipAddress = null, string? userAgent = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -47,7 +48,7 @@ namespace KlyonHubPlatform.Application.Services
                     ActionDate = DateTime.UtcNow
                 };
 
-                await _auditLogRepository.CreateAsync(log);
+                await _auditLogRepository.CreateAsync(log, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -58,19 +59,19 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
-        public async Task<List<AuditLog>> GetLogsByEntityAsync(string entityType, int entityId)
+        public async Task<List<AuditLog>> GetLogsByEntityAsync(string entityType, int entityId, CancellationToken cancellationToken = default)
         {
-            return await _auditLogRepository.GetByEntityAsync(entityType, entityId);
+            return await _auditLogRepository.GetByEntityAsync(entityType, entityId, cancellationToken);
         }
 
-        public async Task<List<AuditLog>> GetLogsByUserIdAsync(int userId)
+        public async Task<List<AuditLog>> GetLogsByUserIdAsync(int userId, CancellationToken cancellationToken = default)
         {
-            return await _auditLogRepository.GetByUserIdAsync(userId);
+            return await _auditLogRepository.GetByUserIdAsync(userId, cancellationToken);
         }
 
-        public async Task<List<AuditLog>> GetRecentLogsAsync(int count = 100)
+        public async Task<List<AuditLog>> GetRecentLogsAsync(int count = 100, CancellationToken cancellationToken = default)
         {
-            return await _auditLogRepository.GetRecentAsync(count);
+            return await _auditLogRepository.GetRecentAsync(count, cancellationToken);
         }
     }
 }
