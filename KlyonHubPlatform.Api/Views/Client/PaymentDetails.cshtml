@@ -142,6 +142,10 @@
                                         <option value="CreditCard">Cartão de Crédito</option>
                                     }
                                 </select>
+                                @if (Model.Method == PaymentMethod.CreditCard && ViewBag.CreditCardPlanLabel != null)
+                                {
+                                    <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                }
                                 <small class="text-muted d-block mt-1">
                                     <i class="bi bi-info-circle"></i> Você pode alterar o método de pagamento a qualquer momento
                                 </small>
@@ -156,6 +160,10 @@
                                     break;
                                 case PaymentMethod.CreditCard:
                                     <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
+                                    @if (ViewBag.CreditCardPlanLabel != null)
+                                    {
+                                        <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                    }
                                     break;
                                 case PaymentMethod.BankTransfer:
                                     <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>
@@ -349,7 +357,13 @@
             {
                 <div class="card mb-4" id="creditCardPaymentCard">
                     <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito</h5>
+                        <h5 class="mb-0">
+                            <i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito
+                            @if (ViewBag.CreditCardPlanLabel != null)
+                            {
+                                <span class="badge bg-light text-dark ms-2">@ViewBag.CreditCardPlanLabel</span>
+                            }
+                        </h5>
                     </div>
                     <div class="card-body">
                         <p class="text-muted mb-3">
@@ -449,13 +463,16 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong> Selecione um cartão cadastrado ou adicione um novo cartão para processar o pagamento.
+                            <strong>Instruções:</strong> Preencha os dados do cartão abaixo e clique em "Pagar com cartão" para enviar o pagamento ao PagBank. Seu contrato será ativado assim que o pagamento for aprovado.
                         </div>
+
+                        <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#payWithCardModal">
+                            <i class="bi bi-credit-card"></i> Pagar com cartão
+                        </button>
 
                         <p class="text-muted small mt-3">
                             <i class="bi bi-info-circle"></i> 
-                            O pagamento será processado automaticamente após a confirmação.
-                            Seu contrato será ativado imediatamente após o processamento.
+                            O pagamento é processado na hora pelo PagBank (PagSeguro). Você pode usar um cartão cadastrado preenchendo os dados no modal ou adicionar um novo cartão antes.
                         </p>
                     }
                 }
@@ -785,6 +802,80 @@
     </div>
 </div>
 
+@if (isPending && Model.Method == PaymentMethod.CreditCard)
+{
+<!-- Modal Pagar com cartão (processar pagamento no PagBank) -->
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payWithCardModalLabel">
+                    <i class="bi bi-credit-card"></i> Pagar com cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Preencha os dados do cartão. O pagamento será enviado ao PagBank e processado na hora.</p>
+                <form id="payWithCardForm">
+                    <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
+                    <div class="mb-3">
+                        <label for="payCardNumber" class="form-label">Número do cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardNumber" placeholder="0000 0000 0000 0000" maxlength="19" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="payCardHolderName" class="form-label">Nome no cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardHolderName" placeholder="NOME COMO NO CARTÃO" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label for="payCardExpiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
+                            <select class="form-select" id="payCardExpiryMonth" required>
+                                <option value="">MM</option>
+                                @for (int i = 1; i <= 12; i++)
+                                {
+                                    <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label for="payCardExpiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
+                            <select class="form-select" id="payCardExpiryYear" required>
+                                <option value="">AAAA</option>
+                                @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 15; y++)
+                                {
+                                    <option value="@y">@y</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="payCardCvv" class="form-label">CVV <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardCvv" placeholder="123" maxlength="4" required>
+                        <small class="form-text text-muted">3 ou 4 dígitos no verso do cartão</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="payCardInstallments" class="form-label">Parcelas</label>
+                        <select class="form-select" id="payCardInstallments">
+                            @for (int i = 1; i <= 12; i++)
+                            {
+                                <option value="@i" @(i == 1 ? "selected" : "")>@i x</option>
+                            }
+                        </select>
+                    </div>
+                    <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="payWithCardSubmitBtn">
+                    <i class="bi bi-credit-card"></i> Pagar agora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
@@ -1022,6 +1113,69 @@
         // Máscara para CVV
         document.getElementById('cvv')?.addEventListener('input', function(e) {
             e.target.value = e.target.value.replace(/\D/g, '');
+        });
+
+        // Modal Pagar com cartão: formatação e envio
+        document.getElementById('payCardNumber')?.addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, '');
+            e.target.value = (v.match(/.{1,4}/g) || []).join(' ').substring(0, 19);
+        });
+        document.getElementById('payCardCvv')?.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
+        document.getElementById('payWithCardSubmitBtn')?.addEventListener('click', async function() {
+            var form = document.getElementById('payWithCardForm');
+            var errEl = document.getElementById('payWithCardError');
+            var btn = document.getElementById('payWithCardSubmitBtn');
+            if (!form || !errEl || !btn) return;
+            errEl.classList.add('d-none');
+            errEl.textContent = '';
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            var paymentId = parseInt(document.getElementById('payWithCardPaymentId').value, 10);
+            var number = (document.getElementById('payCardNumber').value || '').replace(/\s/g, '');
+            var expMonth = document.getElementById('payCardExpiryMonth').value;
+            var expYear = document.getElementById('payCardExpiryYear').value;
+            var year = expYear.length === 2 ? '20' + expYear : expYear;
+            var payload = {
+                paymentId: paymentId,
+                card: {
+                    number: number,
+                    expirationMonth: expMonth,
+                    expirationYear: year,
+                    securityCode: document.getElementById('payCardCvv').value,
+                    holderName: document.getElementById('payCardHolderName').value.trim()
+                },
+                installments: parseInt(document.getElementById('payCardInstallments').value, 10) || 1
+            };
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
+            try {
+                var response = await fetch('@Url.Action("ProcessPaymentWithCard", "Client")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var result = await response.json();
+                if (result.success) {
+                    if (typeof showToast === 'function') showToast(result.message || 'Pagamento processado!', 'success');
+                    var modal = bootstrap.Modal.getInstance(document.getElementById('payWithCardModal'));
+                    if (modal) modal.hide();
+                    window.location.reload();
+                } else {
+                    errEl.textContent = result.error || 'Erro ao processar pagamento.';
+                    errEl.classList.remove('d-none');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
+                }
+            } catch (e) {
+                errEl.textContent = 'Erro de conexão. Tente novamente.';
+                errEl.classList.remove('d-none');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
+            }
         });
 
         // Preview de imagem ao selecionar arquivo

@@ -152,6 +152,14 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
         [JsonPropertyName("encrypted")]
         public string? Encrypted { get; set; }
 
+        /// <summary>Número do cartão (somente números). Usado quando não há tokenização.</summary>
+        [JsonPropertyName("number")]
+        public string? Number { get; set; }
+
+        /// <summary>Data de validade no formato YYYY-MM (ex: 2028-12).</summary>
+        [JsonPropertyName("expiration_date")]
+        public string? ExpirationDate { get; set; }
+
         [JsonPropertyName("security_code")]
         public string SecurityCode { get; set; } = string.Empty;
 

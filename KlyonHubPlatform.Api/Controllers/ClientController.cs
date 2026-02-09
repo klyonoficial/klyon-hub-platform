@@ -23,6 +23,23 @@ namespace KlyonHubPlatform.Api.Controllers
         public int? Installments { get; set; }
     }
 
+    /// <summary>Request para processar pagamento do endereço fiscal (subscription) com cartão.</summary>
+    public class ProcessPaymentWithCardRequest
+    {
+        public int PaymentId { get; set; }
+        public PaymentCardInput? Card { get; set; }
+        public int? Installments { get; set; }
+    }
+
+    public class PaymentCardInput
+    {
+        public string? Number { get; set; }
+        public string? ExpirationMonth { get; set; }
+        public string? ExpirationYear { get; set; }
+        public string? SecurityCode { get; set; }
+        public string? HolderName { get; set; }
+    }
+
     public class CreditPlanIdRequest
     {
         public int CreditPlanId { get; set; }
@@ -2312,6 +2329,22 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.CreditCards = creditCards;
             }
 
+            // Rótulo do plano de cartão (À vista 1x, 12x, Mensal) para exibir em PaymentDetails
+            string? creditCardPlanLabel = null;
+            if (payment.Method == PaymentMethod.CreditCard && payment.Subscription?.Contract?.CoworkingAddress != null)
+            {
+                var address = payment.Subscription.Contract.CoworkingAddress;
+                var amount = payment.Amount;
+                const decimal tolerance = 0.01m;
+                if (address.CardPrice1x.HasValue && Math.Abs(amount - address.CardPrice1x.Value) <= tolerance)
+                    creditCardPlanLabel = "À vista (1x)";
+                else if (address.CardPrice12x.HasValue && Math.Abs(amount - address.CardPrice12x.Value) <= tolerance)
+                    creditCardPlanLabel = $"12x de R$ {address.CardPrice12x.Value:N2}";
+                else if (address.CardPriceMonthly.HasValue && Math.Abs(amount - address.CardPriceMonthly.Value) <= tolerance)
+                    creditCardPlanLabel = "Mensal";
+            }
+            ViewBag.CreditCardPlanLabel = creditCardPlanLabel;
+
             // Calcular valor com percentual de cartão de crédito se aplicável
             decimal originalAmount = payment.Amount;
             decimal finalAmount = payment.Amount;
@@ -2855,6 +2888,118 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 TempData["Error"] = $"Erro ao adicionar cartão: {ex.Message}";
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
+            }
+        }
+
+        /// <summary>Processa o pagamento do endereço fiscal (subscription) com cartão de crédito, enviando ao PagBank.</summary>
+        [HttpPost]
+        public async Task<IActionResult> ProcessPaymentWithCard([FromBody] ProcessPaymentWithCardRequest request)
+        {
+            try
+            {
+                if (request == null || request.Card == null)
+                {
+                    return Json(new { success = false, error = "Dados do cartão são obrigatórios." });
+                }
+
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (client == null)
+                {
+                    return Json(new { success = false, error = "Cliente não encontrado." });
+                }
+
+                var payment = await _context.Payments
+                    .Include(p => p.Subscription)
+                        .ThenInclude(s => s.Contract)
+                    .FirstOrDefaultAsync(p => p.Id == request.PaymentId);
+                if (payment == null)
+                {
+                    return Json(new { success = false, error = "Pagamento não encontrado." });
+                }
+
+                if (payment.Status != PaymentStatus.Pending)
+                {
+                    return Json(new { success = false, error = "Este pagamento não está mais pendente." });
+                }
+
+                if (payment.Method != PaymentMethod.CreditCard)
+                {
+                    return Json(new { success = false, error = "Este pagamento não é via cartão de crédito." });
+                }
+
+                if (!payment.SubscriptionId.HasValue || payment.Subscription == null)
+                {
+                    return Json(new { success = false, error = "Pagamento sem assinatura associada." });
+                }
+
+                var contract = payment.Subscription.Contract;
+                if (contract == null || contract.ClientId != client.Id)
+                {
+                    return Json(new { success = false, error = "Pagamento não pertence ao seu perfil." });
+                }
+
+                var number = (request.Card.Number ?? "").Replace(" ", "").Replace("-", "").Trim();
+                if (number.Length < 13 || number.Length > 19)
+                {
+                    return Json(new { success = false, error = "Número do cartão inválido." });
+                }
+
+                var month = (request.Card.ExpirationMonth ?? "").Trim();
+                var year = (request.Card.ExpirationYear ?? "").Trim();
+                if (year.Length == 2) year = "20" + year;
+                if (string.IsNullOrEmpty(month) || string.IsNullOrEmpty(year) || month.Length > 2 || year.Length != 4)
+                {
+                    return Json(new { success = false, error = "Data de validade inválida (mês e ano)." });
+                }
+
+                var expDate = $"{year}-{month.PadLeft(2, '0')}";
+                var cvv = (request.Card.SecurityCode ?? "").Trim();
+                if (string.IsNullOrEmpty(cvv) || cvv.Length < 3)
+                {
+                    return Json(new { success = false, error = "Código de segurança (CVV) inválido." });
+                }
+
+                var holderName = (request.Card.HolderName ?? "").Trim();
+                if (string.IsNullOrEmpty(holderName))
+                {
+                    return Json(new { success = false, error = "Nome no cartão é obrigatório." });
+                }
+
+                var card = new Application.DTOs.PagBank.PagBankCard
+                {
+                    Number = number,
+                    ExpirationDate = expDate,
+                    SecurityCode = cvv,
+                    Holder = new Application.DTOs.PagBank.PagBankCardHolder { Name = holderName.ToUpper() },
+                    Store = false
+                };
+
+                var installments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
+                    ? request.Installments.Value
+                    : (int?)1;
+
+                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installments);
+
+                if (result.Status == PaymentStatus.Paid)
+                {
+                    return Json(new { success = true, message = "Pagamento aprovado! Seu contrato foi ativado." });
+                }
+                if (result.Status == PaymentStatus.Failed)
+                {
+                    return Json(new { success = false, error = "Pagamento recusado. Verifique os dados do cartão ou tente outro cartão." });
+                }
+
+                return Json(new { success = true, message = "Pagamento está sendo processado. Atualize a página em instantes." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao processar pagamento com cartão. PaymentId: {PaymentId}", request?.PaymentId);
+                return Json(new { success = false, error = "Erro ao processar pagamento. Tente novamente ou use outra forma de pagamento." });
             }
         }
 
