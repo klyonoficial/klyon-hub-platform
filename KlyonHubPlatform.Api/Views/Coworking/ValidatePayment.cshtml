@@ -50,6 +50,10 @@
                                 break;
                             case PaymentMethod.CreditCard:
                                 <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
+                                @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                {
+                                    <span class="text-muted ms-1">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</span>
+                                }
                                 break;
                             case PaymentMethod.BankTransfer:
                                 <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>

@@ -1,0 +1,78 @@
+using System.Text.Json.Serialization;
+
+namespace KlyonHubPlatform.Application.DTOs.Asaas
+{
+    /// <summary>
+    /// Request para criar/atualizar cliente no Asaas.
+    /// Ref: https://docs.asaas.com/reference/criar-novo-cliente
+    /// </summary>
+    public class AsaasCustomerRequest
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [JsonPropertyName("cpfCnpj")]
+        public string CpfCnpj { get; set; } = string.Empty;
+
+        [JsonPropertyName("phone")]
+        public string? Phone { get; set; }
+
+        [JsonPropertyName("mobilePhone")]
+        public string? MobilePhone { get; set; }
+
+        [JsonPropertyName("address")]
+        public string? Address { get; set; }
+
+        [JsonPropertyName("addressNumber")]
+        public string? AddressNumber { get; set; }
+
+        [JsonPropertyName("complement")]
+        public string? Complement { get; set; }
+
+        [JsonPropertyName("province")]
+        public string? Province { get; set; }
+
+        [JsonPropertyName("postalCode")]
+        public string? PostalCode { get; set; }
+
+        [JsonPropertyName("city")]
+        public string? City { get; set; }
+
+        [JsonPropertyName("state")]
+        public string? State { get; set; }
+
+        [JsonPropertyName("externalReference")]
+        public string? ExternalReference { get; set; }
+    }
+
+    public class AsaasCustomerResponse
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("email")]
+        public string? Email { get; set; }
+
+        [JsonPropertyName("cpfCnpj")]
+        public string? CpfCnpj { get; set; }
+
+        [JsonPropertyName("dateCreated")]
+        public string? DateCreated { get; set; }
+    }
+
+    /// <summary>Resposta da listagem GET /customers.</summary>
+    public class AsaasCustomerListResponse
+    {
+        [JsonPropertyName("data")]
+        public List<AsaasCustomerResponse>? Data { get; set; }
+
+        [JsonPropertyName("totalCount")]
+        public int TotalCount { get; set; }
+    }
+}

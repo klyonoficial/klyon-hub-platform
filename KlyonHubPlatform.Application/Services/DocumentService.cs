@@ -248,7 +248,7 @@ namespace KlyonHubPlatform.Application.Services
                 FilePath = filePath,
                 Description = "Contrato de Endereço Fiscal",
                 D4SignDocumentUuid = d4SignUuid,
-                ClicksignEnvelopeId = clicksignEnvelopeId
+                ClicksignEnvelopeIdentifier = clicksignEnvelopeId
             };
 
             return await _documentRepository.CreateAsync(documentEntity);

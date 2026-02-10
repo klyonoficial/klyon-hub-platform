@@ -124,6 +124,10 @@
                                             break;
                                         case PaymentMethod.CreditCard:
                                             <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
+                                            @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
+                                            {
+                                                <br><small class="text-muted">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString("N2")</small>
+                                            }
                                             break;
                                         case PaymentMethod.BankTransfer:
                                             <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>

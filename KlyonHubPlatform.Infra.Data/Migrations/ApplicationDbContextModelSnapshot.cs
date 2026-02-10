@@ -1593,7 +1593,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<string>("ClicksignEnvelopeId")
+                    b.Property<string>("ClicksignEnvelopeIdentifier")
                         .HasColumnType("longtext")
                         .HasColumnName("ClicksignEnvelopeId");
 
@@ -2464,6 +2464,12 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<string>("FailureReason")
                         .HasColumnType("longtext");
+
+                    b.Property<int?>("InstallmentCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("InstallmentValue")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<int>("Method")
                         .HasColumnType("int");

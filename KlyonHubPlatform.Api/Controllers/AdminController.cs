@@ -26,7 +26,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IPaymentService _paymentService;
         private readonly ApplicationDbContext _context;
-        private readonly IPagBankService _pagBankService;
+        private readonly IAsaasService _asaasService;
         private readonly IAuditService _auditService;
         private readonly ISefazService _sefazService;
         private readonly IContractService _contractService;
@@ -46,7 +46,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ISystemConfigurationService systemConfigurationService,
             IPaymentService paymentService,
             ApplicationDbContext context,
-            IPagBankService pagBankService,
+            IAsaasService asaasService,
             IAuditService auditService,
             ISefazService sefazService,
             IContractService contractService,
@@ -65,7 +65,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _systemConfigurationService = systemConfigurationService;
             _paymentService = paymentService;
             _context = context;
-            _pagBankService = pagBankService;
+            _asaasService = asaasService;
             _auditService = auditService;
             _sefazService = sefazService;
             _contractService = contractService;
@@ -2464,19 +2464,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfigurePagBankSandbox()
+        public async Task<IActionResult> ConfigureAsaasSandbox()
         {
             try
             {
-                // Credenciais Sandbox fornecidas pelo usuário
-                // Email: hudsonlope@gmail.com (usado apenas para login no painel, não na API)
-                // Token: db3453dd-8c96-46c8-9c91-b5549372ed51c6e68eb54829b960fbe67c1d261e73a27c75-0f2a-47d9-9fbe-da8211abbff4
-
-                // Atualizar configurações do PagBank para Sandbox
+                // Atualizar configurações do Asaas para Sandbox (exemplo - substitua pela sua API Key do Asaas)
                 var configs = new Dictionary<string, string>
                 {
-                    { "PagBank.AccessToken", "db3453dd-8c96-46c8-9c91-b5549372ed51c6e68eb54829b960fbe67c1d261e73a27c75-0f2a-47d9-9fbe-da8211abbff4" },
-                    { "PagBank.UseSandbox", "true" }
+                    { "Asaas.ApiKey", "" },
+                    { "Asaas.UseSandbox", "true" }
                 };
 
                 foreach (var config in configs)
@@ -2498,12 +2494,12 @@ namespace KlyonHubPlatform.Api.Controllers
                             Value = config.Value,
                             Description = config.Key switch
                             {
-                                "PagBank.AccessToken" => "Token de acesso da API PagBank (Bearer Token)",
-                                "PagBank.UseSandbox" => "Usar ambiente sandbox do PagBank (true/false)",
+                                "Asaas.ApiKey" => "API Key do Asaas (obtida no painel Asaas > Integrações)",
+                                "Asaas.UseSandbox" => "Usar ambiente sandbox do Asaas (true/false)",
                                 _ => ""
                             },
                             Category = "Payment",
-                            IsSensitive = config.Key == "PagBank.AccessToken",
+                            IsSensitive = config.Key == "Asaas.ApiKey",
                             IsEncrypted = false,
                             CreatedAt = DateTimeHelper.GetBrazilianTime()
                         });
@@ -2512,58 +2508,50 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "✅ Configurações do PagBank (Sandbox) atualizadas com sucesso!<br/>" +
-                                     $"<strong>Email da conta:</strong> hudsonlope@gmail.com<br/>" +
-                                     $"<strong>Ambiente:</strong> Sandbox (Testes)<br/>" +
-                                     $"<strong>Token:</strong> Configurado e salvo<br/><br/>" +
-                                     $"💡 <strong>Próximo passo:</strong> Use o botão 'Testar Conexão PagBank' para validar se o token está funcionando corretamente.";
+                TempData["Success"] = "✅ Configurações do Asaas (Sandbox) preparadas.<br/>" +
+                                     "<strong>Próximo passo:</strong> Edite <strong>Asaas.ApiKey</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">sandbox.asaas.com</a>. Use <strong>Testar Conexão Asaas</strong> para validar.";
                 return RedirectToAction("SystemConfigurations");
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao configurar PagBank: {ex.Message}";
+                TempData["Error"] = $"Erro ao configurar Asaas: {ex.Message}";
                 return RedirectToAction("SystemConfigurations");
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TestPagBankConnection()
+        public async Task<IActionResult> TestAsaasConnection()
         {
             try
             {
-                // Verificar se as configurações estão definidas
-                var accessToken = await _systemConfigurationService.GetValueAsync("PagBank.AccessToken");
-                var useSandbox = await _systemConfigurationService.GetValueAsync("PagBank.UseSandbox");
+                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
+                var useSandbox = await _systemConfigurationService.GetValueAsync("Asaas.UseSandbox");
 
-                if (string.IsNullOrEmpty(accessToken))
+                if (string.IsNullOrEmpty(apiKey))
                 {
-                    TempData["Error"] = "Token de acesso PagBank não configurado. Configure primeiro em 'Configurar PagBank Sandbox'.";
+                    TempData["Error"] = "API Key Asaas não configurada. Configure primeiro em 'Configurar Asaas' e preencha Asaas.ApiKey.";
                     return RedirectToAction("SystemConfigurations");
                 }
 
                 var isSandbox = useSandbox?.ToLower() == "true";
                 var environment = isSandbox ? "Sandbox (Testes)" : "Produção";
 
-                // Tentar fazer uma requisição simples para testar a conexão
-                // Vamos tentar criar um pedido de teste muito pequeno (R$ 0,01)
-                var testOrder = await _pagBankService.CreateOrderAsync(
-                    referenceId: $"TEST-{DateTimeHelper.GetBrazilianTime():yyyyMMddHHmmss}",
-                    amount: 0.01m,
-                    method: PaymentMethod.PIX,
-                    clientName: "Teste Conexão",
-                    clientEmail: "teste@teste.com",
-                    clientTaxId: "12345678909"
-                );
-
-                TempData["Success"] = $"✅ Conexão com PagBank ({environment}) validada com sucesso!<br/>" +
-                                     $"Pedido de teste criado: <strong>{testOrder.Id}</strong><br/>" +
-                                     $"Token configurado e funcionando corretamente.";
+                var (success, statusCode, message) = await _asaasService.TestCreatePaymentAsync();
+                if (success)
+                {
+                    TempData["Success"] = $"✅ Conexão com Asaas ({environment}) validada com sucesso!<br/>" +
+                                         $"<strong>Retorno {statusCode}</strong>: API Key configurada e funcionando.";
+                }
+                else
+                {
+                    TempData["Error"] = $"❌ Erro ao validar conexão Asaas: {message}";
+                }
                 return RedirectToAction("SystemConfigurations");
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Token de acesso") || ex.Message.Contains("não configurado"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("API Key") || ex.Message.Contains("não configurada"))
             {
-                TempData["Error"] = $"❌ Token não configurado: {ex.Message}<br/>Configure primeiro em 'Configurar PagBank Sandbox'.";
+                TempData["Error"] = $"❌ API Key não configurada: {ex.Message}<br/>Configure primeiro em 'Configurar Asaas'.";
                 return RedirectToAction("SystemConfigurations");
             }
             catch (Exception ex)
@@ -2571,14 +2559,76 @@ namespace KlyonHubPlatform.Api.Controllers
                 var errorMessage = ex.Message;
                 if (errorMessage.Contains("Unauthorized") || errorMessage.Contains("401"))
                 {
-                    errorMessage = "Token inválido ou expirado. Verifique se o token está correto e se está usando o token do ambiente correto (sandbox vs produção).";
+                    errorMessage = "API Key inválida ou expirada. Verifique no painel Asaas (sandbox.asaas.com ou asaas.com).";
                 }
                 else if (errorMessage.Contains("Forbidden") || errorMessage.Contains("403"))
                 {
-                    errorMessage = "Token sem permissões suficientes. Verifique as permissões do token no painel do PagBank.";
+                    errorMessage = "API Key sem permissões suficientes. Verifique as permissões no painel do Asaas.";
                 }
 
-                TempData["Error"] = $"❌ Erro ao validar conexão PagBank: {errorMessage}";
+                TempData["Error"] = $"❌ Erro ao validar conexão Asaas: {errorMessage}";
+                return RedirectToAction("SystemConfigurations");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TestAsaasCreatePayment()
+        {
+            try
+            {
+                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    TempData["Error"] = "API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha Asaas.ApiKey.";
+                    return RedirectToAction("SystemConfigurations");
+                }
+
+                var (success, statusCode, message) = await _asaasService.TestCreatePaymentAsync();
+                if (success)
+                {
+                    TempData["Success"] = $"✅ <strong>Retorno {statusCode}</strong>: {message}";
+                }
+                else
+                {
+                    TempData["Error"] = $"❌ <strong>Retorno {statusCode}</strong>: {message}";
+                }
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"❌ Erro ao testar criação de cobrança: {ex.Message}";
+                return RedirectToAction("SystemConfigurations");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TestAsaasCreateCreditCardPayment()
+        {
+            try
+            {
+                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    TempData["Error"] = "API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha Asaas.ApiKey.";
+                    return RedirectToAction("SystemConfigurations");
+                }
+
+                var (success, statusCode, message) = await _asaasService.TestCreateCreditCardPaymentAsync();
+                if (success)
+                {
+                    TempData["Success"] = $"✅ <strong>Retorno {statusCode}</strong>: {message}";
+                }
+                else
+                {
+                    TempData["Error"] = $"❌ <strong>Retorno {statusCode}</strong>: {message}";
+                }
+                return RedirectToAction("SystemConfigurations");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"❌ Erro ao testar cobrança com cartão: {ex.Message}";
                 return RedirectToAction("SystemConfigurations");
             }
         }

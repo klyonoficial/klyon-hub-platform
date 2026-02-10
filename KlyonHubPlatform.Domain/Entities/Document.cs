@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using KlyonHubPlatform.Domain.Core.Enums;
 
 namespace KlyonHubPlatform.Domain.Entities
@@ -19,8 +20,10 @@ namespace KlyonHubPlatform.Domain.Entities
 
         /// <summary>
         /// ID do envelope na Clicksign (quando enviado para assinatura eletrônica via Clicksign).
+        /// Coluna no MySQL: ClicksignEnvelopeId. Nome da propriedade evita homóglifo que gerava ClicksignEnvelopeld no SQL.
         /// </summary>
-        public string? ClicksignEnvelopeId { get; set; }
+        [Column("ClicksignEnvelopeId")]
+        public string? ClicksignEnvelopeIdentifier { get; set; }
 
         // Navigation properties
         public virtual Contract Contract { get; set; } = null!;

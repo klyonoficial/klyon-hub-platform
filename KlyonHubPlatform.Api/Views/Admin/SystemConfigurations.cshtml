@@ -22,16 +22,28 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear"></i> Configurações do Sistema</h2>
     <div class="d-flex gap-2">
-        <form method="post" action="@Url.Action("ConfigurePagBankSandbox", "Admin")" class="d-inline">
+        <form method="post" action="@Url.Action("ConfigureAsaasSandbox", "Admin")" class="d-inline">
             @Html.AntiForgeryToken()
-            <button type="submit" class="btn btn-dark" title="Configurar credenciais do PagBank Sandbox automaticamente">
-                <i class="bi bi-credit-card"></i> Configurar PagBank Sandbox
+            <button type="submit" class="btn btn-dark" title="Preparar configurações do Asaas (Sandbox)">
+                <i class="bi bi-credit-card"></i> Configurar Asaas
             </button>
         </form>
-        <form method="post" action="@Url.Action("TestPagBankConnection", "Admin")" class="d-inline">
+        <form method="post" action="@Url.Action("TestAsaasConnection", "Admin")" class="d-inline">
             @Html.AntiForgeryToken()
-            <button type="submit" class="btn btn-outline-primary" title="Testar conexão com PagBank">
-                <i class="bi bi-wifi"></i> Testar Conexão PagBank
+            <button type="submit" class="btn btn-outline-primary" title="Testar conexão com Asaas">
+                <i class="bi bi-wifi"></i> Testar Conexão Asaas
+            </button>
+        </form>
+        <form method="post" action="@Url.Action("TestAsaasCreatePayment", "Admin")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-success" title="Cria cobrança PIX de teste e exibe retorno 200 ou erro na tela">
+                <i class="bi bi-check2-circle"></i> Testar criação de cobrança (200)
+            </button>
+        </form>
+        <form method="post" action="@Url.Action("TestAsaasCreateCreditCardPayment", "Admin")" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-info" title="Cria cobrança com cartão de teste (R$ 5,00, sandbox) e exibe retorno na tela">
+                <i class="bi bi-credit-card"></i> Testar cobrança com cartão (200)
             </button>
         </form>
     </div>

@@ -21,7 +21,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ICommissionService _commissionService;
         private readonly IContractRepository _contractRepository;
         private readonly ICoworkingRepository _coworkingRepository;
-        private readonly IPagBankService _pagBankService;
+        private readonly IAsaasService _asaasService;
         private readonly ApplicationDbContext _context;
         private readonly IAddressDeclarationService? _addressDeclarationService;
         private readonly ISystemConfigurationService _systemConfigurationService;
@@ -34,7 +34,7 @@ namespace KlyonHubPlatform.Application.Services
             ICommissionService commissionService,
             IContractRepository contractRepository,
             ICoworkingRepository coworkingRepository,
-            IPagBankService pagBankService,
+            IAsaasService asaasService,
             ApplicationDbContext context,
             ISystemConfigurationService systemConfigurationService,
             IAddressDeclarationService? addressDeclarationService = null,
@@ -46,7 +46,7 @@ namespace KlyonHubPlatform.Application.Services
             _commissionService = commissionService;
             _contractRepository = contractRepository;
             _coworkingRepository = coworkingRepository;
-            _pagBankService = pagBankService;
+            _asaasService = asaasService;
             _context = context;
             _addressDeclarationService = addressDeclarationService;
             _systemConfigurationService = systemConfigurationService;
@@ -417,7 +417,11 @@ namespace KlyonHubPlatform.Application.Services
 
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
-            var orderResponse = await _pagBankService.CreateOrderAsync(
+            var validation = _asaasService.ValidateCustomerDataForPayment(clientName, clientEmail, clientTaxId, clientPhone, payment.Amount);
+            if (!validation.IsValid)
+                throw new InvalidOperationException(validation.Message);
+
+            var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,
                 method: PaymentMethod.PIX,
@@ -427,7 +431,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientPhone: clientPhone
             );
 
-            // Atualizar payment com dados do PagBank
+            // Atualizar payment com dados do Asaas
             payment.ExternalPaymentId = orderResponse.Id;
             
             if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
@@ -577,7 +581,7 @@ namespace KlyonHubPlatform.Application.Services
                 PostalCode = postalCode
             };
 
-            var orderResponse = await _pagBankService.CreateOrderAsync(
+            var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,
                 method: PaymentMethod.BankTransfer,
@@ -588,7 +592,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientAddress: clientAddress
             );
 
-            // Atualizar payment com dados do PagBank
+            // Atualizar payment com dados do Asaas
             payment.ExternalPaymentId = orderResponse.Id;
             
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
@@ -597,7 +601,7 @@ namespace KlyonHubPlatform.Application.Services
                 if (charge.PaymentMethod?.Boleto != null)
                 {
                     payment.BoletoBarcode = charge.PaymentMethod.Boleto.Barcode;
-                    payment.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode;
+                    payment.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode ?? charge.PaymentMethod.Boleto.Barcode;
                     payment.BoletoExpiresAt = charge.PaymentMethod.Boleto.DueDate;
                 }
             }
@@ -669,6 +673,48 @@ namespace KlyonHubPlatform.Application.Services
 
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
+            // Endereço do cliente (cadastrado no perfil) - obrigatório para o Asaas (CEP do titular do cartão)
+            string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+            {
+                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+            }
+            var postalCode = "00000000";
+            if (!string.IsNullOrWhiteSpace(client.ZipCode))
+            {
+                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp;
+                else if (postalCodeTemp.Length > 8)
+                    postalCode = postalCodeTemp.Substring(0, 8);
+                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp.PadLeft(8, '0');
+            }
+            if (postalCode == "00000000" || string.IsNullOrWhiteSpace(client.ZipCode))
+            {
+                throw new InvalidOperationException("CEP não informado. Atualize em 'Meu Perfil' com o CEP do titular do cartão.");
+            }
+            var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+                "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+                "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
+            var regionCode = "SP";
+            if (!string.IsNullOrWhiteSpace(client.State))
+            {
+                var stateTemp = client.State.Trim().ToUpper();
+                if (stateTemp.Length >= 2 && validUFs.Contains(stateTemp.Substring(0, 2)))
+                    regionCode = stateTemp.Substring(0, 2);
+            }
+            var clientAddress = new PagBankAddress
+            {
+                Street = GetValueOrDefault(client.Address, "Não informado"),
+                Number = "S/N",
+                Complement = null,
+                Locality = "Não informado",
+                City = GetValueOrDefault(client.City, "Não informado"),
+                RegionCode = regionCode,
+                Country = "BRA",
+                PostalCode = postalCode
+            };
+
             // Aplicar percentual de cartão de crédito se configurado
             decimal amountToCharge = payment.Amount;
             var feePercentageStr = await _systemConfigurationService.GetValueAsync("Payment.CreditCardFeePercentage");
@@ -677,7 +723,7 @@ namespace KlyonHubPlatform.Application.Services
                 amountToCharge = payment.Amount * (1 + fee / 100);
             }
 
-            var orderResponse = await _pagBankService.CreateOrderAsync(
+            var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: amountToCharge,
                 method: PaymentMethod.CreditCard,
@@ -686,12 +732,16 @@ namespace KlyonHubPlatform.Application.Services
                 clientTaxId: clientTaxId,
                 clientPhone: clientPhone,
                 card: card,
-                installments: installments
+                installments: installments,
+                clientAddress: clientAddress
             );
 
-            // Atualizar payment com dados do PagBank
+            // Atualizar payment com dados do Asaas
             payment.ExternalPaymentId = orderResponse.Id;
             payment.Status = PaymentStatus.Processing;
+            var installmentCount = installments ?? 1;
+            payment.InstallmentCount = installmentCount;
+            payment.InstallmentValue = Math.Round(amountToCharge / installmentCount, 2);
 
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
             {

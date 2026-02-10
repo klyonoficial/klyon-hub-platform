@@ -108,12 +108,21 @@
                                     <span class="text-warning">
                                         <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
                                     </span>
+                                    @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                    {
+                                        <br>
+                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></span>
+                                    }
                                 </small>
                             </div>
                         }
                         else
                         {
                             <h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4>
+                            @if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                            {
+                                <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></small>
+                            }
                         }
                     </dd>
 
@@ -121,7 +130,7 @@
                     <dd class="col-sm-8">
                         @if (isPending)
                         {
-                            <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline">
+                            <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
                                 <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@Model.Method.ToString()">
@@ -163,6 +172,10 @@
                                     @if (ViewBag.CreditCardPlanLabel != null)
                                     {
                                         <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                    }
+                                    @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                    {
+                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</span>
                                     }
                                     break;
                                 case PaymentMethod.BankTransfer:
@@ -378,11 +391,20 @@
                                     <span class="text-warning">
                                         <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
                                     </span>
+                                    @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                    {
+                                        <br>
+                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></span>
+                                    }
                                 </small>
                             }
                             else
                             {
                                 <span class="text-primary">R$ @Model.Amount.ToString("N2")</span>
+                                @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                {
+                                    <br><small class="text-muted"><i class="bi bi-credit-card-2-back"></i> @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</small>
+                                }
                             }
                             <br>
                             <strong>Vencimento:</strong> @Model.DueDate.ToString("dd/MM/yyyy")
@@ -463,7 +485,7 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong> Preencha os dados do cartão abaixo e clique em "Pagar com cartão" para enviar o pagamento ao PagBank. Seu contrato será ativado assim que o pagamento for aprovado.
+                            <strong>Instruções:</strong> Selecione um cartão cadastrado (se houver) e clique em "Pagar com cartão". O modal abrirá com nome e validade preenchidos; informe número do cartão e CVV para concluir. Seu contrato será ativado assim que o pagamento for aprovado.
                         </div>
 
                         <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#payWithCardModal">
@@ -472,7 +494,7 @@
 
                         <p class="text-muted small mt-3">
                             <i class="bi bi-info-circle"></i> 
-                            O pagamento é processado na hora pelo PagBank (PagSeguro). Você pode usar um cartão cadastrado preenchendo os dados no modal ou adicionar um novo cartão antes.
+                            O pagamento é processado na hora pelo Asaas. Cartões cadastrados têm nome e validade preenchidos automaticamente no modal; informe apenas número e CVV.
                         </p>
                     }
                 }
@@ -804,8 +826,17 @@
 
 @if (isPending && Model.Method == PaymentMethod.CreditCard)
 {
-<!-- Modal Pagar com cartão (processar pagamento no PagBank) -->
-<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true">
+    var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
+    var creditCardsJson = "[]";
+    if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
+    {
+        var cards = ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
+            .Select(c => new { id = c.Id, cardHolderName = c.CardHolderName, expiryMonth = c.ExpiryMonth, expiryYear = c.ExpiryYear, lastFourDigits = c.LastFourDigits, brand = c.Brand })
+            .ToList();
+        creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards);
+    }
+<!-- Modal Pagar com cartão (processar pagamento no Asaas) -->
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -815,7 +846,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small mb-3">Preencha os dados do cartão. O pagamento será enviado ao PagBank e processado na hora.</p>
+                <p class="text-muted small mb-3">Se você escolheu um cartão cadastrado, nome e validade já foram preenchidos — informe o número do cartão e o CVV para concluir. O pagamento será enviado ao Asaas e processado na hora.</p>
+                <div class="alert alert-light border mb-3 py-2" id="payWithCardAmountSummary">
+                    <strong>Valor total:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString("N2")</span>
+                    <br class="d-none" id="payWithCardPerInstallmentBr">
+                    <strong class="d-none" id="payWithCardPerInstallmentLabel">Valor por parcela:</strong> <span class="d-none" id="payWithCardPerInstallmentDisplay"></span>
+                </div>
                 <form id="payWithCardForm">
                     <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
                     <div class="mb-3">
@@ -858,7 +894,15 @@
                         <select class="form-select" id="payCardInstallments">
                             @for (int i = 1; i <= 12; i++)
                             {
-                                <option value="@i" @(i == 1 ? "selected" : "")>@i x</option>
+                                var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
+                                @if (i == 1)
+                                {
+                                    <option value="@i" selected>@i x R$ @parcelValue.ToString("N2")</option>
+                                }
+                                else
+                                {
+                                    <option value="@i">@i x R$ @parcelValue.ToString("N2")</option>
+                                }
                             }
                         </select>
                     </div>
@@ -874,6 +918,7 @@
         </div>
     </div>
 </div>
+<script type="application/json" id="paymentDetailsCreditCards">@Html.Raw(creditCardsJson)</script>
 }
 
 @section Scripts {
@@ -939,11 +984,19 @@
                     window.KlyonLoading.show();
                 }
                 
-                // Preparar dados do formulário
+                // Preparar dados do formulário (usar data-action-url para evitar action relativa após innerHTML)
                 const form = selectElement.form;
                 const formData = new FormData(form);
-                const actionUrl = form.action;
-                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                let actionUrl = form.getAttribute('data-action-url') || form.action;
+                if (actionUrl && actionUrl.startsWith('/')) {
+                    actionUrl = window.location.origin + actionUrl;
+                }
+                const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value
+                    || document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                if (!token) {
+                    showToast('Token de segurança não encontrado. Recarregue a página e tente novamente.', 'error');
+                    return;
+                }
                 
                 // Marcar como requisição AJAX manual
                 form.setAttribute('data-ajax-request', 'true');
@@ -953,6 +1006,7 @@
                         method: 'POST',
                         body: formData,
                         headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
                             'RequestVerificationToken': token
                         },
                         redirect: 'manual'
@@ -1114,6 +1168,90 @@
         document.getElementById('cvv')?.addEventListener('input', function(e) {
             e.target.value = e.target.value.replace(/\D/g, '');
         });
+
+        // Modal Pagar com cartão: valor total e valor por parcela conforme número de parcelas
+        (function() {
+            var modalEl = document.getElementById('payWithCardModal');
+            if (!modalEl) return;
+            var totalAmountAttr = modalEl.getAttribute('data-total-amount');
+            var totalAmount = totalAmountAttr ? parseFloat(totalAmountAttr) : 0;
+            var selectEl = document.getElementById('payCardInstallments');
+            var totalDisplay = document.getElementById('payWithCardTotalDisplay');
+            var perInstallmentBr = document.getElementById('payWithCardPerInstallmentBr');
+            var perInstallmentLabel = document.getElementById('payWithCardPerInstallmentLabel');
+            var perInstallmentDisplay = document.getElementById('payWithCardPerInstallmentDisplay');
+
+            function formatBrl(value) {
+                return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            function updateInstallmentsDisplay() {
+                if (!selectEl || !totalAmount) return;
+                var n = parseInt(selectEl.value, 10) || 1;
+                if (totalDisplay) totalDisplay.textContent = formatBrl(totalAmount);
+                var perParcel = totalAmount / n;
+                if (n > 1 && perInstallmentBr && perInstallmentLabel && perInstallmentDisplay) {
+                    perInstallmentBr.classList.remove('d-none');
+                    perInstallmentLabel.classList.remove('d-none');
+                    perInstallmentDisplay.classList.remove('d-none');
+                    perInstallmentDisplay.textContent = 'R$ ' + formatBrl(perParcel) + ' (' + n + 'x)';
+                } else if (perInstallmentBr && perInstallmentLabel && perInstallmentDisplay) {
+                    perInstallmentBr.classList.add('d-none');
+                    perInstallmentLabel.classList.add('d-none');
+                    perInstallmentDisplay.classList.add('d-none');
+                }
+                // Atualizar textos das options para refletir valor por parcela
+                for (var i = 0; i < selectEl.options.length; i++) {
+                    var opt = selectEl.options[i];
+                    var num = parseInt(opt.value, 10);
+                    var val = totalAmount / num;
+                    opt.textContent = num + ' x R$ ' + formatBrl(val);
+                }
+            }
+
+            if (selectEl) {
+                selectEl.addEventListener('change', updateInstallmentsDisplay);
+            }
+            if (modalEl) {
+                modalEl.addEventListener('show.bs.modal', function() {
+                    totalAmount = parseFloat(modalEl.getAttribute('data-total-amount') || '0');
+                    updateInstallmentsDisplay();
+                    // Preencher dados do cartão cadastrado selecionado (nome e validade; número e CVV não são armazenados)
+                    var cardsEl = document.getElementById('paymentDetailsCreditCards');
+                    var cards = [];
+                    if (cardsEl && cardsEl.textContent) {
+                        try { cards = JSON.parse(cardsEl.textContent); } catch (e) { cards = []; }
+                    }
+                    var selectedRadio = document.querySelector('input[name="selectedCard"]:checked');
+                    var payHolder = document.getElementById('payCardHolderName');
+                    var payMonth = document.getElementById('payCardExpiryMonth');
+                    var payYear = document.getElementById('payCardExpiryYear');
+                    var payNumber = document.getElementById('payCardNumber');
+                    var payCvv = document.getElementById('payCardCvv');
+                    if (selectedRadio && cards.length && payHolder && payMonth && payYear) {
+                        var cardId = parseInt(selectedRadio.value, 10);
+                        var card = cards.find(function(c) { return c.id === cardId; });
+                        if (card) {
+                            payHolder.value = card.cardHolderName || '';
+                            payMonth.value = card.expiryMonth || '';
+                            var year = card.expiryYear || '';
+                            payYear.value = (year.length === 2) ? ('20' + year) : year;
+                        } else {
+                            payHolder.value = '';
+                            payMonth.value = '';
+                            payYear.value = '';
+                        }
+                    } else {
+                        if (payHolder) payHolder.value = '';
+                        if (payMonth) payMonth.value = '';
+                        if (payYear) payYear.value = '';
+                    }
+                    if (payNumber) payNumber.value = '';
+                    if (payCvv) payCvv.value = '';
+                });
+            }
+            updateInstallmentsDisplay();
+        })();
 
         // Modal Pagar com cartão: formatação e envio
         document.getElementById('payCardNumber')?.addEventListener('input', function(e) {

@@ -177,9 +177,19 @@
                                 }
                             }
                             var latestPayment = contract.Subscription?.Payments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
-                            var paymentMethodLabel = latestPayment != null
-                                ? (latestPayment.Method == PaymentMethod.PIX ? "PIX" : latestPayment.Method == PaymentMethod.CreditCard ? "Cartão" : latestPayment.Method == PaymentMethod.BankTransfer ? "Boleto" : latestPayment.Method.ToString())
-                                : "—";
+                            var paymentMethodLabel = "—";
+                            if (latestPayment != null)
+                            {
+                                if (latestPayment.Method == PaymentMethod.PIX) paymentMethodLabel = "PIX";
+                                else if (latestPayment.Method == PaymentMethod.BankTransfer) paymentMethodLabel = "Boleto";
+                                else if (latestPayment.Method == PaymentMethod.CreditCard)
+                                {
+                                    paymentMethodLabel = latestPayment.InstallmentCount.HasValue && latestPayment.InstallmentValue.HasValue
+                                        ? $"Cartão ({latestPayment.InstallmentCount.Value}x de R$ {latestPayment.InstallmentValue.Value:N2})"
+                                        : "Cartão";
+                                }
+                                else paymentMethodLabel = latestPayment.Method.ToString();
+                            }
                             <tr class="contract-row cursor-pointer" role="button" tabindex="0"
                                 data-contract-id="@contract.Id"
                                 data-contract-number="@(contract.ContractNumber ?? contract.Id.ToString())"

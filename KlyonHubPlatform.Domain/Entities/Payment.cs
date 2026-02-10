@@ -22,6 +22,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? FailureReason { get; set; }
         public string? ReceiptFilePath { get; set; }
         public string? ValidationNotes { get; set; }
+        /// <summary>Número de parcelas (cartão de crédito). Null se não for cartão ou à vista sem registro.</summary>
+        public int? InstallmentCount { get; set; }
+        /// <summary>Valor de cada parcela (cartão de crédito). Null se não for cartão ou à vista sem registro.</summary>
+        public decimal? InstallmentValue { get; set; }
         public int? ValidatedBy { get; set; }
         public DateTime? ValidatedAt { get; set; }
         public DateTime CreatedAt { get; set; }

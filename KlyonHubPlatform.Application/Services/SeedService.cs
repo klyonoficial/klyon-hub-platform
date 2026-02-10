@@ -428,17 +428,44 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Payment.Provider",
-                        Value = "PagBank",
-                        Description = "Provedor de pagamento (PagBank, Stripe, etc.)",
+                        Value = "Asaas",
+                        Description = "Provedor de pagamento (Asaas é o fixo)",
                         Category = "Payment",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
+                        Key = "Asaas.ApiKey",
+                        Value = "",
+                        Description = "API Key do Asaas (painel Asaas > Integrações)",
+                        Category = "Payment",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Asaas.UseSandbox",
+                        Value = "true",
+                        Description = "Usar ambiente sandbox do Asaas (true/false)",
+                        Category = "Payment",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = "Asaas.WebhookToken",
+                        Value = "",
+                        Description = "Token para validação de webhooks do Asaas (opcional)",
+                        Category = "Payment",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
                         Key = "PagBank.AccessToken",
                         Value = "",
-                        Description = "Token de acesso da API PagBank (Bearer Token)",
+                        Description = "[Legado] Token da API PagBank",
                         Category = "Payment",
                         IsSensitive = true,
                         IsEncrypted = false
@@ -447,7 +474,7 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Key = "PagBank.UseSandbox",
                         Value = "true",
-                        Description = "Usar ambiente sandbox do PagBank (true/false)",
+                        Description = "[Legado] Sandbox PagBank",
                         Category = "Payment",
                         IsSensitive = false,
                         IsEncrypted = false
@@ -456,7 +483,7 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Key = "PagBank.WebhookSecret",
                         Value = "",
-                        Description = "Secret para validação de webhooks do PagBank",
+                        Description = "[Legado] Secret webhooks PagBank",
                         Category = "Payment",
                         IsSensitive = true,
                         IsEncrypted = false

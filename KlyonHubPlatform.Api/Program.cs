@@ -147,7 +147,11 @@ builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<IAIIntentionService, AIIntentionService>();
 builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
 
-// PagBank Service
+// Asaas Service (cobrança e nota fiscal - provedor fixo)
+builder.Services.AddHttpClient<IAsaasService, AsaasService>();
+builder.Services.AddHttpClient<IAsaasInvoiceService, AsaasInvoiceService>();
+
+// PagBank (legado - apenas webhook; fluxo principal usa Asaas)
 builder.Services.AddHttpClient<PagBankService>();
 builder.Services.AddScoped<IPagBankService, PagBankService>();
 

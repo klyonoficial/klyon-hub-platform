@@ -121,7 +121,7 @@
                     <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" value="@phoneValue" placeholder="(00) 00000-0000" maxlength="15" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="ZipCode" class="form-label">CEP</label>
+                    <label for="ZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
                     @{
                         var zipCodeValue = Model.ZipCode;
                         if (!string.IsNullOrEmpty(zipCodeValue) && zipCodeValue.Length == 8)
@@ -129,7 +129,8 @@
                             zipCodeValue = $"{zipCodeValue.Substring(0, 5)}-{zipCodeValue.Substring(5, 3)}";
                         }
                     }
-                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" value="@zipCodeValue" placeholder="00000-000" maxlength="9">
+                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" value="@zipCodeValue" placeholder="00000-000" maxlength="9" required>
+                    <small class="form-text text-muted">Obrigatório. Necessário para pagamentos com cartão.</small>
                 </div>
             </div>
             <div class="row">

@@ -338,13 +338,13 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Status).HasColumnType("int");
             });
 
-            // Document configuration
+            // Document: coluna no MySQL = ClicksignEnvelopeId. Se o banco tiver ClicksignEnvelopeld (typo), rode a migração ou Scripts/FixClicksignEnvelopeColumn.sql
             modelBuilder.Entity<Document>(entity =>
             {
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Contract).WithMany(c => c.Documents).HasForeignKey(e => e.ContractId);
                 entity.Property(e => e.Type).HasConversion<string>();
-                entity.Property(e => e.ClicksignEnvelopeId).HasColumnName("ClicksignEnvelopeId");
+                entity.Property(e => e.ClicksignEnvelopeIdentifier).HasColumnName("ClicksignEnvelopeId");
             });
 
             // AuditLog configuration

@@ -1,0 +1,780 @@
+using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Application.DTOs.Asaas;
+using KlyonHubPlatform.Domain.Core.Enums;
+using Microsoft.Extensions.Logging;
+using System.Text;
+using System.Text.Json;
+using System.Net.Http.Headers;
+
+namespace KlyonHubPlatform.Application.Services
+{
+    /// <summary>
+    /// Implementação do provedor de cobrança Asaas (fixo no sistema).
+    /// Ref: https://docs.asaas.com/reference/comece-por-aqui
+    /// </summary>
+    public class AsaasService : IAsaasService
+    {
+        private const string SandboxBaseUrl = "https://api-sandbox.asaas.com/v3";
+        private const string ProductionBaseUrl = "https://api.asaas.com/v3";
+
+        private readonly ISystemConfigurationService _systemConfig;
+        private readonly ILogger<AsaasService> _logger;
+        private readonly HttpClient _httpClient;
+
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
+
+        public AsaasService(
+            ISystemConfigurationService systemConfig,
+            ILogger<AsaasService> logger,
+            HttpClient httpClient)
+        {
+            _systemConfig = systemConfig;
+            _logger = logger;
+            _httpClient = httpClient;
+        }
+
+        private async Task<string> GetBaseUrlAsync()
+        {
+            var useSandbox = await _systemConfig.GetValueAsync("Asaas.UseSandbox");
+            return (useSandbox?.ToLower() == "true") ? SandboxBaseUrl : ProductionBaseUrl;
+        }
+
+        private async Task<string> GetApiKeyAsync()
+        {
+            var key = await _systemConfig.GetValueAsync("Asaas.ApiKey");
+            if (string.IsNullOrEmpty(key))
+                throw new InvalidOperationException(
+                    "API Key Asaas não configurada. Configure em Configurações do Sistema > Asaas.ApiKey");
+            return key;
+        }
+
+        private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path)
+        {
+            var apiKey = await GetApiKeyAsync();
+            var baseUrl = await GetBaseUrlAsync();
+            var request = new HttpRequestMessage(method, $"{baseUrl}{path}");
+            request.Headers.Add("access_token", apiKey);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.TryAddWithoutValidation("User-Agent", "KlyonHubPlatform/1.0");
+            return request;
+        }
+
+        /// <inheritdoc />
+        public AsaasValidationResult ValidateCustomerDataForPayment(
+            string? clientName,
+            string? clientEmail,
+            string? clientTaxId,
+            string? clientPhone,
+            decimal value,
+            string? dueDate = null)
+        {
+            var result = new AsaasValidationResult();
+            if (string.IsNullOrWhiteSpace(clientName))
+                result.Errors.Add("Nome do cliente é obrigatório (customerData.name).");
+            if (string.IsNullOrWhiteSpace(clientEmail))
+                result.Errors.Add("E-mail do cliente é obrigatório (customerData.email).");
+            else if (!clientEmail.Contains("@") || clientEmail.Length < 5)
+                result.Errors.Add("E-mail do cliente inválido (customerData.email).");
+            var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+            if (string.IsNullOrEmpty(cpfCnpj))
+                result.Errors.Add("CPF ou CNPJ é obrigatório (customerData.cpfCnpj). Apenas dígitos (11 ou 14).");
+            else if (cpfCnpj.Length != 11 && cpfCnpj.Length != 14)
+                result.Errors.Add("CPF deve ter 11 dígitos ou CNPJ 14 dígitos, apenas números (customerData.cpfCnpj).");
+            else if (cpfCnpj.Length == 11 && !IsValidCpf(cpfCnpj))
+                result.Errors.Add("CPF com dígitos verificadores inválidos. Corrija em Meu Perfil (use um CPF válido).");
+            else if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
+                result.Errors.Add("CNPJ com dígitos verificadores inválidos. Corrija em Meu Perfil (use um CNPJ válido).");
+            if (value <= 0)
+                result.Errors.Add("Valor da cobrança deve ser maior que zero (value).");
+            if (!string.IsNullOrWhiteSpace(dueDate) && !System.Text.RegularExpressions.Regex.IsMatch(dueDate, @"^\d{4}-\d{2}-\d{2}$"))
+                result.Errors.Add("Data de vencimento deve estar no formato yyyy-MM-dd (dueDate).");
+            var phone = NormalizePhone(clientPhone);
+            if (!string.IsNullOrWhiteSpace(clientPhone) && (phone == null || phone.Length < 10))
+                result.Errors.Add("Telefone deve ter pelo menos 10 dígitos (customerData.phone/mobilePhone).");
+            result.IsValid = result.Errors.Count == 0;
+            result.Message = result.IsValid ? "Dados válidos conforme documentação Asaas." : string.Join(" ", result.Errors);
+            return result;
+        }
+
+        /// <inheritdoc />
+        public async Task<(bool Success, int StatusCode, string Message)> TestCreatePaymentAsync()
+        {
+            // CPF válido (dígitos verificadores corretos): 529.982.247-25
+            const string testCpf = "52998224725";
+            var referenceId = $"TEST-PAY-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            var dueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            try
+            {
+                // 1) Criar cliente (POST /customers) — evita "invalid_customer" ao usar customerData direto no payment
+                var customerPayload = new AsaasCustomerRequest
+                {
+                    Name = "Teste Validação Asaas",
+                    CpfCnpj = testCpf,
+                    Email = "teste@asaas.com.br",
+                    Phone = "27987654321",
+                    MobilePhone = "27987654321",
+                    Address = "Rua Teste",
+                    AddressNumber = "100",
+                    PostalCode = "29010000",
+                    Province = "Centro",
+                    City = "Vitória",
+                    State = "ES",
+                    ExternalReference = referenceId
+                };
+                var customerReq = await CreateRequestAsync(HttpMethod.Post, "/customers");
+                customerReq.Content = new StringContent(JsonSerializer.Serialize(customerPayload, JsonOptions), Encoding.UTF8, "application/json");
+                var customerResponse = await _httpClient.SendAsync(customerReq);
+                var customerContent = await customerResponse.Content.ReadAsStringAsync();
+                if (!customerResponse.IsSuccessStatusCode)
+                {
+                    var errMsg = ParseAsaasError(customerContent);
+                    return (false, (int)customerResponse.StatusCode, $"Cliente (customers): {errMsg}");
+                }
+                var customer = JsonSerializer.Deserialize<AsaasCustomerResponse>(customerContent, JsonOptions);
+                var customerId = customer?.Id;
+                if (string.IsNullOrEmpty(customerId))
+                {
+                    return (false, 0, "Resposta de criação de cliente sem id.");
+                }
+
+                // 2) Criar cobrança com customer=<id> (sem customerData). Asaas exige valor mínimo R$ 5,00.
+                var paymentPayload = new AsaasPaymentRequest
+                {
+                    Customer = customerId,
+                    BillingType = "PIX",
+                    Value = 5.00m,
+                    DueDate = dueDate,
+                    Description = "Teste de criação de cobrança (validação 200)",
+                    ExternalReference = referenceId
+                };
+                var paymentReq = await CreateRequestAsync(HttpMethod.Post, "/payments");
+                paymentReq.Content = new StringContent(JsonSerializer.Serialize(paymentPayload, JsonOptions), Encoding.UTF8, "application/json");
+                var paymentResponse = await _httpClient.SendAsync(paymentReq);
+                var paymentContent = await paymentResponse.Content.ReadAsStringAsync();
+                var statusCode = (int)paymentResponse.StatusCode;
+                if (paymentResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("TestCreatePayment Asaas: Status {StatusCode}, customerId={CustomerId}.", statusCode, customerId);
+                    return (true, statusCode, $"Retorno 200: cobrança de teste criada (cliente {customerId}).");
+                }
+                var payErr = ParseAsaasError(paymentContent);
+                return (false, statusCode, $"Cobrança (payments): {payErr}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "TestCreatePayment Asaas falhou.");
+                return (false, 0, $"Erro: {ex.Message}");
+            }
+        }
+
+        /// <inheritdoc />
+        public async Task<(bool Success, int StatusCode, string Message)> TestCreateCreditCardPaymentAsync()
+        {
+            const string testCpf = "52998224725";
+            const string testCardNumber = "4444444444444444"; // Cartão de teste Asaas sandbox (pagamento aprovado)
+            var referenceId = $"TEST-CARD-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            var dueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            try
+            {
+                var customerPayload = new AsaasCustomerRequest
+                {
+                    Name = "Teste Cartão Asaas",
+                    CpfCnpj = testCpf,
+                    Email = "teste@asaas.com.br",
+                    Phone = "27987654321",
+                    MobilePhone = "27987654321",
+                    Address = "Rua Teste",
+                    AddressNumber = "100",
+                    PostalCode = "29010000",
+                    Province = "Centro",
+                    City = "Vitória",
+                    State = "ES",
+                    ExternalReference = referenceId
+                };
+                var customerReq = await CreateRequestAsync(HttpMethod.Post, "/customers");
+                customerReq.Content = new StringContent(JsonSerializer.Serialize(customerPayload, JsonOptions), Encoding.UTF8, "application/json");
+                var customerResponse = await _httpClient.SendAsync(customerReq);
+                var customerContent = await customerResponse.Content.ReadAsStringAsync();
+                if (!customerResponse.IsSuccessStatusCode)
+                {
+                    return (false, (int)customerResponse.StatusCode, $"Cliente (customers): {ParseAsaasError(customerContent)}");
+                }
+                var customer = JsonSerializer.Deserialize<AsaasCustomerResponse>(customerContent, JsonOptions);
+                var customerId = customer?.Id;
+                if (string.IsNullOrEmpty(customerId))
+                {
+                    return (false, 0, "Resposta de criação de cliente sem id.");
+                }
+
+                var expYear = (DateTime.UtcNow.Year + 2).ToString();
+                var paymentPayload = new AsaasPaymentRequest
+                {
+                    Customer = customerId,
+                    BillingType = "CREDIT_CARD",
+                    Value = 5.00m,
+                    DueDate = dueDate,
+                    Description = "Teste de cobrança com cartão (Admin)",
+                    ExternalReference = referenceId,
+                    InstallmentCount = 1,
+                    CreditCard = new AsaasCreditCard
+                    {
+                        HolderName = "TESTE APROVADO",
+                        Number = testCardNumber,
+                        ExpiryMonth = "12",
+                        ExpiryYear = expYear,
+                        Ccv = "123"
+                    },
+                    CreditCardHolderInfo = new AsaasCreditCardHolderInfo
+                    {
+                        Name = "Teste Cartão Asaas",
+                        Email = "teste@asaas.com.br",
+                        CpfCnpj = testCpf,
+                        Phone = "27987654321",
+                        MobilePhone = "27987654321"
+                    }
+                };
+
+                var paymentReq = await CreateRequestAsync(HttpMethod.Post, "/payments");
+                paymentReq.Content = new StringContent(JsonSerializer.Serialize(paymentPayload, JsonOptions), Encoding.UTF8, "application/json");
+                var paymentResponse = await _httpClient.SendAsync(paymentReq);
+                var paymentContent = await paymentResponse.Content.ReadAsStringAsync();
+                var statusCode = (int)paymentResponse.StatusCode;
+                if (paymentResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("TestCreateCreditCardPayment Asaas: Status {StatusCode}, customerId={CustomerId}.", statusCode, customerId);
+                    return (true, statusCode, $"Retorno {statusCode}: cobrança com cartão de teste criada (cliente {customerId}). Use Sandbox para ver o pagamento aprovado.");
+                }
+                return (false, statusCode, $"Cobrança (payments): {ParseAsaasError(paymentContent)}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "TestCreateCreditCardPayment Asaas falhou.");
+                return (false, 0, $"Erro: {ex.Message}");
+            }
+        }
+
+        public async Task<OrderResponse> CreateOrderAsync(
+            string referenceId,
+            decimal amount,
+            PaymentMethod method,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone = null,
+            PagBankCard? card = null,
+            int? installments = null,
+            PagBankAddress? clientAddress = null)
+        {
+            var dueDate = method == PaymentMethod.BankTransfer
+                ? DateTime.UtcNow.AddDays(3).ToString("yyyy-MM-dd")
+                : DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+            var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+            if (string.IsNullOrEmpty(cpfCnpj) || (cpfCnpj.Length != 11 && cpfCnpj.Length != 14))
+                throw new InvalidOperationException(
+                    "CPF ou CNPJ inválido. Atualize em Meu Perfil com um CPF (11 dígitos) ou CNPJ (14 dígitos) válido, apenas números.");
+            if (cpfCnpj.Length == 11 && !IsValidCpf(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CPF com dígitos verificadores inválidos. Corrija o CPF em Meu Perfil (use um CPF válido).");
+            if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CNPJ com dígitos verificadores inválidos. Corrija o CNPJ em Meu Perfil (use um CNPJ válido).");
+
+            // Igual ao teste que funcionou: primeiro criar/obter cliente (POST /customers), depois cobrança com customer=id
+            var customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, referenceId);
+
+            var request = new AsaasPaymentRequest
+            {
+                Customer = customerId,
+                ExternalReference = referenceId,
+                Value = amount,
+                DueDate = dueDate,
+                Description = "Pagamento de Endereço Fiscal"
+            };
+
+            if (method == PaymentMethod.PIX)
+            {
+                request.BillingType = "PIX";
+            }
+            else if (method == PaymentMethod.BankTransfer)
+            {
+                request.BillingType = "BOLETO";
+            }
+            else if (method == PaymentMethod.CreditCard)
+            {
+                request.BillingType = "CREDIT_CARD";
+                request.InstallmentCount = installments ?? 1;
+                // Asaas exige installmentValue: valor de cada parcela = total / número de parcelas
+                request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
+                if (card != null)
+                {
+                    request.CreditCard = MapCard(card);
+                    request.CreditCardHolderInfo = new AsaasCreditCardHolderInfo
+                    {
+                        Name = card.Holder?.Name ?? clientName,
+                        Email = clientEmail,
+                        CpfCnpj = NormalizeCpfCnpj(clientTaxId),
+                        PostalCode = NormalizePostalCode(clientAddress?.PostalCode),
+                        AddressNumber = clientAddress?.Number,
+                        Phone = NormalizePhone(clientPhone),
+                        MobilePhone = NormalizePhone(clientPhone)
+                    };
+                }
+            }
+
+            if (method == PaymentMethod.CreditCard)
+            {
+                _logger.LogInformation(
+                    "Enviando cobrança com cartão ao Asaas: referenceId={ReferenceId}, value={Value}, customerId={CustomerId}.",
+                    referenceId, amount, request.Customer);
+            }
+
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/payments");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao criar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasError(content));
+                throw new HttpRequestException($"Erro ao criar cobrança Asaas: {response.StatusCode}");
+            }
+
+            var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
+            if (payment == null)
+                throw new InvalidOperationException("Resposta inválida da API Asaas");
+
+            var orderResponse = new OrderResponse
+            {
+                Id = payment.Id,
+                ReferenceId = referenceId,
+                Status = payment.Status,
+                CreatedAt = TryParseDate(payment.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = TryParseDate(payment.ConfirmedDate ?? payment.ClientPaymentDate)
+            };
+
+            if (method == PaymentMethod.PIX)
+            {
+                var pixQr = await GetPixQrCodeAsync(payment.Id);
+                if (pixQr != null)
+                {
+                    orderResponse.QrCodes = new List<PagBankQrCodeResponse>
+                    {
+                        new PagBankQrCodeResponse
+                        {
+                            Id = payment.Id,
+                            Text = pixQr.Payload ?? pixQr.EncodedImage,
+                            ExpirationDate = TryParseDate(pixQr.ExpirationDate),
+                            Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" }
+                        }
+                    };
+                }
+            }
+            else if (method == PaymentMethod.BankTransfer)
+            {
+                var identification = await GetIdentificationFieldAsync(payment.Id);
+                orderResponse.Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = payment.Id,
+                        ReferenceId = referenceId,
+                        Status = payment.Status,
+                        CreatedAt = orderResponse.CreatedAt,
+                        PaidAt = orderResponse.PaidAt,
+                        Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse
+                        {
+                            Type = "BOLETO",
+                            Boleto = new PagBankBoletoResponse
+                            {
+                                Id = payment.Id,
+                                FormattedBarcode = identification?.IdentificationField,
+                                Barcode = identification?.IdentificationField,
+                                DueDate = TryParseDate(payment.DueDate),
+                                Links = !string.IsNullOrEmpty(payment.BankSlipUrl)
+                                    ? new List<PagBankLink> { new PagBankLink { Rel = "bankSlip", Href = payment.BankSlipUrl } }
+                                    : null
+                            }
+                        }
+                    }
+                };
+            }
+            else if (method == PaymentMethod.CreditCard && payment.Status != null)
+            {
+                var statusUpper = payment.Status.ToUpperInvariant();
+                var paid = statusUpper == "CONFIRMED" || statusUpper == "RECEIVED";
+                orderResponse.Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = payment.Id,
+                        ReferenceId = referenceId,
+                        Status = paid ? "PAID" : payment.Status,
+                        CreatedAt = orderResponse.CreatedAt,
+                        PaidAt = paid ? orderResponse.PaidAt ?? DateTime.UtcNow : null,
+                        Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse { Type = "CREDIT_CARD" }
+                    }
+                };
+            }
+
+            return orderResponse;
+        }
+
+        /// <summary>Cria cliente no Asaas (POST /customers) ou retorna id se já existir (GET por cpfCnpj). Mesmo fluxo do teste que retorna 200.</summary>
+        private async Task<string> CreateOrGetAsaasCustomerAsync(
+            string clientName,
+            string clientEmail,
+            string cpfCnpj,
+            string? clientPhone,
+            PagBankAddress? clientAddress,
+            string? externalReference)
+        {
+            var phone = NormalizePhone(clientPhone);
+            var customerPayload = new AsaasCustomerRequest
+            {
+                Name = clientName,
+                CpfCnpj = cpfCnpj,
+                Email = clientEmail,
+                Phone = phone,
+                MobilePhone = phone,
+                Address = clientAddress?.Street,
+                AddressNumber = clientAddress?.Number,
+                Complement = clientAddress?.Complement,
+                Province = clientAddress?.Locality,
+                PostalCode = NormalizePostalCode(clientAddress?.PostalCode),
+                City = clientAddress?.City,
+                State = clientAddress?.RegionCode,
+                ExternalReference = externalReference
+            };
+
+            var customerReq = await CreateRequestAsync(HttpMethod.Post, "/customers");
+            customerReq.Content = new StringContent(JsonSerializer.Serialize(customerPayload, JsonOptions), Encoding.UTF8, "application/json");
+            var customerResponse = await _httpClient.SendAsync(customerReq);
+            var customerContent = await customerResponse.Content.ReadAsStringAsync();
+
+            if (customerResponse.IsSuccessStatusCode)
+            {
+                var customer = JsonSerializer.Deserialize<AsaasCustomerResponse>(customerContent, JsonOptions);
+                var id = customer?.Id;
+                if (!string.IsNullOrEmpty(id))
+                {
+                    _logger.LogInformation("Asaas cliente criado: {CustomerId}", id);
+                    return id;
+                }
+            }
+
+            if (customerResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                // Cliente já pode existir (ex.: CPF duplicado). Tenta buscar por cpfCnpj.
+                var listReq = await CreateRequestAsync(HttpMethod.Get, $"/customers?cpfCnpj={Uri.EscapeDataString(cpfCnpj)}");
+                var listResponse = await _httpClient.SendAsync(listReq);
+                var listContent = await listResponse.Content.ReadAsStringAsync();
+                if (listResponse.IsSuccessStatusCode)
+                {
+                    var list = JsonSerializer.Deserialize<AsaasCustomerListResponse>(listContent, JsonOptions);
+                    var first = list?.Data?.FirstOrDefault();
+                    if (!string.IsNullOrEmpty(first?.Id))
+                    {
+                        _logger.LogInformation("Asaas cliente já existente, reutilizando: {CustomerId}", first.Id);
+                        return first.Id;
+                    }
+                }
+                throw new InvalidOperationException(ParseAsaasError(customerContent));
+            }
+
+            _logger.LogError("Erro ao criar/buscar cliente Asaas: {StatusCode} - {Content}", customerResponse.StatusCode, customerContent);
+            throw new HttpRequestException($"Erro ao criar cliente Asaas: {customerResponse.StatusCode}. {ParseAsaasError(customerContent)}");
+        }
+
+        public async Task<OrderResponse> GetOrderAsync(string orderId)
+        {
+            var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{orderId}");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao consultar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                throw new HttpRequestException($"Erro ao consultar cobrança Asaas: {response.StatusCode}");
+            }
+
+            var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
+            if (payment == null)
+                throw new InvalidOperationException("Resposta inválida da API Asaas");
+
+            return new OrderResponse
+            {
+                Id = payment.Id,
+                ReferenceId = payment.ExternalReference ?? "",
+                Status = payment.Status,
+                CreatedAt = TryParseDate(payment.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = TryParseDate(payment.ConfirmedDate ?? payment.ClientPaymentDate)
+            };
+        }
+
+        public async Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null)
+        {
+            // Asaas: DELETE /payments/{id} para excluir cobrança (ou pode haver endpoint de cancelamento)
+            var httpRequest = await CreateRequestAsync(HttpMethod.Delete, $"/payments/{chargeId}");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao cancelar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                throw new HttpRequestException($"Erro ao cancelar cobrança Asaas: {response.StatusCode}");
+            }
+
+            return new OrderResponse { Id = chargeId, Status = "CANCELLED" };
+        }
+
+        public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
+        {
+            var token = await _systemConfig.GetValueAsync("Asaas.WebhookToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                _logger.LogWarning("Asaas.WebhookToken não configurado. Validação de webhook ignorada.");
+                return true;
+            }
+            if (string.IsNullOrEmpty(signature))
+                return true;
+
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var dataToHash = $"{token}-{payload}";
+            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(dataToHash));
+            var computed = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+            return string.Equals(computed, signature, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public async Task<PixTransferResult> CreatePixTransferAsync(string referenceId, decimal amount, string pixKey, string pixKeyType, string receiverName, string? description = null)
+        {
+            // Asaas: POST /transfers para transferência PIX
+            var body = new
+            {
+                value = amount,
+                pixAddressKey = pixKey,
+                pixAddressKeyType = pixKeyType,
+                description = description ?? $"Repasse - Ref: {referenceId}"
+            };
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/transfers");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro na transferência PIX Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                return new PixTransferResult { Success = false, ErrorMessage = content };
+            }
+
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            var id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+            var status = root.TryGetProperty("status", out var s) ? s.GetString() : null;
+            return new PixTransferResult
+            {
+                Success = true,
+                TransferId = id,
+                Status = status,
+                Amount = amount,
+                CreatedAt = DateTime.UtcNow
+            };
+        }
+
+        public async Task<PixTransferResult> GetPixTransferAsync(string transferId)
+        {
+            var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/transfers/{transferId}");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao consultar transferência PIX Asaas: {StatusCode}", response.StatusCode);
+                return new PixTransferResult { Success = false, TransferId = transferId, ErrorMessage = content };
+            }
+
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            var status = root.TryGetProperty("status", out var s) ? s.GetString() : null;
+            var value = 0m;
+            if (root.TryGetProperty("value", out var v))
+                value = v.GetDecimal();
+            return new PixTransferResult
+            {
+                Success = true,
+                TransferId = transferId,
+                Status = status,
+                Amount = value
+            };
+        }
+
+        private async Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string paymentId)
+        {
+            try
+            {
+                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{paymentId}/pixQrCode");
+                var response = await _httpClient.SendAsync(httpRequest);
+                var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Falha ao obter QR Code PIX: {StatusCode} - {Content}", response.StatusCode, content);
+                    return null;
+                }
+                return JsonSerializer.Deserialize<AsaasPixQrCodeResponse>(content, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Exceção ao obter QR Code PIX para pagamento {PaymentId}", paymentId);
+                return null;
+            }
+        }
+
+        private async Task<AsaasIdentificationFieldResponse?> GetIdentificationFieldAsync(string paymentId)
+        {
+            try
+            {
+                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{paymentId}/identificationField");
+                var response = await _httpClient.SendAsync(httpRequest);
+                var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Falha ao obter linha digitável do boleto: {StatusCode} - {Content}", response.StatusCode, content);
+                    return null;
+                }
+                return JsonSerializer.Deserialize<AsaasIdentificationFieldResponse>(content, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Exceção ao obter linha digitável para pagamento {PaymentId}", paymentId);
+                return null;
+            }
+        }
+
+        private static AsaasCreditCard MapCard(PagBankCard card)
+        {
+            var expiry = (card.ExpirationDate ?? "").Trim();
+            string month = "", year = "";
+            if (expiry.Length >= 7) // YYYY-MM
+            {
+                var parts = expiry.Split('-');
+                if (parts.Length >= 2)
+                {
+                    month = parts[1].Trim();
+                    year = parts[0].Trim().Length == 4 ? parts[0].Trim().Substring(2, 2) : parts[0].Trim();
+                }
+            }
+            return new AsaasCreditCard
+            {
+                HolderName = card.Holder?.Name ?? "",
+                Number = (card.Number ?? "").Replace(" ", ""),
+                ExpiryMonth = month,
+                ExpiryYear = year,
+                Ccv = card.SecurityCode ?? ""
+            };
+        }
+
+        /// <summary>Retorna apenas dígitos (CPF 11 ou CNPJ 14). Asaas exige cpfCnpj sem formatação.</summary>
+        private static string NormalizeCpfCnpj(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            return new string(value.Where(char.IsDigit).ToArray());
+        }
+
+        /// <summary>Valida dígitos verificadores do CPF (algoritmo Receita Federal).</summary>
+        private static bool IsValidCpf(string cpf)
+        {
+            if (cpf.Length != 11 || cpf.All(c => c == cpf[0])) return false;
+            int[] mult1 = { 10, 9, 8, 7, 6, 5, 4, 3, 2 };
+            int[] mult2 = { 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 };
+            int sum = 0;
+            for (int i = 0; i < 9; i++) sum += (cpf[i] - '0') * mult1[i];
+            int d1 = sum % 11; d1 = d1 < 2 ? 0 : 11 - d1;
+            if ((cpf[9] - '0') != d1) return false;
+            sum = 0;
+            for (int i = 0; i < 10; i++) sum += (cpf[i] - '0') * mult2[i];
+            int d2 = sum % 11; d2 = d2 < 2 ? 0 : 11 - d2;
+            return (cpf[10] - '0') == d2;
+        }
+
+        /// <summary>Valida dígitos verificadores do CNPJ (algoritmo Receita Federal).</summary>
+        private static bool IsValidCnpj(string cnpj)
+        {
+            if (cnpj.Length != 14 || cnpj.All(c => c == cnpj[0])) return false;
+            int[] mult1 = { 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2 };
+            int[] mult2 = { 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2 };
+            int sum = 0;
+            for (int i = 0; i < 12; i++) sum += (cnpj[i] - '0') * mult1[i];
+            int d1 = sum % 11; d1 = d1 < 2 ? 0 : 11 - d1;
+            if ((cnpj[12] - '0') != d1) return false;
+            sum = 0;
+            for (int i = 0; i < 13; i++) sum += (cnpj[i] - '0') * mult2[i];
+            int d2 = sum % 11; d2 = d2 < 2 ? 0 : 11 - d2;
+            return (cnpj[13] - '0') == d2;
+        }
+
+        /// <summary>Retorna apenas dígitos para telefone (ex.: 27999165161). Asaas exige formato sem máscara.</summary>
+        private static string? NormalizePhone(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var digits = new string(value.Where(char.IsDigit).ToArray());
+            return digits.Length >= 10 ? digits : null;
+        }
+
+        /// <summary>Asaas exige city como código IBGE (número). Se não for numérico, retorna null para não enviar.</summary>
+        private static int? TryGetCityAsIbgeCode(string? city)
+        {
+            if (string.IsNullOrWhiteSpace(city)) return null;
+            var digits = new string(city.Where(char.IsDigit).ToArray());
+            if (digits.Length == 7 && int.TryParse(digits, out var code)) return code;
+            return null;
+        }
+
+        private static string? NormalizePostalCode(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var s = value.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+            return s.Length >= 8 ? s.Substring(0, 8) : s.PadLeft(8, '0');
+        }
+
+        private static DateTime? TryParseDate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            if (DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                return d;
+            return null;
+        }
+
+        private static string ParseAsaasError(string content)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("errors", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                {
+                    var messages = new List<string>();
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        var desc = item.TryGetProperty("description", out var d) ? d.GetString() : null;
+                        if (!string.IsNullOrEmpty(desc)) messages.Add(desc);
+                    }
+                    if (messages.Count > 0) return string.Join(" ", messages);
+                }
+            }
+            catch { }
+            return "Dados inválidos. Verifique os dados em 'Meu Perfil' (CPF/CNPJ, Nome, Email).";
+        }
+    }
+}

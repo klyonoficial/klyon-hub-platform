@@ -62,7 +62,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly IDocumentService _documentService;
         private readonly IAddressDeclarationService _addressDeclarationService;
-        private readonly IPagBankService _pagBankService;
+        private readonly IAsaasService _asaasService;
         private readonly ApplicationDbContext _context;
         private readonly IReservationTransferService _reservationTransferService;
         private readonly IEmailService _emailService;
@@ -77,7 +77,7 @@ namespace KlyonHubPlatform.Api.Controllers
             IPaymentService paymentService,
             IDocumentService documentService,
             IAddressDeclarationService addressDeclarationService,
-            IPagBankService pagBankService,
+            IAsaasService asaasService,
             ApplicationDbContext context,
             IReservationTransferService reservationTransferService,
             IEmailService emailService,
@@ -91,7 +91,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _paymentService = paymentService;
             _documentService = documentService;
             _addressDeclarationService = addressDeclarationService;
-            _pagBankService = pagBankService;
+            _asaasService = asaasService;
             _context = context;
             _reservationTransferService = reservationTransferService;
             _emailService = emailService;
@@ -599,6 +599,23 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (string.IsNullOrWhiteSpace(client.ContactName))
                 {
                     var err = "O Nome Completo é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
+                    return RedirectToAction("Profile");
+                }
+
+                // CEP é obrigatório (exigido pelo Asaas para pagamento com cartão - titular do cartão)
+                var zipCodeRaw = (client.ZipCode ?? "").Replace("-", "").Replace(" ", "").Trim();
+                if (string.IsNullOrWhiteSpace(zipCodeRaw))
+                {
+                    var err = "O CEP é obrigatório.";
+                    TempData["Error"] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
+                    return RedirectToAction("Profile");
+                }
+                if (zipCodeRaw.Length != 8 || !zipCodeRaw.All(char.IsDigit))
+                {
+                    var err = "Informe um CEP válido (8 dígitos).";
                     TempData["Error"] = err;
                     if (isAjaxRequest) return Json(new { success = false, error = err });
                     return RedirectToAction("Profile");
@@ -2218,17 +2235,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Forbid();
             }
             
-            // Verificar se o PagBank está configurado antes de tentar gerar códigos
-            var pagBankToken = await _systemConfig.GetValueAsync("PagBank.AccessToken");
-            var isPagBankConfigured = !string.IsNullOrEmpty(pagBankToken);
-            
-            if (!isPagBankConfigured)
+            // Verificar se o Asaas está configurado antes de tentar gerar códigos
+            var asaasApiKey = await _systemConfig.GetValueAsync("Asaas.ApiKey");
+            var isAsaasConfigured = !string.IsNullOrEmpty(asaasApiKey);
+
+            if (!isAsaasConfigured)
             {
-                TempData["Warning"] = "Atenção: Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
+                TempData["Warning"] = "Atenção: Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema para gerar códigos de pagamento.";
             }
-            
-            // Usar o serviço para gerar códigos se necessário (apenas se PagBank estiver configurado)
-            if (payment.Status == PaymentStatus.Pending && isPagBankConfigured)
+
+            // Usar o serviço para gerar códigos se necessário (apenas se Asaas estiver configurado)
+            if (payment.Status == PaymentStatus.Pending && isAsaasConfigured)
             {
                 try
                 {
@@ -2261,14 +2278,14 @@ namespace KlyonHubPlatform.Api.Controllers
                             .FirstOrDefaultAsync(p => p.Id == id);
                     }
                 }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
                 {
-                    // PagBank não configurado ou token inválido - mostrar mensagem amigável mas permitir visualizar o pagamento
-                    TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
+                    // Asaas não configurado ou chave inválida - mostrar mensagem amigável mas permitir visualizar o pagamento
+                    TempData["Warning"] = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema para gerar códigos de pagamento.";
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
                 {
-                    // Erro na API de pagamento (dados do cliente ou PagBank): redirecionar para Profile.
+                    // Erro na API de pagamento (dados do cliente ou Asaas): redirecionar para Profile.
                     // Manter TempData["Success"] para exibir "Contrato criado com sucesso!" quando o contrato foi criado.
                     TempData["Error"] = ex.Message;
                     return RedirectToAction("Profile");
@@ -2298,10 +2315,10 @@ namespace KlyonHubPlatform.Api.Controllers
                         payment = await _paymentService.GetPaymentByIdAsync(id);
                     }
                 }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
                 {
-                    // PagBank não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
-                    TempData["Warning"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema para gerar códigos de pagamento.";
+                    // Asaas não configurado - mostrar mensagem amigável mas permitir visualizar o pagamento
+                    TempData["Warning"] = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema para gerar códigos de pagamento.";
                     // Continuar para mostrar a página mesmo sem o código gerado
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
@@ -2310,10 +2327,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData["Error"] = ex.Message;
                     return RedirectToAction("Profile");
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Outros erros - logar mas não impedir visualização
-                    TempData["Warning"] = $"Aviso: Não foi possível gerar o código de pagamento automaticamente. Você pode tentar novamente mais tarde.";
+                    _logger.LogWarning(ex, "Falha ao gerar código PIX/Boleto automaticamente no PaymentDetails. PaymentId: {PaymentId}", id);
+                    TempData["Warning"] = $"Aviso: Não foi possível gerar o código de pagamento automaticamente. Clique em \"Gerar Código PIX\" abaixo ou verifique a API Key Asaas nas Configurações do Sistema.";
                     // Continuar para mostrar a página mesmo sem o código gerado
                 }
             }
@@ -2531,11 +2548,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod);
                 TempData["Success"] = "Método de pagamento atualizado com sucesso!";
 
+                // Requisição AJAX: retornar 200 para o JS atualizar as seções (card do cartão + botão "Pagar com cartão")
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    return Ok();
+
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
             }
             catch (Exception ex)
             {
                 TempData["Error"] = $"Erro ao atualizar método de pagamento: {ex.Message}";
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    return StatusCode(400, new { error = ex.Message });
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
             }
         }
@@ -2590,9 +2613,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
             {
-                TempData["Error"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar PagBank Sandbox).";
+                TempData["Error"] = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar Asaas).";
                 return RedirectToAction("PaymentDetails", new { id = paymentId });
             }
             catch (Exception ex)
@@ -2891,7 +2914,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
-        /// <summary>Processa o pagamento do endereço fiscal (subscription) com cartão de crédito, enviando ao PagBank.</summary>
+        /// <summary>Processa o pagamento do endereço fiscal (subscription) com cartão de crédito, enviando ao Asaas.</summary>
         [HttpPost]
         public async Task<IActionResult> ProcessPaymentWithCard([FromBody] ProcessPaymentWithCardRequest request)
         {
@@ -3380,8 +3403,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Processar pagamento baseado no método
                 if (method == PaymentMethod.PIX)
                 {
-                    // Criar pedido PIX no PagBank
-                    var orderResponse = await _pagBankService.CreateOrderAsync(
+                    // Criar pedido PIX no Asaas
+                    var orderResponse = await _asaasService.CreateOrderAsync(
                         referenceId: purchase.ExternalPaymentId,
                         amount: plan.Price,
                         method: PaymentMethod.PIX,
@@ -3408,8 +3431,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (method == PaymentMethod.BankTransfer)
                 {
-                    // Criar pedido Boleto no PagBank
-                    var orderResponse = await _pagBankService.CreateOrderAsync(
+                    // Criar pedido Boleto no Asaas
+                    var orderResponse = await _asaasService.CreateOrderAsync(
                         referenceId: purchase.ExternalPaymentId,
                         amount: plan.Price,
                         method: PaymentMethod.BankTransfer,
@@ -3453,9 +3476,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction("CheckoutCredits", new { creditPlanId });
                 }
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("PagBank") || ex.Message.Contains("Token de acesso"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
             {
-                TempData["Error"] = "Sistema de pagamento não configurado. Configure o PagBank nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar PagBank Sandbox).";
+                TempData["Error"] = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar Asaas).";
                 return RedirectToAction("CheckoutCredits", new { creditPlanId });
             }
             catch (Exception ex)
@@ -3546,8 +3569,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     PostalCode = request.BillingAddress?.PostalCode ?? client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
                 };
 
-                // Criar pedido no PagBank
-                var orderResponse = await _pagBankService.CreateOrderAsync(
+                // Criar pedido no Asaas
+                var orderResponse = await _asaasService.CreateOrderAsync(
                     referenceId: purchase.ExternalPaymentId,
                     amount: purchase.AmountPaid,
                     method: PaymentMethod.CreditCard,
