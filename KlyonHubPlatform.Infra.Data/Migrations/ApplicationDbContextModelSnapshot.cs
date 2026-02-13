@@ -532,6 +532,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("AddressNumber")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("CNPJ")
                         .HasColumnType("varchar(255)");
 
@@ -539,6 +542,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("City")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Complement")
                         .HasColumnType("longtext");
 
                     b.Property<string>("ContactEmail")
@@ -557,6 +563,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("tinyint(1)");
 
                     b.Property<string>("LogoPath")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Neighborhood")
                         .HasColumnType("longtext");
 
                     b.Property<string>("NomeFantasia")

@@ -168,6 +168,7 @@ builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService
 
 // Client Menu (ex.: ocultar "Localidades Disponíveis" quando cliente tem endereço ativo)
 builder.Services.AddScoped<IClientMenuService, ClientMenuService>();
+builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
 
 // Storage Services
 builder.Services.AddScoped<AWSStorageService>();

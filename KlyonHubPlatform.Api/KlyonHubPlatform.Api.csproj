@@ -8,7 +8,7 @@
     <HotReloadEnabled>true</HotReloadEnabled>
     <HotReloadProfile>Default</HotReloadProfile>
     <!-- Suprime avisos de nulidade em Views Razor e código gerado; correções aplicadas nos controllers e serviços -->
-    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8629</NoWarn>
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8629;CS0162</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

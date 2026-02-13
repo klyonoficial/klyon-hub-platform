@@ -35,6 +35,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ILogger<ClientController> _logger;
         private readonly ISystemConfigurationService _systemConfig;
         private readonly IClientMenuService _clientMenuService;
+        private readonly IServiceCatalogService _serviceCatalogService;
 
         public ClientController(
             IContractService contractService,
@@ -49,7 +50,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IEmailService emailService,
             ILogger<ClientController> logger,
             ISystemConfigurationService systemConfig,
-            IClientMenuService clientMenuService)
+            IClientMenuService clientMenuService,
+            IServiceCatalogService serviceCatalogService)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -64,6 +66,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _logger = logger;
             _systemConfig = systemConfig;
             _clientMenuService = clientMenuService;
+            _serviceCatalogService = serviceCatalogService;
         }
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
@@ -77,189 +80,24 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> Services(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            
-            // Cliente recém-cadastrado deve completar CPF ou CNPJ, Nome Completo, Telefone e Estado em RegisterClient antes de acessar os serviços
+
             if (User.IsInRole(RoleNames.Client) && !User.IsInRole(Administrator))
             {
-                var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
-                if (client == null)
+                var status = await _clientMenuService.GetRegistrationStatusAsync(userId);
+                if (!status.IsComplete)
                 {
-                    TempData[TempDataKeys.Info] = InfoMessages.CompleteRegistration;
-                    return RedirectToAction(ActionNames.RegisterClient);
+                    TempData[TempDataKeys.Info] = status.TempDataMessageKey == "CompleteRegistrationWithFields"
+                        ? InfoMessages.CompleteRegistrationWithFields
+                        : InfoMessages.CompleteRegistration;
+                    return RedirectToAction(status.RedirectActionName ?? ActionNames.RegisterClient);
                 }
-                var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
-                var missingRequired = !hasDocument || string.IsNullOrWhiteSpace(client.ContactPhone) || string.IsNullOrWhiteSpace(client.ContactName) || string.IsNullOrWhiteSpace(client.State);
-                if (missingRequired)
-                {
-                    TempData[TempDataKeys.Info] = InfoMessages.CompleteRegistrationWithFields;
-                    return RedirectToAction(ActionNames.RegisterClient);
-                }
-            }
-            
-            // Verificar se o cliente tem um contrato ativo
-            var hasActiveContract = await _clientMenuService.ClientHasActiveContractAsync(userId);
-            
-            // Se tiver contrato ativo, não mostrar nenhum serviço
-            if (hasActiveContract)
-            {
-                return View(new List<Domain.Entities.Service>());
             }
 
+            var hasActiveContract = await _clientMenuService.ClientHasActiveContractAsync(userId);
             var marketplaceRoute = Url.Action(ActionNames.Marketplace, ControllerNames.Home) ?? "/Home/Marketplace";
             var chooseLocationRoute = Url.Action(ActionNames.ChooseLocation, ControllerNames.Client) ?? "/Client/ChooseLocation";
 
-            // Buscar serviços ativos ou criar serviços padrão se não existirem
-            var services = await _context.Services
-                .Where(s => s.IsActive)
-                .OrderBy(s => s.DisplayOrder)
-                .ToListAsync();
-
-            // Remover duplicatas - manter apenas o primeiro serviço de cada nome
-            var uniqueServices = services
-                .GroupBy(s => s.Name)
-                .Select(g => g.First())
-                .OrderBy(s => s.DisplayOrder)
-                .ToList();
-
-            // Se houver duplicatas, remover as duplicadas do banco
-            if (services.Count != uniqueServices.Count)
-            {
-                var duplicates = services.Except(uniqueServices).ToList();
-                foreach (var duplicate in duplicates)
-                {
-                    duplicate.IsActive = false;
-                    duplicate.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                }
-                await _context.SaveChangesAsync();
-                services = uniqueServices;
-            }
-            else
-            {
-                services = uniqueServices;
-            }
-
-            // Corrigir rotas incorretas e descrições inadequadas para cliente
-            var roomServiceKeywords = new[] { "Sala", "Auditório", "Aluguel" };
-            var needsUpdate = false;
-
-            foreach (var service in services)
-            {
-                // Corrigir descrições inadequadas para perfil de cliente
-                if (service.Name.Contains("Endereço Fiscal") || service.Name.Contains("Endereco Fiscal"))
-                {
-                    // Descrições que não fazem sentido para cliente (voltadas para parceiro)
-                    var partnerDescriptions = new[] { 
-                        "Ofereça", "amplie", "receita", "rede", 
-                        "Oferecer", "ampliar", "ganhe"
-                    };
-                    
-                    if (partnerDescriptions.Any(desc => service.Description.Contains(desc, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        service.Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura";
-                        service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        needsUpdate = true;
-                    }
-                    else if (string.IsNullOrWhiteSpace(service.Description))
-                    {
-                        service.Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura";
-                        service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        needsUpdate = true;
-                    }
-                }
-
-                // Se o serviço é relacionado a salas e tem rota incorreta, corrigir
-                if (roomServiceKeywords.Any(keyword => service.Name.Contains(keyword)) && 
-                    service.Route != marketplaceRoute && 
-                    !service.Route.Contains("/Home/Marketplace"))
-                {
-                    service.Route = marketplaceRoute;
-                    service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                    needsUpdate = true;
-                }
-                // Corrigir rotas que apontam para /marketplace (sem /Home/)
-                else if (service.Route == "/marketplace" || service.Route.Contains("/marketplace") && !service.Route.Contains("/Home/Marketplace"))
-                {
-                    service.Route = marketplaceRoute;
-                    service.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                    needsUpdate = true;
-                }
-            }
-
-            if (needsUpdate)
-            {
-                await _context.SaveChangesAsync();
-                services = await _context.Services
-                    .Where(s => s.IsActive)
-                    .OrderBy(s => s.DisplayOrder)
-                    .ToListAsync();
-                
-                // Remover duplicatas novamente após atualização
-                services = services
-                    .GroupBy(s => s.Name)
-                    .Select(g => g.First())
-                    .OrderBy(s => s.DisplayOrder)
-                    .ToList();
-            }
-
-            // Se não houver serviços cadastrados, criar os serviços padrão (visão cliente)
-            if (!services.Any())
-            {
-                var defaultServices = new[]
-                {
-                    new Domain.Entities.Service
-                    {
-                        Name = "Contratar Endereço Fiscal",
-                        Code = FiscalAddressContracting,
-                        Description = "Contrate um endereço fiscal para sua empresa de forma rápida e segura",
-                        Route = chooseLocationRoute,
-                        DisplayOrder = 1,
-                        IsActive = true,
-                        ImageUrl = "/images/services/endereco-fiscal.svg",
-                        CreatedAt = DateTimeHelper.GetBrazilianTime()
-                    },
-                    new Domain.Entities.Service
-                    {
-                        Name = "Reservar Sala",
-                        Code = RoomReservation,
-                        Description = "Reserve salas de coworking para reuniões e trabalho",
-                        Route = marketplaceRoute,
-                        DisplayOrder = 2,
-                        IsActive = true,
-                        ImageUrl = "/images/services/sala-compartilhada.svg",
-                        CreatedAt = DateTimeHelper.GetBrazilianTime()
-                    }
-                };
-
-                foreach (var service in defaultServices)
-                {
-                    _context.Services.Add(service);
-                }
-                await _context.SaveChangesAsync();
-
-                services = await _context.Services
-                    .Where(s => s.IsActive)
-                    .OrderBy(s => s.DisplayOrder)
-                    .ToListAsync();
-            }
-
-            // Verificar se os menus de coworking estão habilitados
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
-
-            // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
-            if (!showCoworkingMenus)
-            {
-                services = services
-                    .Where(s => s.Code == FiscalAddressContracting)
-                    .ToList();
-            }
-            else
-            {
-                // Na visão cliente não exibir "Ofertar Endereço Fiscal"
-                services = services
-                    .Where(s => s.Code != FiscalAddressOffer)
-                    .ToList();
-            }
+            var services = await _serviceCatalogService.GetActiveServicesForClientAsync(userId, marketplaceRoute, chooseLocationRoute);
 
             ViewBag.HasActiveContract = hasActiveContract;
             return View(services);
@@ -2926,6 +2764,57 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("adicionar cartão", ex.Message);
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveCreditCard(int paymentId, int cardId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == client.Id);
+            if (card == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            _context.CreditCards.Remove(card);
+            await _context.SaveChangesAsync();
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardRemoved;
+            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetDefaultCreditCard(int paymentId, int cardId)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == client.Id);
+            if (card == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            var defaultCards = await _context.CreditCards
+                .Where(c => c.ClientId == client.Id && c.IsDefault)
+                .ToListAsync();
+            foreach (var c in defaultCards)
+                c.IsDefault = false;
+            card.IsDefault = true;
+            await _context.SaveChangesAsync();
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardSetAsDefault;
+            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
         }
 
         /// <summary>Processa o pagamento do endereço fiscal (subscription) com cartão de crédito, enviando ao Asaas.</summary>

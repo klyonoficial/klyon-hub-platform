@@ -163,6 +163,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PaymentMethodUpdated = "Método de pagamento atualizado com sucesso!";
         public const string PixCodeGenerated = "Código PIX gerado com sucesso!";
         public const string CardAdded = "Cartão adicionado com sucesso!";
+        public const string CardRemoved = "Cartão removido com sucesso.";
+        public const string CardSetAsDefault = "Cartão definido como padrão.";
         public static string DeclarationGenerated(string declarationNumber) =>
             $"Declaração gerada com sucesso! Número: {declarationNumber}";
         public static string SingleReservationConfirmed(DateTime date) =>

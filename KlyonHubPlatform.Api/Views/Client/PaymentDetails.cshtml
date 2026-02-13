@@ -414,24 +414,44 @@
                         {
                             <div class="mb-3">
                                 <label class="form-label"><strong>Selecione um cartão cadastrado:</strong></label>
+                                <p class="text-muted small mb-2">
+                                    <i class="bi bi-info-circle"></i> Para alterar o número ou outros dados do cartão, remova o cartão e adicione um novo.
+                                </p>
                                 <div class="list-group">
                                     @foreach (var card in (List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
                                     {
                                         <div class="list-group-item">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="radio" name="selectedCard" id="card_@card.Id" value="@card.Id" @(card.IsDefault ? "checked" : "")>
-                                                <label class="form-check-label w-100" for="card_@card.Id">
-                                                    <div class="d-flex justify-content-between align-items-center">
+                                            <div class="form-check d-flex align-items-start">
+                                                <input class="form-check-input mt-2" type="radio" name="selectedCard" id="card_@card.Id" value="@card.Id" @(card.IsDefault ? "checked" : "")>
+                                                <label class="form-check-label flex-grow-1 ms-2" for="card_@card.Id">
+                                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
                                                         <div>
                                                             <i class="bi bi-credit-card-2-front"></i> 
                                                             <strong>@card.Brand</strong> •••• @card.LastFourDigits
                                                             <br>
                                                             <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
                                                         </div>
-                                                        @if (card.IsDefault)
-                                                        {
-                                                            <span class="badge bg-primary">Padrão</span>
-                                                        }
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            @if (card.IsDefault)
+                                                            {
+                                                                <span class="badge bg-primary">Padrão</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <form method="post" action="@Url.Action("SetDefaultCreditCard", "Client")" class="d-inline">
+                                                                    @Html.AntiForgeryToken()
+                                                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                                    <input type="hidden" name="cardId" value="@card.Id" />
+                                                                    <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
+                                                                </form>
+                                                            }
+                                                            <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                                <input type="hidden" name="cardId" value="@card.Id" />
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
+                                                            </form>
+                                                        </div>
                                                     </div>
                                                 </label>
                                             </div>
@@ -830,10 +850,18 @@
     var creditCardsJson = "[]";
     if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
     {
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
         var cards = ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
-            .Select(c => new { id = c.Id, cardHolderName = c.CardHolderName, expiryMonth = c.ExpiryMonth, expiryYear = c.ExpiryYear, lastFourDigits = c.LastFourDigits, brand = c.Brand })
+            .Select(c => new {
+                id = c.Id,
+                cardHolderName = c.CardHolderName ?? "",
+                expiryMonth = !string.IsNullOrEmpty(c.ExpiryMonth) && c.ExpiryMonth.Length == 1 ? "0" + c.ExpiryMonth : (c.ExpiryMonth ?? ""),
+                expiryYear = c.ExpiryYear ?? "",
+                lastFourDigits = c.LastFourDigits ?? "",
+                brand = c.Brand ?? ""
+            })
             .ToList();
-        creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards);
+        creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
     }
 <!-- Modal Pagar com cartão (processar pagamento no Asaas) -->
 <div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))">
@@ -1113,6 +1141,21 @@
                     } else if (newCreditCardCard) {
                         const clonedCreditCardCard = newCreditCardCard.cloneNode(true);
                         paymentInfoCard.parentElement.insertBefore(clonedCreditCardCard, paymentInfoCard.nextSibling);
+                        // Inserir modal e script de cartões ao trocar para Cartão de Crédito (podem não existir se veio de PIX)
+                        const newPayWithCardModal = tempDiv.querySelector('#payWithCardModal');
+                        const newPaymentDetailsCreditCards = tempDiv.querySelector('#paymentDetailsCreditCards');
+                        const existingModal = document.getElementById('payWithCardModal');
+                        const existingCardsScript = document.getElementById('paymentDetailsCreditCards');
+                        if (newPayWithCardModal && !existingModal) {
+                            document.body.appendChild(newPayWithCardModal.cloneNode(true));
+                        } else if (newPayWithCardModal && existingModal) {
+                            existingModal.replaceWith(newPayWithCardModal.cloneNode(true));
+                        }
+                        if (newPaymentDetailsCreditCards && !existingCardsScript) {
+                            document.body.appendChild(newPaymentDetailsCreditCards.cloneNode(true));
+                        } else if (newPaymentDetailsCreditCards && existingCardsScript) {
+                            existingCardsScript.replaceWith(newPaymentDetailsCreditCards.cloneNode(true));
+                        }
                     }
                 }
                 
@@ -1216,11 +1259,11 @@
                 modalEl.addEventListener('show.bs.modal', function() {
                     totalAmount = parseFloat(modalEl.getAttribute('data-total-amount') || '0');
                     updateInstallmentsDisplay();
-                    // Preencher dados do cartão cadastrado selecionado (nome e validade; número e CVV não são armazenados)
+                    // Preencher dados do cartão cadastrado selecionado (nome e validade; número completo e CVV não são armazenados por segurança)
                     var cardsEl = document.getElementById('paymentDetailsCreditCards');
                     var cards = [];
                     if (cardsEl && cardsEl.textContent) {
-                        try { cards = JSON.parse(cardsEl.textContent); } catch (e) { cards = []; }
+                        try { cards = JSON.parse(cardsEl.textContent.trim()); } catch (e) { cards = []; }
                     }
                     var selectedRadio = document.querySelector('input[name="selectedCard"]:checked');
                     var payHolder = document.getElementById('payCardHolderName');
@@ -1230,11 +1273,12 @@
                     var payCvv = document.getElementById('payCardCvv');
                     if (selectedRadio && cards.length && payHolder && payMonth && payYear) {
                         var cardId = parseInt(selectedRadio.value, 10);
-                        var card = cards.find(function(c) { return c.id === cardId; });
+                        var card = cards.find(function(c) { return (c.id || c.Id) === cardId; });
                         if (card) {
-                            payHolder.value = card.cardHolderName || '';
-                            payMonth.value = card.expiryMonth || '';
-                            var year = card.expiryYear || '';
+                            payHolder.value = (card.cardHolderName || card.CardHolderName || '').trim();
+                            var month = String(card.expiryMonth || card.ExpiryMonth || '').trim();
+                            payMonth.value = month.length === 1 ? '0' + month : month;
+                            var year = String(card.expiryYear || card.ExpiryYear || '').trim();
                             payYear.value = (year.length === 2) ? ('20' + year) : year;
                         } else {
                             payHolder.value = '';

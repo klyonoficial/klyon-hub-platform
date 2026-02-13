@@ -236,6 +236,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = $"Comissões Pendentes há mais de {daysThreshold} dias",
                         Message = $"{pendingCommissionsCount} comissão(ões) pendente(s) há mais de {daysThreshold} dias. Valor total: R$ {pendingCommissionsAmount:N2}",
                         Count = pendingCommissionsCount,
+                        ActionKey = (string?)null,
                         ActionUrl = Url.Action("CommissionFiscalNotes", "Admin"),
                         ActionText = "Ver Comissões"
                     });
@@ -269,6 +270,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Pagamentos Atrasados",
                         Message = $"{overduePayments.Count} pagamento(s) atrasado(s). Valor total: R$ {overdueAmount:N2}. Mais antigo há {daysOverdue} dia(s).",
                         Count = overduePayments.Count,
+                        ActionKey = (string?)null,
                         ActionUrl = Url.Action("Payments", "Admin", new { status = "Pending" }),
                         ActionText = "Ver Pagamentos Atrasados"
                     });
@@ -305,6 +307,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Capacidade Próxima do Limite",
                         Message = $"{addressesNearCapacity.Count} endereço(s) com capacidade próxima ou no limite (≥80%). {atCapacityCount} endereço(s) já atingiram a capacidade máxima.",
                         Count = addressesNearCapacity.Count,
+                        ActionKey = (string?)null,
                         ActionUrl = Url.Action("Coworkings", "Admin", new { capacityAlert = StringBooleanValue.True }),
                         ActionText = "Ver Coworkings"
                     });
@@ -349,6 +352,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Alterações de Parceiros Aguardando Análise",
                         Message = message,
                         Count = coworkingsWithRecentUpdates.Count,
+                        ActionKey = (string?)null,
                         ActionUrl = Url.Action("Coworkings", "Admin", new { approvalStatus = "UnderReview" }),
                         ActionText = "Ver Parceiros em Análise"
                     });
@@ -390,6 +394,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Comprovantes de Pagamento Aguardando Validação",
                         Message = message,
                         Count = count,
+                        ActionKey = (string?)null,
                         ActionUrl = Url.Action("Payments", "Admin", new { status = "AwaitingValidation" }),
                         ActionText = "Ver Pagamentos"
                     });
@@ -3810,8 +3815,10 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     var roleConditions = string.Join(" OR ", adminUserRolePairs.Select(pair => $"(UserId = {pair.UserId} AND RoleId = {pair.RoleId})"));
                     try
                     {
+#pragma warning disable EF1002 // Valores são IDs do banco (adminUserRolePairs), não entrada do usuário
                         await _context.Database.ExecuteSqlRawAsync(
                             $"DELETE FROM UserRoles WHERE NOT ({roleConditions});");
+#pragma warning restore EF1002
                     }
                     catch (Exception ex)
                     {
@@ -3821,8 +3828,10 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     // Remover todos os usuários exceto o admin
                     try
                     {
+#pragma warning disable EF1002 // adminUser.Id é ID do banco, não entrada do usuário
                         await _context.Database.ExecuteSqlRawAsync(
                             $"DELETE FROM Users WHERE Id != {adminUser.Id};");
+#pragma warning restore EF1002
                     }
                     catch (Exception ex)
                     {

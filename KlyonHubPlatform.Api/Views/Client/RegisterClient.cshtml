@@ -41,8 +41,8 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" data-document-check="CPF" @(personType == "Juridica" ? "" : "required")>
-                        <div class="invalid-feedback" id="CPF-feedback"></div>
+                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" data-document-check="CPF" aria-describedby="CPF-feedback" @(personType == "Juridica" ? "" : "required")>
+                        <div class="invalid-feedback d-block text-danger" id="CPF-feedback" role="alert" style="display: none;"></div>
                     </div>
                 </div>
             </div>
@@ -51,8 +51,8 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" data-document-check="CNPJ" @(personType == "Juridica" ? "required" : "")>
-                        <div class="invalid-feedback" id="CNPJ-feedback"></div>
+                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" data-document-check="CNPJ" aria-describedby="CNPJ-feedback" @(personType == "Juridica" ? "required" : "")>
+                        <div class="invalid-feedback d-block text-danger" id="CNPJ-feedback" role="alert" style="display: none;"></div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="RazaoSocial" class="form-label">Razão Social <span class="text-danger">*</span></label>
@@ -183,10 +183,12 @@
         if (!inputEl || !feedbackEl) return;
         if (showError) {
             inputEl.classList.add('is-invalid');
-            feedbackEl.textContent = message || '';
+            feedbackEl.textContent = message || 'Documento inválido ou já cadastrado. Verifique o valor informado.';
+            feedbackEl.style.display = 'block';
         } else {
             inputEl.classList.remove('is-invalid');
             feedbackEl.textContent = '';
+            feedbackEl.style.display = 'none';
         }
     }
 
@@ -207,16 +209,19 @@
         try {
             var r = await fetch(url);
             var data = await r.json();
-            if (data.exists && data.message) {
-                setDocumentFeedback(inputEl, feedbackEl, true, data.message);
-            } else if (!data.valid && data.message) {
-                setDocumentFeedback(inputEl, feedbackEl, true, data.message);
-            } else {
-                setDocumentFeedback(inputEl, feedbackEl, false);
+            var showError = false;
+            var message = (data && data.message) ? data.message : '';
+            if (data && data.exists) {
+                showError = true;
+                if (!message) message = type === 'CPF' ? 'Este CPF já está cadastrado no sistema.' : 'Este CNPJ já está cadastrado no sistema.';
+            } else if (data && data.valid === false) {
+                showError = true;
+                if (!message) message = type === 'CPF' ? 'Informe um CPF válido.' : 'Informe um CNPJ válido.';
             }
+            setDocumentFeedback(inputEl, feedbackEl, showError, message);
         } catch (err) {
             console.error('Erro ao verificar documento:', err);
-            setDocumentFeedback(inputEl, feedbackEl, false);
+            setDocumentFeedback(inputEl, feedbackEl, true, 'Não foi possível validar o documento. Tente novamente.');
         }
     }
 

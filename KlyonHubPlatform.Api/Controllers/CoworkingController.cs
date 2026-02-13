@@ -2494,7 +2494,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ex.Message;
                 return RedirectToAction(ActionNames.Dashboard);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 TempData[ErrorMessages.TempDataKey] = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
                 return RedirectToAction(ActionNames.Dashboard);

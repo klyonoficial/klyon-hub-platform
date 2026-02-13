@@ -114,9 +114,9 @@ namespace KlyonHubPlatform.Application.Services
             var paymentsForTopCoworkings = await _context.Payments
                 .Where(p => p.Status == PaymentStatus.Paid && p.SubscriptionId != null)
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.CoworkingAddress)
-                            .ThenInclude(a => a.Coworking)
+                    .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
+                            .ThenInclude(a => a!.Coworking)
                 .Where(p => p.Subscription != null && 
                            p.Subscription.Contract != null && 
                            p.Subscription.Contract.CoworkingAddress != null &&

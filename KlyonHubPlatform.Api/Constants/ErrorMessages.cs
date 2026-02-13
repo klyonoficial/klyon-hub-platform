@@ -101,6 +101,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string SelectPaymentMethod = "Por favor, selecione um método de pagamento.";
         public const string PaymentMethodNotSupported = "Método de pagamento não suportado.";
         public const string InvalidCardNumber = "Número do cartão inválido.";
+        public const string CreditCardNotFound = "Cartão não encontrado ou não pertence a você.";
         public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
         public const string PurchaseNotFound = "Compra não encontrada.";
 
