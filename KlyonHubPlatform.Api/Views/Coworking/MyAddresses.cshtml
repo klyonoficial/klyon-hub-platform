@@ -149,8 +149,8 @@
                                 AddressStatus.Removed => "secondary",
                                 _ => "danger"
                             };
-                            var capApprovalLabel = address.CapacityApprovalStatus switch { KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None => "Nenhum", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending => "Pendente", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved => "Aprovado", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected => "Rejeitado", _ => "—" };
-                            var maxContractsApprovalLabel = address.MaxContractsApprovalStatus switch { KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None => "Nenhum", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending => "Pendente", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved => "Aprovado", KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected => "Rejeitado", _ => "—" };
+                            var capApprovalLabel = address.CapacityApprovalStatus.ToDisplayString();
+                            var maxContractsApprovalLabel = address.MaxContractsApprovalStatus.ToDisplayString();
                             <tr class="row-address-detail"
                                 data-address="@address.Address"
                                 data-number="@address.Number"

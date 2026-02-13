@@ -1,4 +1,5 @@
 @model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
+@using KlyonHubPlatform.Api.Constants
 @{
     ViewData["Title"] = "NF Importadas – Validação";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -26,18 +27,18 @@
     Notas fiscais de serviço importadas pelos parceiros (ex.: emitidas pelo contador). Valide e aprove ou rejeite.
 </p>
 
-@if (TempData["Success"] != null)
+@if (TempData[SuccessMessage.TempDataKey] != null)
 {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> @TempData["Success"]
+        <i class="bi bi-check-circle"></i> @TempData[SuccessMessage.TempDataKey]
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
 
-@if (TempData["Error"] != null)
+@if (TempData[ErrorMessages.TempDataKey] != null)
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> @TempData["Error"]
+        <i class="bi bi-exclamation-triangle"></i> @TempData[ErrorMessages.TempDataKey]
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }

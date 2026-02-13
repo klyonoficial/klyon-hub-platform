@@ -21,7 +21,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         {
             return await _context.Payments
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
+                    .ThenInclude(s => s!.Contract)
                 .Include(p => p.Reservation)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
@@ -52,7 +52,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         public async Task<List<Payment>> GetPendingPaymentsAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Payments
-                .Include(p => p.Subscription)
+                .Include(p => p.Subscription!)
                 .Where(p => p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing)
                 .ToListAsync(cancellationToken);
         }
@@ -68,7 +68,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         public async Task<Payment?> GetByExternalPaymentIdAsync(string externalPaymentId, CancellationToken cancellationToken = default)
         {
             return await _context.Payments
-                .Include(p => p.Subscription)
+                .Include(p => p.Subscription!)
                 .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalPaymentId, cancellationToken);
         }
 
@@ -77,7 +77,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             // Primeiro, tenta buscar pelo ExternalPaymentId exato (ID do pedido PagBank)
             var payment = await _context.Payments
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
+                    .ThenInclude(s => s!.Contract)
                 .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalId, cancellationToken);
 
             if (payment != null)
@@ -89,7 +89,7 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             {
                 payment = await _context.Payments
                     .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
+                        .ThenInclude(s => s!.Contract)
                     .FirstOrDefaultAsync(p => p.ExternalPaymentId == referenceId, cancellationToken);
 
                 if (payment != null)

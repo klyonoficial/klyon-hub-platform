@@ -1,4 +1,5 @@
 using System.Threading;
+using KlyonHubPlatform.Api.Constants;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
@@ -63,7 +64,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (notification == null)
                 {
                     _logger.LogWarning("Webhook recebido com formato inválido");
-                    return BadRequest("Formato de notificação inválido");
+                    return BadRequest(ErrorJson.InvalidNotificationFormat);
                 }
 
                 // Extrair dados do recurso (pode vir em 'resource' ou 'charges')
@@ -78,7 +79,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (await _webhookLogRepository.ExistsEventIdAsync(eventId))
                 {
                     _logger.LogInformation($"Webhook já processado anteriormente: EventId={eventId}");
-                    return Ok(new { message = "Webhook já processado" });
+                    return Ok(new { message = OkMessage.WebhookAlreadyProcessed });
                 }
 
                 // Criar registro de log
@@ -104,9 +105,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     _logger.LogWarning($"Webhook recebido com assinatura inválida: EventId={eventId}");
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.InvalidSignature;
-                    webhookLog.ErrorMessage = "Assinatura inválida";
+                    webhookLog.ErrorMessage = UnauthorizedMessage.InvalidSignature;
                     await _webhookLogRepository.CreateAsync(webhookLog);
-                    return Unauthorized("Assinatura inválida");
+                    return Unauthorized(UnauthorizedMessage.InvalidSignature);
                 }
 
                 if (string.IsNullOrEmpty(resourceId))
@@ -115,7 +116,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Failed;
                     webhookLog.ErrorMessage = "ResourceId não encontrado no payload";
                     await _webhookLogRepository.CreateAsync(webhookLog);
-                    return BadRequest("ResourceId não encontrado");
+                    return BadRequest(ErrorJson.ResourceIdNotFound);
                 }
 
                 _logger.LogInformation($"Webhook recebido: Evento={notification.Event}, ResourceId={resourceId}, ReferenceId={referenceId}, Status={resourceStatus}");
@@ -173,7 +174,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 webhookLog.ProcessingAttempts++;
                 await _webhookLogRepository.CreateAsync(webhookLog);
 
-                return Ok(new { message = "Webhook processado", eventId = eventId });
+                return Ok(new { message = OkMessage.WebhookProcessed, eventId = eventId });
             }
             catch (Exception ex)
             {
@@ -193,7 +194,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Retornar 200 para não gerar retry excessivo no PagBank
-                return Ok(new { message = "Erro processado", error = ex.Message });
+                return Ok(new { message = OkMessage.ErrorProcessed, error = ex.Message });
             }
         }
 
@@ -530,7 +531,7 @@ namespace KlyonHubPlatform.Api.Controllers
             if (webhookEvent == PagBankWebhookEvent.Unknown)
             {
                 return BadRequest(new { 
-                    error = "Evento inválido",
+                    error = ErrorJson.InvalidEvent,
                     validEvents = new[] 
                     { 
                         "CHARGE_PAID", "CHARGE_CANCELED", "CHARGE_REFUNDED", 
@@ -655,7 +656,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 return Ok(new
                 {
-                    message = "Webhook simulado com sucesso",
+                    message = OkMessage.WebhookSimulatedSuccess,
                     simulated = true,
                     eventType = eventName,
                     paymentId = paymentId,

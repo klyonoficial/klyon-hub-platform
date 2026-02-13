@@ -27,5 +27,25 @@ namespace KlyonHubPlatform.Application.Services
                 .AsNoTracking()
                 .AnyAsync(c => c.ClientId == client.Id && c.Status == ContractStatus.Active);
         }
+
+        /// <inheritdoc />
+        public async Task<ClientRegistrationStatus> GetRegistrationStatusAsync(int userId)
+        {
+            var client = await _context.Clients
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+            if (client == null)
+                return new ClientRegistrationStatus(false, "CompleteRegistration", "RegisterClient");
+
+            var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
+            var missingRequired = !hasDocument ||
+                string.IsNullOrWhiteSpace(client.ContactPhone) ||
+                string.IsNullOrWhiteSpace(client.ContactName) ||
+                string.IsNullOrWhiteSpace(client.State);
+            if (missingRequired)
+                return new ClientRegistrationStatus(false, "CompleteRegistrationWithFields", "RegisterClient");
+
+            return new ClientRegistrationStatus(true, null, null);
+        }
     }
 }

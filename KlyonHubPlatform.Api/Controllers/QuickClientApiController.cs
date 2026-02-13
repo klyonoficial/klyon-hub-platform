@@ -9,6 +9,8 @@ using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Api.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -63,7 +65,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "Email e Nome do Contato são obrigatórios."
+                        Message = ErrorJson.ContactEmailAndNameRequired
                     });
                 }
 
@@ -72,7 +74,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "O valor anual deve ser maior que zero."
+                        Message = ErrorJson.AnnualValueMustBeGreaterThanZero
                     });
                 }
 
@@ -81,7 +83,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "O endereço fiscal é obrigatório."
+                        Message = ErrorJson.FiscalAddressRequired
                     });
                 }
 
@@ -95,7 +97,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "Endereço não encontrado."
+                        Message = ErrorJson.AddressNotFoundQuickClient
                     });
                 }
 
@@ -104,7 +106,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos."
+                        Message = ErrorJson.PartnerSuspendedNoNewContracts
                     });
                 }
 
@@ -113,7 +115,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "O endereço não está ativo para novas vendas (suspenso ou removido)."
+                        Message = ErrorJson.AddressNotActiveForSales
                     });
                 }
 
@@ -122,7 +124,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new QuickClientRegistrationResponse
                     {
                         Success = false,
-                        Message = "O endereço selecionado não está disponível para contrato."
+                        Message = ErrorJson.AddressNotAvailableForContract
                     });
                 }
 
@@ -141,7 +143,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         return BadRequest(new QuickClientRegistrationResponse
                         {
                             Success = false,
-                            Message = $"Já existe um cliente cadastrado com o email {request.ContactEmail}. Use a edição de cliente para criar um novo contrato."
+                            Message = string.Format(ErrorJson.ClientAlreadyExistsWithEmail, request.ContactEmail)
                         });
                     }
                 }
@@ -167,7 +169,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _context.SaveChangesAsync();
 
                     // Atribuir role de Client
-                    var clientRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Client");
+                    var clientRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Client);
                     if (clientRole != null)
                     {
                         _context.UserRoles.Add(new UserRole
@@ -211,7 +213,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             return BadRequest(new QuickClientRegistrationResponse
                             {
                                 Success = false,
-                                Message = $"O CNPJ {request.Cnpj} já está cadastrado para outro cliente."
+                                Message = string.Format(ErrorJson.CnpjAlreadyRegistered, request.Cnpj)
                             });
                         }
                         client.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
@@ -234,7 +236,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             return BadRequest(new QuickClientRegistrationResponse
                             {
                                 Success = false,
-                                Message = $"O CPF {request.Cpf} já está cadastrado para outro cliente."
+                                Message = string.Format(ErrorJson.CpfAlreadyRegistered, request.Cpf)
                             });
                         }
                         client.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
@@ -391,61 +393,8 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = "Erro ao buscar endereços disponíveis", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorFetchingAddresses, details = ex.Message });
             }
         }
-    }
-
-    /// <summary>
-    /// Request para cadastro rápido de cliente
-    /// </summary>
-    public class QuickClientRegistrationRequest
-    {
-        public string ContactEmail { get; set; } = string.Empty;
-        public string ContactName { get; set; } = string.Empty;
-        public string? RazaoSocial { get; set; }
-        public string? NomeFantasia { get; set; }
-        public string? Cnpj { get; set; }
-        public string? Cpf { get; set; }
-        public string? ContactPhone { get; set; }
-        public string? Address { get; set; }
-        public string? City { get; set; }
-        public string? State { get; set; }
-        public string? ZipCode { get; set; }
-        public int CoworkingAddressId { get; set; }
-        public decimal MonthlyValue { get; set; }
-        public string PaymentMethod { get; set; } = "PIX";
-    }
-
-    /// <summary>
-    /// Response do cadastro rápido de cliente
-    /// </summary>
-    public class QuickClientRegistrationResponse
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public int? ContractId { get; set; }
-        public string? ContractNumber { get; set; }
-        public int? ClientId { get; set; }
-        public int? PaymentId { get; set; }
-        public string? PixCode { get; set; }
-        public int? UserId { get; set; }
-        public bool IsNewUser { get; set; }
-    }
-
-    /// <summary>
-    /// DTO para endereço disponível
-    /// </summary>
-    public class AvailableAddressDto
-    {
-        public int Id { get; set; }
-        public string CoworkingName { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-        public string Number { get; set; } = string.Empty;
-        public string City { get; set; } = string.Empty;
-        public string State { get; set; } = string.Empty;
-        public decimal BasePrice { get; set; }
-        public int Vacancies { get; set; }
-        public string DisplayText { get; set; } = string.Empty;
     }
 }

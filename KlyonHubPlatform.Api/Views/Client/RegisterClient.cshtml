@@ -41,8 +41,8 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" @(personType == "Juridica" ? "" : "required")>
-                        <div class="invalid-feedback"></div>
+                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" data-document-check="CPF" @(personType == "Juridica" ? "" : "required")>
+                        <div class="invalid-feedback" id="CPF-feedback"></div>
                     </div>
                 </div>
             </div>
@@ -51,8 +51,8 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" @(personType == "Juridica" ? "required" : "")>
-                        <div class="invalid-feedback"></div>
+                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" value="@client.CNPJ" data-document-check="CNPJ" @(personType == "Juridica" ? "required" : "")>
+                        <div class="invalid-feedback" id="CNPJ-feedback"></div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="RazaoSocial" class="form-label">Razão Social <span class="text-danger">*</span></label>
@@ -95,11 +95,25 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-8 mb-3">
-                    <label for="Address" class="form-label">Endereço</label>
+                <div class="col-md-6 mb-3">
+                    <label for="Address" class="form-label">Endereço (logradouro)</label>
                     <input type="text" class="form-control" id="Address" name="Address" value="@client.Address">
                 </div>
+                <div class="col-md-2 mb-3">
+                    <label for="AddressNumber" class="form-label">Número</label>
+                    <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@client.AddressNumber" placeholder="Nº">
+                </div>
                 <div class="col-md-4 mb-3">
+                    <label for="Neighborhood" class="form-label">Bairro</label>
+                    <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@client.Neighborhood">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="Complement" class="form-label">Complemento</label>
+                    <input type="text" class="form-control" id="Complement" name="Complement" value="@client.Complement" placeholder="Apto, sala, bloco...">
+                </div>
+                <div class="col-md-6 mb-3">
                     <label for="City" class="form-label">Cidade</label>
                     <input type="text" class="form-control" id="City" name="City" value="@client.City">
                 </div>
@@ -160,6 +174,76 @@
     var inputRazaoSocial = document.getElementById('RazaoSocial');
     var inputContactName = document.getElementById('ContactName');
 
+    var checkDocumentUrl = '@Url.Action("CheckDocumentExists", "Client")';
+    var excludeClientId = @(Model?.Id ?? 0);
+
+    function onlyDigits(s) { return (s || '').replace(/\D/g, ''); }
+
+    function setDocumentFeedback(inputEl, feedbackEl, showError, message) {
+        if (!inputEl || !feedbackEl) return;
+        if (showError) {
+            inputEl.classList.add('is-invalid');
+            feedbackEl.textContent = message || '';
+        } else {
+            inputEl.classList.remove('is-invalid');
+            feedbackEl.textContent = '';
+        }
+    }
+
+    async function checkDocument(inputEl, type) {
+        if (!inputEl) return;
+        var raw = onlyDigits(inputEl.value);
+        var feedbackEl = document.getElementById(inputEl.id + '-feedback');
+        if (type === 'CPF' && raw.length !== 11) {
+            setDocumentFeedback(inputEl, feedbackEl, false);
+            return;
+        }
+        if (type === 'CNPJ' && raw.length !== 14) {
+            setDocumentFeedback(inputEl, feedbackEl, false);
+            return;
+        }
+        var url = checkDocumentUrl + '?document=' + encodeURIComponent(inputEl.value) + '&type=' + encodeURIComponent(type);
+        if (excludeClientId > 0) url += '&excludeClientId=' + excludeClientId;
+        try {
+            var r = await fetch(url);
+            var data = await r.json();
+            if (data.exists && data.message) {
+                setDocumentFeedback(inputEl, feedbackEl, true, data.message);
+            } else if (!data.valid && data.message) {
+                setDocumentFeedback(inputEl, feedbackEl, true, data.message);
+            } else {
+                setDocumentFeedback(inputEl, feedbackEl, false);
+            }
+        } catch (err) {
+            console.error('Erro ao verificar documento:', err);
+            setDocumentFeedback(inputEl, feedbackEl, false);
+        }
+    }
+
+    if (inputCPF) {
+        inputCPF.addEventListener('blur', function() { checkDocument(inputCPF, 'CPF'); });
+        inputCPF.addEventListener('input', function() { setDocumentFeedback(inputCPF, document.getElementById('CPF-feedback'), false); });
+    }
+    if (inputCNPJ) {
+        inputCNPJ.addEventListener('blur', function() { checkDocument(inputCNPJ, 'CNPJ'); });
+        inputCNPJ.addEventListener('input', function() { setDocumentFeedback(inputCNPJ, document.getElementById('CNPJ-feedback'), false); });
+    }
+
+    var form = document.getElementById('formRegisterClient');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var invalidDoc = (inputCPF && inputCPF.classList.contains('is-invalid')) || (inputCNPJ && inputCNPJ.classList.contains('is-invalid'));
+            if (invalidDoc) {
+                e.preventDefault();
+                if (typeof showToast === 'function') {
+                    showToast('Corrija o CPF ou CNPJ antes de salvar. O documento informado já está cadastrado no sistema.', 'error');
+                } else {
+                    alert('O CPF ou CNPJ informado já está cadastrado no sistema. Corrija o documento antes de salvar.');
+                }
+            }
+        });
+    }
+
     function setPersonType(value) {
         personTypeInput.value = value;
         if (value === 'Fisica') {
@@ -170,6 +254,7 @@
             inputCPF.setAttribute('required', 'required');
             inputCNPJ.removeAttribute('required');
             inputRazaoSocial.removeAttribute('required');
+            setDocumentFeedback(inputCNPJ, document.getElementById('CNPJ-feedback'), false);
         } else {
             camposFisica.classList.add('d-none');
             camposJuridica.classList.remove('d-none');
@@ -178,6 +263,7 @@
             inputCPF.removeAttribute('required');
             inputCNPJ.setAttribute('required', 'required');
             inputRazaoSocial.setAttribute('required', 'required');
+            setDocumentFeedback(inputCPF, document.getElementById('CPF-feedback'), false);
         }
     }
 
@@ -208,9 +294,11 @@
             var data = await r.json();
             if (!data.erro) {
                 var addr = document.getElementById('Address');
+                var neighborhood = document.getElementById('Neighborhood');
                 var city = document.getElementById('City');
                 var state = document.getElementById('State');
                 if (addr) addr.value = data.logradouro || '';
+                if (neighborhood) neighborhood.value = data.bairro || '';
                 if (city) city.value = data.localidade || '';
                 if (state) state.value = data.uf || '';
             }

@@ -257,28 +257,8 @@
                         @foreach (var settlement in Model)
                         {
                             var monthName = new DateTime(settlement.ReferenceYear, settlement.ReferenceMonth, 1).ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR"));
-                            var statusBadge = settlement.Status switch
-                            {
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "secondary",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "warning",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "info",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "primary",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "success",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "danger",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "danger",
-                                _ => "secondary"
-                            };
-                            var statusText = settlement.Status switch
-                            {
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Open => "Em Aberto",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice => "Aguardando NF",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceReceived => "NF Recebida",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceApproved => "NF Aprovada",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.Completed => "Transferido",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.InvoiceRejected => "NF Rejeitada",
-                                KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.TransferFailed => "Falha",
-                                _ => "Desconhecido"
-                            };
+                            var statusBadge = settlement.Status.ToBadgeCssClass();
+                            var statusText = settlement.Status.ToDisplayString();
                             
                             <tr>
                                 <td><strong>@settlement.Coworking?.Name</strong></td>

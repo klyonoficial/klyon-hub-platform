@@ -48,7 +48,7 @@ namespace KlyonHubPlatform.Application.Services
                 else
                 {
                     // Fallback: usar configuração do sistema
-                    var pctVal = await _config.GetValueAsync("Platform.CommissionPercentage");
+                    var pctVal = await _config.GetValueAsync(PlatformConfigKey.CommissionPercentage.ToConfigKey());
                     if (!string.IsNullOrEmpty(pctVal) && decimal.TryParse(pctVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
                         pct = parsed;
                 }
@@ -56,7 +56,7 @@ namespace KlyonHubPlatform.Application.Services
             else
             {
                 // Fallback: usar configuração do sistema
-                var pctVal = await _config.GetValueAsync("Platform.CommissionPercentage");
+                var pctVal = await _config.GetValueAsync(PlatformConfigKey.CommissionPercentage.ToConfigKey());
                 if (!string.IsNullOrEmpty(pctVal) && decimal.TryParse(pctVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
                     pct = parsed;
             }

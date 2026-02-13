@@ -326,17 +326,14 @@ namespace KlyonHubPlatform.Application.Services
             }
 
             // Fallback: Buscar comissão da localidade
-            if (address.LocationId != null)
-            {
-                var locationCommission = await _context.LocationCommissions
-                    .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
-                    .OrderByDescending(lc => lc.EffectiveDate)
-                    .FirstOrDefaultAsync();
+            var locationCommission = await _context.LocationCommissions
+                .Where(lc => lc.LocationId == address.LocationId && lc.IsActive)
+                .OrderByDescending(lc => lc.EffectiveDate)
+                .FirstOrDefaultAsync();
 
-                if (locationCommission != null)
-                {
-                    return locationCommission.CommissionPercentage;
-                }
+            if (locationCommission != null)
+            {
+                return locationCommission.CommissionPercentage;
             }
 
             // Fallback final: usar valor padrão do appsettings

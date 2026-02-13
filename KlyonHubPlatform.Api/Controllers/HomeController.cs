@@ -8,6 +8,7 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
+using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,7 +36,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
@@ -46,11 +47,11 @@ namespace KlyonHubPlatform.Api.Controllers
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> FiscalAddress(CancellationToken cancellationToken = default)
         {
-            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.Client))
             {
-                return RedirectToAction("ChooseLocation", "Client");
+                return RedirectToAction(ActionNames.ChooseLocation, ControllerNames.Client);
             }
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
@@ -61,10 +62,10 @@ namespace KlyonHubPlatform.Api.Controllers
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Rooms(CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
             if (StringBooleanValue.IsFalse(enableCoworkingMenus))
             {
-                return RedirectToAction("Index");
+                return RedirectToAction(ActionNames.Index);
             }
             ViewData["EnableCoworkingMenus"] = true;
             return View();
@@ -76,11 +77,11 @@ namespace KlyonHubPlatform.Api.Controllers
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Partner(CancellationToken cancellationToken = default)
         {
-            if (User.Identity?.IsAuthenticated == true && User.IsInRole("CoworkingPartner"))
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.CoworkingPartner))
             {
-                return RedirectToAction("Dashboard", "Coworking");
+                return RedirectToAction(ActionNames.Dashboard, ControllerNames.Coworking);
             }
-            var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
+            var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
             ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
@@ -283,7 +284,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.Ratings = ratings;
 
             // Verificar se cliente está logado
-            var isClientLogged = User.Identity?.IsAuthenticated == true && User.IsInRole("Client");
+            var isClientLogged = User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.Client);
             ViewBag.IsClientLogged = isClientLogged;
 
             // Obter créditos disponíveis do cliente se estiver logado
@@ -338,8 +339,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 string.IsNullOrWhiteSpace(model.Email) ||
                 string.IsNullOrWhiteSpace(model.Phone))
             {
-                TempData["Error"] = "Por favor, preencha todos os campos obrigatórios.";
-                return RedirectToAction("MarketplaceDetails", new { id = model.CoworkingAddressId });
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.FillAllRequiredFields;
+                return RedirectToAction(ActionNames.MarketplaceDetails, new { id = model.CoworkingAddressId });
             }
 
             // Verificar se o endereço existe
@@ -349,8 +350,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (address == null)
             {
-                TempData["Error"] = "Endereço não encontrado.";
-                return RedirectToAction("Marketplace");
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotFound;
+                return RedirectToAction(ActionNames.Marketplace);
             }
 
             // Converter horários de string para TimeSpan
@@ -387,8 +388,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // TODO: Enviar email de notificação para o coworking parceiro
 
-            TempData["Success"] = "Seu interesse foi registrado com sucesso! Entraremos em contato em breve.";
-            return RedirectToAction("MarketplaceDetails", new { id = model.CoworkingAddressId });
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.InterestRegistered;
+            return RedirectToAction(ActionNames.MarketplaceDetails, new { id = model.CoworkingAddressId });
         }
 
         [HttpPost]
@@ -399,13 +400,13 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 // Validar cliente
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
                 
                 if (client == null)
                 {
-                    TempData["Error"] = "Cliente não encontrado.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Validar endereço
@@ -415,8 +416,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (address == null)
                 {
-                    TempData["Error"] = "Endereço não encontrado.";
-                    return RedirectToAction("Marketplace");
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotFound;
+                    return RedirectToAction(ActionNames.Marketplace);
                 }
 
                 // Verificar se o coworking oferece aluguel de sala
@@ -427,15 +428,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (!offersRoomRental)
                 {
-                    TempData["Error"] = "Este coworking não oferece aluguel de salas.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.CoworkingNoRoomRental;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Validar data
                 if (ReservationDate < DateTime.Today)
                 {
-                    TempData["Error"] = "A data da reserva não pode ser no passado.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.ReservationDateCannotBeInPast;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Converter horários
@@ -455,34 +456,34 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar horários - obrigatórios para calcular valor
                 if (!startTimeSpan.HasValue || !endTimeSpan.HasValue)
                 {
-                    TempData["Error"] = "Por favor, informe o horário inicial e final para calcular o valor da reserva.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.InformStartAndEndTime;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 if (endTimeSpan <= startTimeSpan)
                 {
-                    TempData["Error"] = "O horário final deve ser maior que o inicial.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.EndTimeMustBeGreaterThanStart;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Validar tipo de sala
                 if (RoomType != "Shared" && RoomType != "Private")
                 {
-                    TempData["Error"] = "Tipo de sala inválido.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidRoomType;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Verificar se o endereço oferece o tipo de sala selecionado
                 if (RoomType == "Shared" && !address.OffersSharedRoom)
                 {
-                    TempData["Error"] = "Este endereço não oferece sala compartilhada.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = "Este endereço não oferece sala compartilhada.";
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 if (RoomType == "Private" && !address.OffersPrivateRoom)
                 {
-                    TempData["Error"] = "Este endereço não oferece sala privativa.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNoPrivateRoom;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Validar horários de funcionamento
@@ -492,21 +493,21 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (operatingHour == null || !operatingHour.IsActive)
                 {
-                    TempData["Error"] = "O coworking não está funcionando neste dia da semana.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.CoworkingNotOpenOnThisDay;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 if (!operatingHour.OpeningTime.HasValue || !operatingHour.ClosingTime.HasValue)
                 {
-                    TempData["Error"] = "Horários de funcionamento não configurados para este dia.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.OperatingHoursNotConfiguredForDay;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Verificar se o horário da reserva está dentro do horário de funcionamento
                 if (startTimeSpan < operatingHour.OpeningTime || endTimeSpan > operatingHour.ClosingTime)
                 {
-                    TempData["Error"] = $"O horário da reserva deve estar entre {operatingHour.OpeningTime.Value.ToString(@"hh\:mm")} e {operatingHour.ClosingTime.Value.ToString(@"hh\:mm")}.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.ReservationTimeMustBeBetween(operatingHour.OpeningTime.Value.ToString(@"hh\:mm"), operatingHour.ClosingTime.Value.ToString(@"hh\:mm"));
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Verificar se a data está bloqueada
@@ -518,16 +519,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (blockedDate.BlocksFullDay)
                     {
-                        TempData["Error"] = $"Esta data está bloqueada: {blockedDate.Reason}";
-                        return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                        TempData[ErrorMessages.TempDataKey] = ErrorMessages.DateBlocked(blockedDate.Reason);
+                        return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                     }
                     else if (blockedDate.StartTime.HasValue && blockedDate.EndTime.HasValue)
                     {
                         // Verificar se há sobreposição com o horário bloqueado
                         if (!(endTimeSpan <= blockedDate.StartTime || startTimeSpan >= blockedDate.EndTime))
                         {
-                            TempData["Error"] = $"Este horário está bloqueado: {blockedDate.Reason}";
-                            return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                            TempData[ErrorMessages.TempDataKey] = ErrorMessages.TimeBlocked(blockedDate.Reason);
+                            return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                         }
                     }
                 }
@@ -553,8 +554,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (pricePerHour <= 0)
                 {
-                    TempData["Error"] = "Preço por hora não configurado para este tipo de sala.";
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.PricePerHourNotConfigured;
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Calcular valor total
@@ -597,13 +598,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (RoomType == "Private")
                     {
-                        TempData["Error"] = "Já existe uma reserva para este horário na sala privativa. Por favor, escolha outro horário.";
+                        TempData[ErrorMessages.TempDataKey] = ErrorMessages.ReservationAlreadyExistsForPrivateRoom;
                     }
                     else
                     {
-                        TempData["Error"] = $"Não há carteiras disponíveis neste horário. Máximo: {maxSeats} carteiras.";
+                        TempData[ErrorMessages.TempDataKey] = ErrorMessages.NoSeatsAvailable(maxSeats);
                     }
-                    return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                    return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
                 }
 
                 // Criar reserva com status "Pending" até o pagamento ser confirmado
@@ -639,12 +640,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 // Redirecionar para página de pagamento
-                return RedirectToAction("PaymentDetails", "Client", new { paymentId = payment.Id });
+                return RedirectToAction(ActionNames.PaymentDetails, ControllerNames.Client, new { paymentId = payment.Id });
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao criar reserva: {ex.Message}";
-                return RedirectToAction("MarketplaceDetails", new { id = CoworkingAddressId });
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("criar reserva", ex.Message);
+                return RedirectToAction(ActionNames.MarketplaceDetails, new { id = CoworkingAddressId });
             }
         }
 
@@ -659,15 +660,15 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId);
                 if (address == null)
-                    return Json(new { error = "Endereço não encontrado" });
+                    return Json(new { error = ErrorJson.AddressNotFound });
 
                 if (roomType != "Shared" && roomType != "Private")
-                    return Json(new { error = "Tipo de sala inválido" });
+                    return Json(new { error = ErrorJson.InvalidRoomType });
 
                 if (roomType == "Shared" && !address.OffersSharedRoom)
-                    return Json(new { error = "Endereço não oferece sala compartilhada" });
+                    return Json(new { error = ErrorJson.AddressNoSharedRoom });
                 if (roomType == "Private" && !address.OffersPrivateRoom)
-                    return Json(new { error = "Endereço não oferece sala privativa" });
+                    return Json(new { error = ErrorJson.AddressNoPrivateRoom });
 
                 var daysInMonth = DateTime.DaysInMonth(year, month);
                 var dates = new Dictionary<string, object>();
@@ -835,7 +836,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (address == null)
                 {
-                    return Json(new { error = "Endereço não encontrado" });
+                    return Json(new { error = ErrorJson.AddressNotFound });
                 }
 
                 // Se uma data específica foi fornecida, retornar horários disponíveis para aquela data
@@ -867,7 +868,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         {
                             available = false,
                             occupiedSlots = Array.Empty<object>(),
-                            error = "Coworking não funciona neste dia"
+                            error = ErrorJson.CoworkingNotOpenOnDay
                         });
                     }
 

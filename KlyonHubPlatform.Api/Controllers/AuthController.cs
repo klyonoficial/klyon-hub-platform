@@ -8,6 +8,9 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
+using KlyonHubPlatform.Api.Constants;
+using static KlyonHubPlatform.Api.Constants.ActionNames;
+using static KlyonHubPlatform.Api.Constants.ControllerNames;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -36,9 +39,9 @@ namespace KlyonHubPlatform.Api.Controllers
 
             ViewData["ReturnUrl"] = returnUrl;
             // Exibir mensagem de sucesso vinda do redirect (ex.: após verificar email)
-            if (TempData["Success"] != null)
+            if (TempData[SuccessMessage.TempDataKey] != null)
             {
-                ViewData["Success"] = TempData["Success"];
+                ViewData["Success"] = TempData[SuccessMessage.TempDataKey];
             }
             return View();
         }
@@ -103,7 +106,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 HttpContext.Session.SetString("MustChangePassword", StringBooleanValue.True);
                 HttpContext.Session.SetString("ChangePasswordReturnUrl", returnUrl ?? "/Client/DashboardDetails");
                 
-                return RedirectToAction("ChangePasswordRequired");
+                return RedirectToAction(ActionNames.ChangePasswordRequired);
             }
 
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
@@ -125,14 +128,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToDashboardByRole(userRole, returnUrl);
             }
 
-            if (role == "CoworkingPartner")
-                ViewBag.PreSelectedRole = "CoworkingPartner";
+            if (role == RoleNames.CoworkingPartner)
+                ViewBag.PreSelectedRole = RoleNames.CoworkingPartner;
             ViewData["ReturnUrl"] = returnUrl;
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null, string? acceptLgpdTerms = null, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = RoleNames.Client, string? returnUrl = null, string? acceptLgpdTerms = null, CancellationToken cancellationToken = default)
         {
             var acceptLgpdRaw = acceptLgpdTerms ?? Request.Form["acceptLgpdTerms"].ToString();
             bool aceiteLgpd = StringBooleanValue.IsTrue(acceptLgpdRaw)
@@ -146,7 +149,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.RegisterEmail = email;
                 ViewBag.RegisterRole = role;
                 ViewBag.RegisterAcceptLgpdTerms = aceiteLgpd;
-                if (role == "CoworkingPartner") ViewBag.PreSelectedRole = "CoworkingPartner";
+                if (role == RoleNames.CoworkingPartner) ViewBag.PreSelectedRole = RoleNames.CoworkingPartner;
             }
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
@@ -174,7 +177,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             ViewData["Success"] = "Conta criada com sucesso! Verifique seu email para ativar a conta.";
             ViewData["ReturnUrl"] = returnUrl;
-            return View("Login");
+            return View(ViewNames.Login);
         }
 
         [HttpPost]
@@ -182,8 +185,8 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             await HttpContext.SignOutAsync("Cookies");
             HttpContext.Session.Clear();
-            TempData["Success"] = "Você deslogou com sucesso.";
-            return RedirectToAction("Index", "Home");
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.LoggedOut;
+            return RedirectToAction(ActionNames.Index, ControllerNames.Home);
         }
 
         /// <summary>
@@ -196,10 +199,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Redirect(returnUrl);
             return role switch
             {
-                "Administrator" => RedirectToAction("Dashboard", "Admin"),
-                "CoworkingPartner" => RedirectToAction("Dashboard", "Coworking"),
-                "Client" => RedirectToAction("DashboardDetails", "Client"),
-                _ => RedirectToAction("Index", "Home")
+                RoleNames.Administrator => RedirectToAction(ActionNames.Dashboard, ControllerNames.Admin),
+                RoleNames.CoworkingPartner => RedirectToAction(ActionNames.Dashboard, ControllerNames.Coworking),
+                RoleNames.Client => RedirectToAction(ActionNames.DashboardDetails, ControllerNames.Client),
+                _ => RedirectToAction(ActionNames.Index, ControllerNames.Home)
             };
         }
 
@@ -302,8 +305,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     // Redirecionar para Login com returnUrl para que, após login, o usuário continue (ex.: contratação)
                     if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     {
-                        TempData["Success"] = "Email verificado com sucesso! Faça login para continuar.";
-                        return RedirectToAction("Login", new { returnUrl });
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.EmailVerifiedLogin;
+                    return RedirectToAction(ActionNames.Login, new { returnUrl });
                     }
                 }
                 else
@@ -330,8 +333,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewData["ReturnUrl"] = returnUrl;
                 if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                 {
-                    TempData["Success"] = "Email verificado com sucesso! Faça login para continuar.";
-                    return RedirectToAction("Login", new { returnUrl });
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.EmailVerifiedLogin;
+                    return RedirectToAction(ActionNames.Login, new { returnUrl });
                 }
             }
             else
@@ -339,7 +342,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewData["Error"] = "Token inválido ou expirado.";
             }
             ViewData["ReturnUrl"] = returnUrl;
-            return View("VerifyEmail");
+            return View(ViewNames.VerifyEmail);
         }
 
         [HttpGet]
@@ -408,8 +411,8 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (string.IsNullOrEmpty(token))
             {
-                TempData["Error"] = "Token inválido ou expirado.";
-                return RedirectToAction("Login");
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidOrExpiredToken;
+                return RedirectToAction(ActionNames.Login);
             }
 
             var user = await _context.Users
@@ -422,8 +425,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (user == null || !user.IsActive)
             {
-                TempData["Error"] = "Token inválido ou expirado.";
-                return RedirectToAction("Login");
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidOrExpiredToken;
+                return RedirectToAction(ActionNames.Login);
             }
 
             var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
@@ -459,7 +462,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     HttpContext.Session.SetString("ChangePasswordReturnUrl", redirect);
                 }
-                return RedirectToAction("ChangePasswordRequired");
+                return RedirectToAction(ActionNames.ChangePasswordRequired);
             }
 
             // Limpar token após uso
@@ -472,7 +475,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Redirect(redirect);
             }
 
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction(ActionNames.Index, ControllerNames.Home);
         }
 
         [HttpGet]
@@ -481,7 +484,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (HttpContext.Session.GetString("MustChangePassword") != StringBooleanValue.True)
             {
-                return RedirectToAction("Index", "Home");
+                return RedirectToAction(ActionNames.Index, ControllerNames.Home);
             }
             return View();
         }
@@ -493,7 +496,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (HttpContext.Session.GetString("MustChangePassword") != StringBooleanValue.True)
             {
-                return RedirectToAction("Index", "Home");
+                return RedirectToAction(ActionNames.Index, ControllerNames.Home);
             }
 
             if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
@@ -514,7 +517,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return View();
             }
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             
             if (user == null)
@@ -541,7 +544,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var returnUrl = HttpContext.Session.GetString("ChangePasswordReturnUrl") ?? "/";
             HttpContext.Session.Remove("ChangePasswordReturnUrl");
 
-            TempData["Success"] = "Senha alterada com sucesso!";
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.PasswordChanged;
             return Redirect(returnUrl);
         }
     }

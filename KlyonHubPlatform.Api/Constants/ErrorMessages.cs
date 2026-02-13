@@ -1,0 +1,234 @@
+namespace KlyonHubPlatform.Api.Constants
+{
+    /// <summary>
+    /// Mensagens de erro exibidas via TempData.
+    /// Centraliza a chave do TempData e os textos para evitar strings mágicas e facilitar manutenção e consistência.
+    /// Use TempData[ErrorMessages.TempDataKey] = ErrorMessages.Mensagem (mesmo padrão de SuccessMessage.TempDataKey).
+    /// </summary>
+    public static class ErrorMessages
+    {
+        /// <summary>Chave usada em TempData para mensagens de erro. Use TempData[TempDataKeys.Error] ou TempData[ErrorMessages.TempDataKey].</summary>
+        public const string TempDataKey = TempDataKeys.Error;
+
+        // ----- Cliente -----
+        public const string ClientNotFound = "Cliente não encontrado.";
+        public const string ClientNotFoundCompleteRegistration = "Cliente não encontrado. Complete seu cadastro primeiro.";
+        public const string ClientAlreadyHasRegistration = "Você já possui um cadastro de cliente. Acesse seu perfil para editar as informações.";
+        public const string NoPermissionToEditClient = "Você não tem permissão para editar este cliente.";
+        public const string CnpjOrCpfAlreadyRegistered = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
+
+        // ----- Campos obrigatórios (Cliente) -----
+        public const string FullNameRequired = "O Nome Completo é obrigatório.";
+        public const string PhoneRequired = "O Telefone é obrigatório.";
+        public const string CnpjRequiredForPj = "O CNPJ é obrigatório para Pessoa Jurídica.";
+        public const string CompanyNameRequiredForPj = "A Razão Social é obrigatória para Pessoa Jurídica.";
+        public const string CpfRequiredForPf = "O CPF é obrigatório para Pessoa Física.";
+
+        // ----- Endereço / Localidade -----
+        public const string AddressNotFound = "Endereço não encontrado.";
+        public const string AddressNotAvailableForContract = "Este endereço não está disponível para contratação no momento.";
+        public const string InvalidLocation = "Localidade inválida.";
+        public const string LocationNotFound = "Localidade não encontrada.";
+        public const string AddressNotActiveForSales = "O endereço não está ativo para novas vendas (suspenso ou removido).";
+        public const string AddressNotAvailableForContractSelected = "O endereço selecionado não está disponível para contrato.";
+        public const string PartnerSuspendedNoNewContracts = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
+        public const string AddressNoSharedRoom = "Este endereço não oferece sala compartilhada.";
+        public const string AddressNoPrivateRoom = "Este endereço não oferece sala privativa.";
+
+        // ----- Cadastro rápido (QuickClientRegistration) -----
+        public const string EmailAndContactNameRequired = "Email e Nome do Contato são obrigatórios.";
+        public const string AnnualValueMustBeGreaterThanZero = "O valor anual deve ser maior que zero.";
+        public static string ClientAlreadyExistsWithEmail(string email) =>
+            $"Já existe um cliente cadastrado com o email {email}. Use a edição de cliente para criar um novo contrato.";
+        public static string CnpjAlreadyRegistered(string cnpj) =>
+            $"O CNPJ {cnpj} já está cadastrado para outro cliente.";
+        public static string CpfAlreadyRegistered(string cpf) =>
+            $"O CPF {cpf} já está cadastrado para outro cliente.";
+
+        // ----- Coworking -----
+        public const string CoworkingNotFound = "Coworking não encontrado.";
+        public const string CoworkingNoRoomRental = "Este coworking não oferece aluguel de salas.";
+        public const string InvalidRoomType = "Tipo de sala inválido.";
+        public const string PricePerHourNotConfigured = "Preço por hora não configurado para este tipo de sala.";
+        public const string CnpjInvalidFourteenDigits = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
+        public static string CnpjAlreadyRegisteredForCoworking(string cnpj) =>
+            $"O CNPJ {cnpj} já está cadastrado para outro coworking.";
+
+        // ----- Contrato -----
+        public const string ContractNotFound = "Contrato não encontrado.";
+        public const string ContractNotFoundOrNotYours = "Contrato não encontrado ou não pertence a você.";
+        public const string OnlyActiveContractsCanBeCancelled = "Apenas contratos ativos podem ser cancelados.";
+
+        // ----- Reservas -----
+        public const string SelectAtLeastOneDateTime = "Selecione ao menos uma data e horário.";
+        public const string InvalidReservationData = "Dados das reservas inválidos.";
+        public const string NoValidTimeSlots = "Nenhum horário válido. Verifique datas e horários.";
+        public const string DuplicateOrOverlappingReservation = "Você já possui uma reserva neste horário ou há sobreposição entre os horários selecionados. Não é permitida duplicidade.";
+        public const string ReservationNotFound = "Reserva não encontrada.";
+        public const string ReservationCancelled = "Reserva cancelada.";
+        public const string ReservationDateCannotBeInPast = "A data da reserva não pode ser no passado.";
+        public const string InformStartAndEndTime = "Por favor, informe o horário inicial e final para calcular o valor da reserva.";
+        public const string EndTimeMustBeGreaterThanStart = "O horário final deve ser maior que o inicial.";
+        public const string CoworkingNotOpenOnThisDay = "O coworking não está funcionando neste dia da semana.";
+        public const string OperatingHoursNotConfiguredForDay = "Horários de funcionamento não configurados para este dia.";
+        public const string ReservationAlreadyExistsForPrivateRoom = "Já existe uma reserva para este horário na sala privativa. Por favor, escolha outro horário.";
+        public const string FillAllRequiredFields = "Por favor, preencha todos os campos obrigatórios.";
+        public static string ReservationTimeMustBeBetween(string open, string close) =>
+            $"O horário da reserva deve estar entre {open} e {close}.";
+        public static string DateBlocked(string reason) =>
+            $"Esta data está bloqueada: {reason}";
+        public static string TimeBlocked(string reason) =>
+            $"Este horário está bloqueado: {reason}";
+        public static string NoSeatsAvailable(int maxSeats) =>
+            $"Não há carteiras disponíveis neste horário. Máximo: {maxSeats} carteiras.";
+        public static string TimeSlotAlreadyReserved(string date, string start, string end) =>
+            $"O horário {date} {start}-{end} já está reservado. Escolha outro horário.";
+        public static string InsufficientCredits(int required, int available) =>
+            $"Créditos insuficientes. Necessário: {required}, disponível: {available}.";
+
+        // ----- Pagamento -----
+        public const string PaymentNotFound = "Pagamento não encontrado.";
+        public const string OnlyPendingPaymentsCanChangeMethod = "Apenas pagamentos pendentes podem ter o método alterado.";
+        public const string InvalidPaymentMethod = "Método de pagamento inválido.";
+        public const string BoletoNoLongerAvailable = "Boleto bancário não está mais disponível como opção de pagamento.";
+        public const string BoletoNoLongerAvailableChoosePixOrCard = "Boleto bancário não está mais disponível. Escolha PIX ou Cartão de Crédito.";
+        public const string PaymentSystemNotConfigured = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema (Admin > Configurações do Sistema > Configurar Asaas).";
+        public const string OnlyPendingPaymentsCanGeneratePix = "Apenas pagamentos pendentes podem ter o código PIX gerado.";
+        public const string ThisPaymentIsNotPix = "Este pagamento não é via PIX.";
+        public const string PaymentAlreadyProcessed = "Este pagamento já foi processado.";
+        public const string SendPaymentReceipt = "Por favor, envie o comprovante de pagamento.";
+        public const string InvalidFileFormatImagesOrPdf = "Formato de arquivo inválido. Envie apenas imagens (JPG, PNG) ou PDF.";
+        public const string SelectPaymentMethod = "Por favor, selecione um método de pagamento.";
+        public const string PaymentMethodNotSupported = "Método de pagamento não suportado.";
+        public const string InvalidCardNumber = "Número do cartão inválido.";
+        public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
+        public const string PurchaseNotFound = "Compra não encontrada.";
+
+        // ----- Declarações -----
+        public const string DeclarationInvalidOrExpired = "Esta declaração está inválida ou expirada.";
+        public const string ErrorDownloadingDeclarationFileNotFound = "Erro ao baixar declaração. Arquivo não encontrado.";
+
+        // ----- Admin: documentos e aprovações -----
+        public const string DocumentNotFound = "Documento não encontrado.";
+        public const string InformRejectionJustification = "Informe a justificativa ou os itens que precisam de correção.";
+        public const string InformRejectionReason = "Informe o motivo da rejeição.";
+        public const string InformReprovalReason = "Informe o motivo da reprovação.";
+        public const string RejectionReasonRequired = "É necessário informar o motivo da rejeição.";
+        public const string CapacityChangeRequestNotFound = "Solicitação de alteração de capacidade não encontrada.";
+        public const string RequestAlreadyProcessed = "Esta solicitação já foi processada.";
+        public const string MaxQuantityChangeRequestNotFound = "Solicitação de alteração de quantidade máxima não encontrada.";
+        public const string CardPriceChangeRequestNotFound = "Solicitação de alteração de preços no cartão não encontrada.";
+        public const string InvalidStatus = "Status inválido.";
+        public static string InvalidStatusWithValue(string status) => $"Status inválido: {status}";
+        public const string ConfigNotFound = "Configuração não encontrada.";
+        public const string PasswordsDoNotMatchOrEmpty = "As senhas não coincidem ou estão vazias.";
+        public const string InvalidPercentageFormat = "Percentagem inválida. Use números decimais (ex.: 12,5 ou 12.5).";
+        public const string ServiceNotFound = "Serviço não encontrado.";
+        public const string ServiceNotAvailableWhenMenusDisabled = "Este serviço não está disponível quando os menus de coworking estão desabilitados.";
+        public const string PercentageMustBeBetween0And100 = "A percentagem deve estar entre 0 e 100.";
+        public const string PartnerServiceNotFound = "Serviço do parceiro não encontrado.";
+        public const string ServiceAlreadyRegisteredForPartner = "Este serviço já está cadastrado para este parceiro.";
+        public const string RequestNotFound = "Solicitação não encontrada.";
+        public const string RejectionReasonRequiredForRemoval = "É necessário informar o motivo da rejeição.";
+        public const string ReservationNotFoundAdmin = "Reserva não encontrada.";
+        public const string JustificativaCancelamentoObrigatoria = "Justificativa do cancelamento é obrigatória.";
+        public const string CommissionNotFound = "Comissão não encontrada.";
+        public const string NfCommissionAlreadyExists = "Já existe uma NF de comissão emitida para esta comissão.";
+        public const string NfCommissionAlreadyExistsForCommission = "Já existe uma NF de comissão para esta comissão.";
+        public const string SelectPdfFile = "Selecione o arquivo PDF da nota fiscal.";
+        public const string FileMustBePdf = "O arquivo deve ser um PDF.";
+        public const string TransferNotFound = "Transferência não encontrada.";
+        public const string PayoutRequestNotFound = "Solicitação de repasse não encontrada.";
+        public const string OnlyPendingPayoutsCanBeApproved = "Apenas repasses com status \"Pendente\" podem ser aprovados.";
+        public const string ImportedInvoiceNotFoundOrProcessed = "Nota fiscal importada não encontrada ou já processada.";
+        public const string InformRejectionReasonInvoice = "Informe o motivo da rejeição.";
+        public const string PleaseInformRejectionReason = "Por favor, informe o motivo da rejeição.";
+
+        // ----- Erros genéricos (com parâmetro) -----
+        /// <summary>Erro genérico com mensagem de exceção. Use para ex.Message.</summary>
+        public static string GenericError(string message) => $"Erro: {message}";
+
+        /// <summary>Padrão "Erro ao [ação]: [detalhe]". Use para ex.Message.</summary>
+        public static string ErrorWithException(string action, string exceptionMessage) => $"Erro ao {action}: {exceptionMessage}";
+
+        /// <summary>CNPJ já cadastrado no sistema (fluxo de registro).</summary>
+        public static string CnpjAlreadyRegisteredInSystem(string cnpj) => $"O CNPJ {cnpj} já está cadastrado no sistema.";
+
+        /// <summary>CPF já cadastrado no sistema (fluxo de registro).</summary>
+        public static string CpfAlreadyRegisteredInSystem(string cpf) => $"O CPF {cpf} já está cadastrado no sistema.";
+
+        // ----- Admin: SQL, migrations, Asaas -----
+        public const string SqlQueryCannotBeEmpty = "A query SQL não pode estar vazia.";
+        public const string DangerousOperationsNotAllowed = "Operações perigosas não são permitidas. Use apenas ALTER TABLE, CREATE TABLE, ADD COLUMN ou SELECT.";
+        public const string OnlyAllowedSqlOperations = "Apenas operações ALTER TABLE, CREATE TABLE, CREATE INDEX, ADD COLUMN, SELECT, SHOW e DESCRIBE são permitidas.";
+        public static string ErrorExecutingMigrations(string msg) => "Erro ao executar migrations: " + msg;
+        public static string ErrorCreatingCoworkingOperatingHours(string msg) => "Erro ao criar CoworkingOperatingHours: " + msg;
+        public static string ErrorAddingColumnD4SignDocumentUuid(string msg) => "Erro ao adicionar coluna D4SignDocumentUuid: " + msg;
+        public static string ErrorCleaningTestData(string msg) => "Erro ao limpar dados de teste: " + msg;
+        public static string ErrorAddingColumnMustChangePassword(string msg) => "Erro ao adicionar coluna MustChangePassword: " + msg;
+        public static string ErrorCreatingIndex(string name, string exMessage) => $"Erro ao criar índice {name}: {exMessage}";
+        public static string ErrorsOccurredCleaningData(string errorsJoin) => $"Alguns erros ocorreram ao limpar dados: {errorsJoin}";
+        public static string ErrorClearingDatabase(string exMessage) => $"Erro ao limpar base de dados: {exMessage}";
+        public static string DetailInnerException(string innerMessage) => $" Detalhes: {innerMessage}";
+        public static string ApiKeyAsaasNotConfigured(string configKey) => $"API Key Asaas não configurada. Configure primeiro em 'Configurar Asaas' e preencha {configKey}.";
+        public static string ApiKeyAsaasNotConfiguredConfigureIn(string configKey) => $"API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha {configKey}.";
+        public static string ErrorValidatingAsaasConnection(string message) => $"❌ Erro ao validar conexão Asaas: {message}";
+        public static string ApiKeyNotConfiguredConfigureFirst(string exMessage) => $"❌ API Key não configurada: {exMessage}<br/>Configure primeiro em 'Configurar Asaas'.";
+        public static string AsaasReturnStatus(string statusCode, string message) => $"❌ <strong>Retorno {statusCode}</strong>: {message}";
+        public static string CoworkingCannotActivateWithoutFiscalPercentage(string coworkingName) => $"Não é possível ativar o coworking '{coworkingName}' porque não possui percentagem informada para o serviço 'Ofertar Endereço Fiscal'. Configure a percentagem antes de ativar.";
+        public static string SefazNotImplementedForState(string state) => $"Integração SEFAZ ainda não implementada para o estado {state}.";
+        public static string SefazConfigNotFoundForState(string state) => $"Configuração SEFAZ não encontrada para o estado {state}. Configure em SEFAZ > Configurações.";
+        public static string SefazConfigNotFoundForStateCoworking(string state) => $"Configuração SEFAZ não encontrada para o estado {state}. Configure em Configurações SEFAZ.";
+        public const string ErrorCancellingInvoice = "Erro ao cancelar nota fiscal.";
+        public const string PartnerNotFound = "Parceiro não encontrado.";
+        public const string ThisPaymentDoesNotBelongToYourCoworking = "Este pagamento não pertence ao seu coworking.";
+        public const string NfServiceAlreadyExistsForThisPayment = "Já existe uma NF de serviço emitida para este pagamento.";
+        public const string NfServiceAlreadyExistsOrImported = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
+        public const string InformReprovalJustification = "Por favor, informe a justificativa da reprovação.";
+
+        // ----- Coworking -----
+        public const string NameAndCnpjRequired = "Nome e CNPJ são obrigatórios.";
+        public const string CnpjAlreadyRegisteredInSystemCoworking = "O CNPJ já está cadastrado no sistema."; // usado com param: CnpjAlreadyRegisteredInSystem(cnpj)
+        public const string CannotAddAnotherFiscalAddress = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
+        public const string CoworkingNotFoundCompleteRegistration = "Coworking não encontrado. Complete seu cadastro primeiro.";
+        public const string SelectedLocationNotFound = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
+        public const string BasePriceCannotBeNegative = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
+        public const string InvalidAddressId = "ID do endereço inválido.";
+        public const string AddressNotFoundOrNoPermission = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+        public const string CannotEditAddressWithActiveContracts = "Não é possível editar um endereço que possui contrato(s) ativo(s).";
+        public static string MaxContractsCannotBeLessThanActive(int currentContracts) => $"O máximo de contratos não pode ser menor que o número de contratos ativos ({currentContracts}).";
+        public static string MaxContractsMustBe20PercentHigher(int maxContracts, int currentMax, int minRequired) => $"O novo valor de contratos máximos ({maxContracts}) deve ser pelo menos 20% maior que o valor atual ({currentMax}). O valor mínimo permitido é {minRequired}.";
+        public const string CardPriceChangeRequestPendingForAddress = "Já existe uma solicitação de alteração de preços no cartão pendente para este endereço. Aguarde a aprovação administrativa.";
+        public const string MaxQuantityChangeRequestPending = "Já existe uma solicitação de alteração de quantidade máxima pendente para este endereço.";
+        public const string JustificationRequiredForMaxQuantityRequest = "A justificativa é obrigatória para solicitar alteração de quantidade máxima.";
+        public const string ContractNotFoundOrNoPermission = "Contrato não encontrado ou você não tem permissão para visualizá-lo.";
+        public const string OnlyWaitingAdjustmentCanBeResent = "Apenas cadastros com status Aguardando ajuste podem ser reenviados.";
+        public const string SelectAtLeastOnePhoto = "Por favor, selecione pelo menos uma foto.";
+        public static string MaxPhotosReached(int maxPhotos) => $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
+        public static string FileTooLarge(string fileName, string maxMb) => $"O arquivo \"{fileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
+        public const string PhotoNotFound = "Foto não encontrada.";
+        public static string PartnerPhotoTooLarge(string maxMb) => $"A foto do sócio é muito grande. Tamanho máximo: {maxMb}MB.";
+        public const string PartnerNotFoundCoworking = "Sócio não encontrado.";
+        public const string PleaseSelectAFile = "Por favor, selecione um arquivo.";
+        public const string FileExceedsMaxSize10Mb = "O arquivo excede o tamanho máximo de 10MB.";
+        public const string BlockedDateAlreadyExists = "Já existe um bloqueio para esta data.";
+        public const string BlockedDateNotFound = "Data bloqueada não encontrada.";
+        public const string ServiceNotFoundOrInactive = "Serviço não encontrado ou inativo.";
+        public const string ServiceNotAvailableAtMoment = "Este serviço não está disponível no momento.";
+        public const string ServiceAlreadyRegistered = "Este serviço já está cadastrado.";
+        public const string ServiceNotFoundOrNotBelongToPartner = "Serviço não encontrado ou não pertence a este parceiro.";
+        public const string CannotRequestServiceRemovalWithActiveContracts = "Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.";
+        public const string CannotRequestServiceRemovalWithPendingPayments = "Não é possível solicitar a remoção deste serviço enquanto houver cliente(s) com pagamento aguardando validação.";
+        public const string CapacityMustBeAtLeast1CreditsAtLeast0 = "Capacidade deve ser >= 1 e créditos >= 0.";
+        public const string RoomNotFound = "Sala não encontrada.";
+        public const string OnlyActiveAddressesCanUseThisFeature = "Esta funcionalidade está disponível apenas para endereços com contratos ativos. Use a edição normal do endereço.";
+        public const string OnlyActiveAddressesCanUseThisFeatureShort = "Esta funcionalidade está disponível apenas para endereços com contratos ativos.";
+        public const string NoPermissionToValidatePayment = "Você não tem permissão para validar este pagamento.";
+        public static string PayoutRequiresBankData(string profileUrl) => "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + profileUrl + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
+        public const string NoPendingCommissionsForTransfer = "Não há comissões pendentes para transferência";
+        public const string ErrorProcessingPayoutRequest = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
+
+        // ----- Auth -----
+        public const string InvalidOrExpiredToken = "Token inválido ou expirado.";
+    }
+}

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Text;
 using KlyonHubPlatform.Domain.Interfaces;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace KlyonHubPlatform.Application.Services
@@ -24,14 +25,14 @@ namespace KlyonHubPlatform.Application.Services
         {
             try
             {
-                var smtpServer = await _systemConfigService.GetValueAsync("Email.SmtpServer");
-                var smtpPortStr = await _systemConfigService.GetValueAsync("Email.SmtpPort") ?? "587";
-                var smtpUsername = await _systemConfigService.GetValueAsync("Email.SmtpUsername");
-                var smtpPassword = await _systemConfigService.GetValueAsync("Email.SmtpPassword");
-                var fromEmail = await _systemConfigService.GetValueAsync("Email.FromEmail");
-                var fromName = await _systemConfigService.GetValueAsync("Email.FromName");
-                var enableSslStr = await _systemConfigService.GetValueAsync("Email.EnableSsl") ?? KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.True;
-                var replyToEmail = await _systemConfigService.GetValueAsync("Email.ReplyToEmail");
+                var smtpServer = await _systemConfigService.GetValueAsync(EmailConfigKey.SmtpServer.ToConfigKey());
+                var smtpPortStr = await _systemConfigService.GetValueAsync(EmailConfigKey.SmtpPort.ToConfigKey()) ?? "587";
+                var smtpUsername = await _systemConfigService.GetValueAsync(EmailConfigKey.SmtpUsername.ToConfigKey());
+                var smtpPassword = await _systemConfigService.GetValueAsync(EmailConfigKey.SmtpPassword.ToConfigKey());
+                var fromEmail = await _systemConfigService.GetValueAsync(EmailConfigKey.FromEmail.ToConfigKey());
+                var fromName = await _systemConfigService.GetValueAsync(EmailConfigKey.FromName.ToConfigKey());
+                var enableSslStr = await _systemConfigService.GetValueAsync(EmailConfigKey.EnableSsl.ToConfigKey()) ?? KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.True;
+                var replyToEmail = await _systemConfigService.GetValueAsync(EmailConfigKey.ReplyToEmail.ToConfigKey());
 
                 if (string.IsNullOrEmpty(smtpServer) || string.IsNullOrEmpty(smtpUsername) || string.IsNullOrEmpty(smtpPassword))
                 {

@@ -717,7 +717,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // Aplicar percentual de cartão de crédito se configurado
             decimal amountToCharge = payment.Amount;
-            var feePercentageStr = await _systemConfigurationService.GetValueAsync("Payment.CreditCardFeePercentage");
+            var feePercentageStr = await _systemConfigurationService.GetValueAsync(PaymentConfigKey.CreditCardFeePercentage.ToConfigKey());
             if (!string.IsNullOrWhiteSpace(feePercentageStr) && decimal.TryParse(feePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fee) && fee > 0)
             {
                 amountToCharge = payment.Amount * (1 + fee / 100);
@@ -968,8 +968,8 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _context.Payments
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                .Where(p => p.Subscription.Contract.ClientId == clientId)
+                    .ThenInclude(s => s!.Contract)
+                .Where(p => p.Subscription != null && p.Subscription.Contract != null && p.Subscription.Contract.ClientId == clientId)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
         }

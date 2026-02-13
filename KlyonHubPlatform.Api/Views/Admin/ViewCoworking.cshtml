@@ -47,9 +47,8 @@
                         <p>
                             @{
                                 var ap = Model.ApprovalStatus;
-                                var (b, t) = ap == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview ? ("warning", "Aguardando aprovação")
-                                    : ap == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment ? ("secondary", "Aguardando ajuste")
-                                    : ("success", "Aprovado");
+                                var b = ap.ToBadgeCssClass();
+                                var t = ap.ToDisplayString();
                             }
                             <span class="badge bg-@b">@t</span>
                         </p>

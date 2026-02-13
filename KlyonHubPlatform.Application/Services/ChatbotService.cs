@@ -268,7 +268,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 messages = await _repository.GetMessagesByConversationIdAsync(conversation.Id);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Se falhar ao buscar mensagens, usar lista vazia mas não falhar completamente
                 messages = new List<ChatMessage> { welcomeMessage };

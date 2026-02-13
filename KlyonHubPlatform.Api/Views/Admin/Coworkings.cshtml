@@ -188,16 +188,8 @@
                                 </td>
                                 <td>
                                     @{
-                                        var aprovaçãoLabel = coworking.ApprovalStatus switch { 
-                                            CoworkingApprovalStatus.UnderReview => "Pendente aprovação", 
-                                            CoworkingApprovalStatus.AwaitingAdjustment => "Pendente reprovação", 
-                                            _ => "Aprovado" 
-                                        };
-                                        var aprovaçãoBadge = coworking.ApprovalStatus switch { 
-                                            CoworkingApprovalStatus.UnderReview => "warning", 
-                                            CoworkingApprovalStatus.AwaitingAdjustment => "danger", 
-                                            _ => "success" 
-                                        };
+                                        var aprovaçãoLabel = coworking.ApprovalStatus.ToAdminListLabel();
+                                        var aprovaçãoBadge = coworking.ApprovalStatus.ToBadgeCssClass();
                                         var isPendingApproval = coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview || coworking.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment;
                                     }
                                     <span class="badge bg-@aprovaçãoBadge" title="@(isPendingApproval ? "Este coworking está aguardando ação do administrador" : "")">

@@ -35,7 +35,7 @@ namespace KlyonHubPlatform.Application.Services
         public Task<string> GenerateTokenAsync(User user, List<string> roles)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
-            var secretKey = jwtSettings["SecretKey"];
+            var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is required");
             var issuer = jwtSettings["Issuer"];
             var audience = jwtSettings["Audience"];
             var expirationMinutes = int.Parse(jwtSettings["ExpirationMinutes"] ?? "1440");

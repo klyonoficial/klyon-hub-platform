@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using KlyonHubPlatform.Domain.Core.Enums;
 
 namespace KlyonHubPlatform.Infra.CrossCutting.Helpers
 {
@@ -119,7 +120,7 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Helpers
         /// </summary>
         /// <param name="value">CPF ou CNPJ com ou sem formatação</param>
         /// <returns>Tupla com (isValid, type, message)</returns>
-        public static (bool isValid, string? type, string message) ValidateCPForCNPJ(string? value)
+        public static (bool isValid, TipoDocumentoCliente? type, string message) ValidateCPForCNPJ(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -132,12 +133,12 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Helpers
             if (clean.Length == 11)
             {
                 bool isValid = IsValidCPF(value);
-                return (isValid, "CPF", isValid ? "CPF válido." : "CPF inválido. Verifique os dígitos informados.");
+                return (isValid, TipoDocumentoCliente.CPF, isValid ? "CPF válido." : "CPF inválido. Verifique os dígitos informados.");
             }
             else if (clean.Length == 14)
             {
                 bool isValid = IsValidCNPJ(value);
-                return (isValid, "CNPJ", isValid ? "CNPJ válido." : "CNPJ inválido. Verifique os dígitos informados.");
+                return (isValid, TipoDocumentoCliente.CNPJ, isValid ? "CNPJ válido." : "CNPJ inválido. Verifique os dígitos informados.");
             }
             else
             {

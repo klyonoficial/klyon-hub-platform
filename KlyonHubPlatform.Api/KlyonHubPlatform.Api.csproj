@@ -7,6 +7,8 @@
     <RootNamespace>KlyonHubPlatform.Api</RootNamespace>
     <HotReloadEnabled>true</HotReloadEnabled>
     <HotReloadProfile>Default</HotReloadProfile>
+    <!-- Suprime avisos de nulidade em Views Razor e código gerado; correções aplicadas nos controllers e serviços -->
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8629</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +20,7 @@
     </PackageReference>
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="iTextSharp.LGPLv2.Core" Version="2.0.8" />
+    <PackageReference Include="iTextSharp.LGPLv2.Core" Version="3.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />

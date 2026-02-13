@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.AspNetCore.Http;
 
 namespace KlyonHubPlatform.Application.Services;
@@ -28,6 +29,6 @@ public class AppBaseUrlProvider : IAppBaseUrlProvider
             if (!host.StartsWith("localhost", StringComparison.OrdinalIgnoreCase))
                 return $"{scheme}://{host.TrimEnd('/')}";
         }
-        return await _systemConfigService.GetValueAsync("AppSettings.BaseUrl") ?? "https://localhost:5001";
+        return await _systemConfigService.GetValueAsync(AppSettingsConfigKey.BaseUrl.ToConfigKey()) ?? "https://localhost:5001";
     }
 }

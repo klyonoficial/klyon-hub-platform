@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using System.Security.Claims;
 
@@ -23,7 +24,7 @@ namespace KlyonHubPlatform.Api.ViewComponents
             };
 
             var user = HttpContext.User as ClaimsPrincipal;
-            if (user?.Identity?.IsAuthenticated != true || !user.IsInRole("CoworkingPartner"))
+            if (user?.Identity?.IsAuthenticated != true || !user.IsInRole(RoleNames.CoworkingPartner))
             {
                 return View(model);
             }
@@ -69,10 +70,4 @@ namespace KlyonHubPlatform.Api.ViewComponents
             }
         }
     }
-
-    public class CoworkingProductsModel
-    {
-        public bool HasFiscalAddress { get; set; }
-        public bool HasRoomRental { get; set; }
-    }    
 }

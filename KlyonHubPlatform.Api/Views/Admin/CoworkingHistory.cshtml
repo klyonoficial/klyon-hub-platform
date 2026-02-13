@@ -8,16 +8,10 @@
 @{
     var cow = ViewBag.Coworking as KlyonHubPlatform.Domain.Entities.Coworking;
     
-    // Função helper para traduzir ApprovalStatus
+    // Função helper para traduzir ApprovalStatus (usa extensão centralizada)
     string TranslateApprovalStatus(string? value)
     {
-        return value switch
-        {
-            "UnderReview" => "Em análise",
-            "AwaitingAdjustment" => "Aguardando ajuste",
-            "Approved" => "Aprovado",
-            _ => value ?? ""
-        };
+        return KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatusExtensions.ToDisplayStringFromEnumName(value);
     }
     
     // Função helper para traduzir nomes de campos
@@ -61,14 +55,7 @@
                                 <td>@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td>
                                     @{
-                                        var actionLabel = log.Action switch
-                                        {
-                                            "Submitted" => "Cadastro enviado",
-                                            "ApprovalStatusChange" => "Mudança de status",
-                                            "ResubmitForApproval" => "Reenviado para análise",
-                                            "ReturnedToReview" => "Retornou para análise",
-                                            _ => log.Action
-                                        };
+                                        var actionLabel = KlyonHubPlatform.Domain.Core.Constants.CoworkingHistoryActionLabels.GetDisplayLabel(log.Action ?? string.Empty);
                                     }
                                     <span class="badge bg-secondary">@actionLabel</span>
                                 </td>

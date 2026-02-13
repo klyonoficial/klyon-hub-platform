@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KlyonHubPlatform.Domain.Core\KlyonHubPlatform.Domain.Core.csproj" />
-    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
   </ItemGroup>
 
 </Project>

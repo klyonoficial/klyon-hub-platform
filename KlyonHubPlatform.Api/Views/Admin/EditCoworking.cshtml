@@ -57,9 +57,9 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Aprovação do cadastro</label>
                             <select class="form-select" name="ApprovalStatus">
-                                <option value="0" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.UnderReview)">Aguardando aprovação</option>
-                                <option value="1" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)">Aguardando ajuste</option>
-                                <option value="2" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.Approved)">Aprovado</option>
+                                <option value="0" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.UnderReview)">@CoworkingApprovalStatusExtensions.DisplayStrings.AwaitingApprovalShort</option>
+                                <option value="1" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)">@CoworkingApprovalStatusExtensions.DisplayStrings.AwaitingAdjustmentShort</option>
+                                <option value="2" selected="@(Model.ApprovalStatus == CoworkingApprovalStatus.Approved)">@CoworkingApprovalStatusExtensions.DisplayStrings.Approved</option>
                             </select>
                         </div>
                         @if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment && !string.IsNullOrEmpty(Model.RejectionReason))

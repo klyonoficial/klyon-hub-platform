@@ -43,6 +43,21 @@ namespace KlyonHubPlatform.Application.Interfaces
         public const string EnderecoFiscal = "EnderecoFiscal";
         public const string AluguelSalas = "AluguelSalas";
         public const string CertificadoDigitais = "CertificadoDigitais";
+
+        public static string GetDisplayName(string productType) => productType switch
+        {
+            EnderecoFiscal => DisplayNames.EnderecoFiscal,
+            AluguelSalas => DisplayNames.AluguelSalas,
+            CertificadoDigitais => DisplayNames.CertificadoDigitais,
+            _ => productType
+        };
+
+        public static class DisplayNames
+        {
+            public const string EnderecoFiscal = "Endereço Fiscal";
+            public const string AluguelSalas = "Aluguel de Salas";
+            public const string CertificadoDigitais = "Certificado Digitais";
+        }
     }
 
     /// <summary>Filtro de origem da venda (relatório financeiro): null/"" = Todos, "AssistedOnly", "SelfServiceOnly"</summary>

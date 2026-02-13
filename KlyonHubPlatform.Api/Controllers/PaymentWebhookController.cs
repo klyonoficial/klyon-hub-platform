@@ -2,6 +2,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
+using KlyonHubPlatform.Api.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -38,12 +39,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 //     await _paymentService.ConfirmPaymentAsync(payment.Id, paymentIntentId);
                 // }
 
-                return Ok(new { received = true });
+                return Ok(OkMessage.WebhookReceivedResponse);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao processar webhook do Stripe");
-                return StatusCode(500, new { error = "Erro ao processar webhook" });
+                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook });
             }
         }
 
@@ -57,12 +58,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 
                 _logger.LogInformation("Webhook do PagSeguro recebido");
                 
-                return Ok(new { received = true });
+                return Ok(OkMessage.WebhookReceivedResponse);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao processar webhook do PagSeguro");
-                return StatusCode(500, new { error = "Erro ao processar webhook" });
+                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook });
             }
         }
 
@@ -76,12 +77,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 
                 _logger.LogInformation("Webhook do Asaas recebido");
                 
-                return Ok(new { received = true });
+                return Ok(OkMessage.WebhookReceivedResponse);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao processar webhook do Asaas");
-                return StatusCode(500, new { error = "Erro ao processar webhook" });
+                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook });
             }
         }
     }

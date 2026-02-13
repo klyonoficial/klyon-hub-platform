@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using KlyonHubPlatform.Api.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -30,14 +31,14 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(request.SessionId))
                 {
-                    return BadRequest(new { error = "SessionId é obrigatório" });
+                    return BadRequest(new { error = ErrorJson.SessionIdRequired });
                 }
 
                 // Verificar se as tabelas do chatbot existem antes de tentar usar
                 var context = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 try
                 {
-                    await context.Database.ExecuteSqlRawAsync("SELECT 1 FROM ChatConversations LIMIT 1");
+                    await context.Database.ExecuteSqlAsync($"SELECT 1 FROM ChatConversations LIMIT 1");
                 }
                 catch (Exception dbEx)
                 {
@@ -45,7 +46,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     logger?.LogError(dbEx, "Tabelas do KlyonBoot não encontradas: {Message}", dbEx.Message);
                     
                     return StatusCode(500, new { 
-                        error = "Tabelas do KlyonBoot não encontradas", 
+                        error = ErrorJson.KlyonBootTablesNotFound, 
                         details = "As tabelas do chatbot não foram criadas no banco de dados.",
                         solution = "Acesse /Admin/DatabaseManager e execute as migrations pendentes",
                         technicalDetails = dbEx.Message
@@ -89,7 +90,7 @@ namespace KlyonHubPlatform.Api.Controllers
                      fullStackTrace.Contains("Unknown table", StringComparison.OrdinalIgnoreCase)))
                 {
                     return StatusCode(500, new { 
-                        error = "Tabelas do KlyonBoot não encontradas", 
+                        error = ErrorJson.KlyonBootTablesNotFound, 
                         details = "As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations em /Admin/DatabaseManager",
                         solution = "Acesse /Admin/DatabaseManager e execute as migrations pendentes",
                         technicalDetails = errorMessage
@@ -109,7 +110,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 
                 return StatusCode(500, new { 
-                    error = "Erro ao iniciar conversa", 
+                    error = ErrorJson.ErrorStartingConversation, 
                     details = errorMessage,
                     innerException = innerMessage
                 });
@@ -125,7 +126,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(request.Message))
-                    return BadRequest(new { error = "Mensagem não pode estar vazia" });
+                    return BadRequest(new { error = ErrorJson.MessageCannotBeEmpty });
 
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
                 var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
@@ -151,7 +152,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 await _chatbotService.MarkConversationAsResolvedAsync(conversationId, request.WasResolved);
-                return Ok(new { message = "Conversa marcada com sucesso" });
+                return Ok(new { message = OkMessage.ConversationMarkedSuccess });
             }
             catch (Exception ex)
             {
@@ -168,7 +169,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 await _chatbotService.EndConversationAsync(conversationId);
-                return Ok(new { message = "Conversa encerrada com sucesso" });
+                return Ok(new { message = OkMessage.ConversationEndedSuccess });
             }
             catch (Exception ex)
             {
@@ -185,7 +186,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(query))
-                    return BadRequest(new { error = "Query não pode estar vazia" });
+                    return BadRequest(new { error = ErrorJson.QueryCannotBeEmpty });
 
                 var results = await _chatbotService.SearchFaqAsync(query);
                 return Ok(results);
@@ -245,7 +246,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     request.Notes
                 );
 
-                return Ok(new { message = "Pergunta atualizada com sucesso" });
+                return Ok(new { message = OkMessage.QuestionUpdatedSuccess });
             }
             catch (Exception ex)
             {
@@ -286,7 +287,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     try
                     {
+#pragma warning disable EF1002 // Nome da tabela vem de lista fixa, não de entrada do usuário
                         await context.Database.ExecuteSqlRawAsync($"SELECT 1 FROM `{table}` LIMIT 1");
+#pragma warning restore EF1002
                         results[table] = true;
                     }
                     catch
@@ -310,24 +313,5 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao verificar tabelas", details = ex.Message });
             }
         }
-    }
-
-    // DTOs para requests
-    public class StartConversationRequest
-    {
-        public string SessionId { get; set; } = string.Empty;
-        public int? UserId { get; set; }
-    }
-
-    public class ResolveRequest
-    {
-        public bool WasResolved { get; set; }
-    }
-
-    public class UpdateUnansweredQuestionRequest
-    {
-        public string Status { get; set; } = string.Empty;
-        public int ReviewedBy { get; set; }
-        public string? Notes { get; set; }
     }
 }

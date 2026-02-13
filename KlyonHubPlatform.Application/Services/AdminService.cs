@@ -234,11 +234,11 @@ namespace KlyonHubPlatform.Application.Services
             query = query.OrderByDescending(c => c.CreatedAt);
 
             return await query
-                .Include(c => c.Client)
+                .Include(c => c.Client!)
                 .Include(c => c.CoworkingAddress)
-                    .ThenInclude(a => a.Location)
+                    .ThenInclude(a => a!.Location)
                 .Include(c => c.Subscription)
-                    .ThenInclude(s => s.Payments)
+                    .ThenInclude(s => s!.Payments)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -257,9 +257,9 @@ namespace KlyonHubPlatform.Application.Services
             if (!string.IsNullOrEmpty(search))
             {
                 query = query.Where(c => 
-                    c.ContractNumber.Contains(search) || 
-                    (c.Client != null && (c.Client.RazaoSocial.Contains(search) || c.Client.NomeFantasia.Contains(search))) ||
-                    (c.CoworkingAddress != null && (c.CoworkingAddress.Address.Contains(search) || c.CoworkingAddress.City.Contains(search))));
+                    (c.ContractNumber != null && c.ContractNumber.Contains(search)) || 
+                    (c.Client != null && (c.Client.RazaoSocial != null && c.Client.RazaoSocial.Contains(search) || c.Client.NomeFantasia != null && c.Client.NomeFantasia.Contains(search))) ||
+                    (c.CoworkingAddress != null && (c.CoworkingAddress.Address != null && c.CoworkingAddress.Address.Contains(search) || c.CoworkingAddress.City != null && c.CoworkingAddress.City.Contains(search))));
             }
 
             if (!string.IsNullOrEmpty(status))

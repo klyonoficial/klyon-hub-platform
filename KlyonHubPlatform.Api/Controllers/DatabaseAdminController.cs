@@ -3,6 +3,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
+using KlyonHubPlatform.Api.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -36,7 +37,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao obter status do banco");
-                return StatusCode(500, new { error = "Erro ao obter status do banco de dados", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorDatabaseStatus, details = ex.Message });
             }
         }
 
@@ -54,7 +55,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao obter migrations pendentes");
-                return StatusCode(500, new { error = "Erro ao obter migrations pendentes", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorPendingMigrations, details = ex.Message });
             }
         }
 
@@ -72,7 +73,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao obter migrations aplicadas");
-                return StatusCode(500, new { error = "Erro ao obter migrations aplicadas", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorAppliedMigrations, details = ex.Message });
             }
         }
 
@@ -87,7 +88,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar confirmação
                 if (!request.Confirmed)
                 {
-                    return BadRequest(new { error = "Confirmação necessária para executar migrations" });
+                    return BadRequest(new { error = ErrorJson.ConfirmationRequiredMigrations });
                 }
 
                 _logger.LogWarning($"Usuário {User.Identity?.Name} iniciou execução de migrations");
@@ -108,7 +109,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro crítico ao executar migrations");
-                return StatusCode(500, new { error = "Erro crítico ao executar migrations", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorCriticalMigrations, details = ex.Message });
             }
         }
 
@@ -126,14 +127,8 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao verificar migrations pendentes");
-                return StatusCode(500, new { error = "Erro ao verificar migrations", details = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorVerifyMigrations, details = ex.Message });
             }
         }
-    }
-
-    public class ExecuteMigrationsRequest
-    {
-        public bool Confirmed { get; set; }
-        public string? BackupConfirmation { get; set; }
     }
 }

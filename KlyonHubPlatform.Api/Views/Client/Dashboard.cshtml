@@ -1,9 +1,10 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Dashboard Cliente";
     Layout = "~/Views/Shared/_Layout.cshtml";
     // Verificar se os menus de coworking estão habilitados
-    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
     var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 }
 

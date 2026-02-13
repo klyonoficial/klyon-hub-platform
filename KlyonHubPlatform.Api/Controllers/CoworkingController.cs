@@ -13,6 +13,7 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
+using KlyonHubPlatform.Api.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers
@@ -87,7 +88,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
         {
-            var mb = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            var mb = await _systemConfig.GetValueAsync(UploadConfigKey.MaxPhotoSizeMB.ToConfigKey());
             if (int.TryParse(mb, out var n) && n > 0) return n * 1024L * 1024L;
             return 5 * 1024L * 1024L;
         }
@@ -171,7 +172,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Carregar coworking com endereços
@@ -295,14 +296,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
 
-            return RedirectToAction("Dashboard");
+            return RedirectToAction(ActionNames.Dashboard);
         }
 
         /// <summary>Retorna as pendências administrativas com detalhes (ex.: lista de documentos em análise) para exibição em modal.</summary>
         [HttpGet]
         public async Task<IActionResult> GetPendencyDetails(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
             if (coworkingEntity == null)
@@ -445,32 +446,21 @@ namespace KlyonHubPlatform.Api.Controllers
             return Json(new { pendencies });
         }
 
-        private static string GetDocumentTypeDisplayName(CoworkingDocumentType type)
-        {
-            return type switch
-            {
-                CoworkingDocumentType.AddressCessionContract => "Contrato de Cessão de Endereço",
-                CoworkingDocumentType.AddressProof => "Comprovante de Endereço",
-                CoworkingDocumentType.CNPJCard => "Cartão CNPJ",
-                CoworkingDocumentType.AddressAuthorization => "Declaração de Autorização",
-                CoworkingDocumentType.UtilityBill => "Conta de Utilidade",
-                _ => type.ToString()
-            };
-        }
+        private static string GetDocumentTypeDisplayName(CoworkingDocumentType type) => type.ToDisplayString();
 
         [HttpGet]
         public async Task<IActionResult> Register(CancellationToken cancellationToken = default)
         {
             // Verificar se já existe um coworking cadastrado
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = existingCoworking.FirstOrDefault();
 
             if (coworkingEntity != null)
             {
                 // Se já existe, redirecionar para o Profile para editar
-                TempData["Info"] = $"Você já possui um coworking cadastrado: {coworkingEntity.Name}. Redirecionando para o perfil...";
-                return RedirectToAction("Profile");
+                TempData[TempDataKeys.Info] = InfoMessages.AlreadyHasCoworking(coworkingEntity.Name);
+                return RedirectToAction(ActionNames.Profile);
             }
 
             // Preencher o email do usuário logado automaticamente
@@ -513,10 +503,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar campos obrigatórios
                 if (string.IsNullOrWhiteSpace(coworking.Name) || string.IsNullOrWhiteSpace(coworking.CNPJ))
                 {
-                    TempData["Error"] = "Nome e CNPJ são obrigatórios.";
+                    TempData[ErrorMessages.TempDataKey] = "Nome e CNPJ são obrigatórios.";
                     var userEmail = User.FindFirstValue(ClaimTypes.Email);
                     ViewBag.UserEmail = userEmail;
-                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
                     ViewBag.UserFullName = user?.FullName ?? string.Empty;
                     return View(coworking);
                 }
@@ -525,10 +515,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
                 {
-                    TempData["Error"] = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
+                    TempData[ErrorMessages.TempDataKey] = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
                     var userEmail = User.FindFirstValue(ClaimTypes.Email);
                     ViewBag.UserEmail = userEmail;
-                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
                     ViewBag.UserFullName = user?.FullName ?? string.Empty;
                     return View(coworking);
                 }
@@ -541,10 +531,10 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existingCNPJ != null)
                 {
-                    TempData["Error"] = $"O CNPJ {coworking.CNPJ} já está cadastrado no sistema.";
+                    TempData[ErrorMessages.TempDataKey] = $"O CNPJ {coworking.CNPJ} já está cadastrado no sistema.";
                     var userEmail = User.FindFirstValue(ClaimTypes.Email);
                     ViewBag.UserEmail = userEmail;
-                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)));
+                    var user = await _context.Users.FindAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
                     ViewBag.UserFullName = user?.FullName ?? string.Empty;
                     return View(coworking);
                 }
@@ -552,7 +542,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Formatar CNPJ com máscara
                 coworking.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
 
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 coworking.UserId = userId;
                 coworking.IsActive = true;
                 coworking.IsPartner = true;
@@ -628,7 +618,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Validar se há horários de funcionamento configurados (apenas se EnableCoworkingMenus estiver habilitado)
-                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 if (showCoworkingMenus)
@@ -639,7 +629,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     if (operatingHours == 0)
                     {
-                        TempData["Warning"] = "Coworking cadastrado, mas é necessário configurar os horários de funcionamento no perfil para ativar reservas.";
+                        TempData[TempDataKeys.Warning] = WarningMessages.CoworkingRegisteredConfigureOperatingHours;
                     }
                 }
 
@@ -656,12 +646,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     await RefreshUserPrincipalAsync(userToUpdate);
                 }
 
-                TempData["Success"] = "Coworking cadastrado com sucesso!";
-                return RedirectToAction("Dashboard");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.CoworkingRegistered;
+                return RedirectToAction(ActionNames.Dashboard);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao cadastrar coworking: {ex.Message}";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao cadastrar coworking: {ex.Message}";
                 var userEmail = User.FindFirstValue(ClaimTypes.Email);
                 ViewBag.UserEmail = userEmail;
                 return View(coworking ?? new Coworking());
@@ -672,13 +662,13 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> MyAddresses(string? search = null, string? status = null, int? locationId = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var query = _context.CoworkingAddresses
@@ -756,7 +746,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> AddAddress(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
@@ -765,8 +755,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 var hasFiscalAddress = await _context.CoworkingAddresses.AnyAsync(a => a.CoworkingId == coworkingEntity.Id);
                 if (hasFiscalAddress)
                 {
-                    TempData["Error"] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
             }
 
@@ -800,28 +790,28 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 var hasFiscalAddress = await _context.CoworkingAddresses.AnyAsync(a => a.CoworkingId == coworkingEntity.Id);
                 if (hasFiscalAddress)
                 {
-                    TempData["Error"] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Validar se a localidade existe
                 var location = await _context.Locations.FindAsync(locationId);
                 if (location == null)
                 {
-                    TempData["Error"] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
+                    TempData[ErrorMessages.TempDataKey] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                     bool hasRoomRental = false;
                     try
@@ -843,7 +833,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar preço base (não pode ser negativo)
                 if (basePrice < 0)
                 {
-                    TempData["Error"] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
+                    TempData[ErrorMessages.TempDataKey] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                     bool hasRoomRental = false;
                     try
@@ -904,13 +894,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
-                TempData["Success"] = "Endereço cadastrado com sucesso!";
-                return RedirectToAction("MyAddresses");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.AddressRegistered;
+                return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao cadastrar endereço: {ex.Message}";
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao cadastrar endereço: {ex.Message}";
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
                 bool hasRoomRental = false;
@@ -940,18 +930,18 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (!id.HasValue || id.Value <= 0)
             {
-                TempData["Error"] = "ID do endereço inválido.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "ID do endereço inválido.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                return RedirectToAction("Register");
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                return RedirectToAction(ActionNames.Register);
             }
 
             var address = await _context.CoworkingAddresses
@@ -961,8 +951,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (address == null)
             {
-                TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
             // Verificar se o coworking tem o produto RoomRental ativo
@@ -1001,14 +991,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 // Buscar o endereço existente com relacionamentos
@@ -1018,8 +1008,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existingAddress == null)
                 {
-                    TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Verificar se há contratos ativos - não permitir edição se houver
@@ -1028,15 +1018,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (hasActiveContracts)
                 {
-                    TempData["Error"] = "Não é possível editar um endereço que possui contrato(s) ativo(s).";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Não é possível editar um endereço que possui contrato(s) ativo(s).";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Validar se a localidade existe
                 var location = await _context.Locations.FindAsync(locationId);
                 if (location == null)
                 {
-                    TempData["Error"] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
+                    TempData[ErrorMessages.TempDataKey] = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                     bool hasRoomRental = false;
                     try
@@ -1064,7 +1054,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar preço base (não pode ser negativo)
                 if (basePrice < 0)
                 {
-                    TempData["Error"] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
+                    TempData[ErrorMessages.TempDataKey] = "O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                     bool hasRoomRental = false;
                     try
@@ -1087,7 +1077,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar maxContracts (não pode ser menor que currentContracts)
                 if (maxContracts < existingAddress.CurrentContracts)
                 {
-                    TempData["Error"] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
+                    TempData[ErrorMessages.TempDataKey] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
                     var locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
                     bool hasRoomRental = false;
                     try
@@ -1125,16 +1115,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço atualizado");
                 await _coworkingService.UpdateAddressAsync(existingAddress);
 
-                TempData["Success"] = "Endereço atualizado com sucesso!";
-                return RedirectToAction("MyAddresses");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.AddressUpdated;
+                return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao atualizar endereço: {ex.Message}";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao atualizar endereço: {ex.Message}";
                 var existingAddress = await _context.CoworkingAddresses
                     .Include(a => a.Location)
                     .FirstOrDefaultAsync(a => a.Id == id);
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
                 bool hasRoomRental = false;
@@ -1165,17 +1155,17 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (!id.HasValue || id.Value <= 0)
             {
-                TempData["Error"] = "ID do endereço inválido.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "ID do endereço inválido.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
             if (coworkingEntity == null)
             {
-                TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                return RedirectToAction("Register");
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                return RedirectToAction(ActionNames.Register);
             }
 
             var address = await _context.CoworkingAddresses
@@ -1184,8 +1174,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 .FirstOrDefaultAsync(a => a.Id == id.Value && a.CoworkingId == coworkingEntity.Id);
             if (address == null)
             {
-                TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
             return View(address);
@@ -1197,13 +1187,13 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 var address = await _context.CoworkingAddresses
@@ -1211,15 +1201,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     .FirstOrDefaultAsync(a => a.Id == id && a.CoworkingId == coworkingEntity.Id);
                 if (address == null)
                 {
-                    TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Não permite nova solicitação se já existe uma pendente
                 if (address.CardPricesApprovalStatus == CapacityApprovalStatus.Pending)
                 {
-                    TempData["Error"] = "Já existe uma solicitação de alteração de preços no cartão pendente para este endereço. Aguarde a aprovação administrativa.";
-                    return RedirectToAction("CardPrices", new { id });
+                    TempData[ErrorMessages.TempDataKey] = "Já existe uma solicitação de alteração de preços no cartão pendente para este endereço. Aguarde a aprovação administrativa.";
+                    return RedirectToAction(ActionNames.CardPrices, new { id });
                 }
 
                 decimal? cardPrice1x = decimal.TryParse(Request.Form["CardPrice1x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v1) ? v1 : (decimal?)null;
@@ -1247,17 +1237,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 address.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Solicitação de alteração de preços no cartão enviada com sucesso! Os valores só serão exibidos aos clientes após aprovação administrativa.";
-                return RedirectToAction("MyAddresses");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardPriceChangeRequestSent;
+                return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao salvar: {ex.Message}";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao salvar: {ex.Message}";
                 var address = await _context.CoworkingAddresses
                     .Include(a => a.Location)
                     .Include(a => a.CardPriceChangeRequests)
                     .FirstOrDefaultAsync(a => a.Id == id);
-                return address != null ? View(address) : RedirectToAction("MyAddresses");
+                return address != null ? View(address) : RedirectToAction(ActionNames.MyAddresses);
             }
         }
 
@@ -1266,18 +1256,18 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (!id.HasValue || id.Value <= 0)
             {
-                TempData["Error"] = "ID do endereço inválido.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "ID do endereço inválido.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                return RedirectToAction("Register");
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                return RedirectToAction(ActionNames.Register);
             }
 
             var address = await _context.CoworkingAddresses
@@ -1287,8 +1277,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (address == null)
             {
-                TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
             // Verificar se há contratos ativos - necessário para editar MaxContracts
@@ -1297,8 +1287,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (!hasActiveContracts)
             {
-                TempData["Error"] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos. Use a edição normal do endereço.";
-                return RedirectToAction("MyAddresses");
+                TempData[ErrorMessages.TempDataKey] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos. Use a edição normal do endereço.";
+                return RedirectToAction(ActionNames.MyAddresses);
             }
 
             ViewBag.Address = address;
@@ -1311,14 +1301,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 // Buscar o endereço existente
@@ -1328,8 +1318,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existingAddress == null)
                 {
-                    TempData["Error"] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Verificar se há contratos ativos
@@ -1338,15 +1328,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (!hasActiveContracts)
                 {
-                    TempData["Error"] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos.";
-                    return RedirectToAction("MyAddresses");
+                    TempData[ErrorMessages.TempDataKey] = "Esta funcionalidade está disponível apenas para endereços com contratos ativos.";
+                    return RedirectToAction(ActionNames.MyAddresses);
                 }
 
                 // Validar que o novo valor seja pelo menos 20% maior que o atual
                 var minRequired = (int)Math.Ceiling(existingAddress.MaxContracts * 1.2m);
                 if (maxContracts < minRequired)
                 {
-                    TempData["Error"] = $"O novo valor de contratos máximos ({maxContracts}) deve ser pelo menos 20% maior que o valor atual ({existingAddress.MaxContracts}). O valor mínimo permitido é {minRequired}.";
+                    TempData[ErrorMessages.TempDataKey] = $"O novo valor de contratos máximos ({maxContracts}) deve ser pelo menos 20% maior que o valor atual ({existingAddress.MaxContracts}). O valor mínimo permitido é {minRequired}.";
                     ViewBag.Address = existingAddress;
                     return View(existingAddress);
                 }
@@ -1354,7 +1344,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar que não seja menor que contratos ativos
                 if (maxContracts < existingAddress.CurrentContracts)
                 {
-                    TempData["Error"] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
+                    TempData[ErrorMessages.TempDataKey] = $"O máximo de contratos não pode ser menor que o número de contratos ativos ({existingAddress.CurrentContracts}).";
                     ViewBag.Address = existingAddress;
                     return View(existingAddress);
                 }
@@ -1362,7 +1352,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Verificar se já existe solicitação pendente
                 if (existingAddress.MaxContractsApprovalStatus == CapacityApprovalStatus.Pending)
                 {
-                    TempData["Error"] = "Já existe uma solicitação de alteração de quantidade máxima pendente para este endereço.";
+                    TempData[ErrorMessages.TempDataKey] = "Já existe uma solicitação de alteração de quantidade máxima pendente para este endereço.";
                     ViewBag.Address = existingAddress;
                     return View(existingAddress);
                 }
@@ -1370,7 +1360,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Validar justificativa
                 if (string.IsNullOrWhiteSpace(justification))
                 {
-                    TempData["Error"] = "A justificativa é obrigatória para solicitar alteração de quantidade máxima.";
+                    TempData[ErrorMessages.TempDataKey] = "A justificativa é obrigatória para solicitar alteração de quantidade máxima.";
                     ViewBag.Address = existingAddress;
                     return View(existingAddress);
                 }
@@ -1395,12 +1385,12 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Solicitação de alteração de quantidade máxima enviada com sucesso! Aguardando aprovação administrativa.";
-                return RedirectToAction("MyAddresses");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.MaxQuantityRequestSent;
+                return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao processar solicitação: {ex.Message}";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao processar solicitação: {ex.Message}";
                 var existingAddress = await _context.CoworkingAddresses
                     .Include(a => a.Location)
                     .FirstOrDefaultAsync(a => a.Id == id);
@@ -1417,16 +1407,16 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 if (request == null || request.AddressId <= 0 || request.RequestedCapacity <= 0)
                 {
-                    return Json(new { success = false, message = "Dados inválidos." });
+                    return Json(new { success = false, message = JsonMessage.DadosInvalidos });
                 }
 
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    return Json(new { success = false, message = "Coworking não encontrado." });
+                    return Json(new { success = false, message = JsonMessage.CoworkingNaoEncontrado });
                 }
 
                 var address = await _context.CoworkingAddresses
@@ -1434,19 +1424,19 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (address == null)
                 {
-                    return Json(new { success = false, message = "Endereço não encontrado ou você não tem permissão para editá-lo." });
+                    return Json(new { success = false, message = JsonMessage.EnderecoNaoEncontradoOuSemPermissao });
                 }
 
                 // Validar capacidade solicitada
                 if (request.RequestedCapacity < address.CurrentContracts)
                 {
-                    return Json(new { success = false, message = $"A capacidade solicitada ({request.RequestedCapacity}) não pode ser menor que o número de contratos ativos ({address.CurrentContracts})." });
+                    return Json(new { success = false, message = string.Format(JsonMessage.CapacidadeSolicitadaMenorQueContratos, request.RequestedCapacity, address.CurrentContracts) });
                 }
 
                 // Verificar se já existe solicitação pendente
                 if (address.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
                 {
-                    return Json(new { success = false, message = "Já existe uma solicitação de alteração de capacidade pendente para este endereço." });
+                    return Json(new { success = false, message = JsonMessage.JaExisteSolicitacaoAlteracaoCapacidadePendente });
                 }
 
                 // Criar solicitação de alteração
@@ -1469,7 +1459,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
-                return Json(new { success = true, message = "Solicitação de alteração de capacidade enviada com sucesso!" });
+                return Json(new { success = true, message = JsonMessage.SolicitacaoAlteracaoCapacidadeEnviadaComSucesso });
             }
             catch (Exception ex)
             {
@@ -1489,13 +1479,13 @@ namespace KlyonHubPlatform.Api.Controllers
             int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Query base: contratos cujo endereço pertence ao coworking do parceiro
@@ -1593,14 +1583,14 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                TempData["Error"] = "Coworking não encontrado.";
-                return RedirectToAction("Dashboard");
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                return RedirectToAction(ActionNames.Dashboard);
             }
 
             // Buscar contrato com todos os relacionamentos
@@ -1617,8 +1607,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (contract == null)
             {
-                TempData["Error"] = "Contrato não encontrado ou você não tem permissão para visualizá-lo.";
-                return RedirectToAction("ActiveContracts");
+                TempData[ErrorMessages.TempDataKey] = "Contrato não encontrado ou você não tem permissão para visualizá-lo.";
+                return RedirectToAction(ActionNames.ActiveContracts);
             }
 
             // Buscar AddressDeclarations
@@ -1657,34 +1647,9 @@ namespace KlyonHubPlatform.Api.Controllers
             // Criar timeline do fluxo
             var timeline = new List<object>();
 
-            string ContractStatusPt(ContractStatus s) => s switch
-            {
-                ContractStatus.Active => "Ativo",
-                ContractStatus.Suspended => "Suspenso",
-                ContractStatus.PendingPayment => "Aguardando Pagamento",
-                ContractStatus.PendingCancellation => "Cancelamento Pendente",
-                ContractStatus.Cancelled => "Cancelado",
-                ContractStatus.Expired => "Expirado",
-                _ => s.ToString()
-            };
-            string PaymentStatusPt(PaymentStatus s) => s switch
-            {
-                PaymentStatus.Pending => "Aguardando",
-                PaymentStatus.Processing => "Processando",
-                PaymentStatus.AwaitingValidation => "Aguardando Validação",
-                PaymentStatus.Paid => "Pago",
-                PaymentStatus.Failed => "Falhou",
-                PaymentStatus.Refunded => "Reembolsado",
-                PaymentStatus.Cancelled => "Cancelado",
-                _ => s.ToString()
-            };
-            string PaymentMethodPt(PaymentMethod m) => m switch
-            {
-                PaymentMethod.PIX => "PIX",
-                PaymentMethod.CreditCard => "Cartão",
-                PaymentMethod.BankTransfer => "Boleto",
-                _ => m.ToString()
-            };
+            string ContractStatusPt(ContractStatus s) => s.ToDisplayString();
+            string PaymentStatusPt(PaymentStatus s) => s.ToDisplayStringShort();
+            string PaymentMethodPt(PaymentMethod m) => m.ToDisplayString();
 
             // Adicionar criação do contrato
             timeline.Add(new
@@ -1848,12 +1813,12 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadDeclaration(int id, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Dashboard");
+                return RedirectToAction(ActionNames.Dashboard);
             }
 
             var declaration = await _context.AddressDeclarations
@@ -1879,12 +1844,12 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadContractDocument(int id, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Dashboard");
+                return RedirectToAction(ActionNames.Dashboard);
             }
 
             var document = await _context.Documents
@@ -1925,17 +1890,17 @@ namespace KlyonHubPlatform.Api.Controllers
             int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction("Dashboard");
+                return RedirectToAction(ActionNames.Dashboard);
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Lista de endereços para o filtro (carregar antes para usar em caso de erro)
@@ -2132,14 +2097,14 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateReservationStatus(int id, string status, string? notes = null, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                TempData["Error"] = "Coworking não encontrado.";
-                return RedirectToAction("Reservations");
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                return RedirectToAction(ActionNames.Reservations);
             }
 
             var interest = await _context.Interests
@@ -2148,14 +2113,14 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (interest == null)
             {
-                TempData["Error"] = "Reserva não encontrada.";
-                return RedirectToAction("Reservations");
+                TempData[ErrorMessages.TempDataKey] = "Reserva não encontrada.";
+                return RedirectToAction(ActionNames.Reservations);
             }
 
             if (!Enum.TryParse<InterestStatus>(status, ignoreCase: true, out var statusEnum))
             {
-                TempData["Error"] = "Status inválido.";
-                return RedirectToAction("Reservations");
+                TempData[ErrorMessages.TempDataKey] = "Status inválido.";
+                return RedirectToAction(ActionNames.Reservations);
             }
             interest.Status = statusEnum;
             interest.Notes = notes;
@@ -2169,8 +2134,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            TempData["Success"] = "Status da reserva atualizado com sucesso!";
-            return RedirectToAction("Reservations");
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.ReservationStatusUpdated;
+            return RedirectToAction(ActionNames.Reservations);
         }
 
         /// <summary>
@@ -2181,17 +2146,17 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ConfirmReservationAttended(int id, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
-            if (coworkingEntity == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Reservations"); }
+            if (coworkingEntity == null) { TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado."; return RedirectToAction(ActionNames.Reservations); }
 
             var r = await _context.Reservations
                 .Include(x => x.CoworkingAddress)
                 .FirstOrDefaultAsync(x => x.Id == id && x.CoworkingAddress != null && x.CoworkingAddress.CoworkingId == coworkingEntity.Id);
-            if (r == null) { TempData["Error"] = "Reserva não encontrada."; return RedirectToAction("Reservations"); }
-            if (r.Status == ReservationStatus.Cancelled) { TempData["Error"] = "Reserva cancelada."; return RedirectToAction("Reservations"); }
-            if (r.Status == ReservationStatus.Completed) { TempData["Success"] = "Reserva já concluída e créditos repassados."; return RedirectToAction("Reservations"); }
+            if (r == null) { TempData[ErrorMessages.TempDataKey] = "Reserva não encontrada."; return RedirectToAction(ActionNames.Reservations); }
+            if (r.Status == ReservationStatus.Cancelled) { TempData[ErrorMessages.TempDataKey] = "Reserva cancelada."; return RedirectToAction(ActionNames.Reservations); }
+            if (r.Status == ReservationStatus.Completed) { TempData[SuccessMessage.TempDataKey] = SuccessMessage.ReservationCompletedCreditsTransferred; return RedirectToAction(ActionNames.Reservations); }
 
             if (r.CoworkingConfirmedAt == null)
             {
@@ -2200,8 +2165,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
             }
             await _reservationTransferService.ExecuteTransferIfBothConfirmedAsync(r);
-            TempData["Success"] = "Comparecimento confirmado. Após a confirmação do cliente, o pagamento será processado automaticamente.";
-            return RedirectToAction("Reservations");
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.AttendanceConfirmed;
+            return RedirectToAction(ActionNames.Reservations);
         }
 
         /// <summary>
@@ -2211,10 +2176,10 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
-            if (cow == null) return RedirectToAction("Register");
+            if (cow == null) return RedirectToAction(ActionNames.Register);
 
             var q = _context.Reservations
                 .Include(r => r.Client)
@@ -2349,13 +2314,13 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Commissions(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var commissions = await _context.Commissions
@@ -2483,13 +2448,13 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RequestTransfer(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Validar se os dados bancários estão cadastrados:
@@ -2504,15 +2469,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (!hasBankData)
             {
-                TempData["Error"] = "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
-                return RedirectToAction("Dashboard");
+                TempData[ErrorMessages.TempDataKey] = "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
+                return RedirectToAction(ActionNames.Dashboard);
             }
 
             var pendingCommissions = await _commissionService.GetPendingCommissionsAsync(coworkingEntity.Id);
             if (pendingCommissions.Count == 0)
             {
-                TempData["Error"] = "Não há comissões pendentes para transferência";
-                return RedirectToAction("Commissions");
+                TempData[ErrorMessages.TempDataKey] = "Não há comissões pendentes para transferência";
+                return RedirectToAction(ActionNames.Commissions);
             }
 
             try
@@ -2521,35 +2486,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _commissionService.CreateTransferAsync(coworkingEntity.Id, commissionIds);
 
                 var totalCreditado = pendingCommissions.Sum(c => c.TotalPaymentAmount - c.Amount);
-                TempData["Success"] = $"Repasse de R$ {totalCreditado:N2} solicitado com sucesso! O status do repasse pode ser acompanhado na tela de Meus Ganhos.";
-                return RedirectToAction("Commissions");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PayoutRequested(totalCreditado);
+                return RedirectToAction(ActionNames.Commissions);
             }
             catch (InvalidOperationException ex)
             {
-                TempData["Error"] = ex.Message;
-                return RedirectToAction("Dashboard");
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+                return RedirectToAction(ActionNames.Dashboard);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
-                return RedirectToAction("Dashboard");
+                TempData[ErrorMessages.TempDataKey] = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
+                return RedirectToAction(ActionNames.Dashboard);
             }
         }
 
         [HttpGet]
         public async Task<IActionResult> Profile(int partnersPage = 1, int partnersPageSize = 10, int photosPage = 1, int photosPageSize = 6, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var maxPhotoMb = 5;
-            var mbStr = await _systemConfig.GetValueAsync("Upload.MaxPhotoSizeMB");
+            var mbStr = await _systemConfig.GetValueAsync(UploadConfigKey.MaxPhotoSizeMB.ToConfigKey());
             if (int.TryParse(mbStr, out var n) && n > 0) maxPhotoMb = n;
             ViewBag.MaxPhotoSizeMB = maxPhotoMb;
 
@@ -2677,14 +2642,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Verificar se é requisição AJAX (declarar uma única vez no início do método)
                 var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
 
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = existingCoworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 var activeTab = Request.Form["activeTab"].ToString();
@@ -2702,36 +2667,36 @@ namespace KlyonHubPlatform.Api.Controllers
                         if (string.IsNullOrWhiteSpace(coworking.Name))
                         {
                             var errorMessage = "Nome do Coworking é obrigatório.";
-                            TempData["Error"] = errorMessage;
+                            TempData[ErrorMessages.TempDataKey] = errorMessage;
                             if (isAjaxRequest)
                             {
                                 return Json(new { success = false, error = errorMessage });
                             }
-                            return RedirectToAction("Profile");
+                            return RedirectToAction(ActionNames.Profile);
                         }
 
                         // Validar CNPJ antes de atualizar
                         if (string.IsNullOrWhiteSpace(coworking.CNPJ))
                         {
                             var errorMessage = "CNPJ é obrigatório.";
-                            TempData["Error"] = errorMessage;
+                            TempData[ErrorMessages.TempDataKey] = errorMessage;
                             if (isAjaxRequest)
                             {
                                 return Json(new { success = false, error = errorMessage });
                             }
-                            return RedirectToAction("Profile");
+                            return RedirectToAction(ActionNames.Profile);
                         }
 
                         var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                         if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
                         {
                             var errorMessage = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
-                            TempData["Error"] = errorMessage;
+                            TempData[ErrorMessages.TempDataKey] = errorMessage;
                             if (isAjaxRequest)
                             {
                                 return Json(new { success = false, error = errorMessage });
                             }
-                            return RedirectToAction("Profile");
+                            return RedirectToAction(ActionNames.Profile);
                         }
 
                         // Verificar se o CNPJ já está cadastrado em outro coworking
@@ -2744,12 +2709,12 @@ namespace KlyonHubPlatform.Api.Controllers
                         if (existingCNPJ != null)
                         {
                             var errorMessage = $"O CNPJ {coworking.CNPJ} já está cadastrado para outro coworking.";
-                            TempData["Error"] = errorMessage;
+                            TempData[ErrorMessages.TempDataKey] = errorMessage;
                             if (isAjaxRequest)
                             {
                                 return Json(new { success = false, error = errorMessage });
                             }
-                            return RedirectToAction("Profile");
+                            return RedirectToAction(ActionNames.Profile);
                         }
 
                         // Formatar CNPJ com máscara
@@ -2860,7 +2825,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Validar se há horários de funcionamento configurados (obrigatório apenas se EnableCoworkingMenus estiver habilitado)
-                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 if (showCoworkingMenus)
@@ -2871,24 +2836,24 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     if (operatingHoursCount == 0)
                     {
-                        TempData["Warning"] = "É obrigatório configurar os horários de funcionamento. Configure na aba 'Horários de Funcionamento'.";
-                        TempData["ActiveTab"] = "hours";
+                        TempData[TempDataKeys.Warning] = WarningMessages.OperatingHoursRequiredConfigureTab;
+                        TempData[TempDataKeys.ActiveTab] = "hours";
                     }
                 }
 
                 if (!string.IsNullOrEmpty(activeTab))
                 {
-                    TempData["ActiveTab"] = activeTab;
+                    TempData[TempDataKeys.ActiveTab] = activeTab;
                 }
 
                 // Se for requisição AJAX, retornar JSON
                 if (isAjaxRequest)
                 {
-                    return Json(new { success = true, message = "Perfil atualizado com sucesso!" });
+                    return Json(new { success = true, message = JsonMessage.PerfilAtualizadoComSucesso });
                 }
 
-                TempData["Success"] = "Perfil atualizado com sucesso!";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.ProfileUpdated;
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
@@ -2896,11 +2861,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 var isAjaxRequestCatch = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
 
                 var errorMessage = $"Erro ao atualizar dados: {ex.Message}";
-                TempData["Error"] = errorMessage;
+                TempData[ErrorMessages.TempDataKey] = errorMessage;
                 var activeTab = Request.Form["activeTab"].ToString();
                 if (!string.IsNullOrEmpty(activeTab))
                 {
-                    TempData["ActiveTab"] = activeTab;
+                    TempData[TempDataKeys.ActiveTab] = activeTab;
                 }
 
                 // Se for requisição AJAX, retornar JSON com erro
@@ -2909,7 +2874,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return Json(new { success = false, error = errorMessage });
                 }
 
-                return RedirectToAction("Profile");
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -2919,7 +2884,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
@@ -2927,10 +2892,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
                     {
-                        return Json(new { success = false, message = "Coworking não encontrado." });
+                        return Json(new { success = false, message = JsonMessage.CoworkingNaoEncontrado });
                     }
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 // Remover produtos existentes
@@ -2967,14 +2932,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     return Json(new
                     {
                         success = true,
-                        message = "Produtos atualizados com sucesso!",
+                        message = JsonMessage.ProdutosAtualizadosComSucesso,
                         hasFiscalAddress = updatedProducts.Contains("FiscalAddress"),
                         hasRoomRental = updatedProducts.Contains("RoomRental")
                     });
                 }
 
-                TempData["Success"] = "Produtos atualizados com sucesso!";
-                return RedirectToAction("Products");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.ProductsUpdated;
+                return RedirectToAction(ActionNames.Products);
             }
             catch (Exception ex)
             {
@@ -2982,20 +2947,20 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, message = $"Erro ao atualizar produtos: {ex.Message}" });
                 }
-                TempData["Error"] = $"Erro ao atualizar produtos: {ex.Message}";
-                return RedirectToAction("Products");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao atualizar produtos: {ex.Message}";
+                return RedirectToAction(ActionNames.Products);
             }
         }
 
         [HttpGet]
         public async Task<IActionResult> Products(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
             if (cow == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
             var products = await _context.CoworkingProducts
                 .Where(p => p.CoworkingId == cow.Id && p.IsActive)
@@ -3015,18 +2980,18 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> AddressRooms(int addressId, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
-            if (cow == null) return RedirectToAction("Register");
+            if (cow == null) return RedirectToAction(ActionNames.Register);
             var address = await _context.CoworkingAddresses
                 .Include(a => a.Rooms)
                 .ThenInclude(r => r.Photos)
                 .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
             if (address == null)
             {
-                TempData["Error"] = "Endereço não encontrado.";
-                return RedirectToAction("Products");
+                TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado.";
+                return RedirectToAction(ActionNames.Products);
             }
             ViewBag.Address = address;
             ViewBag.RoomTypes = RoomTypes.All;
@@ -3037,14 +3002,14 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddRoom(int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, IFormFile[]? RoomPhotos, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
-            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            if (cow == null) { TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado."; return RedirectToAction(ActionNames.Products); }
             var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
-            if (address == null) { TempData["Error"] = "Endereço não encontrado."; return RedirectToAction("Products"); }
-            if (!RoomTypes.All.Contains(RoomType)) { TempData["Error"] = "Tipo de sala inválido."; return RedirectToAction("AddressRooms", new { addressId }); }
-            if (Capacity < 1 || CreditsPerHour < 0) { TempData["Error"] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (address == null) { TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado."; return RedirectToAction(ActionNames.Products); }
+            if (!RoomTypes.All.Contains(RoomType)) { TempData[ErrorMessages.TempDataKey] = "Tipo de sala inválido."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
+            if (Capacity < 1 || CreditsPerHour < 0) { TempData[ErrorMessages.TempDataKey] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
             var room = new CoworkingRoom
             {
                 CoworkingAddressId = addressId,
@@ -3076,23 +3041,23 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 await _context.SaveChangesAsync();
             }
-            TempData["Success"] = "Sala adicionada com sucesso.";
-            return RedirectToAction("AddressRooms", new { addressId });
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.RoomAdded;
+            return RedirectToAction(ActionNames.AddressRooms, new { addressId });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateRoom(int roomId, int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, bool IsActive, IFormFile[]? RoomPhotos, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
-            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            if (cow == null) { TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado."; return RedirectToAction(ActionNames.Products); }
             var address = await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == cow.Id);
-            if (address == null) { TempData["Error"] = "Endereço não encontrado."; return RedirectToAction("Products"); }
+            if (address == null) { TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado."; return RedirectToAction(ActionNames.Products); }
             var room = await _context.CoworkingRooms.FirstOrDefaultAsync(r => r.Id == roomId && r.CoworkingAddressId == addressId);
-            if (room == null) { TempData["Error"] = "Sala não encontrada."; return RedirectToAction("AddressRooms", new { addressId }); }
-            if (!RoomTypes.All.Contains(RoomType)) { TempData["Error"] = "Tipo de sala inválido."; return RedirectToAction("AddressRooms", new { addressId }); }
-            if (Capacity < 1 || CreditsPerHour < 0) { TempData["Error"] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (room == null) { TempData[ErrorMessages.TempDataKey] = "Sala não encontrada."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
+            if (!RoomTypes.All.Contains(RoomType)) { TempData[ErrorMessages.TempDataKey] = "Tipo de sala inválido."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
+            if (Capacity < 1 || CreditsPerHour < 0) { TempData[ErrorMessages.TempDataKey] = "Capacidade deve ser >= 1 e créditos >= 0."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
             room.RoomType = RoomType;
             room.Name = Name ?? "Sala";
             room.Capacity = Capacity;
@@ -3118,19 +3083,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
             await _context.SaveChangesAsync();
-            TempData["Success"] = "Sala atualizada com sucesso.";
-            return RedirectToAction("AddressRooms", new { addressId });
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.RoomUpdated;
+            return RedirectToAction(ActionNames.AddressRooms, new { addressId });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteRoom(int roomId, int addressId, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
-            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Products"); }
+            if (cow == null) { TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado."; return RedirectToAction(ActionNames.Products); }
             var room = await _context.CoworkingRooms.Include(r => r.Photos).Include(r => r.CoworkingAddress).FirstOrDefaultAsync(r => r.Id == roomId && r.CoworkingAddress.CoworkingId == cow.Id);
-            if (room == null) { TempData["Error"] = "Sala não encontrada."; return RedirectToAction("AddressRooms", new { addressId }); }
+            if (room == null) { TempData[ErrorMessages.TempDataKey] = "Sala não encontrada."; return RedirectToAction(ActionNames.AddressRooms, new { addressId }); }
             var storage = await _storageFactory.GetStorageServiceAsync();
             foreach (var p in room.Photos)
             {
@@ -3139,8 +3104,8 @@ namespace KlyonHubPlatform.Api.Controllers
             await ReturnToReviewIfApprovedAsync(cow, userId, "Sala excluída");
             _context.CoworkingRooms.Remove(room);
             await _context.SaveChangesAsync();
-            TempData["Success"] = "Sala excluída.";
-            return RedirectToAction("AddressRooms", new { addressId });
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.RoomDeleted;
+            return RedirectToAction(ActionNames.AddressRooms, new { addressId });
         }
 
         [HttpGet]
@@ -3148,9 +3113,9 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             var photo = await _context.CoworkingRoomPhotos.Include(p => p.CoworkingRoom).ThenInclude(r => r.CoworkingAddress).FirstOrDefaultAsync(p => p.Id == photoId);
             if (photo == null) return NotFound();
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
-            if (cow == null || photo.CoworkingRoom.CoworkingAddress.CoworkingId != cow.Id) { if (!User.IsInRole("Administrator")) return Forbid(); }
+            if (cow == null || photo.CoworkingRoom.CoworkingAddress.CoworkingId != cow.Id) { if (!User.IsInRole(RoleNames.Administrator)) return Forbid(); }
             var storage = await _storageFactory.GetStorageServiceAsync();
             var bytes = await storage.GetFileAsync(photo.FilePath);
             if (bytes == null) return NotFound();
@@ -3162,13 +3127,13 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> PendingPayments(string? search = null, string? method = null, DateTime? dateFrom = null, DateTime? dateTo = null, decimal? minValue = null, decimal? maxValue = null, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Buscar pagamentos aguardando validação dos contratos deste coworking
@@ -3242,18 +3207,18 @@ namespace KlyonHubPlatform.Api.Controllers
             var payment = await _paymentService.GetPaymentByIdAsync(id);
             if (payment == null)
             {
-                TempData["Error"] = "Pagamento não encontrado.";
-                return RedirectToAction("PendingPayments");
+                TempData[ErrorMessages.TempDataKey] = "Pagamento não encontrado.";
+                return RedirectToAction(ActionNames.PendingPayments);
             }
 
             // Verificar se o pagamento pertence a um contrato deste coworking
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var contract = await _context.Contracts
@@ -3262,8 +3227,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
             {
-                TempData["Error"] = "Você não tem permissão para validar este pagamento.";
-                return RedirectToAction("PendingPayments");
+                TempData[ErrorMessages.TempDataKey] = "Você não tem permissão para validar este pagamento.";
+                return RedirectToAction(ActionNames.PendingPayments);
             }
 
             // Carregar dados completos
@@ -3288,18 +3253,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
                 if (payment == null)
                 {
-                    TempData["Error"] = "Pagamento não encontrado.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Pagamento não encontrado.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 // Verificar se o pagamento pertence a um contrato deste coworking
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    return RedirectToAction("Register");
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 var contract = await _context.Contracts
@@ -3308,14 +3273,14 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
                 {
-                    TempData["Error"] = "Você não tem permissão para validar este pagamento.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Você não tem permissão para validar este pagamento.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 if (payment.Status != PaymentStatus.AwaitingValidation)
                 {
-                    TempData["Error"] = "Este pagamento já foi processado.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Este pagamento já foi processado.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 // Aprovar pagamento
@@ -3438,14 +3403,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 }
 
-                TempData["Success"] = "Pagamento aprovado e contrato ativado com sucesso!" +
-                    (isFirstPayment && contract.ExpiryDate.HasValue ? " Declaração gerada automaticamente." : "");
-                return RedirectToAction("PendingPayments");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentApprovedContractActivated(isFirstPayment && contract.ExpiryDate.HasValue);
+                return RedirectToAction(ActionNames.PendingPayments);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao aprovar pagamento: {ex.Message}";
-                return RedirectToAction("PendingPayments");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao aprovar pagamento: {ex.Message}";
+                return RedirectToAction(ActionNames.PendingPayments);
             }
         }
 
@@ -3458,18 +3422,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
                 if (payment == null)
                 {
-                    TempData["Error"] = "Pagamento não encontrado.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Pagamento não encontrado.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 // Verificar se o pagamento pertence a um contrato deste coworking
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    return RedirectToAction("Register");
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 var contract = await _context.Contracts
@@ -3478,20 +3442,20 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
                 {
-                    TempData["Error"] = "Você não tem permissão para validar este pagamento.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Você não tem permissão para validar este pagamento.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 if (payment.Status != PaymentStatus.AwaitingValidation)
                 {
-                    TempData["Error"] = "Este pagamento já foi processado.";
-                    return RedirectToAction("PendingPayments");
+                    TempData[ErrorMessages.TempDataKey] = "Este pagamento já foi processado.";
+                    return RedirectToAction(ActionNames.PendingPayments);
                 }
 
                 if (string.IsNullOrWhiteSpace(validationNotes))
                 {
-                    TempData["Error"] = "Por favor, informe a justificativa da reprovação.";
-                    return RedirectToAction("ValidatePayment", new { id = paymentId });
+                    TempData[ErrorMessages.TempDataKey] = "Por favor, informe a justificativa da reprovação.";
+                    return RedirectToAction(ActionNames.ValidatePayment, new { id = paymentId });
                 }
 
                 // Reprovar pagamento
@@ -3502,13 +3466,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 payment.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Pagamento reprovado. O cliente foi notificado.";
-                return RedirectToAction("PendingPayments");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentRejectedClientNotified;
+                return RedirectToAction(ActionNames.PendingPayments);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao reprovar pagamento: {ex.Message}";
-                return RedirectToAction("PendingPayments");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao reprovar pagamento: {ex.Message}";
+                return RedirectToAction(ActionNames.PendingPayments);
             }
         }
 
@@ -3522,13 +3486,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             // Verificar se o pagamento pertence a um contrato deste coworking
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var contract = await _context.Contracts
@@ -3560,20 +3524,20 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 if (Photos == null || Photos.Count == 0)
                 {
-                    TempData["Error"] = "Por favor, selecione pelo menos uma foto.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Por favor, selecione pelo menos uma foto.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 // Verificar limite de fotos (máximo 2)
@@ -3585,9 +3549,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 var photosToAdd = Photos.Take(maxPhotos - existingPhotosCount);
                 if (!photosToAdd.Any())
                 {
-                    TempData["Error"] = $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
-                    TempData["ActiveTab"] = "photos";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
+                    TempData[TempDataKeys.ActiveTab] = "photos";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var maxBytes = await GetMaxPhotoSizeBytesAsync();
@@ -3596,9 +3560,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (p.Length > 0 && p.Length > maxBytes)
                     {
-                        TempData["Error"] = $"O arquivo \"{p.FileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
-                        TempData["ActiveTab"] = "photos";
-                        return RedirectToAction("Profile");
+                        TempData[ErrorMessages.TempDataKey] = $"O arquivo \"{p.FileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
+                        TempData[TempDataKeys.ActiveTab] = "photos";
+                        return RedirectToAction(ActionNames.Profile);
                     }
                 }
 
@@ -3634,13 +3598,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Adicionar fotos retorna para análise (igual a adicionar/substituir documentos obrigatórios)
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto(s) adicionada(s)");
                 await _context.SaveChangesAsync();
-                TempData["Success"] = $"{photosToAdd.Count()} foto(s) adicionada(s) com sucesso!";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PhotosAdded(photosToAdd.Count());
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao fazer upload das fotos: {ex.Message}";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao fazer upload das fotos: {ex.Message}";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -3664,7 +3628,7 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!isPublic && User.Identity?.IsAuthenticated == true)
             {
                 // Verificar se a foto pertence ao coworking do usuário logado OU se o usuário é cliente/administrador
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
@@ -3672,9 +3636,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 // 1. É o dono do coworking
                 // 2. É administrador
                 // 3. É cliente (pode ver fotos de qualquer coworking para escolher endereços)
-                var canAccess = User.IsInRole("Administrator") ||
+                var canAccess = User.IsInRole(RoleNames.Administrator) ||
                               (coworkingEntity != null && photo.CoworkingId == coworkingEntity.Id) ||
-                              User.IsInRole("Client");
+                              User.IsInRole(RoleNames.Client);
 
                 if (!canAccess)
                 {
@@ -3714,14 +3678,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var photo = await _context.CoworkingPhotos
@@ -3729,8 +3693,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (photo == null)
                 {
-                    TempData["Error"] = "Foto não encontrada.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Foto não encontrada.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 // Remover principal de todas as fotos
@@ -3748,13 +3712,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Foto principal alterada");
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Foto principal atualizada com sucesso!";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.MainPhotoUpdated;
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao atualizar foto principal: {ex.Message}";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao atualizar foto principal: {ex.Message}";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -3764,14 +3728,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var photo = await _context.CoworkingPhotos
@@ -3779,8 +3743,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (photo == null)
                 {
-                    TempData["Error"] = "Foto não encontrada.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Foto não encontrada.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 // Deletar arquivo do storage
@@ -3798,13 +3762,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.CoworkingPhotos.Remove(photo);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Foto excluída com sucesso!";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PhotoDeleted;
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao excluir foto: {ex.Message}";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao excluir foto: {ex.Message}";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -3814,23 +3778,23 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var maxBytes = await GetMaxPhotoSizeBytesAsync();
                 var maxMb = (int)(maxBytes / (1024 * 1024));
                 if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length > maxBytes)
                 {
-                    TempData["Error"] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMb}MB.";
-                    TempData["ActiveTab"] = "partners";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMb}MB.";
+                    TempData[TempDataKeys.ActiveTab] = "partners";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 partner.CoworkingId = coworkingEntity.Id;
@@ -3873,15 +3837,15 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                TempData["Success"] = "Sócio adicionado com sucesso!";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PartnerAdded;
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao adicionar sócio: {ex.Message}";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao adicionar sócio: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -3891,14 +3855,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var existingPartner = await _context.CoworkingPartners
@@ -3906,8 +3870,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existingPartner == null)
                 {
-                    TempData["Error"] = "Sócio não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Sócio não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 existingPartner.Name = partner.Name;
@@ -3948,9 +3912,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 var maxMbPartner = (int)(maxBytesPartner / (1024 * 1024));
                 if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length > maxBytesPartner)
                 {
-                    TempData["Error"] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMbPartner}MB.";
-                    TempData["ActiveTab"] = "partners";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = $"A foto do sócio é muito grande. Tamanho máximo: {maxMbPartner}MB.";
+                    TempData[TempDataKeys.ActiveTab] = "partners";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 if (partnerPhoto != null && partnerPhoto.Length > 0 && partnerPhoto.Length <= maxBytesPartner)
@@ -3972,15 +3936,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Sócio atualizado");
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Sócio atualizado com sucesso!";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PartnerUpdated;
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao atualizar sócio: {ex.Message}";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao atualizar sócio: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -3990,14 +3954,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var partner = await _context.CoworkingPartners
@@ -4005,8 +3969,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (partner == null)
                 {
-                    TempData["Error"] = "Sócio não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Sócio não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 if (!string.IsNullOrEmpty(partner.PhotoPath))
@@ -4023,15 +3987,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.CoworkingPartners.Remove(partner);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Sócio excluído com sucesso!";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PartnerDeleted;
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao excluir sócio: {ex.Message}";
-                TempData["ActiveTab"] = "partners";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao excluir sócio: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "partners";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -4039,21 +4003,21 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResubmitForApproval(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
-            if (cow == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Dashboard"); }
+            if (cow == null) { TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado."; return RedirectToAction(ActionNames.Dashboard); }
             if (cow.ApprovalStatus != CoworkingApprovalStatus.AwaitingAdjustment)
             {
-                TempData["Error"] = "Apenas cadastros com status Aguardando ajuste podem ser reenviados.";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = "Apenas cadastros com status Aguardando ajuste podem ser reenviados.";
+                return RedirectToAction(ActionNames.Profile);
             }
             cow.ApprovalStatus = CoworkingApprovalStatus.UnderReview;
             cow.SubmittedAt = DateTime.UtcNow;
             await _coworkingService.UpdateAsync(cow);
             await _auditService.LogActionAsync(userId, "ResubmitForApproval", "Coworking", cow.Id, "{\"ApprovalStatus\":\"AwaitingAdjustment\"}", "{\"ApprovalStatus\":\"UnderReview\"}");
-            TempData["Success"] = "Cadastro reenviado para análise. Aguarde a aprovação do administrador.";
-            return RedirectToAction("Profile");
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.RegistrationResubmitted;
+            return RedirectToAction(ActionNames.Profile);
         }
 
         [HttpGet]
@@ -4062,12 +4026,12 @@ namespace KlyonHubPlatform.Api.Controllers
             var partner = await _context.CoworkingPartners.Include(p => p.Coworking).FirstOrDefaultAsync(p => p.Id == partnerId);
             if (partner == null || string.IsNullOrEmpty(partner.PhotoPath)) return NotFound();
 
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
             if (cow == null || partner.CoworkingId != cow.Id)
             {
-                if (!User.IsInRole("Administrator")) return Forbid();
+                if (!User.IsInRole(RoleNames.Administrator)) return Forbid();
             }
 
             var storageService = await _storageFactory.GetStorageServiceAsync();
@@ -4085,26 +4049,26 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Register");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Register);
                 }
 
                 if (documentFile == null || documentFile.Length == 0)
                 {
-                    TempData["Error"] = "Por favor, selecione um arquivo.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Por favor, selecione um arquivo.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 if (documentFile.Length > 10 * 1024 * 1024) // 10MB
                 {
-                    TempData["Error"] = "O arquivo excede o tamanho máximo de 10MB.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "O arquivo excede o tamanho máximo de 10MB.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var docType = (CoworkingDocumentType)documentType;
@@ -4176,12 +4140,12 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Documento enviado");
                 await _context.SaveChangesAsync();
-                return RedirectToAction("Profile");
+                return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao enviar documento: {ex.Message}";
-                return RedirectToAction("Profile");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao enviar documento: {ex.Message}";
+                return RedirectToAction(ActionNames.Profile);
             }
         }
 
@@ -4195,13 +4159,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             // Verificar se o documento pertence ao coworking do usuário logado
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null || document.CoworkingId != coworkingEntity.Id)
             {
-                if (!User.IsInRole("Administrator"))
+                if (!User.IsInRole(RoleNames.Administrator))
                 {
                     return Forbid();
                 }
@@ -4223,20 +4187,20 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction("Profile");
+                return RedirectToAction(ActionNames.Profile);
 
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null || coworkingEntity.Id != CoworkingId)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var daysOfWeek = new[] { "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY" };
@@ -4288,36 +4252,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 await _context.SaveChangesAsync();
-                TempData["Success"] = "Horários de funcionamento salvos com sucesso!";
-                TempData["ActiveTab"] = "hours";
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.OperatingHoursSaved;
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao salvar horários: {ex.Message}";
-                TempData["ActiveTab"] = "hours";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao salvar horários: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
 
-            return RedirectToAction("Profile");
+            return RedirectToAction(ActionNames.Profile);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction("Profile");
+                return RedirectToAction(ActionNames.Profile);
 
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null || coworkingEntity.Id != CoworkingId)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 // Verificar se já existe bloqueio para esta data
@@ -4326,9 +4290,9 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existing != null)
                 {
-                    TempData["Error"] = "Já existe um bloqueio para esta data.";
-                    TempData["ActiveTab"] = "hours";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Já existe um bloqueio para esta data.";
+                    TempData[TempDataKeys.ActiveTab] = "hours";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var blockedDate = new BlockedDate
@@ -4345,36 +4309,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.BlockedDates.Add(blockedDate);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Data bloqueada adicionada com sucesso!";
-                TempData["ActiveTab"] = "hours";
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.BlockedDateAdded;
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao adicionar data bloqueada: {ex.Message}";
-                TempData["ActiveTab"] = "hours";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao adicionar data bloqueada: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
 
-            return RedirectToAction("Profile");
+            return RedirectToAction(ActionNames.Profile);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteBlockedDate(int id, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction("Profile");
+                return RedirectToAction(ActionNames.Profile);
 
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 var blockedDate = await _context.BlockedDates
@@ -4382,36 +4346,36 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (blockedDate == null)
                 {
-                    TempData["Error"] = "Data bloqueada não encontrada.";
-                    TempData["ActiveTab"] = "hours";
-                    return RedirectToAction("Profile");
+                    TempData[ErrorMessages.TempDataKey] = "Data bloqueada não encontrada.";
+                    TempData[TempDataKeys.ActiveTab] = "hours";
+                    return RedirectToAction(ActionNames.Profile);
                 }
 
                 _context.BlockedDates.Remove(blockedDate);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Data bloqueada removida com sucesso!";
-                TempData["ActiveTab"] = "hours";
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.BlockedDateRemoved;
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao remover data bloqueada: {ex.Message}";
-                TempData["ActiveTab"] = "hours";
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao remover data bloqueada: {ex.Message}";
+                TempData[TempDataKeys.ActiveTab] = "hours";
             }
 
-            return RedirectToAction("Profile");
+            return RedirectToAction(ActionNames.Profile);
         }
 
         [HttpGet]
         public async Task<IActionResult> MyContract(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var partnerServices = await _context.PartnerServices
@@ -4426,7 +4390,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToList();
 
             // Verificar se os menus de coworking estão habilitados
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             // Se os menus de coworking estiverem desabilitados, mostrar apenas "Ofertar Endereço Fiscal"
@@ -4443,17 +4407,17 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Services(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Verificar se os menus de coworking estão habilitados
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
@@ -4531,18 +4495,18 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Verificar se os menus de coworking estão habilitados
-                var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
+                var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
@@ -4554,15 +4518,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (service == null)
                 {
-                    TempData["Error"] = "Serviço não encontrado ou inativo.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Serviço não encontrado ou inativo.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Se a flag de coworking não estiver habilitada, não permitir adicionar serviços de coworking
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
                 {
-                    TempData["Error"] = "Este serviço não está disponível no momento.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Este serviço não está disponível no momento.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Verificar se já está cadastrado
@@ -4571,8 +4535,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existing != null)
                 {
-                    TempData["Error"] = "Este serviço já está cadastrado.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Este serviço já está cadastrado.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Criar novo PartnerService
@@ -4588,13 +4552,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.PartnerServices.Add(partnerService);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = $"Serviço '{service.Name}' adicionado com sucesso! A percentagem será definida em contrato pelo administrador.";
-                return RedirectToAction("Services");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.ServiceAdded(service.Name);
+                return RedirectToAction(ActionNames.Services);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao adicionar serviço: {ex.Message}";
-                return RedirectToAction("Services");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao adicionar serviço: {ex.Message}";
+                return RedirectToAction(ActionNames.Services);
             }
         }
 
@@ -4604,14 +4568,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Coworking não encontrado.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Verificar se o PartnerService pertence ao coworking
@@ -4621,15 +4585,15 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (partnerService == null)
                 {
-                    TempData["Error"] = "Serviço não encontrado ou não pertence a este parceiro.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Serviço não encontrado ou não pertence a este parceiro.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Verificar se já existe uma solicitação pendente
                 if (partnerService.RemovalRequestStatus == Domain.Core.Enums.RemovalRequestStatus.Pending)
                 {
-                    TempData["Info"] = "Já existe uma solicitação de remoção pendente para este serviço. Aguarde a aprovação do administrador.";
-                    return RedirectToAction("Services");
+                    TempData[TempDataKeys.Info] = InfoMessages.ServiceRemovalRequestAlreadyPending;
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 // Verificar se há contratos ativos ou pagamento aguardando validação
@@ -4644,8 +4608,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (hasActiveContracts)
                 {
-                    TempData["Error"] = "Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Não é possível solicitar a remoção deste serviço enquanto houver contratos ativos. A solicitação só pode ser feita após o fim de todos os contratos.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 var contractIdsFromCoworking = await _context.Contracts
@@ -4662,8 +4626,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (hasClientAwaitingValidation)
                 {
-                    TempData["Error"] = "Não é possível solicitar a remoção deste serviço enquanto houver cliente(s) com pagamento aguardando validação.";
-                    return RedirectToAction("Services");
+                    TempData[ErrorMessages.TempDataKey] = "Não é possível solicitar a remoção deste serviço enquanto houver cliente(s) com pagamento aguardando validação.";
+                    return RedirectToAction(ActionNames.Services);
                 }
 
                 var serviceName = partnerService.Service.Name;
@@ -4682,13 +4646,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _auditService.LogActionAsync(userId, "ServiceRemovalRequested", "PartnerService", partnerService.Id,
                     null, $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}");
 
-                TempData["Success"] = $"Solicitação de remoção do serviço '{serviceName}' enviada com sucesso! Aguardando aprovação do administrador.";
-                return RedirectToAction("Services");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.ServiceRemovalRequestSent(serviceName);
+                return RedirectToAction(ActionNames.Services);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao solicitar remoção do serviço: {ex.Message}";
-                return RedirectToAction("Services");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao solicitar remoção do serviço: {ex.Message}";
+                return RedirectToAction(ActionNames.Services);
             }
         }
 
@@ -4699,13 +4663,13 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 10, string? serviceType = null, string? client = null, string? contractNumber = null, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Buscar pagamentos relacionados a este coworking que ainda não têm NF de serviço aprovada.
@@ -4823,7 +4787,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ServiceFiscalNoteDetail(int id)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
             if (coworkingEntity == null)
@@ -4929,14 +4893,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Parceiro não encontrado.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Parceiro não encontrado.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 var payment = await _context.Payments
@@ -4956,8 +4920,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (payment == null)
                 {
-                    TempData["Error"] = "Pagamento não encontrado.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Pagamento não encontrado.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 // Verificar se o pagamento pertence a este coworking
@@ -4977,8 +4941,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (!belongsToCoworking)
                 {
-                    TempData["Error"] = "Este pagamento não pertence ao seu coworking.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Este pagamento não pertence ao seu coworking.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 // Verificar se já existe NF emitida
@@ -4987,23 +4951,23 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (existingNote != null)
                 {
-                    TempData["Error"] = "Já existe uma NF de serviço emitida para este pagamento.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Já existe uma NF de serviço emitida para este pagamento.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 // Verificar se o estado tem integração
                 if (!_sefazService.IsStateSupported(state))
                 {
-                    TempData["Error"] = $"Integração SEFAZ ainda não implementada para o estado {state}.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = $"Integração SEFAZ ainda não implementada para o estado {state}.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 // Buscar configuração SEFAZ do parceiro
                 var sefazConfig = await _sefazService.GetCoworkingConfigurationAsync(coworkingEntity.Id, state, "Producao");
                 if (sefazConfig == null)
                 {
-                    TempData["Error"] = $"Configuração SEFAZ não encontrada para o estado {state}. Configure em Configurações SEFAZ.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = $"Configuração SEFAZ não encontrada para o estado {state}. Configure em Configurações SEFAZ.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 // Criar registro de NF com valor total (com percentagem)
@@ -5032,22 +4996,22 @@ namespace KlyonHubPlatform.Api.Controllers
                     _context.FiscalNotes.Update(emittedNote);
                     await _context.SaveChangesAsync();
 
-                    TempData["Success"] = $"NF de serviço emitida com sucesso! Chave de acesso: {emittedNote.AccessKey}";
-                    return RedirectToAction("ListServiceFiscalNotes");
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.ServiceInvoiceEmitted(emittedNote.AccessKey);
+                    return RedirectToAction(ActionNames.ListServiceFiscalNotes);
                 }
                 catch (Exception ex)
                 {
                     _context.FiscalNotes.Update(fiscalNote);
                     await _context.SaveChangesAsync();
-                    TempData["Error"] = $"Erro ao emitir NF: {ex.Message}";
+                    TempData[ErrorMessages.TempDataKey] = $"Erro ao emitir NF: {ex.Message}";
                 }
 
-                return RedirectToAction("ServiceFiscalNotes");
+                return RedirectToAction(ActionNames.ServiceFiscalNotes);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao processar emissão de NF: {ex.Message}";
-                return RedirectToAction("ServiceFiscalNotes");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao processar emissão de NF: {ex.Message}";
+                return RedirectToAction(ActionNames.ServiceFiscalNotes);
             }
         }
 
@@ -5060,13 +5024,13 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Parceiro não encontrado.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Parceiro não encontrado.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 var payment = await _context.Payments
@@ -5075,35 +5039,35 @@ namespace KlyonHubPlatform.Api.Controllers
                     .FirstOrDefaultAsync(p => p.Id == paymentId);
                 if (payment == null)
                 {
-                    TempData["Error"] = "Pagamento não encontrado.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Pagamento não encontrado.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 var belongsToCoworking = (payment.Subscription?.Contract?.CoworkingAddress != null && payment.Subscription.Contract.CoworkingAddress.CoworkingId == coworkingEntity.Id)
                     || (payment.Reservation?.CoworkingAddress != null && payment.Reservation.CoworkingAddress.CoworkingId == coworkingEntity.Id);
                 if (!belongsToCoworking)
                 {
-                    TempData["Error"] = "Este pagamento não pertence ao seu coworking.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Este pagamento não pertence ao seu coworking.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 var existing = await _context.FiscalNotes
                     .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada));
                 if (existing != null)
                 {
-                    TempData["Error"] = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 if (pdfFile == null || pdfFile.Length == 0)
                 {
-                    TempData["Error"] = "Selecione o arquivo PDF da nota fiscal.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "Selecione o arquivo PDF da nota fiscal.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
                 if (!pdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                 {
-                    TempData["Error"] = "O arquivo deve ser um PDF.";
-                    return RedirectToAction("ServiceFiscalNotes");
+                    TempData[ErrorMessages.TempDataKey] = "O arquivo deve ser um PDF.";
+                    return RedirectToAction(ActionNames.ServiceFiscalNotes);
                 }
 
                 var storage = await _storageFactory.GetStorageServiceAsync();
@@ -5130,13 +5094,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.FiscalNotes.Add(fiscalNote);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "NF importada com sucesso! Aguardando validação do administrador.";
-                return RedirectToAction("ServiceFiscalNotes");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.InvoiceImportedPendingValidation;
+                return RedirectToAction(ActionNames.ServiceFiscalNotes);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao importar NF: {ex.Message}";
-                return RedirectToAction("ServiceFiscalNotes");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao importar NF: {ex.Message}";
+                return RedirectToAction(ActionNames.ServiceFiscalNotes);
             }
         }
 
@@ -5147,13 +5111,13 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, string? noteNumber = null, string? client = null, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             // Buscar notas fiscais de serviço emitidas por este coworking
@@ -5222,13 +5186,13 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var fn = await _context.FiscalNotes
@@ -5258,13 +5222,13 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> SefazConfiguration(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
 
             if (coworkingEntity == null)
             {
-                return RedirectToAction("Register");
+                return RedirectToAction(ActionNames.Register);
             }
 
             var configurations = await _context.CoworkingSefazConfigurations
@@ -5299,14 +5263,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
                 var coworkingEntity = coworking.FirstOrDefault();
 
                 if (coworkingEntity == null)
                 {
-                    TempData["Error"] = "Parceiro não encontrado.";
-                    return RedirectToAction("SefazConfiguration");
+                    TempData[ErrorMessages.TempDataKey] = "Parceiro não encontrado.";
+                    return RedirectToAction(ActionNames.SefazConfiguration);
                 }
 
                 CoworkingSefazConfiguration config;
@@ -5318,8 +5282,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     if (config == null)
                     {
-                        TempData["Error"] = "Configuração não encontrada.";
-                        return RedirectToAction("SefazConfiguration");
+                        TempData[ErrorMessages.TempDataKey] = "Configuração não encontrada.";
+                        return RedirectToAction(ActionNames.SefazConfiguration);
                     }
                 }
                 else
@@ -5332,8 +5296,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     if (existing != null)
                     {
-                        TempData["Error"] = "Já existe uma configuração para este estado e ambiente.";
-                        return RedirectToAction("SefazConfiguration");
+                        TempData[ErrorMessages.TempDataKey] = "Já existe uma configuração para este estado e ambiente.";
+                        return RedirectToAction(ActionNames.SefazConfiguration);
                     }
 
                     config = new CoworkingSefazConfiguration
@@ -5358,13 +5322,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Configuração SEFAZ salva com sucesso!";
-                return RedirectToAction("SefazConfiguration");
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.SefazConfigSaved;
+                return RedirectToAction(ActionNames.SefazConfiguration);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao salvar configuração: {ex.Message}";
-                return RedirectToAction("SefazConfiguration");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao salvar configuração: {ex.Message}";
+                return RedirectToAction(ActionNames.SefazConfiguration);
             }
         }
 
@@ -5379,7 +5343,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var coworking = await GetCurrentCoworkingAsync();
             if (coworking == null)
             {
-                return RedirectToAction("Login", "Auth");
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth);
             }
 
             var settlements = await _monthlySettlementService.GetSettlementsByCoworkingAsync(coworking.Id);
@@ -5398,14 +5362,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var coworking = await GetCurrentCoworkingAsync();
             if (coworking == null)
             {
-                return RedirectToAction("Login", "Auth");
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth);
             }
 
             var settlement = await _monthlySettlementService.GetSettlementByIdAsync(id);
             if (settlement == null || settlement.CoworkingId != coworking.Id)
             {
-                TempData["Error"] = "Fechamento não encontrado.";
-                return RedirectToAction("MonthlySettlements");
+                TempData[ErrorMessages.TempDataKey] = "Fechamento não encontrado.";
+                return RedirectToAction(ActionNames.MonthlySettlements);
             }
 
             var invoice = await _monthlySettlementService.GetInvoiceBySettlementAsync(id);
@@ -5425,22 +5389,22 @@ namespace KlyonHubPlatform.Api.Controllers
             var coworking = await GetCurrentCoworkingAsync();
             if (coworking == null)
             {
-                return RedirectToAction("Login", "Auth");
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth);
             }
 
             try
             {
                 if (pdfFile == null || pdfFile.Length == 0)
                 {
-                    TempData["Error"] = "Por favor, selecione o arquivo PDF da nota fiscal.";
-                    return RedirectToAction("MonthlySettlements");
+                    TempData[ErrorMessages.TempDataKey] = "Por favor, selecione o arquivo PDF da nota fiscal.";
+                    return RedirectToAction(ActionNames.MonthlySettlements);
                 }
 
                 // Validar tipo de arquivo
                 if (!pdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                 {
-                    TempData["Error"] = "O arquivo deve ser um PDF.";
-                    return RedirectToAction("MonthlySettlements");
+                    TempData[ErrorMessages.TempDataKey] = "O arquivo deve ser um PDF.";
+                    return RedirectToAction(ActionNames.MonthlySettlements);
                 }
 
                 using var pdfStream = pdfFile.OpenReadStream();
@@ -5451,8 +5415,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (!xmlFile.FileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
                     {
-                        TempData["Error"] = "O arquivo XML deve ter extensão .xml";
-                        return RedirectToAction("MonthlySettlements");
+                        TempData[ErrorMessages.TempDataKey] = "O arquivo XML deve ter extensão .xml";
+                        return RedirectToAction(ActionNames.MonthlySettlements);
                     }
                     xmlStream = xmlFile.OpenReadStream();
                     xmlFileName = xmlFile.FileName;
@@ -5464,23 +5428,23 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (invoice.AutoValidationPassed == true)
                 {
-                    TempData["Success"] = "Nota fiscal enviada com sucesso! Validação automática OK. Aguardando aprovação do administrador.";
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.InvoiceSentValidationOk;
                 }
                 else if (invoice.AutoValidationPassed == false)
                 {
-                    TempData["Warning"] = $"Nota fiscal enviada, mas a validação automática encontrou problemas: {invoice.AutoValidationMessage}. O administrador irá analisar.";
+                    TempData[TempDataKeys.Warning] = WarningMessages.InvoiceSentValidationIssues(invoice.AutoValidationMessage);
                 }
                 else
                 {
-                    TempData["Success"] = "Nota fiscal enviada com sucesso! Aguardando validação do administrador.";
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.InvoiceSentPendingValidation;
                 }
 
-                return RedirectToAction("MonthlySettlements");
+                return RedirectToAction(ActionNames.MonthlySettlements);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Erro ao enviar nota fiscal: {ex.Message}";
-                return RedirectToAction("MonthlySettlements");
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao enviar nota fiscal: {ex.Message}";
+                return RedirectToAction(ActionNames.MonthlySettlements);
             }
         }
 
@@ -5495,13 +5459,5 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         #endregion
-    }
-
-    // DTO para solicitação de alteração de capacidade
-    public class CapacityChangeRequestDto
-    {
-        public int AddressId { get; set; }
-        public int RequestedCapacity { get; set; }
-        public string? Justification { get; set; }
     }
 }

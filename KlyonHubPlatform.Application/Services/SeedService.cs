@@ -345,7 +345,7 @@ namespace KlyonHubPlatform.Application.Services
                     // Email Settings
                     new SystemConfiguration
                     {
-                        Key = "Email.SmtpServer",
+                        Key = EmailConfigKey.SmtpServer.ToConfigKey(),
                         Value = "smtp.gmail.com",
                         Description = "Servidor SMTP para envio de e-mails",
                         Category = "Email",
@@ -354,7 +354,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.SmtpPort",
+                        Key = EmailConfigKey.SmtpPort.ToConfigKey(),
                         Value = "587",
                         Description = "Porta do servidor SMTP",
                         Category = "Email",
@@ -363,7 +363,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.SmtpUsername",
+                        Key = EmailConfigKey.SmtpUsername.ToConfigKey(),
                         Value = "klyonoficial@gmail.com",
                         Description = "Usuário do servidor SMTP (Gmail)",
                         Category = "Email",
@@ -372,7 +372,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.SmtpPassword",
+                        Key = EmailConfigKey.SmtpPassword.ToConfigKey(),
                         Value = "yxgb vizz jmxk veci",
                         Description = "Senha do servidor SMTP (App Password do Gmail)",
                         Category = "Email",
@@ -381,7 +381,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.FromEmail",
+                        Key = EmailConfigKey.FromEmail.ToConfigKey(),
                         Value = "noreply@klyon.com.br",
                         Description = "E-mail remetente padrão",
                         Category = "Email",
@@ -390,7 +390,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.FromName",
+                        Key = EmailConfigKey.FromName.ToConfigKey(),
                         Value = "Klyon Endereço Fiscal",
                         Description = "Nome do remetente",
                         Category = "Email",
@@ -399,7 +399,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.EnableSsl",
+                        Key = EmailConfigKey.EnableSsl.ToConfigKey(),
                         Value = StringBooleanValue.True,
                         Description = "Habilitar SSL/TLS para conexão SMTP",
                         Category = "Email",
@@ -408,7 +408,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Email.ReplyToEmail",
+                        Key = EmailConfigKey.ReplyToEmail.ToConfigKey(),
                         Value = "",
                         Description = "E-mail para resposta (Reply-To). Deixe vazio para usar o FromEmail",
                         Category = "Email",
@@ -417,7 +417,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AppSettings.BaseUrl",
+                        Key = AppSettingsConfigKey.BaseUrl.ToConfigKey(),
                         Value = "https://localhost:5001",
                         Description = "URL base da aplicação (usado em links de email)",
                         Category = "General",
@@ -427,7 +427,7 @@ namespace KlyonHubPlatform.Application.Services
                     // Payment Settings
                     new SystemConfiguration
                     {
-                        Key = "Payment.Provider",
+                        Key = PaymentConfigKey.Provider.ToConfigKey(),
                         Value = "Asaas",
                         Description = "Provedor de pagamento (Asaas é o fixo)",
                         Category = "Payment",
@@ -463,7 +463,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "PagBank.AccessToken",
+                        Key = PagBankConfigKey.AccessToken.ToConfigKey(),
                         Value = "",
                         Description = "[Legado] Token da API PagBank",
                         Category = "Payment",
@@ -472,7 +472,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "PagBank.UseSandbox",
+                        Key = PagBankConfigKey.UseSandbox.ToConfigKey(),
                         Value = StringBooleanValue.True,
                         Description = "[Legado] Sandbox PagBank",
                         Category = "Payment",
@@ -481,7 +481,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "PagBank.WebhookSecret",
+                        Key = PagBankConfigKey.WebhookSecret.ToConfigKey(),
                         Value = "",
                         Description = "[Legado] Secret webhooks PagBank",
                         Category = "Payment",
@@ -490,7 +490,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Payment.DefaultCurrency",
+                        Key = PaymentConfigKey.DefaultCurrency.ToConfigKey(),
                         Value = "BRL",
                         Description = "Moeda padrão para pagamentos",
                         Category = "Payment",
@@ -683,7 +683,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Upload.MaxPhotoSizeMB",
+                        Key = UploadConfigKey.MaxPhotoSizeMB.ToConfigKey(),
                         Value = "5",
                         Description = "Tamanho máximo por foto (MB) em uploads: galeria do coworking, fotos de sócios, salas, logo do cliente. Ex.: 5 ou 10.",
                         Category = "Upload",
@@ -692,7 +692,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Platform.CommissionPercentage",
+                        Key = PlatformConfigKey.CommissionPercentage.ToConfigKey(),
                         Value = "20",
                         Description = "Percentual de comissão da plataforma sobre reservas (ex: 20 = 20%). Alterável em Configurações do Sistema.",
                         Category = "Platform",
@@ -701,7 +701,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Features.EnableCoworkingMenus",
+                        Key = FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(),
                         Value = StringBooleanValue.False,
                         Description = "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false.",
                         Category = "Features",
@@ -710,7 +710,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Payment.CreditCardFeePercentage",
+                        Key = PaymentConfigKey.CreditCardFeePercentage.ToConfigKey(),
                         Value = "10",
                         Description = "Percentual adicional a ser cobrado quando o pagamento for realizado com cartão de crédito. Exemplo: 2.5 para 2,5%.",
                         Category = "Payment",
@@ -722,7 +722,7 @@ namespace KlyonHubPlatform.Application.Services
                 }
 
                 // Garantir que Features.EnableCoworkingMenus está desativada (Reservas, Reservar Sala, etc.)
-                var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == "Features.EnableCoworkingMenus");
+                var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 if (coworkingMenusConfig != null)
                 {
                     coworkingMenusConfig.Value = StringBooleanValue.False;

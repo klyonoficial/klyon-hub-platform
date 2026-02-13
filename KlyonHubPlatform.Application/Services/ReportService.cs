@@ -62,8 +62,8 @@ namespace KlyonHubPlatform.Application.Services
             // Receita dos últimos 6 meses
             var sixMonthsAgo = DateTime.UtcNow.AddMonths(-6);
             model.MonthlyRevenue = await _context.Payments
-                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt >= sixMonthsAgo)
-                .GroupBy(p => new { Year = p.PaidAt.Value.Year, Month = p.PaidAt.Value.Month })
+                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt.HasValue && p.PaidAt >= sixMonthsAgo)
+                .GroupBy(p => new { Year = p.PaidAt!.Value.Year, Month = p.PaidAt.Value.Month })
                 .Select(g => new MonthlyRevenueDto
                 {
                     Month = g.Key.Month,
@@ -76,10 +76,11 @@ namespace KlyonHubPlatform.Application.Services
             // Usuários por tipo (mantido para compatibilidade, mas não mais exibido)
             model.UsersByRole = await _context.UserRoles
                 .Include(ur => ur.Role)
-                .GroupBy(ur => ur.Role.Name)
+                .Where(ur => ur.Role != null && ur.Role.Name != null)
+                .GroupBy(ur => ur.Role!.Name)
                 .Select(g => new UsersByRoleDto
                 {
-                    Role = g.Key,
+                    Role = g.Key!,
                     Count = g.Count()
                 })
                 .ToListAsync();
@@ -121,7 +122,7 @@ namespace KlyonHubPlatform.Application.Services
                            p.Subscription.Contract.CoworkingAddress != null &&
                            p.Subscription.Contract.CoworkingAddress.Coworking != null)
                 .Select(p => new {
-                    CoworkingId = p.Subscription.Contract.CoworkingAddress.CoworkingId,
+                    CoworkingId = p.Subscription!.Contract!.CoworkingAddress!.CoworkingId,
                     CoworkingName = p.Subscription.Contract.CoworkingAddress.Coworking.Name,
                     Amount = p.Amount,
                     ContractId = p.Subscription.Contract.Id
@@ -172,9 +173,9 @@ namespace KlyonHubPlatform.Application.Services
 
             // 5. Breakdown de receita mensal (bruta, parceiro, líquida) - últimos 6 meses
             var paymentsWithCommissions = await _context.Payments
-                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt >= sixMonthsAgo)
+                .Where(p => p.Status == PaymentStatus.Paid && p.PaidAt.HasValue && p.PaidAt >= sixMonthsAgo)
                 .Select(p => new { 
-                    Year = p.PaidAt.Value.Year, 
+                    Year = p.PaidAt!.Value.Year, 
                     Month = p.PaidAt.Value.Month, 
                     Amount = p.Amount 
                 })
@@ -235,11 +236,11 @@ namespace KlyonHubPlatform.Application.Services
             // Top 5 localidades por receita
             model.TopLocations = await _context.Payments
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.CoworkingAddress)
-                            .ThenInclude(a => a.Location)
-                .Where(p => p.Status == PaymentStatus.Paid)
-                .GroupBy(p => p.Subscription.Contract.CoworkingAddress.Location.City)
+                    .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
+                            .ThenInclude(a => a!.Location)
+                .Where(p => p.Status == PaymentStatus.Paid && p.Subscription != null && p.Subscription.Contract != null && p.Subscription.Contract.CoworkingAddress != null && p.Subscription.Contract.CoworkingAddress.Location != null)
+                .GroupBy(p => p.Subscription!.Contract!.CoworkingAddress!.Location!.City)
                 .Select(g => new TopLocationDto
                 {
                     City = g.Key,
@@ -268,11 +269,11 @@ namespace KlyonHubPlatform.Application.Services
                 .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                 .Take(take)
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.Client)
+                    .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.Client)
                 .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.CoworkingAddress)
+                    .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
                 .ToListAsync();
         }
 
@@ -330,13 +331,7 @@ namespace KlyonHubPlatform.Application.Services
                         ? (client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "N/A")
                         : "N/A";
 
-                    var paymentMethod = p.Method switch
-                    {
-                        PaymentMethod.PIX => "PIX",
-                        PaymentMethod.CreditCard => "Cartão",
-                        PaymentMethod.BankTransfer => "Boleto",
-                        _ => p.Method.ToString()
-                    };
+                    var paymentMethod = p.Method.ToDisplayString();
 
                     var address = contract.CoworkingAddress;
                     var location = "N/A";
@@ -359,8 +354,7 @@ namespace KlyonHubPlatform.Application.Services
                         Method = paymentMethod,
                         Client = clientName,
                         Location = location,
-                        Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        Status = p.Status.ToDisplayString(),
                         IsAssistedSale = isAssisted,
                         SaleOrigin = saleOrigin,
                         AssistedSaleAdminName = adminName
@@ -381,11 +375,11 @@ namespace KlyonHubPlatform.Application.Services
                          (p.PaidAt == null && p.CreatedAt >= dateFromUtc && p.CreatedAt < dateToEnd))
                     )
                     .Include(p => p.Reservation)
-                        .ThenInclude(r => r.Client)
-                            .ThenInclude(client => client.User)
+                        .ThenInclude(r => r!.Client)
+                            .ThenInclude(client => client!.User)
                     .Include(p => p.Reservation)
-                        .ThenInclude(r => r.CoworkingAddress)
-                            .ThenInclude(a => a.Location)
+                        .ThenInclude(r => r!.CoworkingAddress)
+                            .ThenInclude(a => a!.Location)
                     .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
                     .ToListAsync();
 
@@ -408,14 +402,7 @@ namespace KlyonHubPlatform.Application.Services
                             ?? "N/A";
                     }
 
-                    // Obter método de pagamento
-                    var paymentMethod = p.Method switch
-                    {
-                        PaymentMethod.PIX => "PIX",
-                        PaymentMethod.CreditCard => "Cartão",
-                        PaymentMethod.BankTransfer => "Boleto",
-                        _ => p.Method.ToString()
-                    };
+                    var paymentMethod = p.Method.ToDisplayString();
 
                     // Obter localidade
                     var location = "N/A";
@@ -438,8 +425,7 @@ namespace KlyonHubPlatform.Application.Services
                         Method = paymentMethod,
                         Client = clientName,
                         Location = location,
-                        Status = p.Status == PaymentStatus.Paid ? "Pago" : p.Status == PaymentStatus.Pending ? "Pendente" : p.Status == PaymentStatus.Processing ? "Processando"
-                            : p.Status == PaymentStatus.AwaitingValidation ? "Aguardando Validação" : p.Status == PaymentStatus.Failed ? "Falhou" : p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status == PaymentStatus.Cancelled ? "Cancelado" : p.Status.ToString(),
+                        Status = p.Status.ToDisplayString(),
                         IsAssistedSale = false,
                         SaleOrigin = "",
                         AssistedSaleAdminName = null
@@ -686,7 +672,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // 2. Buscar coworkings através de contratos (Endereço Fiscal)
             var contractCoworkings = await _context.Contracts
-                .Where(c => c.CoworkingAddressId != null && c.Status == ContractStatus.Active)
+                .Where(c => c.Status == ContractStatus.Active)
                 .Select(c => c.CoworkingAddress!.CoworkingId)
                 .Distinct()
                 .ToListAsync();
@@ -868,13 +854,7 @@ namespace KlyonHubPlatform.Application.Services
             var coworking = await _context.Coworkings.FindAsync(coworkingId);
             var coworkingName = coworking?.Name ?? $"Coworking #{coworkingId}";
             
-            var productDisplayName = productType switch
-            {
-                ReportProductFilter.EnderecoFiscal => "Endereço Fiscal",
-                ReportProductFilter.AluguelSalas => "Aluguel de Salas",
-                ReportProductFilter.CertificadoDigitais => "Certificado Digitais",
-                _ => productType
-            };
+            var productDisplayName = ReportProductFilter.GetDisplayName(productType);
 
             var transactions = new List<ProductTransactionDetailDto>();
             decimal totalRevenue = 0m;
@@ -939,18 +919,9 @@ namespace KlyonHubPlatform.Application.Services
                             ?? "N/A";
                     }
 
-                    var roomType = reservation.RoomType == "Shared" ? "Sala compartilhada" 
-                        : reservation.RoomType == "Private" ? "Sala privativa" 
-                        : reservation.RoomType == "Auditorium" ? "Auditório" 
-                        : reservation.RoomType;
+                    var roomType = RoomTypes.GetDisplayName(reservation.RoomType ?? "");
 
-                    var paymentMethod = payment.Method switch
-                    {
-                        PaymentMethod.PIX => "PIX",
-                        PaymentMethod.CreditCard => "Cartão",
-                        PaymentMethod.BankTransfer => "Boleto",
-                        _ => payment.Method.ToString()
-                    };
+                    var paymentMethod = payment.Method.ToDisplayString();
 
                     transactions.Add(new ProductTransactionDetailDto
                     {
@@ -960,7 +931,7 @@ namespace KlyonHubPlatform.Application.Services
                         ClientName = clientName,
                         ClientId = reservation.ClientId,
                         PaymentMethod = paymentMethod,
-                        Status = "Pago",
+                        Status = payment.Status.ToDisplayString(),
                         AdditionalInfo = $"{roomType} - {reservation.ReservationDate:dd/MM/yyyy}",
                         ReservationId = reservation.Id,
                         ContractId = null
@@ -1020,13 +991,7 @@ namespace KlyonHubPlatform.Application.Services
                             location = $"{city}/{state}".Trim('/');
                     }
 
-                    var paymentMethod = payment.Method switch
-                    {
-                        PaymentMethod.PIX => "PIX",
-                        PaymentMethod.CreditCard => "Cartão",
-                        PaymentMethod.BankTransfer => "Boleto",
-                        _ => payment.Method.ToString()
-                    };
+                    var paymentMethod = payment.Method.ToDisplayString();
 
                     transactions.Add(new ProductTransactionDetailDto
                     {
@@ -1036,7 +1001,7 @@ namespace KlyonHubPlatform.Application.Services
                         ClientName = clientName,
                         ClientId = contract.ClientId,
                         PaymentMethod = paymentMethod,
-                        Status = "Pago",
+                        Status = payment.Status.ToDisplayString(),
                         AdditionalInfo = location,
                         ReservationId = null,
                         ContractId = contract.Id

@@ -268,7 +268,7 @@
                     <div class="mb-3">
                         <label class="form-label">Query SQL:</label>
                         <textarea class="form-control font-monospace" name="sqlQuery" rows="10" required 
-                                  placeholder="Exemplo: ALTER TABLE CoworkingAddresses ADD COLUMN MaxPeople INT DEFAULT 1;">@TempData["ExecutedQuery"]</textarea>
+                                  placeholder="Exemplo: ALTER TABLE CoworkingAddresses ADD COLUMN MaxPeople INT DEFAULT 1;">@TempData[TempDataKeys.ExecutedQuery]</textarea>
                         <small class="form-text text-muted">
                             Digite sua query SQL aqui. Exemplos permitidos:
                             <ul class="mb-0 mt-2">
@@ -293,7 +293,7 @@
     </div>
 </div>
 
-@if (TempData["QueryResult"] != null)
+@if (TempData[TempDataKeys.QueryResult] != null)
 {
     <div class="row mt-4">
         <div class="col-md-12">
@@ -302,7 +302,7 @@
                     <h5 class="mb-0"><i class="bi bi-check-circle"></i> Resultado da Query</h5>
                 </div>
                 <div class="card-body">
-                    <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">@TempData["QueryResult"]</pre>
+                    <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">@TempData[TempDataKeys.QueryResult]</pre>
                 </div>
             </div>
         </div>

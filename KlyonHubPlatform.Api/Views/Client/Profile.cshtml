@@ -134,11 +134,25 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-8 mb-3">
-                    <label for="Address" class="form-label">Endereço</label>
+                <div class="col-md-6 mb-3">
+                    <label for="Address" class="form-label">Endereço (logradouro)</label>
                     <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address">
                 </div>
+                <div class="col-md-2 mb-3">
+                    <label for="AddressNumber" class="form-label">Número</label>
+                    <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@Model.AddressNumber" placeholder="Nº">
+                </div>
                 <div class="col-md-4 mb-3">
+                    <label for="Neighborhood" class="form-label">Bairro</label>
+                    <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="Complement" class="form-label">Complemento</label>
+                    <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement" placeholder="Apto, sala, bloco...">
+                </div>
+                <div class="col-md-6 mb-3">
                     <label for="City" class="form-label">Cidade</label>
                     <input type="text" class="form-control" id="City" name="City" value="@Model.City">
                 </div>

@@ -1,14 +1,14 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Meu Perfil - Coworking";
     Layout = "~/Views/Shared/_Layout.cshtml";
     // Verificar se os menus de coworking estão habilitados
-    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
+    var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
     var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
-@using KlyonHubPlatform.Domain.Core.Enums
 
 @Html.AntiForgeryToken()
 
@@ -2204,10 +2204,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         // Garantir que a primeira aba seja exibida ao carregar a página
         document.addEventListener('DOMContentLoaded', function() {
             // Restaurar aba ativa após salvar
-            @if (TempData["ActiveTab"] != null)
+            @if (TempData[TempDataKeys.ActiveTab] != null)
             {
                 <text>
-                var activeTab = '@TempData["ActiveTab"]';
+                var activeTab = '@TempData[TempDataKeys.ActiveTab]';
                 if (activeTab) {
                     // Aguardar um pouco para garantir que o DOM está pronto
                     setTimeout(function() {

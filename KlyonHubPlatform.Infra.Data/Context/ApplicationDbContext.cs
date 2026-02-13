@@ -499,7 +499,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .HasForeignKey(e => e.ClientId)
                     .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Rating).IsRequired();
-                entity.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5");
+                entity.ToTable(tb => tb.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5"));
                 entity.Property(e => e.Comment).HasMaxLength(1000);
                 // Removido HasDefaultValueSql - a data será definida automaticamente pelo AdjustDateTimeProperties
                 // entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");

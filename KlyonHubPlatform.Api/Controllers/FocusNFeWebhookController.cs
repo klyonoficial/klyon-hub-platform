@@ -8,6 +8,7 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using KlyonHubPlatform.Api.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 
 namespace KlyonHubPlatform.Api.Controllers
@@ -52,7 +53,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (string.IsNullOrWhiteSpace(body))
                 {
                     _logger.LogWarning("Webhook Focus NFe recebido com body vazio");
-                    return BadRequest(new { error = "Body vazio" });
+                    return BadRequest(new { error = ErrorJson.EmptyBody });
                 }
 
                 // Deserializar o payload
@@ -65,7 +66,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (payload == null)
                 {
                     _logger.LogWarning("Webhook Focus NFe recebido com payload inválido");
-                    return BadRequest(new { error = "Payload inválido" });
+                    return BadRequest(new { error = ErrorJson.InvalidPayload });
                 }
 
                 // Obter IP de origem
@@ -81,7 +82,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Ok(new 
                 { 
                     success = true, 
-                    message = "Webhook processado com sucesso",
+                    message = OkMessage.WebhookProcessedSuccess,
                     ref_id = webhookLog.Ref,
                     processing_status = webhookLog.ProcessingStatus.ToString()
                 });
@@ -182,7 +183,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (fiscalNote == null)
                 {
-                    return NotFound(new { error = "Nota fiscal não encontrada" });
+                    return NotFound(new { error = ErrorJson.FiscalNoteNotFound });
                 }
 
                 // Determinar se é nota de intermediação ou serviço
@@ -218,7 +219,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (string.IsNullOrEmpty(apiToken))
                 {
-                    return BadRequest(new { error = "Token da API Focus NFe não configurado" });
+                    return BadRequest(new { error = ErrorJson.FocusNFeTokenNotConfigured });
                 }
 
                 var response = await _focusNFeService.ConsultarNFSeAsync(referencia, apiToken, isProduction);
@@ -244,7 +245,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
                 if (environment == "Production")
                 {
-                    return BadRequest(new { error = "Simulação não permitida em produção" });
+                    return BadRequest(new { error = ErrorJson.SimulationNotAllowedProduction });
                 }
 
                 var sourceIp = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -253,7 +254,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return Ok(new
                 {
                     success = true,
-                    message = "Webhook simulado processado",
+                    message = OkMessage.WebhookSimulatedProcessed,
                     webhookLog = new
                     {
                         webhookLog.Id,
@@ -281,7 +282,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 if (string.IsNullOrEmpty(request.WebhookUrl))
                 {
-                    return BadRequest(new { error = "URL do webhook é obrigatória" });
+                    return BadRequest(new { error = ErrorJson.WebhookUrlRequired });
                 }
 
                 // Buscar configuração da plataforma
@@ -292,7 +293,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (config == null || string.IsNullOrEmpty(config.ApiToken))
                 {
-                    return BadRequest(new { error = "Configuração da SEFAZ não encontrada ou token não configurado" });
+                    return BadRequest(new { error = ErrorJson.SefazConfigNotFoundOrToken });
                 }
 
                 var webhookConfig = new FocusWebhookConfig
@@ -305,11 +306,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (success)
                 {
-                    return Ok(new { success = true, message = "Webhook configurado com sucesso" });
+                    return Ok(new { success = true, message = OkMessage.WebhookConfiguredSuccess });
                 }
                 else
                 {
-                    return BadRequest(new { error = "Falha ao configurar webhook no Focus NFe" });
+                    return BadRequest(new { error = ErrorJson.ErrorConfiguringWebhookFocusNFe });
                 }
             }
             catch (Exception ex)
@@ -338,7 +339,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return Ok(new 
                     { 
                         configured = false, 
-                        message = "Token da API Focus NFe não configurado" 
+                        message = OkMessage.FocusNFeTokenNotConfigured 
                     });
                 }
 
@@ -350,7 +351,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     configured = true,
                     environment = config.Environment,
                     available = isAvailable,
-                    message = isAvailable ? "API Focus NFe disponível" : "API Focus NFe indisponível"
+                    message = isAvailable ? OkMessage.FocusNFeApiAvailable : OkMessage.FocusNFeApiUnavailable
                 });
             }
             catch (Exception ex)
@@ -359,13 +360,5 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
-    }
-
-    /// <summary>
-    /// Request para configurar webhook
-    /// </summary>
-    public class ConfigurarWebhookRequest
-    {
-        public string WebhookUrl { get; set; } = string.Empty;
     }
 }

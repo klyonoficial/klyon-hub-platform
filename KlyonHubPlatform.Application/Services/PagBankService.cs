@@ -30,16 +30,16 @@ namespace KlyonHubPlatform.Application.Services
 
         private async Task<string> GetBaseUrlAsync()
         {
-            var useSandbox = await _systemConfigService.GetValueAsync("PagBank.UseSandbox");
+            var useSandbox = await _systemConfigService.GetValueAsync(PagBankConfigKey.UseSandbox.ToConfigKey());
             var isSandbox = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(useSandbox);
             return isSandbox ? _sandboxBaseUrl : _productionBaseUrl;
         }
 
         private async Task<string> GetAccessTokenAsync()
         {
-            var token = await _systemConfigService.GetValueAsync("PagBank.AccessToken");
+            var token = await _systemConfigService.GetValueAsync(PagBankConfigKey.AccessToken.ToConfigKey());
             if (string.IsNullOrEmpty(token))
-                throw new InvalidOperationException("Token de acesso PagBank não configurado. Configure em Configurações do Sistema > PagBank.AccessToken");
+                throw new InvalidOperationException($"Token de acesso PagBank não configurado. Configure em Configurações do Sistema > {PagBankConfigKey.AccessToken.ToConfigKey()}");
             return token;
         }
 
@@ -408,7 +408,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 // O PagBank usa o token de acesso da conta como chave para gerar a assinatura
                 // A assinatura é gerada usando SHA256 no formato: {token}-{payload}
-                var token = await _systemConfigService.GetValueAsync("PagBank.AccessToken");
+                var token = await _systemConfigService.GetValueAsync(PagBankConfigKey.AccessToken.ToConfigKey());
                 if (string.IsNullOrEmpty(token))
                 {
                     _logger.LogWarning("Token de acesso não configurado. Validação de webhook ignorada.");
