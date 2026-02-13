@@ -1,6 +1,7 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
 using KlyonHubPlatform.Application.DTOs.Asaas;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
 using System.Text;
@@ -40,16 +41,15 @@ namespace KlyonHubPlatform.Application.Services
 
         private async Task<string> GetBaseUrlAsync()
         {
-            var useSandbox = await _systemConfig.GetValueAsync("Asaas.UseSandbox");
-            return (useSandbox?.ToLower() == "true") ? SandboxBaseUrl : ProductionBaseUrl;
+            var useSandbox = await _systemConfig.GetValueAsync(AsaasConfigKey.UseSandbox.ToConfigKey());
+            return StringBooleanValue.IsTrue(useSandbox) ? SandboxBaseUrl : ProductionBaseUrl;
         }
 
         private async Task<string> GetApiKeyAsync()
         {
-            var key = await _systemConfig.GetValueAsync("Asaas.ApiKey");
+            var key = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
             if (string.IsNullOrEmpty(key))
-                throw new InvalidOperationException(
-                    "API Key Asaas não configurada. Configure em Configurações do Sistema > Asaas.ApiKey");
+                throw new InvalidOperationException(AsaasErrorMessages.ApiKeyNotConfigured);
             return key;
         }
 
@@ -221,6 +221,7 @@ namespace KlyonHubPlatform.Application.Services
                     Description = "Teste de cobrança com cartão (Admin)",
                     ExternalReference = referenceId,
                     InstallmentCount = 1,
+                    InstallmentValue = 5.00m, // Asaas exige valor da parcela (total / parcelas)
                     CreditCard = new AsaasCreditCard
                     {
                         HolderName = "TESTE APROVADO",
@@ -542,10 +543,10 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
         {
-            var token = await _systemConfig.GetValueAsync("Asaas.WebhookToken");
+            var token = await _systemConfig.GetValueAsync(AsaasConfigKey.WebhookToken.ToConfigKey());
             if (string.IsNullOrEmpty(token))
             {
-                _logger.LogWarning("Asaas.WebhookToken não configurado. Validação de webhook ignorada.");
+                _logger.LogWarning("{Key} não configurado. Validação de webhook ignorada.", AsaasConfigKey.WebhookToken.ToConfigKey());
                 return true;
             }
             if (string.IsNullOrEmpty(signature))

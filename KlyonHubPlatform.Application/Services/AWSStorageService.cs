@@ -2,6 +2,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Configuration;
 
 namespace KlyonHubPlatform.Application.Services
@@ -25,12 +26,12 @@ namespace KlyonHubPlatform.Application.Services
             if (_s3Client != null)
                 return _s3Client;
 
-            var accessKeyId = await _systemConfigService.GetValueAsync("AWS.S3.AccessKeyId");
-            var secretAccessKey = await _systemConfigService.GetValueAsync("AWS.S3.SecretAccessKey");
-            _region = await _systemConfigService.GetValueAsync("AWS.S3.Region") ?? "us-east-1";
+            var accessKeyId = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.AccessKeyId.ToConfigKey());
+            var secretAccessKey = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.SecretAccessKey.ToConfigKey());
+            _region = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.Region.ToConfigKey()) ?? AwsS3Defaults.Region;
 
             if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey))
-                throw new InvalidOperationException("Credenciais AWS S3 não configuradas. Configure as credenciais AWS S3 nas Configurações do Sistema ou altere o Storage.Provider para FTP.");
+                throw new InvalidOperationException(AwsS3ErrorMessages.CredentialsNotConfigured);
 
             var regionEndpoint = RegionEndpoint.GetBySystemName(_region);
             _s3Client = new AmazonS3Client(accessKeyId, secretAccessKey, regionEndpoint);
@@ -43,9 +44,9 @@ namespace KlyonHubPlatform.Application.Services
             if (!string.IsNullOrEmpty(_bucketName))
                 return _bucketName;
 
-            _bucketName = await _systemConfigService.GetValueAsync("AWS.S3.BucketName");
+            _bucketName = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.BucketName.ToConfigKey());
             if (string.IsNullOrEmpty(_bucketName))
-                throw new InvalidOperationException("Nome do bucket S3 não configurado");
+                throw new InvalidOperationException(AwsS3ErrorMessages.BucketNameNotConfigured);
 
             return _bucketName;
         }

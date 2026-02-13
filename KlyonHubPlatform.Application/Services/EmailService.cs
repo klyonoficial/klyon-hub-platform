@@ -30,7 +30,7 @@ namespace KlyonHubPlatform.Application.Services
                 var smtpPassword = await _systemConfigService.GetValueAsync("Email.SmtpPassword");
                 var fromEmail = await _systemConfigService.GetValueAsync("Email.FromEmail");
                 var fromName = await _systemConfigService.GetValueAsync("Email.FromName");
-                var enableSslStr = await _systemConfigService.GetValueAsync("Email.EnableSsl") ?? "true";
+                var enableSslStr = await _systemConfigService.GetValueAsync("Email.EnableSsl") ?? KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.True;
                 var replyToEmail = await _systemConfigService.GetValueAsync("Email.ReplyToEmail");
 
                 if (string.IsNullOrEmpty(smtpServer) || string.IsNullOrEmpty(smtpUsername) || string.IsNullOrEmpty(smtpPassword))
@@ -42,7 +42,7 @@ namespace KlyonHubPlatform.Application.Services
                 if (!int.TryParse(smtpPortStr, out var smtpPort))
                     smtpPort = 587;
 
-                var enableSsl = enableSslStr.ToLower() == "true";
+                var enableSsl = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(enableSslStr);
 
                 using (var client = new SmtpClient(smtpServer, smtpPort))
                 {

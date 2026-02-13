@@ -9,6 +9,7 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
@@ -280,7 +281,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Verificar se os menus de coworking estão habilitados
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+            var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             // Se os menus de coworking estiverem desabilitados, mostrar apenas "Contratar Endereço Fiscal"
             if (!showCoworkingMenus)
@@ -999,6 +1000,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (existingCNPJ != null)
                     {
+                        // Se o CNPJ "duplicado" é do próprio cliente do usuário (ex.: edição sem id no form), redirecionar para edição
+                        if (!isAdmin && existingCNPJ.UserId == userId)
+                        {
+                            return RedirectToAction("RegisterClient", new { id = existingCNPJ.Id });
+                        }
                         TempData["Error"] = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
                         ViewBag.UserEmail = userEmail;
                         return View(client);
@@ -1031,6 +1037,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     
                     if (existingCPF != null)
                     {
+                        // Se o CPF "duplicado" é do próprio cliente do usuário (ex.: edição sem id no form), redirecionar para edição
+                        if (!isAdmin && existingCPF.UserId == userId)
+                        {
+                            return RedirectToAction("RegisterClient", new { id = existingCPF.Id });
+                        }
                         TempData["Error"] = $"O CPF {client.CPF} já está cadastrado no sistema.";
                         ViewBag.UserEmail = userEmail;
                         return View(client);
@@ -2240,7 +2251,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             
             // Verificar se o Asaas está configurado antes de tentar gerar códigos
-            var asaasApiKey = await _systemConfig.GetValueAsync("Asaas.ApiKey");
+            var asaasApiKey = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
             var isAsaasConfigured = !string.IsNullOrEmpty(asaasApiKey);
 
             if (!isAsaasConfigured)
@@ -2881,7 +2892,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     brand = "Discover";
 
                 // Se for definir como padrão, remover padrão dos outros cartões
-                var setAsDefault = !string.IsNullOrEmpty(isDefault) && isDefault.ToLower() == "true";
+                var setAsDefault = StringBooleanValue.IsTrue(isDefault);
                 if (setAsDefault)
                 {
                     var defaultCards = await _context.CreditCards

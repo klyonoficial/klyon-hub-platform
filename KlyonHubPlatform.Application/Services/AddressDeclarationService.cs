@@ -1,4 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -67,9 +69,11 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salvar PDF
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
-            var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
+            var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
+            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
+                ? FtpConfigKey.ContractsFolder.ToConfigKey()
+                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
             var fileName = $"declaration_{declarationNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, $"{folder}/declarations");
 

@@ -629,7 +629,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Validar se há horários de funcionamento configurados (apenas se EnableCoworkingMenus estiver habilitado)
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 if (showCoworkingMenus)
                 {
@@ -1926,7 +1926,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             pageSize = 10;
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
                 return RedirectToAction("Dashboard");
 
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -2861,7 +2861,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Validar se há horários de funcionamento configurados (obrigatório apenas se EnableCoworkingMenus estiver habilitado)
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 if (showCoworkingMenus)
                 {
@@ -4224,7 +4224,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
                 return RedirectToAction("Profile");
 
             try
@@ -4244,7 +4244,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 foreach (var day in daysOfWeek)
                 {
                     var isActiveKey = $"IsActive_{day}";
-                    var isActive = form.ContainsKey(isActiveKey) && form[isActiveKey].ToString() == "true";
+                    var isActive = form.ContainsKey(isActiveKey) && form[isActiveKey].ToString() == StringBooleanValue.True;
                     var openingTimeStr = form.ContainsKey($"OpeningTime_{day}") ? form[$"OpeningTime_{day}"].ToString() : null;
                     var closingTimeStr = form.ContainsKey($"ClosingTime_{day}") ? form[$"ClosingTime_{day}"].ToString() : null;
 
@@ -4305,7 +4305,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
                 return RedirectToAction("Profile");
 
             try
@@ -4362,7 +4362,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> DeleteBlockedDate(int id, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
                 return RedirectToAction("Profile");
 
             try
@@ -4427,7 +4427,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Verificar se os menus de coworking estão habilitados
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+            var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             // Se os menus de coworking estiverem desabilitados, mostrar apenas "Ofertar Endereço Fiscal"
             if (!showCoworkingMenus)
@@ -4454,7 +4454,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Verificar se os menus de coworking estão habilitados
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+            var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
             var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
@@ -4543,7 +4543,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se os menus de coworking estão habilitados
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 // Serviços relacionados a coworking que devem ser filtrados se a flag estiver desabilitada
                 var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();

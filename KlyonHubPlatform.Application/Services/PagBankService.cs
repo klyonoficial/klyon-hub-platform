@@ -31,7 +31,7 @@ namespace KlyonHubPlatform.Application.Services
         private async Task<string> GetBaseUrlAsync()
         {
             var useSandbox = await _systemConfigService.GetValueAsync("PagBank.UseSandbox");
-            var isSandbox = useSandbox?.ToLower() == "true";
+            var isSandbox = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(useSandbox);
             return isSandbox ? _sandboxBaseUrl : _productionBaseUrl;
         }
 

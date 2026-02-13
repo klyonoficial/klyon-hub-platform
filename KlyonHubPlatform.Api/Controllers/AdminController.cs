@@ -8,6 +8,8 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using static KlyonHubPlatform.Domain.Core.Constants.D4SignConfigKeys;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
+using static KlyonHubPlatform.Domain.Core.Constants.StorageConfigKeys;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -142,7 +144,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Estatísticas de reservas (apenas se EnableCoworkingMenus estiver habilitado)
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 if (showCoworkingMenus)
                 {
@@ -302,7 +304,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Capacidade Próxima do Limite",
                         Message = $"{addressesNearCapacity.Count} endereço(s) com capacidade próxima ou no limite (≥80%). {atCapacityCount} endereço(s) já atingiram a capacidade máxima.",
                         Count = addressesNearCapacity.Count,
-                        ActionUrl = Url.Action("Coworkings", "Admin", new { capacityAlert = "true" }),
+                        ActionUrl = Url.Action("Coworkings", "Admin", new { capacityAlert = StringBooleanValue.True }),
                         ActionText = "Ver Coworkings"
                     });
                 }
@@ -412,8 +414,9 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Preços no Cartão Aguardando Aprovação",
                         Message = $"{pendingCardPriceCount} solicitação(ões) de alteração de preços no cartão aguardando aprovação.",
                         Count = pendingCardPriceCount,
+                        ActionKey = "cardPricePending",
                         ActionUrl = Url.Action("Coworkings", "Admin"),
-                        ActionText = "Ver Coworkings"
+                        ActionText = "Ver solicitações"
                     });
                 }
             }
@@ -449,7 +452,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         else if (filter == "unverified")
                         {
                             usersQuery = usersQuery.Where(u => !u.EmailVerified);
-                            viewAllUrl = Url.Action("Users", "Admin", new { emailVerified = "false" });
+                            viewAllUrl = Url.Action("Users", "Admin", new { emailVerified = StringBooleanValue.False });
                         }
                         else
                         {
@@ -631,6 +634,85 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Retorna a lista de solicitações de preços no cartão pendentes (para modal do Dashboard).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetPendingCardPriceRequests(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var list = await _context.CardPriceChangeRequests
+                    .Include(r => r.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                    .Where(r => r.Status == CapacityApprovalStatus.Pending)
+                    .OrderBy(r => r.CreatedAt)
+                    .Select(r => new
+                    {
+                        id = r.Id,
+                        coworkingName = r.CoworkingAddress.Coworking.Name,
+                        coworkingId = r.CoworkingAddress.CoworkingId,
+                        addressLabel = r.CoworkingAddress.Address + ", " + r.CoworkingAddress.Number + " — " + r.CoworkingAddress.City + "/" + r.CoworkingAddress.State,
+                        requestedCardPrice1x = r.RequestedCardPrice1x,
+                        requestedCardPriceMonthly = r.RequestedCardPriceMonthly,
+                        requestedCardPrice12x = r.RequestedCardPrice12x,
+                        previousCardPrice1x = r.PreviousCardPrice1x,
+                        previousCardPriceMonthly = r.PreviousCardPriceMonthly,
+                        previousCardPrice12x = r.PreviousCardPrice12x,
+                        createdAt = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                    })
+                    .ToListAsync(cancellationToken);
+
+                return Json(new { success = true, data = list });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Retorna os detalhes de uma solicitação de preço no cartão (para modal de detalhe no Dashboard).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetCardPriceRequestDetail(int id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var r = await _context.CardPriceChangeRequests
+                    .Include(req => req.CoworkingAddress)
+                        .ThenInclude(a => a.Coworking)
+                    .FirstOrDefaultAsync(req => req.Id == id, cancellationToken);
+
+                if (r == null)
+                    return Json(new { success = false, message = "Solicitação não encontrada." });
+
+                if (r.Status != CapacityApprovalStatus.Pending)
+                    return Json(new { success = false, message = "Esta solicitação já foi processada." });
+
+                var addr = r.CoworkingAddress;
+                var detail = new
+                {
+                    id = r.Id,
+                    coworkingName = addr.Coworking?.Name ?? "—",
+                    coworkingId = addr.CoworkingId,
+                    addressLabel = addr.Address + ", " + addr.Number + " — " + addr.City + "/" + addr.State,
+                    requestedCardPrice1x = r.RequestedCardPrice1x,
+                    requestedCardPriceMonthly = r.RequestedCardPriceMonthly,
+                    requestedCardPrice12x = r.RequestedCardPrice12x,
+                    previousCardPrice1x = r.PreviousCardPrice1x,
+                    previousCardPriceMonthly = r.PreviousCardPriceMonthly,
+                    previousCardPrice12x = r.PreviousCardPrice12x,
+                    createdAt = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                };
+                return Json(new { success = true, data = detail });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
         private const int FixedPageSize = 10;
 
         [HttpGet]
@@ -710,7 +792,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 user.FullName = fullName;
                 user.Email = email;
                 user.Phone = phone;
-                user.IsActive = !string.IsNullOrEmpty(isActive) && isActive.ToLower() == "true";
+                user.IsActive = StringBooleanValue.IsTrue(isActive);
                 user.UpdatedAt = DateTimeHelper.GetBrazilianTime();
 
                 await _userService.UpdateAsync(user);
@@ -878,7 +960,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .ToDictionary(id => id, id => coworkingsWithPendingPercentages.Contains(id));
 
                 // Se veio do alerta de capacidade, identificar coworkings com capacidade máxima
-                if (capacityAlert == "true")
+                if (capacityAlert == StringBooleanValue.True)
                 {
                     var coworkingsAtMaxCapacity = await _context.CoworkingAddresses
                         .Where(a => a.AddressStatus == AddressStatus.Active &&
@@ -897,7 +979,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.ServicesCount = servicesCount;
             ViewBag.HasPendingPercentages = hasPendingPercentages;
             ViewBag.HasMaxCapacity = hasMaxCapacity;
-            ViewBag.CapacityAlert = capacityAlert == "true";
+            ViewBag.CapacityAlert = capacityAlert == StringBooleanValue.True;
             ViewBag.Search = search;
             ViewBag.Status = status;
             ViewBag.IsPartner = isPartner;
@@ -932,7 +1014,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Verificar se os menus de coworking estão habilitados
             var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
-            var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+            var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
             var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
 
@@ -1335,6 +1417,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApproveCardPriceChange(int requestId, CancellationToken cancellationToken = default)
         {
+            var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
             try
             {
                 var request = await _context.CardPriceChangeRequests
@@ -1343,12 +1426,14 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (request == null)
                 {
+                    if (isAjax) return Json(new { success = false, message = "Solicitação de alteração de preços no cartão não encontrada." });
                     TempData["Error"] = "Solicitação de alteração de preços no cartão não encontrada.";
                     return RedirectToAction("Dashboard");
                 }
 
                 if (request.Status != CapacityApprovalStatus.Pending)
                 {
+                    if (isAjax) return Json(new { success = false, message = "Esta solicitação já foi processada." });
                     TempData["Error"] = "Esta solicitação já foi processada.";
                     return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
                 }
@@ -1374,11 +1459,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     $"{{\"Status\":\"Pending\"}}",
                     $"{{\"CardPrice1x\":{request.RequestedCardPrice1x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPriceMonthly\":{request.RequestedCardPriceMonthly?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPrice12x\":{request.RequestedCardPrice12x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"Status\":\"Approved\"}}");
 
+                if (isAjax) return Json(new { success = true, message = "Preços no cartão aprovados." });
                 TempData["Success"] = "Preços no cartão aprovados. Os valores já estão visíveis aos clientes.";
                 return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
             }
             catch (Exception ex)
             {
+                if (isAjax) return Json(new { success = false, message = ex.Message });
                 TempData["Error"] = $"Erro ao aprovar preços no cartão: {ex.Message}";
                 return RedirectToAction("Dashboard");
             }
@@ -1388,10 +1475,12 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RejectCardPriceChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
         {
+            var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
             try
             {
                 if (string.IsNullOrWhiteSpace(rejectionReason))
                 {
+                    if (isAjax) return Json(new { success = false, message = "Informe o motivo da reprovação." });
                     TempData["Error"] = "Informe o motivo da reprovação.";
                     return RedirectToAction("Dashboard");
                 }
@@ -1402,12 +1491,14 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (request == null)
                 {
+                    if (isAjax) return Json(new { success = false, message = "Solicitação de alteração de preços no cartão não encontrada." });
                     TempData["Error"] = "Solicitação de alteração de preços no cartão não encontrada.";
                     return RedirectToAction("Dashboard");
                 }
 
                 if (request.Status != CapacityApprovalStatus.Pending)
                 {
+                    if (isAjax) return Json(new { success = false, message = "Esta solicitação já foi processada." });
                     TempData["Error"] = "Esta solicitação já foi processada.";
                     return RedirectToAction("ViewCoworking", new { id = request.CoworkingAddress.CoworkingId });
                 }
@@ -1430,11 +1521,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     $"{{\"Status\":\"Pending\"}}",
                     $"{{\"Status\":\"Rejected\",\"RejectionReason\":{System.Text.Json.JsonSerializer.Serialize(rejectionReason)}}}");
 
+                if (isAjax) return Json(new { success = true, message = "Preços no cartão reprovados." });
                 TempData["Success"] = "Preços no cartão reprovados. O parceiro foi notificado.";
                 return RedirectToAction("ViewCoworking", new { id = address.CoworkingId });
             }
             catch (Exception ex)
             {
+                if (isAjax) return Json(new { success = false, message = ex.Message });
                 TempData["Error"] = $"Erro ao reprovar preços no cartão: {ex.Message}";
                 return RedirectToAction("Dashboard");
             }
@@ -1832,7 +1925,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var isActiveBool = !string.IsNullOrEmpty(isActive) && isActive.ToLower() == "true";
+                var isActiveBool = StringBooleanValue.IsTrue(isActive);
                 await _locationService.CreateAsync(city, state, region, isActiveBool, commissionPercentage);
 
                 TempData["Success"] = $"Localidade {city}/{state} criada com sucesso!";
@@ -1890,7 +1983,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var isActiveBool = !string.IsNullOrEmpty(isActive) && isActive.ToLower() == "true";
+                var isActiveBool = StringBooleanValue.IsTrue(isActive);
                 await _locationService.UpdateAsync(id, city, state, region, isActiveBool);
 
                 TempData["Success"] = $"Localidade {city}/{state} atualizada com sucesso!";
@@ -2213,7 +2306,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 await _systemConfigurationService.CreateOrUpdateAsync(
                     key: "Features.EnableCoworkingMenus",
-                    value: "false",
+                    value: StringBooleanValue.False,
                     description: "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false",
                     category: "Features",
                     isEncrypted: false,
@@ -2241,7 +2334,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
 
             // Obter o provedor de storage atual
-            var currentProvider = await _systemConfigurationService.GetValueAsync("Storage.Provider") ?? "AWS";
+            var currentProvider = await _systemConfigurationService.GetValueAsync(Provider) ?? "AWS";
 
             // D4Sign: considerar configurado quando TokenAPI e SafeUuid preenchidos
             var d4Token = await _systemConfigurationService.GetValueAsync(TokenAPI);
@@ -2305,18 +2398,18 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 // Atualizar Storage.Provider para FTP
                 var storageProvider = await _context.SystemConfigurations
-                    .FirstOrDefaultAsync(c => c.Key == "Storage.Provider");
+                    .FirstOrDefaultAsync(c => c.Key == Provider);
                 if (storageProvider != null)
                 {
-                    storageProvider.Value = "FTP";
+                    storageProvider.Value = FtpDefaults.ProviderName;
                     storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                 }
                 else
                 {
                     _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
                     {
-                        Key = "Storage.Provider",
-                        Value = "FTP",
+                        Key = Provider,
+                        Value = FtpDefaults.ProviderName,
                         Description = "Provedor de armazenamento: AWS ou FTP",
                         Category = "Storage",
                         IsSensitive = false,
@@ -2326,44 +2419,36 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 // Atualizar configurações FTP
-                var ftpConfigs = new Dictionary<string, string>
+                var ftpConfigs = new (FtpConfigKey Key, string Value)[]
                 {
-                    { "FTP.Host", "187.110.161.110" },
-                    { "FTP.Port", "21" },
-                    { "FTP.Username", "gestorhub" },
-                    { "FTP.Password", "F@z3rd@rC3rt0" },
-                    { "FTP.UsePassiveMode", "true" },
-                    { "FTP.UseSSL", "false" }
+                    (FtpConfigKey.Host, "187.110.161.110"),
+                    (FtpConfigKey.Port, FtpDefaults.PortString),
+                    (FtpConfigKey.Username, "gestorhub"),
+                    (FtpConfigKey.Password, "F@z3rd@rC3rt0"),
+                    (FtpConfigKey.UsePassiveMode, FtpDefaults.UsePassive),
+                    (FtpConfigKey.UseSSL, FtpDefaults.UseSsl)
                 };
 
-                foreach (var config in ftpConfigs)
+                foreach (var (key, value) in ftpConfigs)
                 {
+                    var configKey = key.ToConfigKey();
                     var existing = await _context.SystemConfigurations
-                        .FirstOrDefaultAsync(c => c.Key == config.Key);
+                        .FirstOrDefaultAsync(c => c.Key == configKey);
 
                     if (existing != null)
                     {
-                        existing.Value = config.Value;
+                        existing.Value = value;
                         existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
                     }
                     else
                     {
                         _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
                         {
-                            Key = config.Key,
-                            Value = config.Value,
-                            Description = config.Key switch
-                            {
-                                "FTP.Host" => "Endereço do servidor FTP",
-                                "FTP.Port" => "Porta do servidor FTP (padrão: 21)",
-                                "FTP.Username" => "Usuário para acesso ao servidor FTP",
-                                "FTP.Password" => "Senha para acesso ao servidor FTP",
-                                "FTP.UsePassiveMode" => "Usar modo passivo no FTP (recomendado para firewalls)",
-                                "FTP.UseSSL" => "Usar SSL/TLS para conexão FTP (FTPS)",
-                                _ => ""
-                            },
+                            Key = configKey,
+                            Value = value,
+                            Description = key.GetDescription(),
                             Category = "Storage",
-                            IsSensitive = config.Key == "FTP.Password",
+                            IsSensitive = key == FtpConfigKey.Password,
                             IsEncrypted = false,
                             CreatedAt = DateTimeHelper.GetBrazilianTime()
                         });
@@ -2480,8 +2565,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Atualizar configurações do Asaas para Sandbox (exemplo - substitua pela sua API Key do Asaas)
                 var configs = new Dictionary<string, string>
                 {
-                    { "Asaas.ApiKey", "" },
-                    { "Asaas.UseSandbox", "true" }
+                    { AsaasConfigKey.ApiKey.ToConfigKey(), "" },
+                    { AsaasConfigKey.UseSandbox.ToConfigKey(), StringBooleanValue.True }
                 };
 
                 foreach (var config in configs)
@@ -2503,12 +2588,12 @@ namespace KlyonHubPlatform.Api.Controllers
                             Value = config.Value,
                             Description = config.Key switch
                             {
-                                "Asaas.ApiKey" => "API Key do Asaas (obtida no painel Asaas > Integrações)",
-                                "Asaas.UseSandbox" => "Usar ambiente sandbox do Asaas (true/false)",
+                                _ when config.Key == AsaasConfigKey.ApiKey.ToConfigKey() => "API Key do Asaas (obtida no painel Asaas > Integrações)",
+                                _ when config.Key == AsaasConfigKey.UseSandbox.ToConfigKey() => "Usar ambiente sandbox do Asaas (true/false)",
                                 _ => ""
                             },
                             Category = "Payment",
-                            IsSensitive = config.Key == "Asaas.ApiKey",
+                            IsSensitive = config.Key == AsaasConfigKey.ApiKey.ToConfigKey(),
                             IsEncrypted = false,
                             CreatedAt = DateTimeHelper.GetBrazilianTime()
                         });
@@ -2518,7 +2603,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 TempData["Success"] = "✅ Configurações do Asaas (Sandbox) preparadas.<br/>" +
-                                     "<strong>Próximo passo:</strong> Edite <strong>Asaas.ApiKey</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">sandbox.asaas.com</a>. Use <strong>Testar Conexão Asaas</strong> para validar.";
+                                     $"<strong>Próximo passo:</strong> Edite <strong>{AsaasConfigKey.ApiKey.ToConfigKey()}</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">sandbox.asaas.com</a>. Use <strong>Testar Conexão Asaas</strong> para validar.";
                 return RedirectToAction("SystemConfigurations");
             }
             catch (Exception ex)
@@ -2534,16 +2619,16 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
-                var useSandbox = await _systemConfigurationService.GetValueAsync("Asaas.UseSandbox");
+                var apiKey = await _systemConfigurationService.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
+                var useSandbox = await _systemConfigurationService.GetValueAsync(AsaasConfigKey.UseSandbox.ToConfigKey());
 
                 if (string.IsNullOrEmpty(apiKey))
                 {
-                    TempData["Error"] = "API Key Asaas não configurada. Configure primeiro em 'Configurar Asaas' e preencha Asaas.ApiKey.";
+                    TempData["Error"] = $"API Key Asaas não configurada. Configure primeiro em 'Configurar Asaas' e preencha {AsaasConfigKey.ApiKey.ToConfigKey()}.";
                     return RedirectToAction("SystemConfigurations");
                 }
 
-                var isSandbox = useSandbox?.ToLower() == "true";
+                var isSandbox = StringBooleanValue.IsTrue(useSandbox);
                 var environment = isSandbox ? "Sandbox (Testes)" : "Produção";
 
                 var (success, statusCode, message) = await _asaasService.TestCreatePaymentAsync();
@@ -2586,10 +2671,10 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
+                var apiKey = await _systemConfigurationService.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
                 if (string.IsNullOrEmpty(apiKey))
                 {
-                    TempData["Error"] = "API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha Asaas.ApiKey.";
+                    TempData["Error"] = $"API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha {AsaasConfigKey.ApiKey.ToConfigKey()}.";
                     return RedirectToAction("SystemConfigurations");
                 }
 
@@ -2617,10 +2702,10 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var apiKey = await _systemConfigurationService.GetValueAsync("Asaas.ApiKey");
+                var apiKey = await _systemConfigurationService.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
                 if (string.IsNullOrEmpty(apiKey))
                 {
-                    TempData["Error"] = "API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha Asaas.ApiKey.";
+                    TempData["Error"] = $"API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha {AsaasConfigKey.ApiKey.ToConfigKey()}.";
                     return RedirectToAction("SystemConfigurations");
                 }
 
@@ -4344,7 +4429,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
 
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
                 {
                     TempData["Error"] = "Este serviço não está disponível quando os menus de coworking estão desabilitados.";
@@ -6446,7 +6531,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
                 // Verificar se os menus de coworking estão habilitados
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
 
                 var inactiveServices = _context.Services.Where(ps => !ps.IsActive).Select(x => x.Name).ToList();
 
@@ -6528,7 +6613,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
                 
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync("Features.EnableCoworkingMenus");
-                var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
+                var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
                     return Json(new { success = false, message = "Este serviço não está disponível quando os menus de coworking estão desabilitados." });
 

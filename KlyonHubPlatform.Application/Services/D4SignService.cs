@@ -120,7 +120,7 @@ namespace KlyonHubPlatform.Application.Services
             var useSandbox = await _config.GetValueAsync(D4SignConfigKeys.UseSandbox);
             if (string.IsNullOrWhiteSpace(useSandbox))
                 return D4SignEnvironment.Sandbox;
-            return useSandbox.Trim().ToLowerInvariant() == "true"
+            return StringBooleanValue.IsTrue(useSandbox)
                 ? D4SignEnvironment.Sandbox
                 : D4SignEnvironment.Production;
         }

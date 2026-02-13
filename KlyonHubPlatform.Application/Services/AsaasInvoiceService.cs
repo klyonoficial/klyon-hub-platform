@@ -1,5 +1,7 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.Asaas;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
@@ -37,15 +39,15 @@ namespace KlyonHubPlatform.Application.Services
 
         private async Task<string> GetBaseUrlAsync()
         {
-            var useSandbox = await _systemConfig.GetValueAsync("Asaas.UseSandbox");
-            return (useSandbox?.ToLower() == "true") ? SandboxBaseUrl : ProductionBaseUrl;
+            var useSandbox = await _systemConfig.GetValueAsync(AsaasConfigKey.UseSandbox.ToConfigKey());
+            return StringBooleanValue.IsTrue(useSandbox) ? SandboxBaseUrl : ProductionBaseUrl;
         }
 
         private async Task<string> GetApiKeyAsync()
         {
-            var key = await _systemConfig.GetValueAsync("Asaas.ApiKey");
+            var key = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
             if (string.IsNullOrEmpty(key))
-                throw new InvalidOperationException("API Key Asaas não configurada. Configure Asaas.ApiKey nas Configurações do Sistema.");
+                throw new InvalidOperationException(AsaasErrorMessages.ApiKeyNotConfiguredShort);
             return key;
         }
 

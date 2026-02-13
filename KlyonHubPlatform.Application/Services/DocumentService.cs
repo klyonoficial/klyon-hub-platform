@@ -194,10 +194,12 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
-            var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
-            
+            var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
+            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
+                ? FtpConfigKey.ContractsFolder.ToConfigKey()
+                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
             var signerEmail = contract.Client.ContactName ?? contract.Client.RazaoSocial ?? contract.Client.NomeFantasia;
@@ -288,10 +290,12 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
-            var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
-            
+            var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
+            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
+                ? FtpConfigKey.ContractsFolder.ToConfigKey()
+                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
             var contract = payment.Subscription?.Contract;
@@ -339,10 +343,12 @@ namespace KlyonHubPlatform.Application.Services
 
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider") ?? "FTP";
-            var folderKey = provider.ToUpper() == "FTP" ? "FTP.ContractsFolder" : "AWS.S3.ContractsFolder";
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? "contracts";
-            
+            var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
+            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
+                ? FtpConfigKey.ContractsFolder.ToConfigKey()
+                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
             var documentEntity = new DocumentModel

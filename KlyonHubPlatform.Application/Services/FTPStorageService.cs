@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using FluentFTP;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Configuration;
 
 namespace KlyonHubPlatform.Application.Services
@@ -21,21 +22,21 @@ namespace KlyonHubPlatform.Application.Services
             if (_ftpClient != null && _ftpClient.IsConnected)
                 return _ftpClient;
 
-            var host = await _systemConfigService.GetValueAsync("FTP.Host");
-            var portStr = await _systemConfigService.GetValueAsync("FTP.Port") ?? "21";
-            var username = await _systemConfigService.GetValueAsync("FTP.Username");
-            var password = await _systemConfigService.GetValueAsync("FTP.Password");
-            var usePassiveStr = await _systemConfigService.GetValueAsync("FTP.UsePassiveMode") ?? "true";
-            var useSslStr = await _systemConfigService.GetValueAsync("FTP.UseSSL") ?? "false";
+            var host = await _systemConfigService.GetValueAsync(FtpConfigKey.Host.ToConfigKey());
+            var portStr = await _systemConfigService.GetValueAsync(FtpConfigKey.Port.ToConfigKey()) ?? FtpDefaults.PortString;
+            var username = await _systemConfigService.GetValueAsync(FtpConfigKey.Username.ToConfigKey());
+            var password = await _systemConfigService.GetValueAsync(FtpConfigKey.Password.ToConfigKey());
+            var usePassiveStr = await _systemConfigService.GetValueAsync(FtpConfigKey.UsePassiveMode.ToConfigKey()) ?? FtpDefaults.UsePassive;
+            var useSslStr = await _systemConfigService.GetValueAsync(FtpConfigKey.UseSSL.ToConfigKey()) ?? FtpDefaults.UseSsl;
 
             if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-                throw new InvalidOperationException("Credenciais FTP não configuradas");
+                throw new InvalidOperationException(FtpErrorMessages.CredentialsNotConfigured);
 
             if (!int.TryParse(portStr, out var port))
-                port = 21;
+                port = FtpDefaults.Port;
 
-            var usePassive = usePassiveStr.ToLower() == "true";
-            var useSsl = useSslStr.ToLower() == "true";
+            var usePassive = usePassiveStr.Trim().Equals(FtpDefaults.True, StringComparison.OrdinalIgnoreCase);
+            var useSsl = useSslStr.Trim().Equals(FtpDefaults.True, StringComparison.OrdinalIgnoreCase);
 
             _ftpClient = new FtpClient(host, username, password, port);
 
@@ -57,7 +58,7 @@ namespace KlyonHubPlatform.Application.Services
 
         private async Task<string> GetRootPathAsync()
         {
-            var rootPath = await _systemConfigService.GetValueAsync("FTP.RootPath") ?? "/";
+            var rootPath = await _systemConfigService.GetValueAsync(FtpConfigKey.RootPath.ToConfigKey()) ?? FtpDefaults.RootPath;
             return rootPath.TrimEnd('/');
         }
 

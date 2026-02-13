@@ -84,7 +84,7 @@
                                     <tbody>
                                         @foreach (var config in categoryGroup)
                                         {
-                                            var isStorageProvider = config.Key == "Storage.Provider";
+                                            var isStorageProvider = config.Key == StorageConfigKeys.Provider;
                                             var isActiveProvider = isStorageProvider && config.Value?.ToUpper() == currentStorageProvider.ToUpper();
                                             var isStorageConfig = config.Key.StartsWith("AWS.") || config.Key.StartsWith("FTP.");
                                             var isActiveStorageConfig = isStorageConfig && 

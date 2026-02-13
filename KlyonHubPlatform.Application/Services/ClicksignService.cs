@@ -123,7 +123,7 @@ namespace KlyonHubPlatform.Application.Services
             var useSandbox = await _config.GetValueAsync(ClicksignConfigKeys.UseSandbox);
             if (string.IsNullOrWhiteSpace(useSandbox))
                 return ClicksignEnvironment.Sandbox;
-            return useSandbox.Trim().ToLowerInvariant() == "true"
+            return StringBooleanValue.IsTrue(useSandbox)
                 ? ClicksignEnvironment.Sandbox
                 : ClicksignEnvironment.Production;
         }

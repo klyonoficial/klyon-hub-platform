@@ -1,4 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Configuration;
 
 namespace KlyonHubPlatform.Application.Services
@@ -21,15 +23,15 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<IStorageService> GetStorageServiceAsync()
         {
-            var provider = await _systemConfigService.GetValueAsync("Storage.Provider");
+            var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider);
             
             // Se não houver provider configurado ou estiver vazio, verifica FTP primeiro
             if (string.IsNullOrEmpty(provider) || string.IsNullOrWhiteSpace(provider))
             {
                 // Verifica se FTP está configurado
-                var ftpHost = await _systemConfigService.GetValueAsync("FTP.Host");
-                var ftpUsername = await _systemConfigService.GetValueAsync("FTP.Username");
-                var ftpPassword = await _systemConfigService.GetValueAsync("FTP.Password");
+                var ftpHost = await _systemConfigService.GetValueAsync(FtpConfigKey.Host.ToConfigKey());
+                var ftpUsername = await _systemConfigService.GetValueAsync(FtpConfigKey.Username.ToConfigKey());
+                var ftpPassword = await _systemConfigService.GetValueAsync(FtpConfigKey.Password.ToConfigKey());
                 
                 if (!string.IsNullOrEmpty(ftpHost) && !string.IsNullOrEmpty(ftpUsername) && !string.IsNullOrEmpty(ftpPassword))
                 {
@@ -44,7 +46,7 @@ namespace KlyonHubPlatform.Application.Services
             
             return normalizedProvider switch
             {
-                "FTP" => _ftpStorageService,
+                _ when normalizedProvider == FtpDefaults.ProviderName => _ftpStorageService,
                 "AWS" or "S3" => _awsStorageService,
                 _ => _ftpStorageService // Default para FTP se não reconhecer (mais seguro)
             };

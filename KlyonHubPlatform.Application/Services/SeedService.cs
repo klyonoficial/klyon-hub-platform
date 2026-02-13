@@ -400,7 +400,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Email.EnableSsl",
-                        Value = "true",
+                        Value = StringBooleanValue.True,
                         Description = "Habilitar SSL/TLS para conexão SMTP",
                         Category = "Email",
                         IsSensitive = false,
@@ -436,7 +436,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Asaas.ApiKey",
+                        Key = AsaasConfigKey.ApiKey.ToConfigKey(),
                         Value = "",
                         Description = "API Key do Asaas (painel Asaas > Integrações)",
                         Category = "Payment",
@@ -445,8 +445,8 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Asaas.UseSandbox",
-                        Value = "true",
+                        Key = AsaasConfigKey.UseSandbox.ToConfigKey(),
+                        Value = StringBooleanValue.True,
                         Description = "Usar ambiente sandbox do Asaas (true/false)",
                         Category = "Payment",
                         IsSensitive = false,
@@ -454,7 +454,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "Asaas.WebhookToken",
+                        Key = AsaasConfigKey.WebhookToken.ToConfigKey(),
                         Value = "",
                         Description = "Token para validação de webhooks do Asaas (opcional)",
                         Category = "Payment",
@@ -473,7 +473,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "PagBank.UseSandbox",
-                        Value = "true",
+                        Value = StringBooleanValue.True,
                         Description = "[Legado] Sandbox PagBank",
                         Category = "Payment",
                         IsSensitive = false,
@@ -500,8 +500,8 @@ namespace KlyonHubPlatform.Application.Services
                     // Storage Provider Settings
                     new SystemConfiguration
                     {
-                        Key = "Storage.Provider",
-                        Value = "FTP",
+                        Key = StorageConfigKeys.Provider,
+                        Value = FtpDefaults.ProviderName,
                         Description = "Provedor de armazenamento: AWS ou FTP",
                         Category = "Storage",
                         IsSensitive = false,
@@ -510,7 +510,7 @@ namespace KlyonHubPlatform.Application.Services
                     // AWS S3 Settings
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.BucketName",
+                        Key = AwsS3ConfigKey.BucketName.ToConfigKey(),
                         Value = "klyon-hub-platform-documents",
                         Description = "Nome do bucket S3 para armazenamento de documentos",
                         Category = "Storage",
@@ -519,8 +519,8 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.Region",
-                        Value = "us-east-1",
+                        Key = AwsS3ConfigKey.Region.ToConfigKey(),
+                        Value = AwsS3Defaults.Region,
                         Description = "Região do bucket S3",
                         Category = "Storage",
                         IsSensitive = false,
@@ -528,7 +528,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.AccessKeyId",
+                        Key = AwsS3ConfigKey.AccessKeyId.ToConfigKey(),
                         Value = "your-access-key-id",
                         Description = "Access Key ID da AWS",
                         Category = "Storage",
@@ -537,7 +537,7 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.SecretAccessKey",
+                        Key = AwsS3ConfigKey.SecretAccessKey.ToConfigKey(),
                         Value = "your-secret-access-key",
                         Description = "Secret Access Key da AWS",
                         Category = "Storage",
@@ -546,8 +546,8 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.ContractsFolder",
-                        Value = "contracts",
+                        Key = AwsS3ConfigKey.ContractsFolder.ToConfigKey(),
+                        Value = AwsS3Defaults.ContractsFolder,
                         Description = "Pasta no bucket para armazenar contratos",
                         Category = "Storage",
                         IsSensitive = false,
@@ -555,8 +555,8 @@ namespace KlyonHubPlatform.Application.Services
                     },
                     new SystemConfiguration
                     {
-                        Key = "AWS.S3.PhotosFolder",
-                        Value = "coworking-photos",
+                        Key = AwsS3ConfigKey.PhotosFolder.ToConfigKey(),
+                        Value = AwsS3Defaults.PhotosFolder,
                         Description = "Pasta no bucket para armazenar fotos dos coworkings",
                         Category = "Storage",
                         IsSensitive = false,
@@ -565,81 +565,81 @@ namespace KlyonHubPlatform.Application.Services
                     // FTP Settings
                     new SystemConfiguration
                     {
-                        Key = "FTP.Host",
+                        Key = FtpConfigKey.Host.ToConfigKey(),
                         Value = "187.110.161.110",
-                        Description = "Endereço do servidor FTP",
+                        Description = FtpConfigKey.Host.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.Port",
-                        Value = "21",
-                        Description = "Porta do servidor FTP (padrão: 21)",
+                        Key = FtpConfigKey.Port.ToConfigKey(),
+                        Value = FtpDefaults.PortString,
+                        Description = FtpConfigKey.Port.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.Username",
+                        Key = FtpConfigKey.Username.ToConfigKey(),
                         Value = "gestorhub",
-                        Description = "Usuário para acesso ao servidor FTP",
+                        Description = FtpConfigKey.Username.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.Password",
+                        Key = FtpConfigKey.Password.ToConfigKey(),
                         Value = "F@z3rd@rC3rt0",
-                        Description = "Senha para acesso ao servidor FTP",
+                        Description = FtpConfigKey.Password.GetDescription(),
                         Category = "Storage",
                         IsSensitive = true,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.RootPath",
+                        Key = FtpConfigKey.RootPath.ToConfigKey(),
                         Value = "/documents",
-                        Description = "Caminho raiz no servidor FTP para armazenamento",
+                        Description = FtpConfigKey.RootPath.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.ContractsFolder",
-                        Value = "contracts",
-                        Description = "Pasta no servidor FTP para armazenar contratos",
+                        Key = FtpConfigKey.ContractsFolder.ToConfigKey(),
+                        Value = FtpDefaults.ContractsFolder,
+                        Description = FtpConfigKey.ContractsFolder.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.PhotosFolder",
+                        Key = FtpConfigKey.PhotosFolder.ToConfigKey(),
                         Value = "coworking-photos",
-                        Description = "Pasta no servidor FTP para armazenar fotos dos coworkings",
+                        Description = FtpConfigKey.PhotosFolder.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.UsePassiveMode",
-                        Value = "true",
-                        Description = "Usar modo passivo no FTP (recomendado para firewalls)",
+                        Key = FtpConfigKey.UsePassiveMode.ToConfigKey(),
+                        Value = FtpDefaults.UsePassive,
+                        Description = FtpConfigKey.UsePassiveMode.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
                     },
                     new SystemConfiguration
                     {
-                        Key = "FTP.UseSSL",
-                        Value = "false",
-                        Description = "Usar SSL/TLS para conexão FTP (FTPS)",
+                        Key = FtpConfigKey.UseSSL.ToConfigKey(),
+                        Value = FtpDefaults.UseSsl,
+                        Description = FtpConfigKey.UseSSL.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false
@@ -666,7 +666,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = D4SignConfigKeys.UseSandbox,
-                        Value = "true",
+                        Value = StringBooleanValue.True,
                         Description = "Usar ambiente sandbox D4Sign (true/false). true = testes; false = produção.",
                         Category = "D4Sign",
                         IsSensitive = false,
@@ -702,7 +702,7 @@ namespace KlyonHubPlatform.Application.Services
                     new SystemConfiguration
                     {
                         Key = "Features.EnableCoworkingMenus",
-                        Value = "false",
+                        Value = StringBooleanValue.False,
                         Description = "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false.",
                         Category = "Features",
                         IsSensitive = false,
@@ -725,7 +725,7 @@ namespace KlyonHubPlatform.Application.Services
                 var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == "Features.EnableCoworkingMenus");
                 if (coworkingMenusConfig != null)
                 {
-                    coworkingMenusConfig.Value = "false";
+                    coworkingMenusConfig.Value = StringBooleanValue.False;
                     await _context.SaveChangesAsync();
                 }
             }

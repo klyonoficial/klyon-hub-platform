@@ -216,7 +216,7 @@ namespace KlyonHubPlatform.Application.Services
 
             if (!string.IsNullOrEmpty(isPartner))
             {
-                bool partner = isPartner == "true";
+                bool partner = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(isPartner);
                 query = query.Where(c => c.IsPartner == partner);
             }
 

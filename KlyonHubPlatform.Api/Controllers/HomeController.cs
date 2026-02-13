@@ -6,6 +6,7 @@ using KlyonHubPlatform.Api.ViewModels;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +36,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
+            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 
@@ -50,7 +51,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("ChooseLocation", "Client");
             }
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
+            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 
@@ -61,7 +62,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> Rooms(CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
-            if (string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase))
+            if (StringBooleanValue.IsFalse(enableCoworkingMenus))
             {
                 return RedirectToAction("Index");
             }
@@ -80,7 +81,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction("Dashboard", "Coworking");
             }
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus", cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !string.Equals(enableCoworkingMenus, "false", StringComparison.OrdinalIgnoreCase);
+            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 

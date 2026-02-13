@@ -1,5 +1,6 @@
 @model KlyonHubPlatform.Domain.Entities.SystemConfiguration
 @using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData["Title"] = "Editar Configuração";
 }
@@ -45,12 +46,12 @@
                     <input type="password" class="form-control" id="value" name="value" value="@Model.Value" required>
                     <small class="form-text text-muted">
                         <i class="bi bi-lock"></i> Este é um campo sensível. Digite o novo valor para atualizar.
-                        @if (Model.Key == "PagBank.AccessToken" || Model.Key == "Asaas.ApiKey")
+                        @if (Model.Key == "PagBank.AccessToken" || Model.Key == AsaasConfigKey.ApiKey.ToConfigKey())
                         {
                             <text>
                                 <br />
                                 <i class="bi bi-info-circle"></i> <strong>Dica:</strong> Obtenha o token em 
-                                @if (Model.Key == "Asaas.ApiKey")
+                                @if (Model.Key == AsaasConfigKey.ApiKey.ToConfigKey())
                                 {
                                     <text><strong>Cole o Token (Chave de API)</strong> que começa com <code>@("$aact_")</code>, obtido em <strong>Integrações → Chaves de API</strong> no <a href="https://sandbox.asaas.com/" target="_blank">Asaas Sandbox</a> (testes) ou no <a href="https://www.asaas.com/" target="_blank">Asaas</a>. Não use o Wallet ID.</text>
                                 }
@@ -73,7 +74,7 @@
                 }
                 else
                 {
-                    @if (Model.Key == "PagBank.UseSandbox" || Model.Key == "Asaas.UseSandbox")
+                    @if (Model.Key == "PagBank.UseSandbox" || Model.Key == AsaasConfigKey.UseSandbox.ToConfigKey())
                     {
                         <select class="form-control" id="value" name="value" required>
                             <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Ambiente de Testes - Sandbox)</option>

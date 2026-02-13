@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -99,7 +100,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 user.PasswordResetExpires = DateTime.UtcNow.AddHours(1);
                 await _authService.UpdateUserAsync(user);
                 
-                HttpContext.Session.SetString("MustChangePassword", "true");
+                HttpContext.Session.SetString("MustChangePassword", StringBooleanValue.True);
                 HttpContext.Session.SetString("ChangePasswordReturnUrl", returnUrl ?? "/Client/DashboardDetails");
                 
                 return RedirectToAction("ChangePasswordRequired");
@@ -131,20 +132,32 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null, bool acceptLgpdTerms = false, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null, string? acceptLgpdTerms = null, CancellationToken cancellationToken = default)
         {
+            var acceptLgpdRaw = acceptLgpdTerms ?? Request.Form["acceptLgpdTerms"].ToString();
+            bool aceiteLgpd = StringBooleanValue.IsTrue(acceptLgpdRaw)
+                || string.Equals(acceptLgpdRaw?.Trim(), "on", StringComparison.OrdinalIgnoreCase);
+
+            void PreserveRegisterForm(string? err = null)
+            {
+                if (err != null) ViewData["Error"] = err;
+                ViewData["ReturnUrl"] = returnUrl;
+                ViewBag.RegisterFullName = fullName;
+                ViewBag.RegisterEmail = email;
+                ViewBag.RegisterRole = role;
+                ViewBag.RegisterAcceptLgpdTerms = aceiteLgpd;
+                if (role == "CoworkingPartner") ViewBag.PreSelectedRole = "CoworkingPartner";
+            }
+
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
             {
-                ViewData["Error"] = "Todos os campos são obrigatórios";
-                ViewData["ReturnUrl"] = returnUrl;
+                PreserveRegisterForm("Todos os campos são obrigatórios");
                 return View();
             }
 
-            if (!acceptLgpdTerms)
+            if (!aceiteLgpd)
             {
-                ViewData["Error"] = "É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.";
-                ViewData["ReturnUrl"] = returnUrl;
-                if (role == "CoworkingPartner") ViewBag.PreSelectedRole = "CoworkingPartner";
+                PreserveRegisterForm("É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.");
                 return View();
             }
 
@@ -155,8 +168,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl);
             if (!success)
             {
-                ViewData["Error"] = "Erro ao criar conta. Email já existe?";
-                ViewData["ReturnUrl"] = returnUrl;
+                PreserveRegisterForm("Erro ao criar conta. Email já existe?");
                 return View();
             }
 
@@ -442,7 +454,7 @@ namespace KlyonHubPlatform.Api.Controllers
             // Verificar se precisa alterar senha
             if (user.MustChangePassword)
             {
-                HttpContext.Session.SetString("MustChangePassword", "true");
+                HttpContext.Session.SetString("MustChangePassword", StringBooleanValue.True);
                 if (!string.IsNullOrEmpty(redirect) && Url.IsLocalUrl(redirect))
                 {
                     HttpContext.Session.SetString("ChangePasswordReturnUrl", redirect);
@@ -467,7 +479,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [Authorize]
         public IActionResult ChangePasswordRequired()
         {
-            if (HttpContext.Session.GetString("MustChangePassword") != "true")
+            if (HttpContext.Session.GetString("MustChangePassword") != StringBooleanValue.True)
             {
                 return RedirectToAction("Index", "Home");
             }
@@ -479,7 +491,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangePasswordRequired(string currentPassword, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
         {
-            if (HttpContext.Session.GetString("MustChangePassword") != "true")
+            if (HttpContext.Session.GetString("MustChangePassword") != StringBooleanValue.True)
             {
                 return RedirectToAction("Index", "Home");
             }
