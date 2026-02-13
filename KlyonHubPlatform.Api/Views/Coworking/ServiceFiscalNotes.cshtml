@@ -47,19 +47,11 @@
                 <label for="contractNumber" class="form-label">Código contrato</label>
                 <input type="text" class="form-control" id="contractNumber" name="contractNumber" placeholder="Ex.: KLY-2024-001" value="@(ViewBag.ContractNumber ?? "")" />
             </div>
-            <div class="col-md-2">
-                <label for="pageSize" class="form-label">Por página</label>
-                <select class="form-select" id="pageSize" name="pageSize">
-                    <option value="10" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 10)">10</option>
-                    <option value="20" selected="@(ViewBag.PageSize == null || (int)ViewBag.PageSize == 20)">20</option>
-                    <option value="50" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 50)">50</option>
-                </select>
-            </div>
             <div class="col-md-4 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary" name="page" value="1">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("ServiceFiscalNotes", "Coworking", new { pageSize = 20 })" class="btn btn-secondary">
+                <a href="@Url.Action("ServiceFiscalNotes", "Coworking")" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -92,7 +84,7 @@
             <div class="card-body">
                 <h6 class="card-title text-muted"><i class="bi bi-file-earmark-text"></i> Página</h6>
                 <h2 class="mb-0">@ViewBag.CurrentPage de @(ViewBag.TotalPages ?? 1)</h2>
-                <small class="text-muted">@(ViewBag.PageSize ?? 20) registros por página</small>
+                <small class="text-muted">10 registros por página</small>
             </div>
         </div>
     </div>

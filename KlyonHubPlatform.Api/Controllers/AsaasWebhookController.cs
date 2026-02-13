@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -32,7 +33,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ReceiveWebhook()
+        public async Task<IActionResult> ReceiveWebhook(CancellationToken cancellationToken = default)
         {
             string payload;
             try

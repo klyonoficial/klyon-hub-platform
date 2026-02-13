@@ -39,14 +39,6 @@
                 <label class="form-label">Cliente</label>
                 <input type="text" class="form-control" name="client" placeholder="Nome, CNPJ ou CPF" value="@(ViewBag.Client ?? "")" />
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Por página</label>
-                <select class="form-select" name="pageSize">
-                    <option value="10" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 10)">10</option>
-                    <option value="20" selected="@(ViewBag.PageSize == null || (int)ViewBag.PageSize == 20)">20</option>
-                    <option value="50" selected="@(ViewBag.PageSize != null && (int)ViewBag.PageSize == 50)">50</option>
-                </select>
-            </div>
             <div class="col-md-4 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary" name="page" value="1">
                     <i class="bi bi-funnel"></i> Filtrar
@@ -66,7 +58,7 @@
             var currentPage = ViewBag.CurrentPage as int? ?? 1;
             var totalPages = ViewBag.TotalPages as int? ?? 1;
             var totalItems = ViewBag.TotalItems as int? ?? 0;
-            var pageSize = ViewBag.PageSize as int? ?? 20;
+            var pageSize = ViewBag.PageSize as int? ?? 10;
         }
         @if (Model != null && Model.Any())
         {

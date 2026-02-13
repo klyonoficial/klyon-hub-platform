@@ -1281,8 +1281,10 @@ document.addEventListener('DOMContentLoaded', function() {
     transform: scale(1.1);
     opacity: 0.8;
 }
+/* Hover no título dos painéis: mantém fundo escuro e texto branco legível (evita "apagar") */
 .card-header[data-bs-toggle="collapse"]:hover {
-    background-color: rgba(0,0,0,0.03);
+    background-color: #0a1f3a;
+    color: #ffffff;
 }
 /* Evita o “lift” do card no hover nos blocos colapsáveis (evita card subir ao passar o mouse) */
 .card:has(.card-header[data-bs-toggle="collapse"]):hover {

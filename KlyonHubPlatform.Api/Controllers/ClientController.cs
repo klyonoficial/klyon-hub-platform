@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
@@ -53,7 +55,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public int Participants { get; set; } = 1;
     }
 
-    [Authorize(Roles = "Client,Administrator")]
+    [Authorize(Roles = KlyonHubPlatform.Domain.Core.Constants.RoleNames.Client + "," + Administrator)]
     public class ClientController : Controller
     {
         private readonly IContractService _contractService;
@@ -108,7 +110,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Services()
+        public async Task<IActionResult> Services(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             
@@ -306,7 +308,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DashboardDetails()
+        public async Task<IActionResult> DashboardDetails(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients
@@ -381,7 +383,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Profile()
+        public async Task<IActionResult> Profile(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients
@@ -405,7 +407,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetLogo(int clientId)
+        public async Task<IActionResult> GetLogo(int clientId, CancellationToken cancellationToken = default)
         {
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.Id == clientId);
             
@@ -469,7 +471,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo)
+        public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo, CancellationToken cancellationToken = default)
         {
             var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
             try
@@ -735,7 +737,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> RegisterClient(int? id = null, string? returnUrl = null)
+        public async Task<IActionResult> RegisterClient(int? id = null, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
@@ -764,7 +766,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null, string? PersonType = null)
+        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null, string? PersonType = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1124,7 +1126,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet]
-        public async Task<IActionResult> ChooseLocation(string? region = null, string? city = null, string? state = null, int page = 1)
+        public async Task<IActionResult> ChooseLocation(string? region = null, string? city = null, string? state = null, int page = 1, CancellationToken cancellationToken = default)
         {
             if (User.IsInRole("Client") && !User.IsInRole("Administrator"))
             {
@@ -1143,7 +1145,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
 
-            const int pageSize = 9;
+            const int pageSize = 10;
 
             // Buscar todos os endereços fiscais disponíveis (mesmo critério de AvailableAddresses)
             var fullAddressList = await _coworkingService.GetAvailableAddressesAsync();
@@ -1284,7 +1286,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> AvailableAddresses(int locationId)
+        public async Task<IActionResult> AvailableAddresses(int locationId, CancellationToken cancellationToken = default)
         {
             // Validar se o locationId é válido
             if (locationId <= 0)
@@ -1374,7 +1376,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Página intermediária após login/cadastro: completa o cadastro se necessário e em seguida executa a contratação do endereço, redirecionando para pagamento.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> CompleteContractAfterLogin(int coworkingAddressId)
+        public async Task<IActionResult> CompleteContractAfterLogin(int coworkingAddressId, CancellationToken cancellationToken = default)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userIdStr))
@@ -1407,7 +1409,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Página para escolher a forma de pagamento (PIX ou opções de cartão configuradas pelo parceiro) antes de criar o contrato.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> SelectPaymentPlan(int coworkingAddressId)
+        public async Task<IActionResult> SelectPaymentPlan(int coworkingAddressId, CancellationToken cancellationToken = default)
         {
             if (User?.Identity?.IsAuthenticated != true)
             {
@@ -1454,7 +1456,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateContract(int coworkingAddressId, string? paymentOption)
+        public async Task<IActionResult> CreateContract(int coworkingAddressId, string? paymentOption, CancellationToken cancellationToken = default)
         {
             // Se não estiver autenticado, redirecionar para Login com returnUrl para continuar na escolha do plano e pagamento
             if (User?.Identity?.IsAuthenticated != true)
@@ -1709,7 +1711,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5)
+        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5, CancellationToken cancellationToken = default)
         {
             var contract = await _contractService.GetByIdAsync(id);
             if (contract == null)
@@ -1944,8 +1946,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> MyContracts(string? search = null, string? status = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> MyContracts(string? search = null, string? status = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)
@@ -2082,7 +2085,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RequestContractCancellation(int contractId, string reason)
+        public async Task<IActionResult> RequestContractCancellation(int contractId, string reason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2124,7 +2127,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> CancelContract(int contractId, string reason)
+        public async Task<IActionResult> CancelContract(int contractId, string reason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2139,7 +2142,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadDocument(int documentId)
+        public async Task<IActionResult> DownloadDocument(int documentId, CancellationToken cancellationToken = default)
         {
             var fileBytes = await _documentService.GetDocumentFileAsync(documentId);
             if (fileBytes == null)
@@ -2152,8 +2155,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> MyPayments(int page = 1, int pageSize = 15)
+        public async Task<IActionResult> MyPayments(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)
@@ -2180,7 +2184,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> PaymentDetails(int id)
+        public async Task<IActionResult> PaymentDetails(int id, CancellationToken cancellationToken = default)
         {
             var payment = await _context.Payments
                 .Include(p => p.Subscription)
@@ -2431,7 +2435,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Endpoint para polling de status do pagamento (usado pelo JavaScript para atualização automática)
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetPaymentStatus(int paymentId)
+        public async Task<IActionResult> GetPaymentStatus(int paymentId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2496,7 +2500,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method)
+        public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2565,7 +2569,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> GeneratePixCode(int paymentId)
+        public async Task<IActionResult> GeneratePixCode(int paymentId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2716,7 +2720,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadReceipt(int paymentId)
+        public async Task<IActionResult> DownloadReceipt(int paymentId, CancellationToken cancellationToken = default)
         {
             var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
             if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
@@ -2770,7 +2774,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Exibe o comprovante de pagamento inline (para visualização no modal). Mesmo critério do Admin/ViewReceipt.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ViewReceipt(int paymentId)
+        public async Task<IActionResult> ViewReceipt(int paymentId, CancellationToken cancellationToken = default)
         {
             var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
             if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
@@ -2916,7 +2920,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         /// <summary>Processa o pagamento do endereço fiscal (subscription) com cartão de crédito, enviando ao Asaas.</summary>
         [HttpPost]
-        public async Task<IActionResult> ProcessPaymentWithCard([FromBody] ProcessPaymentWithCardRequest request)
+        public async Task<IActionResult> ProcessPaymentWithCard([FromBody] ProcessPaymentWithCardRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3034,7 +3038,7 @@ namespace KlyonHubPlatform.Api.Controllers
             DateTime? dateFrom = null,
             DateTime? dateTo = null,
             int page = 1,
-            int pageSize = 10)
+            int pageSize = 10, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -3172,7 +3176,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> GenerateDeclaration(int contractId)
+        public async Task<IActionResult> GenerateDeclaration(int contractId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3207,7 +3211,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadDeclaration(int declarationId)
+        public async Task<IActionResult> DownloadDeclaration(int declarationId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3283,7 +3287,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateCreditCardPurchase([FromBody] CreditPlanIdRequest req)
+        public async Task<IActionResult> CreateCreditCardPurchase([FromBody] CreditPlanIdRequest req, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3323,7 +3327,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> PurchaseCredits(int creditPlanId, string paymentMethod, string? returnUrl = null)
+        public async Task<IActionResult> PurchaseCredits(int creditPlanId, string paymentMethod, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3489,7 +3493,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CreditPurchasePayment(int purchaseId)
+        public async Task<IActionResult> CreditPurchasePayment(int purchaseId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients
@@ -3518,7 +3522,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ProcessCreditCardPayment([FromBody] ProcessCreditCardRequest request)
+        public async Task<IActionResult> ProcessCreditCardPayment([FromBody] ProcessCreditCardRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3663,7 +3667,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> BookRoom(int id)
+        public async Task<IActionResult> BookRoom(int id, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -3709,7 +3713,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateReservations(int CoworkingAddressId, string RoomType, string slotsJson)
+        public async Task<IActionResult> CreateReservations(int CoworkingAddressId, string RoomType, string slotsJson, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -3889,8 +3893,9 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpGet]
         public async Task<IActionResult> MyReservations(string? sortBy = "date_asc", string? status = null,
-            DateTime? dateFrom = null, DateTime? dateTo = null, string? search = null, string? roomType = null, int page = 1, int pageSize = 12)
+            DateTime? dateFrom = null, DateTime? dateTo = null, string? search = null, string? roomType = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -4001,7 +4006,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfirmReservationUsed(int id)
+        public async Task<IActionResult> ConfirmReservationUsed(int id, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -4024,9 +4029,10 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null, 
+        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, 
             string? search = null, int? coworkingId = null, DateTime? startDate = null, DateTime? endDate = null)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)
@@ -4124,7 +4130,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId)
+        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
@@ -4160,7 +4166,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 20)
+        public Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             // Clientes não emitem notas fiscais de comissão, apenas visualizam as notas dos serviços que pagaram
             // Redirecionar para a página de visualização de notas fiscais
@@ -4168,8 +4174,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Coworkings(int page = 1, int pageSize = 20)
+        public async Task<IActionResult> Coworkings(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var query = _context.Coworkings
                 .Where(c => c.IsActive && c.IsPartner)
                 .Include(c => c.Addresses)
@@ -4196,8 +4203,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 20)
+        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)

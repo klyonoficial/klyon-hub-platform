@@ -1,3 +1,4 @@
+using System.Threading;
 using KlyonHubPlatform.Application.DTOs;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -23,7 +24,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Inicia uma nova conversa com o KlyonBoot
         /// </summary>
         [HttpPost("start")]
-        public async Task<IActionResult> StartConversation([FromBody] StartConversationRequest request)
+        public async Task<IActionResult> StartConversation([FromBody] StartConversationRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -119,7 +120,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Processa uma mensagem do usuário e retorna a resposta do KlyonBoot
         /// </summary>
         [HttpPost("message")]
-        public async Task<IActionResult> SendMessage([FromBody] ChatRequestDto request)
+        public async Task<IActionResult> SendMessage([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -145,7 +146,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Marca uma conversa como resolvida ou não
         /// </summary>
         [HttpPost("conversation/{conversationId}/resolve")]
-        public async Task<IActionResult> ResolveConversation(int conversationId, [FromBody] ResolveRequest request)
+        public async Task<IActionResult> ResolveConversation(int conversationId, [FromBody] ResolveRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -162,7 +163,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Encerra uma conversa
         /// </summary>
         [HttpPost("conversation/{conversationId}/end")]
-        public async Task<IActionResult> EndConversation(int conversationId)
+        public async Task<IActionResult> EndConversation(int conversationId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -179,7 +180,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Busca no FAQ
         /// </summary>
         [HttpGet("faq/search")]
-        public async Task<IActionResult> SearchFaq([FromQuery] string query)
+        public async Task<IActionResult> SearchFaq([FromQuery] string query, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -199,7 +200,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Obtém estatísticas do dashboard (Admin)
         /// </summary>
         [HttpGet("admin/statistics")]
-        public async Task<IActionResult> GetStatistics([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+        public async Task<IActionResult> GetStatistics([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -216,7 +217,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Obtém perguntas não respondidas (Admin)
         /// </summary>
         [HttpGet("admin/unanswered-questions")]
-        public async Task<IActionResult> GetUnansweredQuestions([FromQuery] string? status, [FromQuery] int? minFrequency)
+        public async Task<IActionResult> GetUnansweredQuestions([FromQuery] string? status, [FromQuery] int? minFrequency, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -233,7 +234,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Atualiza o status de uma pergunta não respondida (Admin)
         /// </summary>
         [HttpPut("admin/unanswered-questions/{questionId}")]
-        public async Task<IActionResult> UpdateUnansweredQuestion(int questionId, [FromBody] UpdateUnansweredQuestionRequest request)
+        public async Task<IActionResult> UpdateUnansweredQuestion(int questionId, [FromBody] UpdateUnansweredQuestionRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -256,7 +257,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Obtém top intenções detectadas (Admin)
         /// </summary>
         [HttpGet("admin/top-intentions")]
-        public async Task<IActionResult> GetTopIntentions([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int top = 10)
+        public async Task<IActionResult> GetTopIntentions([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int top = 10, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -273,7 +274,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Diagnóstico - Verifica se as tabelas do KlyonBoot existem
         /// </summary>
         [HttpGet("diagnostics/tables")]
-        public async Task<IActionResult> CheckTables()
+        public async Task<IActionResult> CheckTables(CancellationToken cancellationToken = default)
         {
             try
             {

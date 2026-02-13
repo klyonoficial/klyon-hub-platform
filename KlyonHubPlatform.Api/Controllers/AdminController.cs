@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
@@ -6,6 +7,7 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using static KlyonHubPlatform.Domain.Core.Constants.D4SignConfigKeys;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -16,7 +18,7 @@ using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
-    [Authorize(Roles = "Administrator")]
+    [Authorize(Roles = Administrator)]
     public class AdminController : Controller
     {
         private readonly IUserService _userService;
@@ -83,7 +85,7 @@ namespace KlyonHubPlatform.Api.Controllers
             return RedirectToAction("Dashboard");
         }
 
-        public async Task<IActionResult> Dashboard()
+        public async Task<IActionResult> Dashboard(CancellationToken cancellationToken = default)
         {
             var dashboardData = await _reportService.GetDashboardDataAsync();
 
@@ -426,7 +428,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetDashboardList(string type, string? filter = null, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> GetDashboardList(string type, string? filter = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -629,13 +631,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
-        private static readonly int[] AllowedPageSizes = { 10, 15, 25, 50 };
+        private const int FixedPageSize = 10;
 
         [HttpGet]
-        public async Task<IActionResult> Users(string? search = null, string? role = null, string? status = null, string? emailVerified = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Users(string? search = null, string? role = null, string? status = null, string? emailVerified = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             if (page < 1) page = 1;
-            if (!AllowedPageSizes.Contains(pageSize)) pageSize = 15;
+            pageSize = FixedPageSize;
             var users = await _adminService.GetUsersFilteredAsync(search, role, status, emailVerified, page, pageSize);
             var totalItems = await _adminService.GetUsersFilteredCountAsync(search, role, status, emailVerified);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
@@ -654,7 +656,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ViewUser(int id)
+        public async Task<IActionResult> ViewUser(int id, CancellationToken cancellationToken = default)
         {
             var user = await _userService.GetByIdAsync(id);
             if (user == null)
@@ -665,7 +667,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditUser(int id)
+        public async Task<IActionResult> EditUser(int id, CancellationToken cancellationToken = default)
         {
             var user = await _userService.GetByIdAsync(id);
             if (user == null)
@@ -684,7 +686,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditUser(int id, string fullName, string email, string? phone, string isActive, int[]? roleIds)
+        public async Task<IActionResult> EditUser(int id, string fullName, string email, string? phone, string isActive, int[]? roleIds, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -768,7 +770,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> VerifyUserEmail(int id)
+        public async Task<IActionResult> VerifyUserEmail(int id, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -785,7 +787,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ResetUserPassword(int userId, string newPassword, string confirmNewPassword)
+        public async Task<IActionResult> ResetUserPassword(int userId, string newPassword, string confirmNewPassword, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(newPassword) || newPassword != confirmNewPassword)
             {
@@ -808,7 +810,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> FixPasswordHash(string email, string newPassword = "password")
+        public async Task<IActionResult> FixPasswordHash(string email, string newPassword = "password", CancellationToken cancellationToken = default)
         {
             try
             {
@@ -842,8 +844,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Coworkings(string? search = null, string? status = null, string? isPartner = null, string? approvalStatus = null, string? capacityAlert = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Coworkings(string? search = null, string? status = null, string? isPartner = null, string? approvalStatus = null, string? capacityAlert = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var coworkings = await _adminService.GetCoworkingsFilteredAsync(search, status, isPartner, approvalStatus, page, pageSize);
             var totalItems = await _adminService.GetCoworkingsFilteredCountAsync(search, status, isPartner, approvalStatus);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
@@ -908,8 +911,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 4)
+        public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var coworking = await _context.Coworkings
                 .Include(c => c.User)
                 .Include(c => c.Addresses)
@@ -975,7 +979,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveCoworking(int id, string? search, string? status, string? isPartner, string? approvalStatus, int? page)
+        public async Task<IActionResult> ApproveCoworking(int id, string? search, string? status, string? isPartner, string? approvalStatus, int? page, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _context.Coworkings.FindAsync(id);
@@ -1037,7 +1041,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectCoworking(int id, string rejectionReason, string? search, string? status, string? isPartner, string? approvalStatus, int? page)
+        public async Task<IActionResult> RejectCoworking(int id, string rejectionReason, string? search, string? status, string? isPartner, string? approvalStatus, int? page, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe a justificativa ou os itens que precisam de correção."; return RedirectToAction("ViewCoworking", new { id }); }
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -1064,7 +1068,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveDocument(int documentId, int? page = null, int? pageSize = null)
+        public async Task<IActionResult> ApproveDocument(int documentId, int? page = null, int? pageSize = null, CancellationToken cancellationToken = default)
         {
             var doc = await _context.CoworkingDocuments.FindAsync(documentId);
             if (doc == null) { TempData["Error"] = "Documento não encontrado."; return RedirectToAction("Coworkings"); }
@@ -1084,7 +1088,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectDocument(int documentId, string rejectionReason, int? page = null, int? pageSize = null)
+        public async Task<IActionResult> RejectDocument(int documentId, string rejectionReason, int? page = null, int? pageSize = null, CancellationToken cancellationToken = default)
         {
             var docForId = await _context.CoworkingDocuments.FindAsync(documentId);
             if (string.IsNullOrWhiteSpace(rejectionReason)) { TempData["Error"] = "Informe o motivo da rejeição."; return RedirectToAction("ViewCoworking", new { id = docForId?.CoworkingId ?? 0, page = page ?? 1, pageSize = pageSize ?? 4 }); }
@@ -1107,7 +1111,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveCapacityChange(int requestId)
+        public async Task<IActionResult> ApproveCapacityChange(int requestId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1160,7 +1164,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectCapacityChange(int requestId, string rejectionReason)
+        public async Task<IActionResult> RejectCapacityChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1219,7 +1223,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveMaxContractsChange(int requestId)
+        public async Task<IActionResult> ApproveMaxContractsChange(int requestId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1271,7 +1275,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectMaxContractsChange(int requestId, string rejectionReason)
+        public async Task<IActionResult> RejectMaxContractsChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1329,7 +1333,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveCardPriceChange(int requestId)
+        public async Task<IActionResult> ApproveCardPriceChange(int requestId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1382,7 +1386,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectCardPriceChange(int requestId, string rejectionReason)
+        public async Task<IActionResult> RejectCardPriceChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1441,7 +1445,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SetAddressStatus(int addressId, int coworkingId, string status)
+        public async Task<IActionResult> SetAddressStatus(int addressId, int coworkingId, string status, CancellationToken cancellationToken = default)
         {
             var address = await _context.CoworkingAddresses
                 .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId);
@@ -1491,7 +1495,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CoworkingHistory(int id)
+        public async Task<IActionResult> CoworkingHistory(int id, CancellationToken cancellationToken = default)
         {
             var coworking = await _context.Coworkings.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == id);
             if (coworking == null) { TempData["Error"] = "Coworking não encontrado."; return RedirectToAction("Coworkings"); }
@@ -1501,7 +1505,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAuditLogDetails(int id)
+        public async Task<IActionResult> GetAuditLogDetails(int id, CancellationToken cancellationToken = default)
         {
             var log = await _context.AuditLogs
                 .Include(l => l.User)
@@ -1544,7 +1548,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditCoworking(int id)
+        public async Task<IActionResult> EditCoworking(int id, CancellationToken cancellationToken = default)
         {
             var coworking = await _context.Coworkings
                 .Include(c => c.User)
@@ -1593,7 +1597,8 @@ namespace KlyonHubPlatform.Api.Controllers
             bool IsActive,
             bool IsPartner,
             CoworkingApprovalStatus ApprovalStatus,
-            string? RejectionReason)
+            string? RejectionReason,
+            CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1675,7 +1680,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ToggleCoworkingStatus(int id)
+        public async Task<IActionResult> ToggleCoworkingStatus(int id, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1741,8 +1746,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Contracts(string? search = null, string? status = null, int? clientId = null, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> Contracts(string? search = null, string? status = null, int? clientId = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var contracts = await _adminService.GetContractsFilteredAsync(search, status, clientId, page, pageSize);
             var totalItems = await _adminService.GetContractsFilteredCountAsync(search, status, clientId);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
@@ -1760,10 +1766,12 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Locations(string? search = null, string? state = null, string? region = null, string? status = null, int page = 1, int pageSize = 12)
+        public async Task<IActionResult> Locations(string? search = null, string? state = null, string? region = null, string? status = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
-            var locations = await _locationService.GetFilteredAsync(search, state, region, status, page, pageSize);
-            var totalItems = await _locationService.GetFilteredCountAsync(search, state, region, status);
+            pageSize = FixedPageSize;
+            ActiveFilter? statusFilter = !string.IsNullOrEmpty(status) && Enum.TryParse<ActiveFilter>(status, ignoreCase: true, out var parsed) ? parsed : null;
+            var locations = await _locationService.GetFilteredAsync(search, state, region, statusFilter, page, pageSize);
+            var totalItems = await _locationService.GetFilteredCountAsync(search, state, region, statusFilter);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
             ViewBag.Commissions = await _locationService.GetActiveCommissionsAsync();
@@ -1783,7 +1791,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateLocationCommission(int locationId, decimal commissionPercentage)
+        public async Task<IActionResult> UpdateLocationCommission(int locationId, decimal commissionPercentage, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1820,7 +1828,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateLocation(string city, string state, string? region, string? isActive, decimal commissionPercentage = 15.0m)
+        public async Task<IActionResult> CreateLocation(string city, string state, string? region, string? isActive, decimal commissionPercentage = 15.0m, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1851,7 +1859,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditLocation(int id)
+        public async Task<IActionResult> EditLocation(int id, CancellationToken cancellationToken = default)
         {
             var location = await _locationService.GetByIdAsync(id);
             if (location == null)
@@ -1878,7 +1886,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditLocation(int id, string city, string state, string? region, string? isActive)
+        public async Task<IActionResult> EditLocation(int id, string city, string state, string? region, string? isActive, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1907,7 +1915,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteLocation(int id)
+        public async Task<IActionResult> DeleteLocation(int id, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1934,8 +1942,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, string? assistedSale, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Reports(DateTime? startDate, DateTime? endDate, string? product, string? assistedSale, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var start = startDate?.Date ?? DateTimeHelper.GetBrazilianTime().AddMonths(-1).Date;
             var end = endDate?.Date ?? DateTimeHelper.GetBrazilianTime().Date;
             if (end < start) end = start;
@@ -1979,21 +1988,21 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReportCredits()
+        public async Task<IActionResult> ReportCredits(CancellationToken cancellationToken = default)
         {
             var list = await _reportService.GetClientCreditsReportAsync();
             return View(list);
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReportClientCreditStatement(int clientId, DateTime? dateFrom, DateTime? dateTo)
+        public async Task<IActionResult> ReportClientCreditStatement(int clientId, DateTime? dateFrom, DateTime? dateTo, CancellationToken cancellationToken = default)
         {
             var dto = await _reportService.GetClientCreditStatementAsync(clientId, dateFrom, dateTo);
             return View(dto);
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetStatementMovementDetails(int? paymentId, int? reservationId)
+        public async Task<IActionResult> GetStatementMovementDetails(int? paymentId, int? reservationId, CancellationToken cancellationToken = default)
         {
             if (paymentId.HasValue)
             {
@@ -2106,14 +2115,14 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReportCoworkingRevenue()
+        public async Task<IActionResult> ReportCoworkingRevenue(CancellationToken cancellationToken = default)
         {
             var list = await _reportService.GetCoworkingRevenueReportAsync();
             return View(list);
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReportCoworkingRevenueDetail(int id, DateTime? dateFrom, DateTime? dateTo)
+        public async Task<IActionResult> ReportCoworkingRevenueDetail(int id, DateTime? dateFrom, DateTime? dateTo, CancellationToken cancellationToken = default)
         {
             var dto = await _reportService.GetCoworkingRevenueDetailAsync(id, dateFrom, dateTo);
             ViewBag.DateFrom = dateFrom;
@@ -2122,7 +2131,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReportCoworkingProductDetail(int id, string productType, DateTime? dateFrom, DateTime? dateTo)
+        public async Task<IActionResult> ReportCoworkingProductDetail(int id, string productType, DateTime? dateFrom, DateTime? dateTo, CancellationToken cancellationToken = default)
         {
             var dto = await _reportService.GetCoworkingProductDetailAsync(id, productType, dateFrom, dateTo);
             ViewBag.DateFrom = dateFrom;
@@ -2131,7 +2140,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReservationFinancialDetail(int id)
+        public async Task<IActionResult> ReservationFinancialDetail(int id, CancellationToken cancellationToken = default)
         {
             var reservation = await _context.Reservations
                 .Include(r => r.Client)
@@ -2196,7 +2205,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> SystemConfigurations()
+        public async Task<IActionResult> SystemConfigurations(CancellationToken cancellationToken = default)
         {
             // Inicializar configuração de menus de coworking se não existir
             var coworkingMenusConfig = await _systemConfigurationService.GetByKeyAsync("Features.EnableCoworkingMenus");
@@ -2247,7 +2256,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditSystemConfiguration(int id)
+        public async Task<IActionResult> EditSystemConfiguration(int id, CancellationToken cancellationToken = default)
         {
             var configuration = await _systemConfigurationService.GetByIdAsync(id);
             if (configuration == null)
@@ -2261,7 +2270,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditSystemConfiguration(int id, string value, string? description)
+        public async Task<IActionResult> EditSystemConfiguration(int id, string value, string? description, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2290,7 +2299,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateStorageToFTP()
+        public async Task<IActionResult> UpdateStorageToFTP(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2375,7 +2384,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateAddressDeclarationsTable()
+        public async Task<IActionResult> CreateAddressDeclarationsTable(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2464,7 +2473,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfigureAsaasSandbox()
+        public async Task<IActionResult> ConfigureAsaasSandbox(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2521,7 +2530,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TestAsaasConnection()
+        public async Task<IActionResult> TestAsaasConnection(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2573,7 +2582,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TestAsaasCreatePayment()
+        public async Task<IActionResult> TestAsaasCreatePayment(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2604,7 +2613,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TestAsaasCreateCreditCardPayment()
+        public async Task<IActionResult> TestAsaasCreateCreditCardPayment(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2634,8 +2643,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Payments(string? search = null, string? status = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> Payments(string? search = null, string? status = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var query = _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
@@ -2693,7 +2703,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApprovePayment(int paymentId)
+        public async Task<IActionResult> ApprovePayment(int paymentId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2723,7 +2733,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectPayment(int paymentId, string rejectionReason)
+        public async Task<IActionResult> RejectPayment(int paymentId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(rejectionReason))
             {
@@ -2789,8 +2799,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetPaymentHistory(int paymentId, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> GetPaymentHistory(int paymentId, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var query = _context.PaymentHistories
                 .Include(h => h.ActionByUser)
                 .Where(h => h.PaymentId == paymentId)
@@ -2825,7 +2836,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ViewReceipt(int paymentId)
+        public async Task<IActionResult> ViewReceipt(int paymentId, CancellationToken cancellationToken = default)
         {
             var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
             if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
@@ -2872,7 +2883,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DatabaseManager()
+        public async Task<IActionResult> DatabaseManager(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2890,7 +2901,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RunMigrations()
+        public async Task<IActionResult> RunMigrations(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2960,7 +2971,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> VerifyCoworkingOperatingHours()
+        public async Task<IActionResult> VerifyCoworkingOperatingHours(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3049,7 +3060,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateCoworkingOperatingHoursTable()
+        public async Task<IActionResult> CreateCoworkingOperatingHoursTable(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3109,7 +3120,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddD4SignDocumentUuidColumn()
+        public async Task<IActionResult> AddD4SignDocumentUuidColumn(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3156,7 +3167,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ClearTestData()
+        public async Task<IActionResult> ClearTestData(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3264,7 +3275,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddMustChangePasswordColumn()
+        public async Task<IActionResult> AddMustChangePasswordColumn(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3311,7 +3322,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApplyIndexes()
+        public async Task<IActionResult> ApplyIndexes(CancellationToken cancellationToken = default)
         {
             var created = new List<string>();
             var indexes = new (string Name, string Sql)[]
@@ -3375,7 +3386,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> FixReservationAndTransferColumns()
+        public async Task<IActionResult> FixReservationAndTransferColumns(CancellationToken cancellationToken = default)
         {
             var added = new List<string>();
             var alters = new[]
@@ -3409,7 +3420,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> FixCreditPurchaseColumns()
+        public async Task<IActionResult> FixCreditPurchaseColumns(CancellationToken cancellationToken = default)
         {
             var added = new List<string>();
             var alters = new[]
@@ -3441,7 +3452,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateInterestsTable()
+        public async Task<IActionResult> CreateInterestsTable(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3516,7 +3527,7 @@ CREATE TABLE IF NOT EXISTS Interests (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateCoworkingProductsTable()
+        public async Task<IActionResult> CreateCoworkingProductsTable(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3582,7 +3593,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ClearDatabase()
+        public async Task<IActionResult> ClearDatabase(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3855,7 +3866,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ExecuteSql(string sqlQuery)
+        public async Task<IActionResult> ExecuteSql(string sqlQuery, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(sqlQuery))
             {
@@ -3967,7 +3978,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateCoworkingRatingsTable()
+        public async Task<IActionResult> CreateCoworkingRatingsTable(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4032,7 +4043,7 @@ CREATE TABLE IF NOT EXISTS CoworkingRatings (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateCreditsTables()
+        public async Task<IActionResult> CreateCreditsTables(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4182,7 +4193,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpPost]
-        public async Task<IActionResult> AddRoomConfigurationColumns()
+        public async Task<IActionResult> AddRoomConfigurationColumns(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4244,7 +4255,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpPost]
-        public async Task<IActionResult> AddReservationColumns()
+        public async Task<IActionResult> AddReservationColumns(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4302,7 +4313,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SavePartnerService(int Id, int CoworkingId, int ServiceId)
+        public async Task<IActionResult> SavePartnerService(int Id, int CoworkingId, int ServiceId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4398,7 +4409,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePartnerService(int id, int coworkingId)
+        public async Task<IActionResult> DeletePartnerService(int id, int coworkingId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4423,8 +4434,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 15)
+        public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var query = _context.PartnerServices
                 .Include(ps => ps.Coworking)
                     .ThenInclude(c => c.User)
@@ -4451,7 +4463,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveServiceRemoval(int partnerServiceId)
+        public async Task<IActionResult> ApproveServiceRemoval(int partnerServiceId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4497,7 +4509,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectServiceRemoval(int partnerServiceId, string rejectionReason)
+        public async Task<IActionResult> RejectServiceRemoval(int partnerServiceId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4553,7 +4565,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> SefazConfiguration(string? state = null)
+        public async Task<IActionResult> SefazConfiguration(string? state = null, CancellationToken cancellationToken = default)
         {
             // Lista de estados brasileiros
             ViewBag.States = new List<string>
@@ -4602,7 +4614,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SaveSefazConfiguration(SefazConfiguration config)
+        public async Task<IActionResult> SaveSefazConfiguration(SefazConfiguration config, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4668,7 +4680,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ExecuteFiscalNoteScript(string noteType, DateTime startDate, DateTime endDate)
+        public async Task<IActionResult> ExecuteFiscalNoteScript(string noteType, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default)
         {
             var executedAt = DateTimeHelper.GetBrazilianTime();
             var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (int?)null;
@@ -4976,8 +4988,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null)
+        public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var query = _context.FiscalNotes
                 .Include(fn => fn.Client)
                     .ThenInclude(c => c.User)
@@ -5032,8 +5045,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// NF de serviço importadas pelo parceiro — aguardando validação do admin. Aprovar ou rejeitar.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ImportedFiscalNotes(int page = 1, int pageSize = 20, int? coworkingId = null)
+        public async Task<IActionResult> ImportedFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             try
             {
                 var query = _context.FiscalNotes
@@ -5077,7 +5091,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveImportedFiscalNote(int fiscalNoteId)
+        public async Task<IActionResult> ApproveImportedFiscalNote(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
             var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
             if (fn == null || fn.Type != "Servico" || fn.Status != FiscalNoteStatus.Importada)
@@ -5094,7 +5108,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectImportedFiscalNote(int fiscalNoteId, string rejectionReason)
+        public async Task<IActionResult> RejectImportedFiscalNote(int fiscalNoteId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(rejectionReason))
             {
@@ -5116,7 +5130,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId)
+        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
             var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
             if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
@@ -5139,7 +5153,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetFiscalNoteDetails(int fiscalNoteId)
+        public async Task<IActionResult> GetFiscalNoteDetails(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
             var fn = await _context.FiscalNotes
                 .Include(f => f.Payment)
@@ -5320,7 +5334,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CancelFiscalNote(int fiscalNoteId, string cancellationReason)
+        public async Task<IActionResult> CancelFiscalNote(int fiscalNoteId, string cancellationReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5353,8 +5367,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Endpoint AJAX para buscar clientes com autocomplete e paginação
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> SearchClients(string term = "", int page = 1, int pageSize = 10)
+        public async Task<IActionResult> SearchClients(string term = "", int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = FixedPageSize;
             var query = _context.Clients
                 .Include(c => c.User)
                 .AsQueryable();
@@ -5404,10 +5419,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Lista comissões pendentes de emissão de NF de comissão
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, int? clientId = null)
+        public async Task<IActionResult> CommissionFiscalNotes(int page = 1, int pageSize = 10, int? coworkingId = null, int? clientId = null, CancellationToken cancellationToken = default)
         {
-            if (pageSize < 1) pageSize = 10;
-            if (pageSize > 100) pageSize = 100;
+            pageSize = FixedPageSize;
             if (page < 1) page = 1;
 
             var query = _context.Commissions
@@ -5482,7 +5496,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Retorna os dados completos de uma comissão para exibição em modal (JSON).
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> CommissionFiscalNoteDetail(int id)
+        public async Task<IActionResult> CommissionFiscalNoteDetail(int id, CancellationToken cancellationToken = default)
         {
             var commission = await _context.Commissions
                 .Include(c => c.Payment)
@@ -5593,7 +5607,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> IssueCommissionFiscalNote(int commissionId)
+        public async Task<IActionResult> IssueCommissionFiscalNote(int commissionId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5711,7 +5725,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ImportCommissionFiscalNote(int commissionId, IFormFile pdfFile, IFormFile? xmlFile)
+        public async Task<IActionResult> ImportCommissionFiscalNote(int commissionId, IFormFile pdfFile, IFormFile? xmlFile, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5817,12 +5831,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> Transfers(
             int page = 1,
-            int pageSize = 15,
+            int pageSize = 10,
             int? coworkingId = null,
             TransferStatus? status = null,
             DateTime? dateFrom = null,
             DateTime? dateTo = null)
         {
+            pageSize = FixedPageSize;
             var query = _context.Transfers
                 .Include(t => t.Coworking)
                 .AsQueryable();
@@ -5872,7 +5887,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveTransfer(int transferId)
+        public async Task<IActionResult> ApproveTransfer(int transferId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5909,7 +5924,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Exibe todos os detalhes de uma transferência, incluindo comissões, pagamentos e clientes relacionados.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> TransferDetails(int id)
+        public async Task<IActionResult> TransferDetails(int id, CancellationToken cancellationToken = default)
         {
             var transfer = await _context.Transfers
                 .Include(t => t.Coworking)
@@ -6028,7 +6043,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Programação de repasses: lista transferências agendadas (Aguardando NF) por parceiro, com modal de detalhes.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> TransferSchedule()
+        public async Task<IActionResult> TransferSchedule(CancellationToken cancellationToken = default)
         {
             var list = await _context.Transfers
                 .Include(t => t.Coworking)
@@ -6056,7 +6071,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Retorna HTML parcial com detalhes da transferência (para modal na Programação).
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> TransferDetailPartial(int id)
+        public async Task<IActionResult> TransferDetailPartial(int id, CancellationToken cancellationToken = default)
         {
             var transfer = await _context.Transfers
                 .Include(t => t.Coworking)
@@ -6101,7 +6116,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> QuickClientRegistration()
+        public async Task<IActionResult> QuickClientRegistration(CancellationToken cancellationToken = default)
         {
             // Buscar endereços disponíveis
             var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
@@ -6379,7 +6394,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         }
 
         [HttpGet]
-        public async Task<IActionResult> QuickClientRegistrationSuccess(int paymentId)
+        public async Task<IActionResult> QuickClientRegistrationSuccess(int paymentId, CancellationToken cancellationToken = default)
         {
             var payment = await _context.Payments
                 .Include(p => p.Subscription)
@@ -6421,7 +6436,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Retorna os serviços de um coworking específico (para modal de percentagem)
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetCoworkingServicesJson(int coworkingId)
+        public async Task<IActionResult> GetCoworkingServicesJson(int coworkingId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6492,7 +6507,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SavePartnerServiceJson([FromBody] SavePartnerServiceRequest request)
+        public async Task<IActionResult> SavePartnerServiceJson([FromBody] SavePartnerServiceRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6567,7 +6582,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePartnerServiceJson([FromBody] DeletePartnerServiceRequest request)
+        public async Task<IActionResult> DeletePartnerServiceJson([FromBody] DeletePartnerServiceRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6610,7 +6625,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// Lista de fechamentos para validação de NF
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> InvoiceValidation()
+        public async Task<IActionResult> InvoiceValidation(CancellationToken cancellationToken = default)
         {
             var settlements = await _context.MonthlySettlements
                 .Include(s => s.Coworking)
@@ -6652,7 +6667,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectInvoice(int invoiceId, string rejectionReason)
+        public async Task<IActionResult> RejectInvoice(int invoiceId, string rejectionReason, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6680,7 +6695,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ExecuteTransfer(int settlementId)
+        public async Task<IActionResult> ExecuteTransfer(int settlementId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6700,7 +6715,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ForceCloseMonth(int coworkingId, int month, int year)
+        public async Task<IActionResult> ForceCloseMonth(int coworkingId, int month, int year, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -6720,7 +6735,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> GenerateAutomaticInvoice(int settlementId)
+        public async Task<IActionResult> GenerateAutomaticInvoice(int settlementId, CancellationToken cancellationToken = default)
         {
             try
             {

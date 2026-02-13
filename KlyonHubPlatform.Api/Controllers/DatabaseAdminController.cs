@@ -1,10 +1,12 @@
+using System.Threading;
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Administrator)]
     [ApiController]
     [Route("api/admin/database")]
     public class DatabaseAdminController : ControllerBase
@@ -24,7 +26,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Obtém status do banco de dados
         /// </summary>
         [HttpGet("status")]
-        public async Task<IActionResult> GetDatabaseStatus()
+        public async Task<IActionResult> GetDatabaseStatus(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -42,7 +44,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista migrations pendentes
         /// </summary>
         [HttpGet("migrations/pending")]
-        public async Task<IActionResult> GetPendingMigrations()
+        public async Task<IActionResult> GetPendingMigrations(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -60,7 +62,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista migrations aplicadas
         /// </summary>
         [HttpGet("migrations/applied")]
-        public async Task<IActionResult> GetAppliedMigrations()
+        public async Task<IActionResult> GetAppliedMigrations(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -78,7 +80,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Executa todas as migrations pendentes
         /// </summary>
         [HttpPost("migrations/execute")]
-        public async Task<IActionResult> ExecuteMigrations([FromBody] ExecuteMigrationsRequest request)
+        public async Task<IActionResult> ExecuteMigrations([FromBody] ExecuteMigrationsRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -114,7 +116,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Verifica se há migrations pendentes
         /// </summary>
         [HttpGet("migrations/has-pending")]
-        public async Task<IActionResult> HasPendingMigrations()
+        public async Task<IActionResult> HasPendingMigrations(CancellationToken cancellationToken = default)
         {
             try
             {

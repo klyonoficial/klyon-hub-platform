@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading;
 using KlyonHubPlatform.Application.DTOs.FocusNFe;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -7,6 +8,7 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -37,7 +39,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [AllowAnonymous]
-        public async Task<IActionResult> ReceberWebhook()
+        public async Task<IActionResult> ReceberWebhook(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -98,12 +100,13 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista os webhooks recebidos do Focus NFe (para debug/auditoria)
         /// </summary>
         [HttpGet("logs")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = Administrator)]
         public async Task<IActionResult> ListarWebhooks(
             [FromQuery] int page = 1, 
             [FromQuery] int pageSize = 20,
             [FromQuery] string? status = null,
-            [FromQuery] string? referencia = null)
+            [FromQuery] string? referencia = null,
+            CancellationToken cancellationToken = default)
         {
             try
             {
@@ -168,8 +171,8 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Consulta o status de uma NFSe no Focus NFe
         /// </summary>
         [HttpGet("consultar/{referencia}")]
-        [Authorize(Roles = "Admin,Partner")]
-        public async Task<IActionResult> ConsultarNFSe(string referencia)
+        [Authorize(Roles = Administrator + "," + "Partner")]
+        public async Task<IActionResult> ConsultarNFSe(string referencia, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -233,8 +236,8 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Endpoint para simular um webhook (apenas em desenvolvimento)
         /// </summary>
         [HttpPost("simulate")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> SimularWebhook([FromBody] FocusWebhookPayload payload)
+        [Authorize(Roles = Administrator)]
+        public async Task<IActionResult> SimularWebhook([FromBody] FocusWebhookPayload payload, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -271,8 +274,8 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Configura a URL de webhook no Focus NFe
         /// </summary>
         [HttpPost("configurar")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> ConfigurarWebhook([FromBody] ConfigurarWebhookRequest request)
+        [Authorize(Roles = Administrator)]
+        public async Task<IActionResult> ConfigurarWebhook([FromBody] ConfigurarWebhookRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -320,8 +323,8 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Verifica a disponibilidade da API Focus NFe
         /// </summary>
         [HttpGet("status")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> VerificarStatus()
+        [Authorize(Roles = Administrator)]
+        public async Task<IActionResult> VerificarStatus(CancellationToken cancellationToken = default)
         {
             try
             {

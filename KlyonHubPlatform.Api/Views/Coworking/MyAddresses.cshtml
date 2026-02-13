@@ -86,16 +86,6 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2">
-                <label for="pageSize" class="form-label">Itens por página</label>
-                <select class="form-select" id="pageSize" name="pageSize">
-                    <option value="5" selected="@(ViewBag.PageSize == 5)">5</option>
-                    <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
-                    <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
-                    <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
-                    <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
-                </select>
-            </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
@@ -112,7 +102,7 @@
 @if (ViewBag.TotalItems != null)
 {
     var currentPage = ViewBag.CurrentPage ?? 1;
-    var pageSize = ViewBag.PageSize ?? 15;
+    var pageSize = ViewBag.PageSize ?? 10;
     var totalItems = ViewBag.TotalItems ?? 0;
     <div class="mb-3">
         <p class="text-muted mb-0">

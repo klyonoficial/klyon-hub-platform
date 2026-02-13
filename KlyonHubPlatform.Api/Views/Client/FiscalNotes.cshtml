@@ -72,46 +72,6 @@
                 <label class="form-label">Buscar (Número ou Chave de Acesso)</label>
                 <input type="text" class="form-control" name="search" value="@ViewBag.Search" placeholder="Digite o número da NF ou chave de acesso" />
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Itens por Página</label>
-                <select class="form-select" name="pageSize">
-                    @{
-                        var pageSizeValue = ViewBag.PageSize as int? ?? 20;
-                    }
-                    @if (pageSizeValue == 10)
-                    {
-                        <option value="10" selected>10</option>
-                    }
-                    else
-                    {
-                        <option value="10">10</option>
-                    }
-                    @if (pageSizeValue == 20)
-                    {
-                        <option value="20" selected>20</option>
-                    }
-                    else
-                    {
-                        <option value="20">20</option>
-                    }
-                    @if (pageSizeValue == 50)
-                    {
-                        <option value="50" selected>50</option>
-                    }
-                    else
-                    {
-                        <option value="50">50</option>
-                    }
-                    @if (pageSizeValue == 100)
-                    {
-                        <option value="100" selected>100</option>
-                    }
-                    else
-                    {
-                        <option value="100">100</option>
-                    }
-                </select>
-            </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar

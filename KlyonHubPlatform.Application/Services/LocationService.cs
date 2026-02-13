@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Application.Services
@@ -21,7 +22,7 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.Locations.ToListAsync(cancellationToken);
         }
 
-        public async Task<List<Location>> GetFilteredAsync(string? search = null, string? state = null, string? region = null, string? status = null, int page = 1, int pageSize = 12, CancellationToken cancellationToken = default)
+        public async Task<List<Location>> GetFilteredAsync(string? search = null, string? state = null, string? region = null, ActiveFilter? status = null, int page = 1, int pageSize = 12, CancellationToken cancellationToken = default)
         {
             var query = BuildFilterQuery(search, state, region, status);
             query = query.OrderBy(l => l.State).ThenBy(l => l.City);
@@ -32,13 +33,13 @@ namespace KlyonHubPlatform.Application.Services
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<int> GetFilteredCountAsync(string? search = null, string? state = null, string? region = null, string? status = null, CancellationToken cancellationToken = default)
+        public async Task<int> GetFilteredCountAsync(string? search = null, string? state = null, string? region = null, ActiveFilter? status = null, CancellationToken cancellationToken = default)
         {
             var query = BuildFilterQuery(search, state, region, status);
             return await query.CountAsync(cancellationToken);
         }
 
-        private IQueryable<Location> BuildFilterQuery(string? search, string? state, string? region, string? status)
+        private IQueryable<Location> BuildFilterQuery(string? search, string? state, string? region, ActiveFilter? status)
         {
             var query = _context.Locations.AsQueryable();
 
@@ -57,9 +58,9 @@ namespace KlyonHubPlatform.Application.Services
                 query = query.Where(l => l.Region == region);
             }
 
-            if (!string.IsNullOrEmpty(status))
+            if (status is ActiveFilter.Active or ActiveFilter.Inactive)
             {
-                bool isActive = status == "active";
+                bool isActive = status == ActiveFilter.Active;
                 query = query.Where(l => l.IsActive == isActive);
             }
 

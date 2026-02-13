@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
@@ -37,7 +38,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ReceiveWebhook()
+        public async Task<IActionResult> ReceiveWebhook(CancellationToken cancellationToken = default)
         {
             string payload = string.Empty;
             PagBankWebhookLog? webhookLog = null;
@@ -436,7 +437,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Endpoint para consultar logs de webhook (uso administrativo)
         /// </summary>
         [HttpGet("logs")]
-        public async Task<IActionResult> GetWebhookLogs([FromQuery] int count = 50)
+        public async Task<IActionResult> GetWebhookLogs([FromQuery] int count = 50, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -473,7 +474,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate/paid?paymentId=123
         /// </summary>
         [HttpPost("simulate/paid")]
-        public async Task<IActionResult> SimulatePaidWebhook([FromQuery] int paymentId)
+        public async Task<IActionResult> SimulatePaidWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargePaid, "PAID");
         }
@@ -483,7 +484,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate/canceled?paymentId=123
         /// </summary>
         [HttpPost("simulate/canceled")]
-        public async Task<IActionResult> SimulateCanceledWebhook([FromQuery] int paymentId)
+        public async Task<IActionResult> SimulateCanceledWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeCanceled, "CANCELED");
         }
@@ -493,7 +494,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate/refunded?paymentId=123
         /// </summary>
         [HttpPost("simulate/refunded")]
-        public async Task<IActionResult> SimulateRefundedWebhook([FromQuery] int paymentId)
+        public async Task<IActionResult> SimulateRefundedWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeRefunded, "REFUNDED");
         }
@@ -503,7 +504,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate/analysis?paymentId=123
         /// </summary>
         [HttpPost("simulate/analysis")]
-        public async Task<IActionResult> SimulateInAnalysisWebhook([FromQuery] int paymentId)
+        public async Task<IActionResult> SimulateInAnalysisWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeInAnalysis, "IN_ANALYSIS");
         }
@@ -513,7 +514,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate/declined?paymentId=123
         /// </summary>
         [HttpPost("simulate/declined")]
-        public async Task<IActionResult> SimulateDeclinedWebhook([FromQuery] int paymentId)
+        public async Task<IActionResult> SimulateDeclinedWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeDeclined, "DECLINED");
         }
@@ -523,7 +524,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Uso: POST /api/PagBankWebhook/simulate?paymentId=123&eventType=CHARGE_PAID
         /// </summary>
         [HttpPost("simulate")]
-        public async Task<IActionResult> SimulateWebhook([FromQuery] int paymentId, [FromQuery] string eventType)
+        public async Task<IActionResult> SimulateWebhook([FromQuery] int paymentId, [FromQuery] string eventType, CancellationToken cancellationToken = default)
         {
             var webhookEvent = eventType.ToWebhookEvent();
             if (webhookEvent == PagBankWebhookEvent.Unknown)

@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
-    [Authorize(Roles = "CoworkingPartner,Administrator")]
+    [Authorize(Roles = RoleNames.CoworkingPartner + "," + RoleNames.Administrator)]
     public class CoworkingController : Controller
     {
         private readonly ICoworkingService _coworkingService;
@@ -299,7 +300,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         /// <summary>Retorna as pendências administrativas com detalhes (ex.: lista de documentos em análise) para exibição em modal.</summary>
         [HttpGet]
-        public async Task<IActionResult> GetPendencyDetails()
+        public async Task<IActionResult> GetPendencyDetails(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -458,7 +459,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Register()
+        public async Task<IActionResult> Register(CancellationToken cancellationToken = default)
         {
             // Verificar se já existe um coworking cadastrado
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -668,8 +669,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> MyAddresses(string? search = null, string? status = null, int? locationId = null, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> MyAddresses(string? search = null, string? status = null, int? locationId = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -752,7 +754,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> AddAddress()
+        public async Task<IActionResult> AddAddress(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -934,7 +936,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditAddress(int? id)
+        public async Task<IActionResult> EditAddress(int? id, CancellationToken cancellationToken = default)
         {
             if (!id.HasValue || id.Value <= 0)
             {
@@ -1159,7 +1161,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> CardPrices(int? id)
+        public async Task<IActionResult> CardPrices(int? id, CancellationToken cancellationToken = default)
         {
             if (!id.HasValue || id.Value <= 0)
             {
@@ -1191,7 +1193,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CardPrices(int id)
+        public async Task<IActionResult> CardPrices(int id, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1260,7 +1262,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> EditMaxContracts(int? id)
+        public async Task<IActionResult> EditMaxContracts(int? id, CancellationToken cancellationToken = default)
         {
             if (!id.HasValue || id.Value <= 0)
             {
@@ -1305,7 +1307,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditMaxContracts(int id, int maxContracts, string? justification)
+        public async Task<IActionResult> EditMaxContracts(int id, int maxContracts, string? justification, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1409,7 +1411,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RequestCapacityChange([FromBody] CapacityChangeRequestDto request)
+        public async Task<IActionResult> RequestCapacityChange([FromBody] CapacityChangeRequestDto request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1484,8 +1486,9 @@ namespace KlyonHubPlatform.Api.Controllers
             DateTime? startDateFrom = null,
             DateTime? startDateTo = null,
             int page = 1,
-            int pageSize = 15)
+            int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1588,7 +1591,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5)
+        public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -1843,7 +1846,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadDeclaration(int id)
+        public async Task<IActionResult> DownloadDeclaration(int id, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -1874,7 +1877,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadContractDocument(int id)
+        public async Task<IActionResult> DownloadContractDocument(int id, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -1919,8 +1922,9 @@ namespace KlyonHubPlatform.Api.Controllers
             DateTime? allocationDateFrom = null,
             DateTime? allocationDateTo = null,
             int page = 1,
-            int pageSize = 15)
+            int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
                 return RedirectToAction("Dashboard");
@@ -2126,7 +2130,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateReservationStatus(int id, string status, string? notes = null)
+        public async Task<IActionResult> UpdateReservationStatus(int id, string status, string? notes = null, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2175,7 +2179,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfirmReservationAttended(int id)
+        public async Task<IActionResult> ConfirmReservationAttended(int id, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2204,8 +2208,9 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Relatório de receita de aluguel de salas: total, por tipo de sala (qual produto mais faturou) e por cliente.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo, int page = 1, int pageSize = 15)
+        public async Task<IActionResult> RoomRevenueReport(DateTime? dateFrom, DateTime? dateTo, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var cow = coworking.FirstOrDefault();
@@ -2342,7 +2347,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Commissions()
+        public async Task<IActionResult> Commissions(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2476,7 +2481,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RequestTransfer()
+        public async Task<IActionResult> RequestTransfer(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2532,7 +2537,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Profile(int partnersPage = 1, int partnersPageSize = 10, int photosPage = 1, int photosPageSize = 6)
+        public async Task<IActionResult> Profile(int partnersPage = 1, int partnersPageSize = 10, int photosPage = 1, int photosPageSize = 6, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2665,7 +2670,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateProfile(Coworking coworking)
+        public async Task<IActionResult> UpdateProfile(Coworking coworking, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2910,7 +2915,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateProducts(List<string>? productTypes)
+        public async Task<IActionResult> UpdateProducts(List<string>? productTypes, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2983,7 +2988,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Products()
+        public async Task<IActionResult> Products(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -3008,7 +3013,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> AddressRooms(int addressId)
+        public async Task<IActionResult> AddressRooms(int addressId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -3030,7 +3035,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddRoom(int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, IFormFile[]? RoomPhotos)
+        public async Task<IActionResult> AddRoom(int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, IFormFile[]? RoomPhotos, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -3077,7 +3082,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateRoom(int roomId, int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, bool IsActive, IFormFile[]? RoomPhotos)
+        public async Task<IActionResult> UpdateRoom(int roomId, int addressId, string RoomType, string Name, int Capacity, int CreditsPerHour, bool IsActive, IFormFile[]? RoomPhotos, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
@@ -3119,7 +3124,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteRoom(int roomId, int addressId)
+        public async Task<IActionResult> DeleteRoom(int roomId, int addressId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var cow = (await _coworkingService.GetByUserIdAsync(userId)).FirstOrDefault();
@@ -3139,7 +3144,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetRoomPhoto(int photoId)
+        public async Task<IActionResult> GetRoomPhoto(int photoId, CancellationToken cancellationToken = default)
         {
             var photo = await _context.CoworkingRoomPhotos.Include(p => p.CoworkingRoom).ThenInclude(r => r.CoworkingAddress).FirstOrDefaultAsync(p => p.Id == photoId);
             if (photo == null) return NotFound();
@@ -3155,7 +3160,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> PendingPayments(string? search = null, string? method = null, DateTime? dateFrom = null, DateTime? dateTo = null, decimal? minValue = null, decimal? maxValue = null)
+        public async Task<IActionResult> PendingPayments(string? search = null, string? method = null, DateTime? dateFrom = null, DateTime? dateTo = null, decimal? minValue = null, decimal? maxValue = null, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -3232,7 +3237,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ValidatePayment(int id)
+        public async Task<IActionResult> ValidatePayment(int id, CancellationToken cancellationToken = default)
         {
             var payment = await _paymentService.GetPaymentByIdAsync(id);
             if (payment == null)
@@ -3276,7 +3281,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApprovePayment(int paymentId)
+        public async Task<IActionResult> ApprovePayment(int paymentId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3446,7 +3451,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectPayment(int paymentId, string validationNotes)
+        public async Task<IActionResult> RejectPayment(int paymentId, string validationNotes, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3508,7 +3513,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadPaymentReceipt(int paymentId)
+        public async Task<IActionResult> DownloadPaymentReceipt(int paymentId, CancellationToken cancellationToken = default)
         {
             var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
             if (payment == null || string.IsNullOrEmpty(payment.ReceiptFilePath))
@@ -3551,7 +3556,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UploadPhotos(List<IFormFile> Photos)
+        public async Task<IActionResult> UploadPhotos(List<IFormFile> Photos, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3641,7 +3646,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetPhoto(int photoId)
+        public async Task<IActionResult> GetPhoto(int photoId, CancellationToken cancellationToken = default)
         {
             var photo = await _context.CoworkingPhotos
                 .Include(p => p.Coworking)
@@ -3705,7 +3710,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SetMainPhoto(int photoId)
+        public async Task<IActionResult> SetMainPhoto(int photoId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3755,7 +3760,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePhoto(int photoId)
+        public async Task<IActionResult> DeletePhoto(int photoId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3805,7 +3810,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddPartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false)
+        public async Task<IActionResult> AddPartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3882,7 +3887,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false)
+        public async Task<IActionResult> UpdatePartner(CoworkingPartner partner, IFormFile? partnerPhoto, bool IsPrincipal = false, bool IsContractSigner = false, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3981,7 +3986,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePartner(int partnerId)
+        public async Task<IActionResult> DeletePartner(int partnerId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4032,7 +4037,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ResubmitForApproval()
+        public async Task<IActionResult> ResubmitForApproval(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -4052,7 +4057,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetPartnerPhoto(int partnerId)
+        public async Task<IActionResult> GetPartnerPhoto(int partnerId, CancellationToken cancellationToken = default)
         {
             var partner = await _context.CoworkingPartners.Include(p => p.Coworking).FirstOrDefaultAsync(p => p.Id == partnerId);
             if (partner == null || string.IsNullOrEmpty(partner.PhotoPath)) return NotFound();
@@ -4076,7 +4081,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UploadDocument(int documentType, IFormFile documentFile)
+        public async Task<IActionResult> UploadDocument(int documentType, IFormFile documentFile, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4181,7 +4186,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadDocument(int documentId)
+        public async Task<IActionResult> DownloadDocument(int documentId, CancellationToken cancellationToken = default)
         {
             var document = await _context.CoworkingDocuments.FindAsync(documentId);
             if (document == null)
@@ -4216,7 +4221,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form)
+        public async Task<IActionResult> SaveOperatingHours(int CoworkingId, IFormCollection form, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
@@ -4297,7 +4302,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime)
+        public async Task<IActionResult> AddBlockedDate(int CoworkingId, DateTime BlockedDateValue, string Reason, bool BlocksFullDay, TimeSpan? StartTime, TimeSpan? EndTime, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
@@ -4354,7 +4359,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteBlockedDate(int id)
+        public async Task<IActionResult> DeleteBlockedDate(int id, CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = await _systemConfig.GetValueAsync("Features.EnableCoworkingMenus");
             if (!string.Equals(enableCoworkingMenus?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
@@ -4398,7 +4403,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> MyContract()
+        public async Task<IActionResult> MyContract(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -4436,7 +4441,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Services()
+        public async Task<IActionResult> Services(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -4522,7 +4527,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AddService(int serviceId)
+        public async Task<IActionResult> AddService(int serviceId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4595,7 +4600,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RemoveService(int partnerServiceId)
+        public async Task<IActionResult> RemoveService(int partnerServiceId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -4691,8 +4696,9 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista pagamentos pendentes de emissão de NF de serviço
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 20, string? serviceType = null, string? client = null, string? contractNumber = null)
+        public async Task<IActionResult> ServiceFiscalNotes(int page = 1, int pageSize = 10, string? serviceType = null, string? client = null, string? contractNumber = null, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -4919,7 +4925,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> IssueServiceFiscalNote(int paymentId)
+        public async Task<IActionResult> IssueServiceFiscalNote(int paymentId, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5050,7 +5056,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ImportServiceFiscalNote(int paymentId, IFormFile pdfFile, IFormFile? xmlFile)
+        public async Task<IActionResult> ImportServiceFiscalNote(int paymentId, IFormFile pdfFile, IFormFile? xmlFile, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -5138,8 +5144,9 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista notas fiscais de serviço emitidas pelo parceiro
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 20, string? status = null, string? type = null, string? noteNumber = null, string? client = null)
+        public async Task<IActionResult> ListServiceFiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, string? noteNumber = null, string? client = null, CancellationToken cancellationToken = default)
         {
+            pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -5213,7 +5220,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Download do PDF da nota fiscal
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId)
+        public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -5249,7 +5256,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Configurações SEFAZ do parceiro
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> SefazConfiguration()
+        public async Task<IActionResult> SefazConfiguration(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var coworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -5367,7 +5374,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Lista os fechamentos mensais do parceiro
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> MonthlySettlements()
+        public async Task<IActionResult> MonthlySettlements(CancellationToken cancellationToken = default)
         {
             var coworking = await GetCurrentCoworkingAsync();
             if (coworking == null)
@@ -5386,7 +5393,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Detalhes de um fechamento
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> SettlementDetails(int id)
+        public async Task<IActionResult> SettlementDetails(int id, CancellationToken cancellationToken = default)
         {
             var coworking = await GetCurrentCoworkingAsync();
             if (coworking == null)

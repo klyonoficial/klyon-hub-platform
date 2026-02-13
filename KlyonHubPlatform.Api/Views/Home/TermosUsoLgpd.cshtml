@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Termos de Uso e Política de Privacidade (LGPD)";
+    Layout = Context.Request.Query["embed"] == "1" ? "~/Views/Shared/_LayoutMinimal.cshtml" : "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h1 class="h2 mb-4">Termos de Uso e Política de Privacidade (LGPD)</h1>
+            <p class="text-muted small">Última atualização: @DateTime.Now.ToString("dd/MM/yyyy")</p>
+
+            <section class="mb-4">
+                <h2 class="h5 border-bottom pb-2">1. Termos de Uso</h2>
+                <p>
+                    Ao acessar e utilizar a plataforma Klyon, você declara ter lido, compreendido e aceito os presentes Termos de Uso.
+                    O uso dos serviços oferecidos está condicionado à aceitação integral destes termos e da nossa Política de Privacidade.
+                </p>
+                <p>
+                    A plataforma destina-se a conectar clientes a parceiros para serviços de endereço fiscal, coworking, salas de reunião e espaços corporativos.
+                    É vedado o uso da plataforma para fins ilícitos ou que violem direitos de terceiros.
+                </p>
+            </section>
+
+            <section class="mb-4">
+                <h2 class="h5 border-bottom pb-2">2. Política de Privacidade e LGPD</h2>
+                <p>
+                    Em conformidade com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 – LGPD), informamos como tratamos os seus dados pessoais.
+                </p>
+                <h3 class="h6 mt-3">2.1. Controlador e finalidade</h3>
+                <p>
+                    O controlador dos dados é a Klyon. Coletamos e tratamos dados pessoais para: cadastro e autenticação de usuários,
+                    prestação dos serviços contratados, cobrança, suporte, cumprimento de obrigações legais e melhoria da experiência na plataforma.
+                </p>
+                <h3 class="h6 mt-3">2.2. Dados coletados</h3>
+                <p>
+                    Podemos coletar: nome completo, e-mail, telefone, CPF/CNPJ, endereço, dados de uso da plataforma e dados de pagamento quando aplicável.
+                </p>
+                <h3 class="h6 mt-3">2.3. Base legal e compartilhamento</h3>
+                <p>
+                    O tratamento baseia-se no consentimento (quando aplicável), execução de contrato e legítimo interesse.
+                    Os dados podem ser compartilhados com parceiros envolvidos na prestação do serviço, processadores de pagamento e autoridades quando exigido por lei.
+                </p>
+                <h3 class="h6 mt-3">2.4. Seus direitos</h3>
+                <p>
+                    Você tem direito de acesso, correção, exclusão, portabilidade, revogação do consentimento e informação sobre compartilhamento,
+                    nos termos da LGPD. Para exercer esses direitos, entre em contato conosco pelos canais indicados na plataforma.
+                </p>
+                <h3 class="h6 mt-3">2.5. Segurança e retenção</h3>
+                <p>
+                    Adotamos medidas técnicas e organizacionais para proteger seus dados. Os dados são mantidos pelo tempo necessário às finalidades
+                    descritas ou para cumprimento de obrigações legais.
+                </p>
+            </section>
+
+            <section class="mb-4">
+                <h2 class="h5 border-bottom pb-2">3. Aceite</h2>
+                <p>
+                    Ao marcar a opção de aceite no cadastro, você confirma que leu e aceitou estes Termos de Uso e a Política de Privacidade (LGPD),
+                    autorizando o tratamento dos seus dados pessoais conforme descrito.
+                </p>
+            </section>
+
+            <p class="mt-4 text-muted small">
+                Em caso de dúvidas, entre em contato através dos canais disponíveis na plataforma.
+            </p>
+        </div>
+    </div>
+</div>

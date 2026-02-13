@@ -1,10 +1,11 @@
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Administrator)]
     [Route("admin/chatbot")]
     public class ChatbotAdminController : Controller
     {

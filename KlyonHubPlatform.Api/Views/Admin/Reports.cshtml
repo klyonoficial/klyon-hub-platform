@@ -151,16 +151,6 @@
                                 @if (assistedSale == ReportAssistedSaleFilter.SelfServiceOnly) { <option value="@ReportAssistedSaleFilter.SelfServiceOnly" selected>Autoatendimento</option> } else { <option value="@ReportAssistedSaleFilter.SelfServiceOnly">Autoatendimento</option> }
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <label class="form-label fw-bold">Itens/pág.</label>
-                            <select name="pageSize" class="form-select" id="pageSize">
-                                <option value="10" selected="@(ViewBag.PageSize == 10 || ViewBag.PageSize == null)">10</option>
-                                <option value="15" selected="@(ViewBag.PageSize == 15)">15</option>
-                                <option value="20" selected="@(ViewBag.PageSize == 20)">20</option>
-                                <option value="50" selected="@(ViewBag.PageSize == 50)">50</option>
-                                <option value="100" selected="@(ViewBag.PageSize == 100)">100</option>
-                            </select>
-                        </div>
                         <div class="col-md-3 d-flex gap-2">
                             <button type="submit" class="btn btn-primary flex-grow-1">
                                 <i class="bi bi-search"></i> Filtrar

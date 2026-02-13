@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -42,7 +43,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Login(string email, string password, string? returnUrl = null)
+        public async Task<IActionResult> Login(string email, string password, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             // Se já estiver autenticado, redireciona para o dashboard do perfil
             if (User.Identity?.IsAuthenticated == true)
@@ -130,12 +131,20 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null)
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = "Client", string? returnUrl = null, bool acceptLgpdTerms = false, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
             {
                 ViewData["Error"] = "Todos os campos são obrigatórios";
                 ViewData["ReturnUrl"] = returnUrl;
+                return View();
+            }
+
+            if (!acceptLgpdTerms)
+            {
+                ViewData["Error"] = "É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.";
+                ViewData["ReturnUrl"] = returnUrl;
+                if (role == "CoworkingPartner") ViewBag.PreSelectedRole = "CoworkingPartner";
                 return View();
             }
 
@@ -157,7 +166,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout(CancellationToken cancellationToken = default)
         {
             await HttpContext.SignOutAsync("Cookies");
             HttpContext.Session.Clear();
@@ -195,7 +204,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ForgotPassword(string email)
+        public async Task<IActionResult> ForgotPassword(string email, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(email))
             {
@@ -234,7 +243,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ResetPassword(string token, string newPassword, string confirmPassword)
+        public async Task<IActionResult> ResetPassword(string token, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(token))
             {
@@ -268,7 +277,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> VerifyEmail(string? token = null, string? returnUrl = null)
+        public async Task<IActionResult> VerifyEmail(string? token = null, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             if (!string.IsNullOrEmpty(token))
             {
@@ -300,7 +309,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
         [HttpPost]
         [ActionName("VerifyEmail")]
-        public async Task<IActionResult> VerifyEmailPost(string token, string? returnUrl = null)
+        public async Task<IActionResult> VerifyEmailPost(string token, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             var success = await _authService.VerifyEmailAsync(token);
             if (success)
@@ -334,7 +343,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ResendVerification(string email)
+        public async Task<IActionResult> ResendVerification(string email, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(email))
             {
@@ -383,7 +392,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> AutoLogin(string token, string? redirect = null)
+        public async Task<IActionResult> AutoLogin(string token, string? redirect = null, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(token))
             {
@@ -468,7 +477,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ChangePasswordRequired(string currentPassword, string newPassword, string confirmPassword)
+        public async Task<IActionResult> ChangePasswordRequired(string currentPassword, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
         {
             if (HttpContext.Session.GetString("MustChangePassword") != "true")
             {

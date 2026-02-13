@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -20,7 +21,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost("stripe")]
-        public async Task<IActionResult> StripeWebhook([FromBody] dynamic webhookData)
+        public async Task<IActionResult> StripeWebhook([FromBody] dynamic webhookData, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -47,7 +48,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost("pagseguro")]
-        public async Task<IActionResult> PagSeguroWebhook([FromBody] dynamic webhookData)
+        public async Task<IActionResult> PagSeguroWebhook([FromBody] dynamic webhookData, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -66,7 +67,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost("asaas")]
-        public async Task<IActionResult> AsaasWebhook([FromBody] dynamic webhookData)
+        public async Task<IActionResult> AsaasWebhook([FromBody] dynamic webhookData, CancellationToken cancellationToken = default)
         {
             try
             {

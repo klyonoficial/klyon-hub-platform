@@ -5,6 +5,7 @@ using System.Security.Claims;
 using KlyonHubPlatform.Api.ViewModels;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -84,11 +85,11 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Marketplace([FromQuery] MarketplaceSearchVm search)
+        public async Task<IActionResult> Marketplace([FromQuery] MarketplaceSearchVm search, CancellationToken cancellationToken = default)
         {
             // Normalização
             search.Page = search.Page <= 0 ? 1 : search.Page;
-            search.PageSize = search.PageSize is < 6 or > 48 ? 12 : search.PageSize;
+            search.PageSize = 10;
 
             var baseQuery = _context.CoworkingAddresses
                 .Include(a => a.Coworking)
@@ -248,7 +249,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> MarketplaceDetails(int id, string? returnUrl = null)
+        public async Task<IActionResult> MarketplaceDetails(int id, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             var address = await _context.CoworkingAddresses
                 .Include(a => a.Coworking)
@@ -328,7 +329,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> SubmitInterest([FromForm] InterestFormVm model)
+        public async Task<IActionResult> SubmitInterest([FromForm] InterestFormVm model, CancellationToken cancellationToken = default)
         {
             // Validação básica
             if (string.IsNullOrWhiteSpace(model.Name) || 
@@ -390,9 +391,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Client")]
+        [Authorize(Roles = KlyonHubPlatform.Domain.Core.Constants.RoleNames.Client)]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateReservation(int CoworkingAddressId, DateTime ReservationDate, string? StartTime, string? EndTime, string RoomType = "Shared")
+        public async Task<IActionResult> CreateReservation(int CoworkingAddressId, DateTime ReservationDate, string? StartTime, string? EndTime, string RoomType = "Shared", CancellationToken cancellationToken = default)
         {
             try
             {
@@ -651,7 +652,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Usado pela tela BookRoom para desabilitar dias e esconder horários indisponíveis.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAvailabilityForMonth(int addressId, string roomType, int year, int month)
+        public async Task<IActionResult> GetAvailabilityForMonth(int addressId, string roomType, int year, int month, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -824,7 +825,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAvailability(int addressId, string roomType, DateTime? date = null)
+        public async Task<IActionResult> GetAvailability(int addressId, string roomType, DateTime? date = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1012,6 +1013,17 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         public IActionResult Privacy()
+        {
+            return View();
+        }
+
+        /// <summary>
+        /// Página pública com os Termos de Uso e Política de Privacidade (LGPD).
+        /// Pode ser visualizada diretamente ou dentro de uma modal no cadastro.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult TermosUsoLgpd()
         {
             return View();
         }

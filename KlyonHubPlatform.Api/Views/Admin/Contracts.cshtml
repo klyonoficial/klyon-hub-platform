@@ -48,16 +48,6 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2">
-                <label for="pageSize" class="form-label">Itens por página</label>
-                <select class="form-select" id="pageSize" name="pageSize">
-                    <option value="5" @(pageSizeVal == 5 ? "selected" : null)>5</option>
-                    <option value="10" @(pageSizeVal == 10 ? "selected" : null)>10</option>
-                    <option value="15" @(pageSizeVal == 15 ? "selected" : null)>15</option>
-                    <option value="20" @(pageSizeVal == 20 ? "selected" : null)>20</option>
-                    <option value="50" @(pageSizeVal == 50 ? "selected" : null)>50</option>
-                </select>
-            </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar

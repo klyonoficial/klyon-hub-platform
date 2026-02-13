@@ -4,14 +4,14 @@
     var _currentPage = (int)(ViewBag.CurrentPage ?? 1);
     var _totalPages = (int)(ViewBag.TotalPages ?? 1);
     var _totalItems = (int)(ViewBag.TotalItems ?? 0);
-    var _ps = (int)(ViewBag.PageSize ?? 15);
+    var _ps = (int)(ViewBag.PageSize ?? 10);
     var _coId = ViewBag.CoworkingId;
     var _st = ViewBag.Status;
     var _df = ViewBag.DateFrom;
     var _dt = ViewBag.DateTo;
     string _dfStr = _df != null ? ((DateTime)_df).ToString("yyyy-MM-dd") : null;
     string _dtStr = _dt != null ? ((DateTime)_dt).ToString("yyyy-MM-dd") : null;
-    var _pageSize = (int)(ViewBag.PageSize ?? 15);
+    var _pageSize = (int)(ViewBag.PageSize ?? 10);
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Transfer>
@@ -68,15 +68,6 @@
             <div class="col-md-2">
                 <label for="dateTo" class="form-label">Data até</label>
                 <input type="date" class="form-control" id="dateTo" name="dateTo" value="@(ViewBag.DateTo != null ? ((DateTime)ViewBag.DateTo).ToString("yyyy-MM-dd") : "")" />
-            </div>
-            <div class="col-md-2">
-                <label for="pageSize" class="form-label">Por página</label>
-                <select class="form-select" id="pageSize" name="pageSize">
-                    @if (_pageSize == 10) { <option value="10" selected="selected">10</option> } else { <option value="10">10</option> }
-                    @if (_pageSize == 15) { <option value="15" selected="selected">15</option> } else { <option value="15">15</option> }
-                    @if (_pageSize == 25) { <option value="25" selected="selected">25</option> } else { <option value="25">25</option> }
-                    @if (_pageSize == 50) { <option value="50" selected="selected">50</option> } else { <option value="50">50</option> }
-                </select>
             </div>
             <div class="col-md-2 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary flex-grow-1">

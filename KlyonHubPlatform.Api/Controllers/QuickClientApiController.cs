@@ -1,8 +1,10 @@
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
+using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +17,7 @@ namespace KlyonHubPlatform.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Administrator")]
+    [Authorize(Roles = Administrator)]
     public class QuickClientApiController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -51,7 +53,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Cadastra um novo cliente, cria usuário, envia email e vincula ao endereço fiscal
         /// </summary>
         [HttpPost("Register")]
-        public async Task<IActionResult> RegisterClient([FromBody] QuickClientRegistrationRequest request)
+        public async Task<IActionResult> RegisterClient([FromBody] QuickClientRegistrationRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -362,7 +364,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Retorna os endereços disponíveis para cadastro rápido
         /// </summary>
         [HttpGet("AvailableAddresses")]
-        public async Task<IActionResult> GetAvailableAddresses()
+        public async Task<IActionResult> GetAvailableAddresses(CancellationToken cancellationToken = default)
         {
             try
             {

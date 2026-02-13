@@ -52,7 +52,16 @@
                                 </select>
                             }
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="acceptLgpdTerms" name="acceptLgpdTerms" value="true">
+                                <label class="form-check-label" for="acceptLgpdTerms">
+                                    Li e aceito os <a href="javascript:void(0)" class="link-primary" data-bs-toggle="modal" data-bs-target="#modalTermosLgpd">Termos de Uso e a Política de Privacidade (LGPD)</a>.
+                                </label>
+                            </div>
+                            <div id="lgpdError" class="invalid-feedback d-none">É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para se cadastrar.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mb-3" id="btnCadastrar">
                             <i class="bi bi-person-plus"></i> Cadastrar
                         </button>
                     </form>
@@ -65,12 +74,49 @@
         </div>
     </div>
 </div>
-@if (initialRole != "CoworkingPartner")
-{
+
+<!-- Modal Termos de Uso e LGPD -->
+<div class="modal fade" id="modalTermosLgpd" tabindex="-1" aria-labelledby="modalTermosLgpdLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTermosLgpdLabel">Termos de Uso e Política de Privacidade (LGPD)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe src="@Url.Action("TermosUsoLgpd", "Home", new { embed = 1 })" title="Termos de Uso e LGPD" class="w-100 border-0" style="min-height: 70vh;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var sel = document.getElementById('role');
         if (sel && '@initialRole') sel.value = '@initialRole';
+
+        var form = document.querySelector('form[action*="Register"]');
+        var acceptCheckbox = document.getElementById('acceptLgpdTerms');
+        var lgpdError = document.getElementById('lgpdError');
+        if (form && acceptCheckbox) {
+            form.addEventListener('submit', function(e) {
+                if (!acceptCheckbox.checked) {
+                    e.preventDefault();
+                    lgpdError.classList.remove('d-none');
+                    acceptCheckbox.classList.add('is-invalid');
+                    return false;
+                }
+                lgpdError.classList.add('d-none');
+                acceptCheckbox.classList.remove('is-invalid');
+            });
+            acceptCheckbox.addEventListener('change', function() {
+                if (acceptCheckbox.checked) {
+                    lgpdError.classList.add('d-none');
+                    acceptCheckbox.classList.remove('is-invalid');
+                }
+            });
+        }
     });
 </script>
-}
