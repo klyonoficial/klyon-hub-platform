@@ -301,11 +301,16 @@
                 var addr = document.getElementById('Address');
                 var neighborhood = document.getElementById('Neighborhood');
                 var city = document.getElementById('City');
-                var state = document.getElementById('State');
+                var stateEl = document.getElementById('State');
+                var uf = data.uf || '';
                 if (addr) addr.value = data.logradouro || '';
                 if (neighborhood) neighborhood.value = data.bairro || '';
                 if (city) city.value = data.localidade || '';
-                if (state) state.value = data.uf || '';
+                if (stateEl) stateEl.value = uf;
+                // Select2: atualizar a exibição quando o valor é definido por script (busca CEP)
+                if (uf && typeof $ !== 'undefined' && $('#State').length && $('#State').hasClass('select2-hidden-accessible')) {
+                    $('#State').val(uf).trigger('change');
+                }
             }
         } catch (err) {
             console.error('Erro ao buscar CEP:', err);
