@@ -195,10 +195,8 @@ namespace KlyonHubPlatform.Application.Services
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
             var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
-            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
-                ? FtpConfigKey.ContractsFolder.ToConfigKey()
-                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+            var (folderKey, defaultFolder) = GetContractsFolderConfigByProvider(provider);
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? defaultFolder;
 
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
@@ -291,10 +289,8 @@ namespace KlyonHubPlatform.Application.Services
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
             var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
-            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
-                ? FtpConfigKey.ContractsFolder.ToConfigKey()
-                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+            var (folderKey, defaultFolder) = GetContractsFolderConfigByProvider(provider);
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? defaultFolder;
 
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
@@ -344,10 +340,8 @@ namespace KlyonHubPlatform.Application.Services
             // Salva usando o storage service
             var storageService = await _storageFactory.GetStorageServiceAsync();
             var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
-            var folderKey = provider.Trim().Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase)
-                ? FtpConfigKey.ContractsFolder.ToConfigKey()
-                : AwsS3ConfigKey.ContractsFolder.ToConfigKey();
-            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? FtpDefaults.ContractsFolder;
+            var (folderKey, defaultFolder) = GetContractsFolderConfigByProvider(provider);
+            var folder = await _systemConfigService.GetValueAsync(folderKey) ?? defaultFolder;
 
             var filePath = await storageService.SaveFileAsync(pdfBytes, fileName, folder);
 
@@ -389,6 +383,16 @@ namespace KlyonHubPlatform.Application.Services
             }
 
             return null;
+        }
+
+        private static (string FolderKey, string DefaultFolder) GetContractsFolderConfigByProvider(string provider)
+        {
+            var p = provider?.Trim() ?? "";
+            if (p.Equals(OracleStorageDefaults.ProviderName, StringComparison.OrdinalIgnoreCase))
+                return (OracleStorageConfigKey.ContractsFolder.ToConfigKey(), OracleStorageDefaults.ContractsFolder);
+            if (p.Equals(FtpDefaults.ProviderName, StringComparison.OrdinalIgnoreCase))
+                return (FtpConfigKey.ContractsFolder.ToConfigKey(), FtpDefaults.ContractsFolder);
+            return (AwsS3ConfigKey.ContractsFolder.ToConfigKey(), AwsS3Defaults.ContractsFolder);
         }
     }
 }

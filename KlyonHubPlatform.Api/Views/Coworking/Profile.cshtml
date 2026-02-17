@@ -421,7 +421,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     </div>
 
     <!-- Fotos -->
-    <div class="tab-pane fade" id="photos" role="tabpanel">
+    <div class="tab-pane fade" id="photos" role="tabpanel" data-photos-total="@(ViewBag.PhotosTotalItems ?? 0)">
         <div class="card">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1030,7 +1030,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         </div>
                         <div class="mb-3">
                             <label for="Photos" class="form-label">Selecione as fotos (máximo 2 fotos no total)</label>
-                            <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" required>
+                            <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*">
                             <small class="form-text text-muted">Formatos aceitos: JPG, PNG. Tamanho máximo: @(ViewBag.MaxPhotoSizeMB ?? 5)MB por foto. <strong>Limite total: 2 fotos.</strong></small>
                         </div>
                         <div id="photoPreview" class="row"></div>
@@ -1468,6 +1468,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         photosTab.innerHTML = newPhotosTab.innerHTML;
                     }
                 }
+                // Manter data-photos-total em dia (validação de upload usa esse valor)
+                var newPhotosTab = tempDiv.querySelector('#photos');
+                var currentPhotosTab = document.getElementById('photos');
+                if (newPhotosTab && currentPhotosTab && newPhotosTab.getAttribute('data-photos-total') !== null) {
+                    currentPhotosTab.setAttribute('data-photos-total', newPhotosTab.getAttribute('data-photos-total'));
+                }
             })
             .catch(error => {
                 console.error('Erro ao atualizar galeria de fotos:', error);
@@ -1514,13 +1520,53 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                 });
             });
             
-            // Formulário UploadPhotos - atualizar galeria de fotos
+            // Formulário UploadPhotos - atualizar galeria de fotos (validação + fetch em um único handler para evitar duas mensagens)
             var uploadPhotoForm = document.getElementById('uploadPhotoForm');
             if (uploadPhotoForm) {
                 uploadPhotoForm.addEventListener('submit', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
                     
-                    // Mostrar loading
+                    function hideLoadingIfShown() {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
+                    }
+                    
+                    var filesToUpload = window._pendingUploadPhotos || [];
+                    if (filesToUpload.length === 0) {
+                        hideLoadingIfShown();
+                        showToast('Selecione pelo menos uma foto.', 'warning');
+                        return;
+                    }
+                    
+                    var maxPhotoMb = @(ViewBag.MaxPhotoSizeMB ?? 5);
+                    var maxSize = maxPhotoMb * 1024 * 1024;
+                    var maxTotalPhotos = 2;
+                    var photosEl = document.getElementById('photos');
+                    var existingPhotosCount = parseInt(photosEl?.getAttribute('data-photos-total') || '0', 10) || 0;
+                    var maxFilesToAdd = maxTotalPhotos - existingPhotosCount;
+                    
+                    if (maxFilesToAdd <= 0) {
+                        hideLoadingIfShown();
+                        window._lastLimitPhotosToast = Date.now();
+                        showToast('Você já atingiu o limite máximo de ' + maxTotalPhotos + ' fotos. Remova uma foto antes de adicionar outra.', 'warning');
+                        return;
+                    }
+                    if (filesToUpload.length > maxFilesToAdd) {
+                        hideLoadingIfShown();
+                        showToast('Você pode adicionar no máximo ' + maxFilesToAdd + ' foto(s). Remova ' + (filesToUpload.length - maxFilesToAdd) + ' foto(s) da lista ou use o botão Remover abaixo.', 'warning');
+                        return;
+                    }
+                    for (var i = 0; i < filesToUpload.length; i++) {
+                        if (filesToUpload[i].size > maxSize) {
+                            hideLoadingIfShown();
+                            showToast('O arquivo "' + filesToUpload[i].name + '" é muito grande. Tamanho máximo: ' + maxPhotoMb + 'MB', 'warning');
+                            return;
+                        }
+                    }
+                    
+                    // Mostrar loading (somente quando passou todas as validações)
                     if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
                         if (typeof window.isConfirmModalOpen === 'function' && !window.isConfirmModalOpen()) {
                             window.KlyonLoading.show();
@@ -1528,6 +1574,10 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     }
                     
                     var formData = new FormData(this);
+                    formData.delete('Photos');
+                    for (var j = 0; j < filesToUpload.length; j++) {
+                        formData.append('Photos', filesToUpload[j]);
+                    }
                     var actionUrl = this.action;
                     var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
                     
@@ -1537,41 +1587,54 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         method: 'POST',
                         body: formData,
                         headers: {
-                            'RequestVerificationToken': token
+                            'RequestVerificationToken': token,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
                         },
                         redirect: 'manual'
                     })
-                    .then(response => {
+                    .then(function(response) {
                         if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                             window.KlyonLoading.hide();
                         }
                         
-                        this.removeAttribute('data-ajax-request');
+                        uploadPhotoForm.removeAttribute('data-ajax-request');
                         
-                        if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.ok) {
-                            // Fechar modal
+                        // 302 = sucesso (redirect para Profile); 2xx = sucesso. 4xx/5xx = erro (servidor retorna JSON com mensagem)
+                        if (response.type === 'opaqueredirect' || response.status === 0 || response.redirected || response.status === 302 || (response.status >= 200 && response.status < 300)) {
                             var modalEl = document.getElementById('uploadPhotoModal');
                             if (modalEl) {
                                 var modal = bootstrap.Modal.getInstance(modalEl);
-                                if (modal) {
-                                    modal.hide();
-                                }
+                                if (modal) modal.hide();
                             }
-                            // Limpar preview e input de fotos (ao reabrir o modal fica vazio)
                             document.getElementById('photoPreview').innerHTML = '';
                             document.getElementById('Photos').value = '';
-                            // Atualizar galeria de fotos
+                            window._pendingUploadPhotos = [];
                             updatePhotosGallery();
                             showToast('Fotos enviadas com sucesso!', 'success');
                         } else {
-                            showToast('Erro ao enviar fotos. Por favor, tente novamente.', 'error');
+                            // Erro: tentar ler mensagem do corpo JSON
+                            response.json().then(function(data) {
+                                var msg = data.error || 'Erro ao enviar fotos. Por favor, tente novamente.';
+                                // Limite de fotos: exibir como atenção e evitar duplicata se o cliente já mostrou
+                                var isLimitMessage = msg.indexOf('limite máximo') !== -1 && msg.indexOf('fotos') !== -1;
+                                if (isLimitMessage) {
+                                    if (window._lastLimitPhotosToast && (Date.now() - window._lastLimitPhotosToast) < 2500) return;
+                                    window._lastLimitPhotosToast = Date.now();
+                                    showToast(msg, 'warning');
+                                } else {
+                                    showToast(msg, 'error');
+                                }
+                            }).catch(function() {
+                                showToast('Erro ao enviar fotos. Por favor, tente novamente.', 'error');
+                            });
                         }
                     })
-                    .catch(error => {
+                    .catch(function(error) {
                         if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
                             window.KlyonLoading.hide();
                         }
-                        this.removeAttribute('data-ajax-request');
+                        uploadPhotoForm.removeAttribute('data-ajax-request');
                         showToast('Erro ao enviar fotos: ' + error.message, 'error');
                         console.error('Erro:', error);
                     });
@@ -1642,36 +1705,67 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             }
         });
 
-        // Preview de fotos ao selecionar
-        document.getElementById('Photos')?.addEventListener('change', function(e) {
-            const preview = document.getElementById('photoPreview');
+        // Lista de arquivos selecionados no modal (permite remover um antes de enviar)
+        window._pendingUploadPhotos = [];
+        function renderPhotoPreview() {
+            var preview = document.getElementById('photoPreview');
+            var files = window._pendingUploadPhotos;
             preview.innerHTML = '';
-            
-            if (e.target.files.length > 0) {
-                const files = Array.from(e.target.files).filter(function(f) { return f.type.startsWith('image/'); });
-                if (files.length === 0) return;
-                preview.innerHTML = '<div class="col-12 text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span class="text-muted">Carregando preview…</span></div>';
-                var loaded = 0;
-                function maybeClearLoading() {
-                    loaded++;
-                    if (loaded === files.length) {
-                        var loading = preview.querySelector('.spinner-border');
-                        if (loading && loading.closest('.col-12')) loading.closest('.col-12').remove();
-                    }
+            if (files.length === 0) return;
+            preview.innerHTML = '<div class="col-12 text-center py-2"><span class="text-muted">Carregando…</span></div>';
+            var loaded = 0;
+            function onLoaded() {
+                loaded++;
+                if (loaded === files.length) {
+                    var loading = preview.querySelector('.text-muted');
+                    if (loading && loading.closest('.col-12')) loading.closest('.col-12').remove();
                 }
-                files.slice(0, 10).forEach(function(file) {
-                    var reader = new FileReader();
-                    reader.onload = function(ev) {
-                        var col = document.createElement('div');
-                        col.className = 'col-md-3 mb-2';
-                        col.innerHTML = '<div class="card"><img src="' + ev.target.result + '" class="card-img-top" style="height: 150px; object-fit: cover;"><div class="card-body p-2"><small class="text-muted">' + (file.name || '') + '</small></div></div>';
-                        preview.appendChild(col);
-                        maybeClearLoading();
-                    };
-                    reader.onerror = maybeClearLoading;
-                    reader.readAsDataURL(file);
-                });
             }
+            files.forEach(function(file, index) {
+                var idx = index;
+                var fileName = file.name || '';
+                var reader = new FileReader();
+                reader.onload = (function(i, fname) {
+                    return function(ev) {
+                        var col = document.createElement('div');
+                        col.className = 'col-md-6 col-lg-4 mb-2';
+                        col.innerHTML = '<div class="card position-relative">' +
+                            '<img src="' + ev.target.result + '" class="card-img-top" style="height: 140px; object-fit: cover;" alt="">' +
+                            '<div class="card-body p-2">' +
+                            '<small class="text-muted d-block text-truncate" title="' + fname + '">' + fname + '</small>' +
+                            '<button type="button" class="btn btn-outline-danger btn-sm mt-1 w-100 btn-remove-photo" data-index="' + i + '" title="Remover esta foto da lista">' +
+                            '<i class="bi bi-trash"></i> Remover</button>' +
+                            '</div></div>';
+                        preview.appendChild(col);
+                        var btn = col.querySelector('.btn-remove-photo');
+                        if (btn) {
+                            btn.addEventListener('click', function() {
+                                var pos = parseInt(this.getAttribute('data-index'), 10);
+                                window._pendingUploadPhotos.splice(pos, 1);
+                                var input = document.getElementById('Photos');
+                                if (input) input.value = '';
+                                renderPhotoPreview();
+                            });
+                        }
+                        onLoaded();
+                    };
+                })(idx, fileName);
+                reader.onerror = onLoaded;
+                reader.readAsDataURL(file);
+            });
+        }
+        document.getElementById('Photos')?.addEventListener('change', function(e) {
+            if (e.target.files.length === 0) return;
+            var files = Array.from(e.target.files).filter(function(f) { return f.type.startsWith('image/'); });
+            if (files.length === 0) return;
+            window._pendingUploadPhotos = files;
+            renderPhotoPreview();
+        });
+        document.getElementById('uploadPhotoModal')?.addEventListener('show.bs.modal', function() {
+            window._pendingUploadPhotos = [];
+            document.getElementById('photoPreview').innerHTML = '';
+            var input = document.getElementById('Photos');
+            if (input) input.value = '';
         });
 
         // Visualizar foto
@@ -2159,46 +2253,6 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     }
                 }
             });
-        });
-
-        // Validação de tamanho de arquivo (galeria)
-        document.getElementById('uploadPhotoForm')?.addEventListener('submit', function(e) {
-            const fileInput = document.getElementById('Photos');
-            function hideUploadLoading() {
-                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                    window.KlyonLoading.hide();
-                }
-            }
-            if (fileInput.files.length > 0) {
-                const maxPhotoMb = @(ViewBag.MaxPhotoSizeMB ?? 5);
-                const maxSize = maxPhotoMb * 1024 * 1024;
-                const maxTotalPhotos = 2;
-                const existingPhotosCount = @(ViewBag.PhotosTotalItems ?? 0);
-                const maxFilesToAdd = maxTotalPhotos - existingPhotosCount;
-                
-                if (maxFilesToAdd <= 0) {
-                    e.preventDefault();
-                    setTimeout(hideUploadLoading, 0);
-                    showToast(`Você já atingiu o limite máximo de ${maxTotalPhotos} fotos. Remova uma foto antes de adicionar outra.`, 'warning');
-                    return false;
-                }
-                
-                if (fileInput.files.length > maxFilesToAdd) {
-                    e.preventDefault();
-                    setTimeout(hideUploadLoading, 0);
-                    showToast(`Você pode adicionar no máximo ${maxFilesToAdd} foto(s). Você já possui ${existingPhotosCount} foto(s) de um total de ${maxTotalPhotos} permitidas.`, 'warning');
-                    return false;
-                }
-
-                for (let i = 0; i < fileInput.files.length; i++) {
-                    if (fileInput.files[i].size > maxSize) {
-                        e.preventDefault();
-                        setTimeout(hideUploadLoading, 0);
-                        showToast(`O arquivo "${fileInput.files[i].name}" é muito grande. Tamanho máximo: ${maxPhotoMb}MB`, 'warning');
-                        return false;
-                    }
-                }
-            }
         });
 
         // Garantir que a primeira aba seja exibida ao carregar a página

@@ -68,6 +68,30 @@
                     </h2>
                     <div id="collapse@(categoryId)" class="accordion-collapse collapse @(isFirst ? "show" : "")" aria-labelledby="heading@(categoryId)" data-bs-parent="#configAccordion">
                         <div class="accordion-body">
+                            @if (category == "Storage")
+                            {
+                                <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                                    <span class="text-muted small me-1">Provedor de armazenamento:</span>
+                                    <form method="post" action="@Url.Action("UpdateStorageToOracle", "Admin")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm @(currentStorageProvider?.ToUpper() == "ORACLE" ? "btn-primary" : "btn-outline-primary")" title="Usar Oracle Cloud Object Storage para fotos e documentos">
+                                            <i class="bi bi-cloud"></i> Usar Oracle Cloud
+                                        </button>
+                                    </form>
+                                    <form method="post" action="@Url.Action("UpdateStorageToFTP", "Admin")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm @(currentStorageProvider?.ToUpper() == "FTP" ? "btn-primary" : "btn-outline-secondary")" title="Usar servidor FTP para fotos e documentos">
+                                            <i class="bi bi-hdd-network"></i> Usar FTP
+                                        </button>
+                                    </form>
+                                    <form method="post" action="@Url.Action("UpdateStorageToAws", "Admin")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm @(currentStorageProvider?.ToUpper() == "AWS" || currentStorageProvider?.ToUpper() == "S3" ? "btn-primary" : "btn-outline-secondary")" title="Usar AWS S3 para fotos e documentos">
+                                            <i class="bi bi-bucket"></i> Usar AWS S3
+                                        </button>
+                                    </form>
+                                </div>
+                            }
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead>
@@ -86,9 +110,10 @@
                                         {
                                             var isStorageProvider = config.Key == StorageConfigKeys.Provider;
                                             var isActiveProvider = isStorageProvider && config.Value?.ToUpper() == currentStorageProvider.ToUpper();
-                                            var isStorageConfig = config.Key.StartsWith("AWS.") || config.Key.StartsWith("FTP.");
-                                            var isActiveStorageConfig = isStorageConfig && 
-                                                ((config.Key.StartsWith("AWS.") && currentStorageProvider.ToUpper() == "AWS") ||
+                                            var isStorageConfig = config.Key.StartsWith("AWS.") || config.Key.StartsWith("FTP.") || config.Key.StartsWith("Oracle.OS.");
+                                            var isActiveStorageConfig = isStorageConfig &&
+                                                ((config.Key.StartsWith("Oracle.OS.") && currentStorageProvider.ToUpper() == "ORACLE") ||
+                                                 (config.Key.StartsWith("AWS.") && currentStorageProvider.ToUpper() == "AWS") ||
                                                  (config.Key.StartsWith("FTP.") && currentStorageProvider.ToUpper() == "FTP"));
                                             var isD4SignConfig = config.Key.StartsWith("D4Sign.");
                                             var isActiveD4SignConfig = isD4SignConfig && d4SignConfigured;

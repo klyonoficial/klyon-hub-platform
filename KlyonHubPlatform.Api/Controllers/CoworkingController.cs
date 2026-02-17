@@ -458,8 +458,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (coworkingEntity != null)
             {
-                // Se já existe, redirecionar para o Profile para editar
-                TempData[TempDataKeys.Info] = InfoMessages.AlreadyHasCoworking(coworkingEntity.Name);
+                // Se já existe, redirecionar para o Profile para editar (sem mensagem para não confundir o parceiro)
                 return RedirectToAction(ActionNames.Profile);
             }
 
@@ -3522,6 +3521,9 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UploadPhotos(List<IFormFile> Photos, CancellationToken cancellationToken = default)
         {
+            var isAjax = Request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase)
+                || Request.Headers["X-Requested-With"] == "XMLHttpRequest";
+
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -3530,12 +3532,16 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (coworkingEntity == null)
                 {
+                    if (isAjax)
+                        return new JsonResult(new { success = false, error = "Coworking não encontrado." }) { StatusCode = 400 };
                     TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
                     return RedirectToAction(ActionNames.Register);
                 }
 
                 if (Photos == null || Photos.Count == 0)
                 {
+                    if (isAjax)
+                        return new JsonResult(new { success = false, error = "Por favor, selecione pelo menos uma foto." }) { StatusCode = 400 };
                     TempData[ErrorMessages.TempDataKey] = "Por favor, selecione pelo menos uma foto.";
                     return RedirectToAction(ActionNames.Profile);
                 }
@@ -3549,7 +3555,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 var photosToAdd = Photos.Take(maxPhotos - existingPhotosCount);
                 if (!photosToAdd.Any())
                 {
-                    TempData[ErrorMessages.TempDataKey] = $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
+                    var limitMessage = $"Você já atingiu o limite máximo de {maxPhotos} fotos. Remova uma foto antes de adicionar outra.";
+                    if (isAjax)
+                        return new JsonResult(new { success = false, error = limitMessage }) { StatusCode = 400 };
+                    TempData[ErrorMessages.TempDataKey] = limitMessage;
                     TempData[TempDataKeys.ActiveTab] = "photos";
                     return RedirectToAction(ActionNames.Profile);
                 }
@@ -3560,7 +3569,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     if (p.Length > 0 && p.Length > maxBytes)
                     {
-                        TempData[ErrorMessages.TempDataKey] = $"O arquivo \"{p.FileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
+                        var sizeMessage = $"O arquivo \"{p.FileName}\" é muito grande. Tamanho máximo: {maxMb}MB. Ajuste em Admin > Configurações > Upload.MaxPhotoSizeMB.";
+                        if (isAjax)
+                            return new JsonResult(new { success = false, error = sizeMessage }) { StatusCode = 400 };
+                        TempData[ErrorMessages.TempDataKey] = sizeMessage;
                         TempData[TempDataKeys.ActiveTab] = "photos";
                         return RedirectToAction(ActionNames.Profile);
                     }
@@ -3603,6 +3615,14 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (Exception ex)
             {
+                // Requisição via fetch (Parceiro/Profile): retornar JSON para o front exibir o erro (evita 302 que era tratado como sucesso)
+                if (isAjax)
+                {
+                    var message = ex.InnerException?.Message ?? ex.Message;
+                    if (message.Contains("InvalidRequest", StringComparison.OrdinalIgnoreCase) || message.Contains("AWSSDK", StringComparison.OrdinalIgnoreCase))
+                        message = "Falha ao salvar as fotos no armazenamento (Oracle Cloud). Verifique em Admin > Configurações do Sistema > Armazenamento: namespace, região, bucket e credenciais Oracle.OS.";
+                    return new JsonResult(new { success = false, error = $"Erro ao fazer upload das fotos: {message}" }) { StatusCode = 500 };
+                }
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao fazer upload das fotos: {ex.Message}";
                 return RedirectToAction(ActionNames.Profile);
             }

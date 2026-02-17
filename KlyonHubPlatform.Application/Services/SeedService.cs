@@ -497,12 +497,76 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // Storage Provider Settings
+                    // Storage Provider Settings (Oracle, FTP ou AWS)
                     new SystemConfiguration
                     {
                         Key = StorageConfigKeys.Provider,
-                        Value = FtpDefaults.ProviderName,
-                        Description = "Provedor de armazenamento: AWS ou FTP",
+                        Value = OracleStorageDefaults.ProviderName,
+                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    // Oracle Cloud Object Storage (S3 Compatibility API)
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.Namespace.ToConfigKey(),
+                        Value = "",
+                        Description = OracleStorageConfigKey.Namespace.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.Region.ToConfigKey(),
+                        Value = OracleStorageDefaults.Region,
+                        Description = OracleStorageConfigKey.Region.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.BucketName.ToConfigKey(),
+                        Value = "",
+                        Description = OracleStorageConfigKey.BucketName.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.AccessKeyId.ToConfigKey(),
+                        Value = "",
+                        Description = OracleStorageConfigKey.AccessKeyId.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.SecretAccessKey.ToConfigKey(),
+                        Value = "",
+                        Description = OracleStorageConfigKey.SecretAccessKey.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = true,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.ContractsFolder.ToConfigKey(),
+                        Value = OracleStorageDefaults.ContractsFolder,
+                        Description = OracleStorageConfigKey.ContractsFolder.GetDescription(),
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = OracleStorageConfigKey.PhotosFolder.ToConfigKey(),
+                        Value = OracleStorageDefaults.PhotosFolder,
+                        Description = OracleStorageConfigKey.PhotosFolder.GetDescription(),
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false

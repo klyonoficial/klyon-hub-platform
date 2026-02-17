@@ -2316,6 +2316,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 );
             }
 
+            // Garantir que as chaves Oracle Object Storage existam (para instalações que já tinham SystemConfigurations antes do Oracle)
+            var oracleNamespaceKey = OracleStorageConfigKey.Namespace.ToConfigKey();
+            if (await _systemConfigurationService.GetByKeyAsync(oracleNamespaceKey) == null)
+            {
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Namespace.ToConfigKey(), "", OracleStorageConfigKey.Namespace.GetDescription(), "Storage", false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Region.ToConfigKey(), OracleStorageDefaults.Region, OracleStorageConfigKey.Region.GetDescription(), "Storage", false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.BucketName.ToConfigKey(), "", OracleStorageConfigKey.BucketName.GetDescription(), "Storage", false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.AccessKeyId.ToConfigKey(), "", OracleStorageConfigKey.AccessKeyId.GetDescription(), "Storage", false, true, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.SecretAccessKey.ToConfigKey(), "", OracleStorageConfigKey.SecretAccessKey.GetDescription(), "Storage", false, true, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.ContractsFolder.ToConfigKey(), OracleStorageDefaults.ContractsFolder, OracleStorageConfigKey.ContractsFolder.GetDescription(), "Storage", false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.PhotosFolder.ToConfigKey(), OracleStorageDefaults.PhotosFolder, OracleStorageConfigKey.PhotosFolder.GetDescription(), "Storage", false, false, User.Identity?.Name);
+            }
+            else
+            {
+                // Corrigir IsSensitive nas chaves sensíveis Oracle (para registros criados sem máscara)
+                var oracleAccessKey = await _systemConfigurationService.GetByKeyAsync(OracleStorageConfigKey.AccessKeyId.ToConfigKey());
+                var oracleSecretKey = await _systemConfigurationService.GetByKeyAsync(OracleStorageConfigKey.SecretAccessKey.ToConfigKey());
+                if (oracleAccessKey != null && !oracleAccessKey.IsSensitive)
+                {
+                    oracleAccessKey.IsSensitive = true;
+                    await _systemConfigurationService.UpdateAsync(oracleAccessKey, User.Identity?.Name);
+                }
+                if (oracleSecretKey != null && !oracleSecretKey.IsSensitive)
+                {
+                    oracleSecretKey.IsSensitive = true;
+                    await _systemConfigurationService.UpdateAsync(oracleSecretKey, User.Identity?.Name);
+                }
+            }
+
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
 
@@ -2396,7 +2425,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         Key = Provider,
                         Value = FtpDefaults.ProviderName,
-                        Description = "Provedor de armazenamento: AWS ou FTP",
+                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
                         Category = "Storage",
                         IsSensitive = false,
                         IsEncrypted = false,
@@ -2444,6 +2473,80 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.FtpSettingsUpdated;
+                return RedirectToAction(ActionNames.SystemConfigurations);
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("atualizar configurações", ex.Message);
+                return RedirectToAction(ActionNames.SystemConfigurations);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateStorageToOracle(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var storageProvider = await _context.SystemConfigurations
+                    .FirstOrDefaultAsync(c => c.Key == Provider);
+                if (storageProvider != null)
+                {
+                    storageProvider.Value = OracleStorageDefaults.ProviderName;
+                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                }
+                else
+                {
+                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
+                    {
+                        Key = Provider,
+                        Value = OracleStorageDefaults.ProviderName,
+                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false,
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
+                    });
+                }
+                await _context.SaveChangesAsync();
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.OracleSettingsUpdated;
+                return RedirectToAction(ActionNames.SystemConfigurations);
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("atualizar configurações", ex.Message);
+                return RedirectToAction(ActionNames.SystemConfigurations);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateStorageToAws(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var storageProvider = await _context.SystemConfigurations
+                    .FirstOrDefaultAsync(c => c.Key == Provider);
+                if (storageProvider != null)
+                {
+                    storageProvider.Value = "AWS";
+                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
+                }
+                else
+                {
+                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
+                    {
+                        Key = Provider,
+                        Value = "AWS",
+                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
+                        Category = "Storage",
+                        IsSensitive = false,
+                        IsEncrypted = false,
+                        CreatedAt = DateTimeHelper.GetBrazilianTime()
+                    });
+                }
+                await _context.SaveChangesAsync();
+                TempData[SuccessMessage.TempDataKey] = "Provedor de armazenamento alterado para AWS S3.";
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
             catch (Exception ex)

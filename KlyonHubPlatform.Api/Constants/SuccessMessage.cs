@@ -51,6 +51,7 @@ namespace KlyonHubPlatform.Api.Constants
         public static string ConfigurationUpdated(string key) =>
             $"Configuração '{key}' atualizada com sucesso!";
         public const string FtpSettingsUpdated = "Configurações FTP atualizadas com sucesso! O sistema agora usa FTP como provedor de armazenamento.";
+        public const string OracleSettingsUpdated = "Provedor de armazenamento alterado para Oracle Cloud Object Storage. Configure Oracle.OS.* em Armazenamento e use 'Usar Oracle Cloud' para ativar.";
 
         // ----- Admin: Migrations / Banco -----
         public const string TableAddressDeclarationsCreated = "Tabela AddressDeclarations criada com sucesso!";

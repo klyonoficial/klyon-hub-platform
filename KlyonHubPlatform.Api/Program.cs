@@ -173,6 +173,7 @@ builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
 // Storage Services
 builder.Services.AddScoped<AWSStorageService>();
 builder.Services.AddScoped<FTPStorageService>();
+builder.Services.AddScoped<OracleStorageService>();
 builder.Services.AddScoped<StorageServiceFactory>();
 
 // Contract Expiry Notification Service
