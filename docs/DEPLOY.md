@@ -1,4 +1,4 @@
-﻿# Guia de Deploy - Klyon Endereço Fiscal
+# Guia de Deploy - Klyon Endereço Fiscal
 
 ## 📋 Pré-requisitos
 
@@ -155,13 +155,37 @@ Na VM, já conectado como `ubuntu`:
 wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
 sudo apt-get update
-sudo apt-get install -y aspnetcore-runtime-8.0
+sudo apt-get install -y dotnet-runtime-8.0 aspnetcore-runtime-8.0
 
 # MariaDB (compatível com MySQL)
 sudo apt-get install -y mariadb-server
 sudo systemctl start mariadb
 sudo systemctl enable mariadb
 sudo mysql_secure_installation   # defina senha root e opções de segurança
+```
+
+**Se o serviço falhar com "No frameworks were found" / "You must install or update .NET to run this application":** o runtime .NET 8 não está instalado ou não foi encontrado. Na VM, execute:
+
+```bash
+# Verificar se algo do .NET está instalado
+dotnet --list-runtimes
+
+# Instalar repositório Microsoft e .NET 8 Runtime (Ubuntu 22.04)
+wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+rm packages-microsoft-prod.deb
+sudo apt-get update
+sudo apt-get install -y dotnet-runtime-8.0 aspnetcore-runtime-8.0
+
+# Conferir
+dotnet --list-runtimes
+```
+
+Deve aparecer **ambos**: `Microsoft.NETCore.App 8.0.x` e `Microsoft.AspNetCore.App 8.0.x`. Se só aparecer AspNetCore, instale o runtime base: `sudo apt-get install -y dotnet-runtime-8.0`. Depois reinicie o serviço:
+
+```bash
+sudo systemctl restart klyon-app
+sudo systemctl status klyon-app
 ```
 
 Criar banco e usuário para a aplicação:
@@ -192,6 +216,30 @@ FLUSH PRIVILEGES;
 ```
 
 Depois execute o script de deploy (`.\deploy.ps1`) novamente.
+
+**Se aparecer "Unknown column 'p.InstallmentCount'" (ou outras colunas faltando):** o banco na VM está desatualizado em relação às migrations. Aplicar as migrations pendentes resolve. Se não tiver como rodar `dotnet ef database update` na VM, você pode aplicar o SQL da migration manualmente. Exemplo para as colunas de parcelamento em `Payments`:
+
+Na VM (substitua pela senha do root do MariaDB quando pedido):
+
+```bash
+sudo mariadb -u root -p klyon_hub
+```
+
+No prompt do MariaDB:
+
+```sql
+ALTER TABLE Payments ADD COLUMN InstallmentCount INT NULL;
+ALTER TABLE Payments ADD COLUMN InstallmentValue DECIMAL(18,2) NULL;
+EXIT;
+```
+
+Se aparecer "Duplicate column name", a coluna já existe — pode ignorar e seguir para a próxima. Depois reinicie o app: `sudo systemctl restart klyon-app`.
+
+Para garantir que **todas** as migrations estejam aplicadas, rode na **sua máquina (Windows)**, onde está o .NET SDK. Na VM só há o Runtime, então `dotnet ef` não está disponível lá. Use a connection string do banco da VM no `appsettings` (temporariamente) e execute na raiz do repositório:
+
+```powershell
+dotnet ef database update --project KlyonHubPlatform.Infra.Data --startup-project KlyonHubPlatform.Api
+```
 
 ---
 
