@@ -9,9 +9,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsMain { get; set; } = false;
         public int DisplayOrder { get; set; } = 0;
         public DateTime CreatedAt { get; set; }
-
-        // Navigation properties
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
-

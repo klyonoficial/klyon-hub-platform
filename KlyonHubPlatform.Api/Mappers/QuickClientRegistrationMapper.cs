@@ -1,11 +1,7 @@
 using KlyonHubPlatform.Api.Responses;
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Api.Mappers
 {
-    /// <summary>
-    /// Monta QuickClientRegistrationResponse a partir das entidades envolvidas no cadastro rápido.
-    /// </summary>
     public static class QuickClientRegistrationMapper
     {
         public static QuickClientRegistrationResponse ToResponse(
@@ -31,7 +27,6 @@ namespace KlyonHubPlatform.Api.Mappers
                 IsNewUser = isNewUser
             };
         }
-
         public static QuickClientRegistrationResponse ToError(bool success, string message)
         {
             return new QuickClientRegistrationResponse

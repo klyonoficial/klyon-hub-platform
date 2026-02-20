@@ -1,9 +1,5 @@
 namespace KlyonHubPlatform.Domain.Entities
 {
-    /// <summary>
-    /// Comissão da plataforma sobre uma reserva (percentual parametrizável).
-    /// Gerado quando a reserva recebe dupla confirmação (cliente + coworking) e o repasse é feito.
-    /// </summary>
     public class ReservationCommission
     {
         public int Id { get; set; }
@@ -13,8 +9,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public decimal CommissionAmount { get; set; }
         public decimal CoworkingAmount { get; set; }
         public DateTime CreatedAt { get; set; }
-
         public virtual Reservation Reservation { get; set; } = null!;
     }
 }
-

@@ -1,6 +1,5 @@
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IContractService

@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class CreditPurchase
@@ -21,10 +20,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? TransactionId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? PaidAt { get; set; }
-
-        // Navigation properties
         public virtual Client Client { get; set; } = null!;
         public virtual CreditPlan CreditPlan { get; set; } = null!;
     }
 }
-

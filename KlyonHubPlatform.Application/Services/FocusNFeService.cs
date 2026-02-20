@@ -3,35 +3,28 @@ using System.Text;
 using System.Text.Json;
 using KlyonHubPlatform.Application.DTOs.FocusNFe;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 namespace KlyonHubPlatform.Application.Services
 {
-    /// <summary>
-    /// Serviço de integração com Focus NFe para emissão de notas fiscais
-    /// </summary>
     public class FocusNFeService : IFocusNFeService
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<FocusNFeService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IAuditService? _auditService;
-
-        // URLs da API Focus NFe
         private const string FOCUS_API_HOMOLOGACAO = "https://homologacao.focusnfe.com.br";
         private const string FOCUS_API_PRODUCAO = "https://api.focusnfe.com.br";
-
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             PropertyNameCaseInsensitive = true,
             WriteIndented = false
         };
-
         public FocusNFeService(
             ApplicationDbContext context,
             ILogger<FocusNFeService> logger,
@@ -43,45 +36,33 @@ namespace KlyonHubPlatform.Application.Services
             _httpClientFactory = httpClientFactory;
             _auditService = auditService;
         }
-
         private string GetBaseUrl(bool isProduction) => isProduction ? FOCUS_API_PRODUCAO : FOCUS_API_HOMOLOGACAO;
-
         private HttpClient CreateHttpClient(string apiToken, bool isProduction)
         {
             var client = _httpClientFactory.CreateClient();
             client.BaseAddress = new Uri(GetBaseUrl(isProduction));
-            
-            // Focus NFe usa Basic Auth com token:senha (senha vazia)
             var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{apiToken}:"));
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            
             return client;
         }
-
         public async Task<FocusNFSeResponse> EmitirNFSeAsync(FocusNFSeRequest request, string apiToken, bool isProduction = false)
         {
             try
             {
                 _logger.LogInformation("Emitindo NFSe via Focus NFe. Ref: {Ref}, Ambiente: {Ambiente}", 
                     request.Ref, isProduction ? "Produção" : "Homologação");
-
                 using var client = CreateHttpClient(apiToken, isProduction);
                 var json = JsonSerializer.Serialize(request, JsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // POST /v2/nfse?ref={ref}
                 var response = await client.PostAsync($"/v2/nfse?ref={request.Ref}", content);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 _logger.LogDebug("Resposta Focus NFe: {StatusCode} - {Response}", 
                     response.StatusCode, responseContent);
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("Erro ao emitir NFSe: {StatusCode} - {Response}", 
                         response.StatusCode, responseContent);
-                    
                     return new FocusNFSeResponse
                     {
                         Ref = request.Ref,
@@ -89,7 +70,6 @@ namespace KlyonHubPlatform.Application.Services
                         Mensagem = $"Erro HTTP {response.StatusCode}: {responseContent}"
                     };
                 }
-
                 var result = JsonSerializer.Deserialize<FocusNFSeResponse>(responseContent, JsonOptions);
                 return result ?? new FocusNFSeResponse { Ref = request.Ref, Status = "erro", Mensagem = "Resposta vazia" };
             }
@@ -104,24 +84,18 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
         public async Task<FocusNFSeConsultaResponse> ConsultarNFSeAsync(string referencia, string apiToken, bool isProduction = false)
         {
             try
             {
                 _logger.LogInformation("Consultando NFSe via Focus NFe. Ref: {Ref}", referencia);
-
                 using var client = CreateHttpClient(apiToken, isProduction);
-                
-                // GET /v2/nfse/{ref}
                 var response = await client.GetAsync($"/v2/nfse/{referencia}");
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("NFSe não encontrada ou erro: {StatusCode} - {Response}", 
                         response.StatusCode, responseContent);
-                    
                     return new FocusNFSeConsultaResponse
                     {
                         Ref = referencia,
@@ -129,7 +103,6 @@ namespace KlyonHubPlatform.Application.Services
                         Mensagem = $"Erro HTTP {response.StatusCode}"
                     };
                 }
-
                 var result = JsonSerializer.Deserialize<FocusNFSeConsultaResponse>(responseContent, JsonOptions);
                 return result ?? new FocusNFSeConsultaResponse { Ref = referencia, Status = "erro" };
             }
@@ -144,39 +117,31 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
         public async Task<FocusNFSeCancelResponse> CancelarNFSeAsync(string referencia, string justificativa, string apiToken, bool isProduction = false)
         {
             try
             {
                 _logger.LogInformation("Cancelando NFSe via Focus NFe. Ref: {Ref}", referencia);
-
                 using var client = CreateHttpClient(apiToken, isProduction);
                 var request = new FocusNFSeCancelRequest { Justificativa = justificativa };
                 var json = JsonSerializer.Serialize(request, JsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // DELETE /v2/nfse/{ref}
                 var httpRequest = new HttpRequestMessage(HttpMethod.Delete, $"/v2/nfse/{referencia}")
                 {
                     Content = content
                 };
-                
                 var response = await client.SendAsync(httpRequest);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("Erro ao cancelar NFSe: {StatusCode} - {Response}", 
                         response.StatusCode, responseContent);
-                    
                     return new FocusNFSeCancelResponse
                     {
                         Status = "erro",
                         Mensagem = $"Erro HTTP {response.StatusCode}: {responseContent}"
                     };
                 }
-
                 var result = JsonSerializer.Deserialize<FocusNFSeCancelResponse>(responseContent, JsonOptions);
                 return result ?? new FocusNFSeCancelResponse { Status = "processando" };
             }
@@ -190,18 +155,13 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
         public async Task<FocusXmlResponse> BaixarXmlNFSeAsync(string referencia, string apiToken, bool isProduction = false)
         {
             try
             {
                 _logger.LogInformation("Baixando XML da NFSe via Focus NFe. Ref: {Ref}", referencia);
-
                 using var client = CreateHttpClient(apiToken, isProduction);
-                
-                // GET /v2/nfse/{ref}.xml
                 var response = await client.GetAsync($"/v2/nfse/{referencia}.xml");
-                
                 if (!response.IsSuccessStatusCode)
                 {
                     return new FocusXmlResponse
@@ -210,7 +170,6 @@ namespace KlyonHubPlatform.Application.Services
                         ErrorMessage = $"Erro HTTP {response.StatusCode}"
                     };
                 }
-
                 var xmlContent = await response.Content.ReadAsStringAsync();
                 return new FocusXmlResponse
                 {
@@ -228,20 +187,15 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
         public async Task<bool> ConfigurarWebhookAsync(FocusWebhookConfig config, string apiToken, bool isProduction = false)
         {
             try
             {
                 _logger.LogInformation("Configurando webhook no Focus NFe");
-
                 using var client = CreateHttpClient(apiToken, isProduction);
                 var json = JsonSerializer.Serialize(config, JsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // POST /v2/hooks
                 var response = await client.PostAsync("/v2/hooks", content);
-                
                 if (!response.IsSuccessStatusCode)
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
@@ -249,7 +203,6 @@ namespace KlyonHubPlatform.Application.Services
                         response.StatusCode, responseContent);
                     return false;
                 }
-
                 _logger.LogInformation("Webhook configurado com sucesso");
                 return true;
             }
@@ -259,7 +212,6 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
         public async Task<FocusNFeWebhookLog> ProcessarWebhookAsync(FocusWebhookPayload payload, string? sourceIp)
         {
             var webhookLog = new FocusNFeWebhookLog
@@ -278,16 +230,12 @@ namespace KlyonHubPlatform.Application.Services
                 ReceivedAt = DateTime.UtcNow,
                 ProcessingStatus = FocusWebhookProcessingStatus.Received
             };
-
             try
             {
                 _logger.LogInformation("Processando webhook Focus NFe. Ref: {Ref}, Status: {Status}, Evento: {Evento}", 
                     payload.Ref, payload.Status, payload.Evento);
-
-                // Verificar se já processamos este webhook (idempotência)
                 var existingLog = await _context.Set<FocusNFeWebhookLog>()
                     .FirstOrDefaultAsync(w => w.Ref == payload.Ref && w.Status == payload.Status && w.Evento == payload.Evento);
-
                 if (existingLog != null && existingLog.ProcessingStatus == FocusWebhookProcessingStatus.Processed)
                 {
                     _logger.LogWarning("Webhook já processado anteriormente. Ref: {Ref}", payload.Ref);
@@ -296,26 +244,19 @@ namespace KlyonHubPlatform.Application.Services
                     await SaveWebhookLog(webhookLog);
                     return webhookLog;
                 }
-
                 webhookLog.ProcessingStatus = FocusWebhookProcessingStatus.Processing;
                 webhookLog.ProcessingAttempts++;
-
-                // Buscar a nota fiscal pelo ID de referência
                 var fiscalNote = await _context.FiscalNotes
                     .FirstOrDefaultAsync(fn => fn.IdempotencyKey == payload.Ref || fn.AccessKey == payload.Ref);
-
                 if (fiscalNote != null)
                 {
                     webhookLog.FiscalNoteId = fiscalNote.Id;
-                    
-                    // Atualizar status da nota fiscal baseado no evento
                     await AtualizarStatusNotaFiscal(fiscalNote, payload);
                 }
                 else
                 {
                     _logger.LogWarning("Nota fiscal não encontrada para ref: {Ref}", payload.Ref);
                 }
-
                 webhookLog.ProcessingStatus = FocusWebhookProcessingStatus.Processed;
                 webhookLog.ProcessedAt = DateTime.UtcNow;
             }
@@ -325,15 +266,12 @@ namespace KlyonHubPlatform.Application.Services
                 webhookLog.ProcessingStatus = FocusWebhookProcessingStatus.Error;
                 webhookLog.ErrorMessage = ex.Message;
             }
-
             await SaveWebhookLog(webhookLog);
             return webhookLog;
         }
-
         private async Task AtualizarStatusNotaFiscal(FiscalNote fiscalNote, FocusWebhookPayload payload)
         {
             var statusAnterior = fiscalNote.Status;
-
             switch (payload.Status?.ToLower())
             {
                 case "autorizado":
@@ -343,19 +281,15 @@ namespace KlyonHubPlatform.Application.Services
                     fiscalNote.ViewUrl = payload.Url;
                     fiscalNote.AuthorizedAt = DateTime.UtcNow;
                     fiscalNote.AuthorizationProtocol = $"FOCUS-{payload.Numero}";
-                    
-                    // Baixar e salvar o XML se disponível
                     if (!string.IsNullOrEmpty(payload.CaminhoXmlNotaFiscal))
                     {
                         fiscalNote.PdfUrl = payload.CaminhoXmlNotaFiscal.Replace(".xml", ".pdf");
                     }
                     break;
-
                 case "cancelado":
                     fiscalNote.Status = FiscalNoteStatus.Cancelada;
                     fiscalNote.CancelledAt = DateTime.UtcNow;
                     break;
-
                 case "erro_autorizacao":
                     fiscalNote.Status = FiscalNoteStatus.Erro;
                     if (payload.Erros?.Any() == true)
@@ -363,60 +297,45 @@ namespace KlyonHubPlatform.Application.Services
                         fiscalNote.ErrorMessage = string.Join("; ", payload.Erros.Select(e => e.Mensagem));
                     }
                     break;
-
                 case "processando_autorizacao":
                     fiscalNote.Status = FiscalNoteStatus.Processando;
                     break;
             }
-
             fiscalNote.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-
             _logger.LogInformation("Status da nota fiscal atualizado. ID: {Id}, Status anterior: {StatusAnterior}, Novo status: {NovoStatus}", 
                 fiscalNote.Id, statusAnterior, fiscalNote.Status);
         }
-
         private async Task SaveWebhookLog(FocusNFeWebhookLog log)
         {
             _context.Set<FocusNFeWebhookLog>().Add(log);
             await _context.SaveChangesAsync();
         }
-
         public async Task<FiscalNote> EmitirNotaIntermediacao(FiscalNote fiscalNote, SefazConfiguration config)
         {
             try
             {
                 _logger.LogInformation("Emitindo nota de intermediação via Focus NFe. FiscalNoteId: {Id}", fiscalNote.Id);
-
-                // Validar configuração
                 if (string.IsNullOrEmpty(config.ApiToken))
                 {
                     throw new InvalidOperationException("Token da API Focus NFe não configurado na plataforma.");
                 }
-
-                // Buscar dados do cliente e parceiro
                 var client = await _context.Clients
                     .Include(c => c.User)
                     .FirstOrDefaultAsync(c => c.Id == fiscalNote.ClientId);
-
                 var coworking = await _context.Coworkings
                     .FirstOrDefaultAsync(c => c.Id == fiscalNote.CoworkingId);
-
                 if (coworking == null)
                 {
                     throw new InvalidOperationException("Parceiro não encontrado.");
                 }
-
-                // Gerar referência única
                 var referencia = $"INT-{fiscalNote.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 fiscalNote.IdempotencyKey = referencia;
-
-                // Montar request da NFSe
                 var request = new FocusNFSeRequest
                 {
                     Ref = referencia,
                     DataEmissao = DateTime.Now.ToString("yyyy-MM-dd"),
-                    NaturezaOperacao = "1", // Tributação no município
+                    NaturezaOperacao = "1",
                     OptanteSimplesNacional = config.TaxRegime == "Simples Nacional",
                     Prestador = new FocusPrestador
                     {
@@ -455,12 +374,8 @@ namespace KlyonHubPlatform.Application.Services
                         CodigoCnae = config.PlatformCNAE
                     }
                 };
-
-                // Emitir via Focus NFe
                 var isProduction = config.Environment == "Producao";
                 var response = await EmitirNFSeAsync(request, config.ApiToken, isProduction);
-
-                // Atualizar nota fiscal com resposta
                 if (response.Status == "autorizado" || response.Status == "processando_autorizacao")
                 {
                     fiscalNote.Status = response.Status == "autorizado" ? FiscalNoteStatus.Emitida : FiscalNoteStatus.Processando;
@@ -468,7 +383,6 @@ namespace KlyonHubPlatform.Application.Services
                     fiscalNote.VerificationCode = response.CodigoVerificacao;
                     fiscalNote.ViewUrl = response.Url;
                     fiscalNote.AccessKey = referencia;
-                    
                     if (response.Status == "autorizado")
                     {
                         fiscalNote.AuthorizedAt = DateTime.UtcNow;
@@ -481,13 +395,10 @@ namespace KlyonHubPlatform.Application.Services
                     fiscalNote.ErrorMessage = response.Mensagem ?? 
                         (response.Erros?.Any() == true ? string.Join("; ", response.Erros.Select(e => e.Mensagem)) : "Erro desconhecido");
                 }
-
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-
                 _logger.LogInformation("Nota de intermediação processada. ID: {Id}, Status: {Status}", 
                     fiscalNote.Id, fiscalNote.Status);
-
                 return fiscalNote;
             }
             catch (Exception ex)
@@ -499,34 +410,24 @@ namespace KlyonHubPlatform.Application.Services
                 throw;
             }
         }
-
         public async Task<FiscalNote> EmitirNotaServico(FiscalNote fiscalNote, CoworkingSefazConfiguration config)
         {
             try
             {
                 _logger.LogInformation("Emitindo nota de serviço via Focus NFe. FiscalNoteId: {Id}", fiscalNote.Id);
-
-                // Validar configuração
                 if (string.IsNullOrEmpty(config.ApiToken))
                 {
                     throw new InvalidOperationException("Token da API Focus NFe não configurado para o parceiro.");
                 }
-
-                // Buscar dados do cliente
                 var client = await _context.Clients
                     .Include(c => c.User)
                     .FirstOrDefaultAsync(c => c.Id == fiscalNote.ClientId);
-
                 if (client == null)
                 {
                     throw new InvalidOperationException("Cliente não encontrado.");
                 }
-
-                // Gerar referência única
                 var referencia = $"SRV-{fiscalNote.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 fiscalNote.IdempotencyKey = referencia;
-
-                // Montar request da NFSe
                 var request = new FocusNFSeRequest
                 {
                     Ref = referencia,
@@ -570,12 +471,8 @@ namespace KlyonHubPlatform.Application.Services
                         CodigoCnae = config.PartnerCNAE
                     }
                 };
-
-                // Emitir via Focus NFe
                 var isProduction = config.Environment == "Producao";
                 var response = await EmitirNFSeAsync(request, config.ApiToken, isProduction);
-
-                // Atualizar nota fiscal com resposta
                 if (response.Status == "autorizado" || response.Status == "processando_autorizacao")
                 {
                     fiscalNote.Status = response.Status == "autorizado" ? FiscalNoteStatus.Emitida : FiscalNoteStatus.Processando;
@@ -583,7 +480,6 @@ namespace KlyonHubPlatform.Application.Services
                     fiscalNote.VerificationCode = response.CodigoVerificacao;
                     fiscalNote.ViewUrl = response.Url;
                     fiscalNote.AccessKey = referencia;
-                    
                     if (response.Status == "autorizado")
                     {
                         fiscalNote.AuthorizedAt = DateTime.UtcNow;
@@ -596,13 +492,10 @@ namespace KlyonHubPlatform.Application.Services
                     fiscalNote.ErrorMessage = response.Mensagem ?? 
                         (response.Erros?.Any() == true ? string.Join("; ", response.Erros.Select(e => e.Mensagem)) : "Erro desconhecido");
                 }
-
                 fiscalNote.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-
                 _logger.LogInformation("Nota de serviço processada. ID: {Id}, Status: {Status}", 
                     fiscalNote.Id, fiscalNote.Status);
-
                 return fiscalNote;
             }
             catch (Exception ex)
@@ -614,7 +507,6 @@ namespace KlyonHubPlatform.Application.Services
                 throw;
             }
         }
-
         public async Task<bool> VerificarDisponibilidadeAsync(string apiToken, bool isProduction = false)
         {
             try
@@ -629,29 +521,105 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
-        #region Métodos Auxiliares
+        public async Task<FocusNFeWebhookListResult> ListarWebhooksAsync(int page, int pageSize, string? status, string? referencia, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Set<FocusNFeWebhookLog>().AsQueryable();
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<FocusWebhookProcessingStatus>(status, true, out var processingStatus))
+                query = query.Where(w => w.ProcessingStatus == processingStatus);
+            if (!string.IsNullOrEmpty(referencia))
+                query = query.Where(w => w.Ref.Contains(referencia));
+            var total = await query.CountAsync(cancellationToken);
+            var logs = await query
+                .OrderByDescending(w => w.ReceivedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(w => new FocusNFeWebhookLogItemDto
+                {
+                    Id = w.Id,
+                    Ref = w.Ref,
+                    CnpjEmitente = w.CnpjEmitente,
+                    DocumentType = w.DocumentType,
+                    Status = w.Status,
+                    Evento = w.Evento,
+                    Numero = w.Numero,
+                    CodigoVerificacao = w.CodigoVerificacao,
+                    Url = w.Url,
+                    FiscalNoteId = w.FiscalNoteId,
+                    ProcessingStatus = w.ProcessingStatus.ToString(),
+                    ErrorMessage = w.ErrorMessage,
+                    SourceIp = w.SourceIp,
+                    ReceivedAt = w.ReceivedAt,
+                    ProcessedAt = w.ProcessedAt,
+                    ProcessingAttempts = w.ProcessingAttempts
+                })
+                .ToListAsync(cancellationToken);
+            return new FocusNFeWebhookListResult
+            {
+                Total = total,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(total / (double)pageSize),
+                Logs = logs
+            };
+        }
 
+        public async Task<FocusNFeConsultaConfigResult?> ObterConfiguracaoParaConsultaAsync(string referencia, CancellationToken cancellationToken = default)
+        {
+            var fiscalNote = await _context.FiscalNotes
+                .FirstOrDefaultAsync(fn => fn.IdempotencyKey == referencia || fn.AccessKey == referencia, cancellationToken);
+            if (fiscalNote == null)
+                return null;
+            string? apiToken = null;
+            bool isProduction = false;
+            if (fiscalNote.Type == FiscalNoteType.Intermediacao)
+            {
+                var config = await _context.SefazConfigurations
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (config != null)
+                {
+                    apiToken = config.ApiToken;
+                    isProduction = config.Environment == "Producao";
+                }
+            }
+            else
+            {
+                var config = await _context.CoworkingSefazConfigurations
+                    .Where(c => c.CoworkingId == fiscalNote.CoworkingId && c.IsActive)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (config != null)
+                {
+                    apiToken = config.ApiToken;
+                    isProduction = config.Environment == "Producao";
+                }
+            }
+            return new FocusNFeConsultaConfigResult { ApiToken = apiToken, IsProduction = isProduction };
+        }
+
+        public async Task<SefazConfiguration?> ObterSefazConfigAtivaAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.SefazConfigurations
+                .Where(c => c.IsActive)
+                .OrderByDescending(c => c.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        #region Métodos Auxiliares
         private static string LimparDocumento(string? documento)
         {
             if (string.IsNullOrEmpty(documento)) return string.Empty;
             return documento.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
         }
-
         private static string LimparCep(string? cep)
         {
             if (string.IsNullOrEmpty(cep)) return string.Empty;
             return cep.Replace("-", "").Replace(".", "").Trim();
         }
-
-        /// <summary>
-        /// Obtém o código do município pelo IBGE
-        /// TODO: Implementar busca real em tabela de municípios
-        /// </summary>
         private string ObterCodigoMunicipioIBGE(string? municipio)
         {
-            if (string.IsNullOrEmpty(municipio)) return "3205309"; // Vitória/ES como padrão
-
-            // Mapeamento básico de municípios do ES (expandir conforme necessário)
+            if (string.IsNullOrEmpty(municipio)) return "3205309";
             var municipios = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Vitória", "3205309" },
@@ -666,8 +634,6 @@ namespace KlyonHubPlatform.Application.Services
                 { "São Mateus", "3204906" },
                 { "Aracruz", "3200607" }
             };
-
-            // Buscar por nome exato ou parcial
             foreach (var (nome, codigo) in municipios)
             {
                 if (municipio.Contains(nome, StringComparison.OrdinalIgnoreCase))
@@ -675,10 +641,8 @@ namespace KlyonHubPlatform.Application.Services
                     return codigo;
                 }
             }
-
-            return "3205309"; // Vitória como padrão
+            return "3205309";
         }
-
         #endregion
     }
 }

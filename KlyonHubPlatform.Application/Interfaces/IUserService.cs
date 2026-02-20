@@ -1,7 +1,4 @@
-using System.Threading;
-using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IUserService
@@ -12,5 +9,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default);
         Task<bool> AssignRoleAsync(int userId, string roleName, CancellationToken cancellationToken = default);
         Task<bool> RemoveRoleAsync(int userId, string roleName, CancellationToken cancellationToken = default);
+        Task<List<Role>> GetAllRolesAsync(CancellationToken cancellationToken = default);
+        Task SetUserRolesAsync(int userId, int[] roleIds, CancellationToken cancellationToken = default);
     }
 }

@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Coworking
@@ -34,8 +33,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsPartner { get; set; } = true;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-
-        // Fluxo de aprovação do cadastro
         public CoworkingApprovalStatus ApprovalStatus { get; set; } = CoworkingApprovalStatus.UnderReview;
         public DateTime? SubmittedAt { get; set; }
         public string? RejectionReason { get; set; }
@@ -43,12 +40,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public int? RejectedBy { get; set; }
         public DateTime? ApprovedAt { get; set; }
         public int? ApprovedBy { get; set; }
-        
-        // Notificações de mudança de status
         public bool HasPendingStatusNotification { get; set; } = false;
         public CoworkingApprovalStatus? LastNotifiedStatus { get; set; }
-
-        // Navigation properties
         public virtual User User { get; set; } = null!;
         public virtual ICollection<CoworkingAddress> Addresses { get; set; } = new List<CoworkingAddress>();
         public virtual ICollection<CoworkingPhoto> Photos { get; set; } = new List<CoworkingPhoto>();
@@ -57,4 +50,3 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<CoworkingProduct> Products { get; set; } = new List<CoworkingProduct>();
     }
 }
-

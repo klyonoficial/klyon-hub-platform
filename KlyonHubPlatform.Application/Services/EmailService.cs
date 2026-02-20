@@ -2,10 +2,9 @@ using KlyonHubPlatform.Application.Interfaces;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
-using KlyonHubPlatform.Domain.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class EmailService : IEmailService
@@ -13,14 +12,12 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ISystemConfigurationService _systemConfigService;
         private readonly IAppBaseUrlProvider _appBaseUrlProvider;
         private readonly ILogger<EmailService> _logger;
-
         public EmailService(ISystemConfigurationService systemConfigService, IAppBaseUrlProvider appBaseUrlProvider, ILogger<EmailService> logger)
         {
             _systemConfigService = systemConfigService;
             _appBaseUrlProvider = appBaseUrlProvider;
             _logger = logger;
         }
-
         public async Task<bool> SendEmailAsync(string to, string subject, string body, bool isHtml = true)
         {
             try
@@ -33,27 +30,20 @@ namespace KlyonHubPlatform.Application.Services
                 var fromName = await _systemConfigService.GetValueAsync(EmailConfigKey.FromName.ToConfigKey());
                 var enableSslStr = await _systemConfigService.GetValueAsync(EmailConfigKey.EnableSsl.ToConfigKey()) ?? KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.True;
                 var replyToEmail = await _systemConfigService.GetValueAsync(EmailConfigKey.ReplyToEmail.ToConfigKey());
-
                 if (string.IsNullOrEmpty(smtpServer) || string.IsNullOrEmpty(smtpUsername) || string.IsNullOrEmpty(smtpPassword))
                 {
                     _logger.LogWarning("Configurações de email não encontradas. Configure em Configurações do Sistema > Email.*");
                     return false;
                 }
-
                 if (!int.TryParse(smtpPortStr, out var smtpPort))
                     smtpPort = 587;
-
                 var enableSsl = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(enableSslStr);
-
                 using (var client = new SmtpClient(smtpServer, smtpPort))
                 {
                     client.EnableSsl = enableSsl;
                     client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
-
-                    // Usar o email do domínio como remetente, mas autenticar com Gmail
                     var senderEmail = !string.IsNullOrEmpty(fromEmail) ? fromEmail : smtpUsername;
                     var senderName = !string.IsNullOrEmpty(fromName) ? fromName : "Klyon Endereço Fiscal";
-
                     var message = new MailMessage
                     {
                         From = new MailAddress(senderEmail, senderName),
@@ -63,15 +53,11 @@ namespace KlyonHubPlatform.Application.Services
                         BodyEncoding = Encoding.UTF8,
                         SubjectEncoding = Encoding.UTF8
                     };
-
-                    // Adicionar Reply-To se configurado
                     if (!string.IsNullOrEmpty(replyToEmail))
                     {
                         message.ReplyToList.Add(new MailAddress(replyToEmail));
                     }
-
                     message.To.Add(to);
-
                     await client.SendMailAsync(message);
                     _logger.LogInformation($"Email enviado com sucesso para {to}");
                     return true;
@@ -83,14 +69,12 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
         public async Task<bool> SendVerificationEmailAsync(string to, string name, string token, string? returnUrl = null)
         {
             var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var verificationUrl = $"{baseUrl}/Auth/VerifyEmail?token={Uri.EscapeDataString(token)}";
             if (!string.IsNullOrEmpty(returnUrl))
                 verificationUrl += "&returnUrl=" + Uri.EscapeDataString(returnUrl);
-
             var subject = "Verifique seu email - Klyon Endereço Fiscal";
             var body = $@"
 <!DOCTYPE html>
@@ -130,15 +114,12 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
-
         public async Task<bool> SendPasswordResetEmailAsync(string to, string name, string token)
         {
             var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var resetUrl = $"{baseUrl}/Auth/ResetPassword?token={token}";
-
             var subject = "Redefinição de Senha - Klyon Endereço Fiscal";
             var body = $@"
 <!DOCTYPE html>
@@ -181,15 +162,12 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
-
         public async Task<bool> SendContractExpiryNotificationAsync(string to, string clientName, string contractNumber, DateTime expiryDate, int daysRemaining)
         {
             var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var paymentsUrl = $"{baseUrl}/Client/MyPayments";
-
             var subject = $"⚠️ Seu contrato de endereço fiscal vence em {daysRemaining} dia(s) - {contractNumber}";
             var body = $@"
 <!DOCTYPE html>
@@ -215,7 +193,7 @@ namespace KlyonHubPlatform.Application.Services
         </div>
         <div class='content'>
             <h2>Olá, {clientName}!</h2>
-            <div class='{(daysRemaining <= 3 ? "danger" : "warning")}'>
+            <div class='{(daysRemaining <= 3 ? BootstrapBadgeCss.Danger : BootstrapBadgeCss.Warning)}'>
                 <h3 style='margin-top: 0;'>⚠️ Atenção: Contrato Próximo do Vencimento</h3>
                 <p><strong>Contrato:</strong> {contractNumber}</p>
                 <p><strong>Data de Vencimento:</strong> {expiryDate:dd/MM/yyyy}</p>
@@ -243,15 +221,12 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
-
         public async Task<bool> SendReservationRequestToCoworkingAsync(string to, string coworkingName, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items)
         {
             var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
             var reservationsUrl = $"{baseUrl}/Coworking/Reservations?status=Pending";
-
             string RoomTypeDisplay(string rt) => rt == "Shared" ? "Sala compartilhada" : rt == "Private" ? "Sala privativa" : rt == "Auditorium" ? "Auditório" : rt;
             var listHtml = string.Join("", items.Select(x =>
             {
@@ -259,7 +234,6 @@ namespace KlyonHubPlatform.Application.Services
                 var he = x.End.HasValue ? x.End.Value.ToString(@"hh\:mm") : "-";
                 return $"<li><strong>{x.Date:dd/MM/yyyy}</strong> das {hi} às {he} — {RoomTypeDisplay(x.RoomType)}</li>";
             }));
-
             var subject = "Solicitação de reserva de sala — aprovar ou reprovar";
             var body = $@"
 <!DOCTYPE html>
@@ -301,10 +275,8 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
-
         public async Task<bool> SendReservationRequestToClientAsync(string to, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items)
         {
             string RoomTypeDisplay(string rt) => rt == "Shared" ? "Sala compartilhada" : rt == "Private" ? "Sala privativa" : rt == "Auditorium" ? "Auditório" : rt;
@@ -314,7 +286,6 @@ namespace KlyonHubPlatform.Application.Services
                 var he = x.End.HasValue ? x.End.Value.ToString(@"hh\:mm") : "-";
                 return $"{x.Date:dd/MM/yyyy} das {hi} às {he} ({RoomTypeDisplay(x.RoomType)})";
             }));
-
             var subject = "Solicitação de reserva enviada";
             var body = $@"
 <!DOCTYPE html>
@@ -350,10 +321,8 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
-
         public async Task<bool> SendClientCredentialsEmailAsync(string to, string name, string email, string password, string paymentDetailsUrl)
         {
             var subject = "Bem-vindo ao Klyon Endereço Fiscal - Suas Credenciais de Acesso";
@@ -384,7 +353,6 @@ namespace KlyonHubPlatform.Application.Services
         <div class='content'>
             <h2>Olá, {name}!</h2>
             <p>Bem-vindo à plataforma Klyon Endereço Fiscal! Sua conta foi criada com sucesso.</p>
-            
             <div class='credentials-box'>
                 <h3 style='margin-top: 0; color: #1a4d7a;'>📋 Suas Credenciais de Acesso</h3>
                 <div class='credential-item'>
@@ -394,22 +362,17 @@ namespace KlyonHubPlatform.Application.Services
                     <span class='credential-label'>Senha Temporária:</span> {password}
                 </div>
             </div>
-
             <div class='warning'>
                 <strong>⚠️ Importante:</strong> Por segurança, você será solicitado a alterar sua senha no primeiro acesso. A senha padrão são as 4 primeiras letras do seu email.
             </div>
-
             <div class='info-box'>
                 <strong>💳 Próximo Passo:</strong> Seu contrato de endereço fiscal foi criado e está aguardando pagamento. Clique no botão abaixo para acessar a página de pagamento e gerar o código PIX.
             </div>
-
             <p style='text-align: center;'>
                 <a href='{paymentDetailsUrl}' class='button'>Acessar Página de Pagamento</a>
             </p>
-
             <p>Ou copie e cole o link abaixo no seu navegador:</p>
             <p style='word-break: break-all; color: #1a4d7a;'>{paymentDetailsUrl}</p>
-
             <p>Atenciosamente,<br>Equipe Klyon</p>
         </div>
         <div class='footer'>
@@ -419,7 +382,6 @@ namespace KlyonHubPlatform.Application.Services
     </div>
 </body>
 </html>";
-
             return await SendEmailAsync(to, subject, body, true);
         }
     }

@@ -12,9 +12,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
         public DateTime ActionDate { get; set; }
-
-        // Navigation properties
         public virtual User? User { get; set; }
     }
 }
-

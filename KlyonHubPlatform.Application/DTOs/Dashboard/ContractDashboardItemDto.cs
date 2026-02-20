@@ -1,11 +1,11 @@
-namespace KlyonHubPlatform.Api.Dtos.Dashboard
+namespace KlyonHubPlatform.Application.DTOs.Dashboard
 {
-    public class ReservationDashboardItemDto
+    public class ContractDashboardItemDto
     {
         public int Id { get; set; }
+        public string ContractNumber { get; set; } = string.Empty;
         public string ClientName { get; set; } = string.Empty;
-        public string CoworkingName { get; set; } = string.Empty;
-        public string ReservationDate { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string StatusDisplay { get; set; } = string.Empty;
     }

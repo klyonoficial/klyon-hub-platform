@@ -1,7 +1,4 @@
-using System.Threading;
-using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Domain.Interfaces
 {
     public interface IAuditLogRepository

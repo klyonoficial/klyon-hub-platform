@@ -1,9 +1,5 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Nomes dos controllers usados em RedirectToAction e Url.Action.
-    /// Parceiro é o alias de rota para Coworking (URL /Parceiro/*).
-    /// </summary>
     public static class ControllerNames
     {
         public const string Home = "Home";
@@ -11,16 +7,10 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Auth = "Auth";
         public const string Admin = "Admin";
         public const string Coworking = "Coworking";
-        /// <summary>Alias de rota para Coworking (URL /Parceiro/*).</summary>
         public const string Parceiro = "Parceiro";
     }
-
-    /// <summary>
-    /// Nomes das actions usados em RedirectToAction e Url.Action.
-    /// </summary>
     public static class ActionNames
     {
-        // Home
         public const string Index = "Index";
         public const string Marketplace = "Marketplace";
         public const string MarketplaceDetails = "MarketplaceDetails";
@@ -32,8 +22,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreateReservation = "CreateReservation";
         public const string SubmitInterest = "SubmitInterest";
         public const string GetAvailability = "GetAvailability";
-
-        // Client
         public const string ChooseLocation = "ChooseLocation";
         public const string RegisterClient = "RegisterClient";
         public const string Profile = "Profile";
@@ -59,8 +47,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string BookRoom = "BookRoom";
         public const string MyReservations = "MyReservations";
         public const string FiscalNotes = "FiscalNotes";
-
-        // Auth
         public const string Login = "Login";
         public const string Register = "Register";
         public const string Logout = "Logout";
@@ -69,8 +55,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ChangePasswordRequired = "ChangePasswordRequired";
         public const string VerifyEmail = "VerifyEmail";
         public const string ResendVerification = "ResendVerification";
-
-        // Admin
         public const string Contracts = "Contracts";
         public const string Dashboard = "Dashboard";
         public const string Users = "Users";
@@ -147,8 +131,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ClearTestData = "ClearTestData";
         public const string ClearDatabase = "ClearDatabase";
         public const string ExecuteSql = "ExecuteSql";
-
-        // Coworking
         public const string MyAddresses = "MyAddresses";
         public const string CardPrices = "CardPrices";
         public const string ActiveContracts = "ActiveContracts";
@@ -192,7 +174,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ImportServiceFiscalNote = "ImportServiceFiscalNote";
         public const string ServiceFiscalNoteDetail = "ServiceFiscalNoteDetail";
         public const string RequestCapacityChange = "RequestCapacityChange";
-        // Parceiro (Coworking) - ações usadas na rota /Parceiro/*
         public const string MyContract = "MyContract";
         public const string RoomRevenueReport = "RoomRevenueReport";
         public const string ResubmitForApproval = "ResubmitForApproval";
@@ -200,7 +181,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string AddBlockedDate = "AddBlockedDate";
         public const string DeleteBlockedDate = "DeleteBlockedDate";
         public const string DownloadPaymentReceipt = "DownloadPaymentReceipt";
-        // Client - ações adicionais
         public const string GenerateCreditPurchasePix = "GenerateCreditPurchasePix";
         public const string CreateCreditCardPurchase = "CreateCreditCardPurchase";
         public const string ProcessCreditCardPayment = "ProcessCreditCardPayment";

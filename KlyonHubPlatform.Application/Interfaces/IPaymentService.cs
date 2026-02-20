@@ -1,8 +1,6 @@
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
-using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Application.DTOs.PagBank;
-
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IPaymentService

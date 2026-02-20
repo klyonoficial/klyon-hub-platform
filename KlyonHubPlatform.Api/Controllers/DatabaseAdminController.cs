@@ -1,11 +1,9 @@
-using System.Threading;
 using KlyonHubPlatform.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Api.Requests;
-
 namespace KlyonHubPlatform.Api.Controllers
 {
     [Authorize(Roles = Administrator)]
@@ -15,7 +13,6 @@ namespace KlyonHubPlatform.Api.Controllers
     {
         private readonly IDatabaseMigrationService _migrationService;
         private readonly ILogger<DatabaseAdminController> _logger;
-
         public DatabaseAdminController(
             IDatabaseMigrationService migrationService,
             ILogger<DatabaseAdminController> logger)
@@ -23,10 +20,6 @@ namespace KlyonHubPlatform.Api.Controllers
             _migrationService = migrationService;
             _logger = logger;
         }
-
-        /// <summary>
-        /// Obtém status do banco de dados
-        /// </summary>
         [HttpGet("status")]
         public async Task<IActionResult> GetDatabaseStatus(CancellationToken cancellationToken = default)
         {
@@ -41,10 +34,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ErrorJson.ErrorDatabaseStatus, details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Lista migrations pendentes
-        /// </summary>
         [HttpGet("migrations/pending")]
         public async Task<IActionResult> GetPendingMigrations(CancellationToken cancellationToken = default)
         {
@@ -59,10 +48,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ErrorJson.ErrorPendingMigrations, details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Lista migrations aplicadas
-        /// </summary>
         [HttpGet("migrations/applied")]
         public async Task<IActionResult> GetAppliedMigrations(CancellationToken cancellationToken = default)
         {
@@ -77,25 +62,17 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ErrorJson.ErrorAppliedMigrations, details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Executa todas as migrations pendentes
-        /// </summary>
         [HttpPost("migrations/execute")]
         public async Task<IActionResult> ExecuteMigrations([FromBody] ExecuteMigrationsRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
-                // Validar confirmação
                 if (!request.Confirmed)
                 {
                     return BadRequest(new { error = ErrorJson.ConfirmationRequiredMigrations });
                 }
-
                 _logger.LogWarning($"Usuário {User.Identity?.Name} iniciou execução de migrations");
-
                 var result = await _migrationService.ExecuteAllPendingMigrationsAsync();
-
                 if (result.Success)
                 {
                     _logger.LogInformation($"Migrations executadas com sucesso: {string.Join(", ", result.AppliedMigrations)}");
@@ -113,10 +90,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ErrorJson.ErrorCriticalMigrations, details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Verifica se há migrations pendentes
-        /// </summary>
         [HttpGet("migrations/has-pending")]
         public async Task<IActionResult> HasPendingMigrations(CancellationToken cancellationToken = default)
         {

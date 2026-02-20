@@ -1,10 +1,5 @@
-using KlyonHubPlatform.Domain.Core.Constants;
-
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Extensões para obter textos de exibição do enum PaymentStatus.
-    /// </summary>
     public static class PaymentStatusExtensions
     {
         public static string ToDisplayString(this PaymentStatus status) => status switch
@@ -18,8 +13,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             PaymentStatus.Cancelled => DisplayStrings.Cancelled,
             _ => status.ToString()
         };
-
-        /// <summary>Versão curta (ex: "Aguardando" em vez de "Aguardando Pagamento").</summary>
         public static string ToDisplayStringShort(this PaymentStatus status) => status switch
         {
             PaymentStatus.Pending => DisplayStrings.PendingShort,
@@ -31,7 +24,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             PaymentStatus.Cancelled => DisplayStrings.Cancelled,
             _ => status.ToString()
         };
-
         public static class DisplayStrings
         {
             public const string Pending = "Aguardando Pagamento";

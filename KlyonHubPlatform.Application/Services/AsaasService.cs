@@ -9,30 +9,21 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using System.Net.Http.Headers;
-
 namespace KlyonHubPlatform.Application.Services
 {
-    /// <summary>
-    /// Implementação do provedor de cobrança Asaas (fixo no sistema).
-    /// Ref: https://docs.asaas.com/reference/comece-por-aqui
-    /// </summary>
     public class AsaasService : IAsaasService
     {
         private const string SandboxBaseUrl = "https://api-sandbox.asaas.com/v3";
         private const string ProductionBaseUrl = "https://api.asaas.com/v3";
-
         private readonly ISystemConfigurationService _systemConfig;
         private readonly ILogger<AsaasService> _logger;
         private readonly HttpClient _httpClient;
-
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
-
         private readonly IMapper _mapper;
-
         public AsaasService(
             ISystemConfigurationService systemConfig,
             ILogger<AsaasService> logger,
@@ -44,13 +35,11 @@ namespace KlyonHubPlatform.Application.Services
             _httpClient = httpClient;
             _mapper = mapper;
         }
-
         private async Task<string> GetBaseUrlAsync()
         {
             var useSandbox = await _systemConfig.GetValueAsync(AsaasConfigKey.UseSandbox.ToConfigKey());
             return StringBooleanValue.IsTrue(useSandbox) ? SandboxBaseUrl : ProductionBaseUrl;
         }
-
         private async Task<string> GetApiKeyAsync()
         {
             var key = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
@@ -58,7 +47,6 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException(AsaasErrorMessages.ApiKeyNotConfigured);
             return key;
         }
-
         private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path)
         {
             var apiKey = await GetApiKeyAsync();
@@ -69,8 +57,6 @@ namespace KlyonHubPlatform.Application.Services
             request.Headers.TryAddWithoutValidation("User-Agent", "KlyonHubPlatform/1.0");
             return request;
         }
-
-        /// <inheritdoc />
         public AsaasValidationResult ValidateCustomerDataForPayment(
             string? clientName,
             string? clientEmail,
@@ -106,17 +92,13 @@ namespace KlyonHubPlatform.Application.Services
             result.Message = result.IsValid ? "Dados válidos conforme documentação Asaas." : string.Join(" ", result.Errors);
             return result;
         }
-
-        /// <inheritdoc />
         public async Task<(bool Success, int StatusCode, string Message)> TestCreatePaymentAsync()
         {
-            // CPF válido (dígitos verificadores corretos): 529.982.247-25
             const string testCpf = "52998224725";
             var referenceId = $"TEST-PAY-{DateTime.UtcNow:yyyyMMddHHmmss}";
             var dueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
             try
             {
-                // 1) Criar cliente (POST /customers) — evita "invalid_customer" ao usar customerData direto no payment
                 var customerPayload = new AsaasCustomerRequest
                 {
                     Name = "Teste Validação Asaas",
@@ -147,8 +129,6 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     return (false, 0, "Resposta de criação de cliente sem id.");
                 }
-
-                // 2) Criar cobrança com customer=<id> (sem customerData). Asaas exige valor mínimo R$ 5,00.
                 var paymentPayload = new AsaasPaymentRequest
                 {
                     Customer = customerId,
@@ -177,12 +157,10 @@ namespace KlyonHubPlatform.Application.Services
                 return (false, 0, $"Erro: {ex.Message}");
             }
         }
-
-        /// <inheritdoc />
         public async Task<(bool Success, int StatusCode, string Message)> TestCreateCreditCardPaymentAsync()
         {
             const string testCpf = "52998224725";
-            const string testCardNumber = "4444444444444444"; // Cartão de teste Asaas sandbox (pagamento aprovado)
+            const string testCardNumber = "4444444444444444";
             var referenceId = $"TEST-CARD-{DateTime.UtcNow:yyyyMMddHHmmss}";
             var dueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
             try
@@ -216,7 +194,6 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     return (false, 0, "Resposta de criação de cliente sem id.");
                 }
-
                 var expYear = (DateTime.UtcNow.Year + 2).ToString();
                 var paymentPayload = new AsaasPaymentRequest
                 {
@@ -227,7 +204,7 @@ namespace KlyonHubPlatform.Application.Services
                     Description = "Teste de cobrança com cartão (Admin)",
                     ExternalReference = referenceId,
                     InstallmentCount = 1,
-                    InstallmentValue = 5.00m, // Asaas exige valor da parcela (total / parcelas)
+                    InstallmentValue = 5.00m,
                     CreditCard = new AsaasCreditCard
                     {
                         HolderName = "TESTE APROVADO",
@@ -245,7 +222,6 @@ namespace KlyonHubPlatform.Application.Services
                         MobilePhone = "27987654321"
                     }
                 };
-
                 var paymentReq = await CreateRequestAsync(HttpMethod.Post, "/payments");
                 paymentReq.Content = new StringContent(JsonSerializer.Serialize(paymentPayload, JsonOptions), Encoding.UTF8, "application/json");
                 var paymentResponse = await _httpClient.SendAsync(paymentReq);
@@ -264,7 +240,6 @@ namespace KlyonHubPlatform.Application.Services
                 return (false, 0, $"Erro: {ex.Message}");
             }
         }
-
         public async Task<OrderResponse> CreateOrderAsync(
             string referenceId,
             decimal amount,
@@ -280,7 +255,6 @@ namespace KlyonHubPlatform.Application.Services
             var dueDate = method == PaymentMethod.BankTransfer
                 ? DateTime.UtcNow.AddDays(3).ToString("yyyy-MM-dd")
                 : DateTime.UtcNow.ToString("yyyy-MM-dd");
-
             var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
             if (string.IsNullOrEmpty(cpfCnpj) || (cpfCnpj.Length != 11 && cpfCnpj.Length != 14))
                 throw new InvalidOperationException(
@@ -291,10 +265,7 @@ namespace KlyonHubPlatform.Application.Services
             if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
                 throw new InvalidOperationException(
                     "CNPJ com dígitos verificadores inválidos. Corrija o CNPJ em Meu Perfil (use um CNPJ válido).");
-
-            // Igual ao teste que funcionou: primeiro criar/obter cliente (POST /customers), depois cobrança com customer=id
             var customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, referenceId);
-
             var request = new AsaasPaymentRequest
             {
                 Customer = customerId,
@@ -303,7 +274,6 @@ namespace KlyonHubPlatform.Application.Services
                 DueDate = dueDate,
                 Description = "Pagamento de Endereço Fiscal"
             };
-
             if (method == PaymentMethod.PIX)
             {
                 request.BillingType = "PIX";
@@ -316,7 +286,6 @@ namespace KlyonHubPlatform.Application.Services
             {
                 request.BillingType = "CREDIT_CARD";
                 request.InstallmentCount = installments ?? 1;
-                // Asaas exige installmentValue: valor de cada parcela = total / número de parcelas
                 request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
                 if (card != null)
                 {
@@ -333,20 +302,16 @@ namespace KlyonHubPlatform.Application.Services
                     };
                 }
             }
-
             if (method == PaymentMethod.CreditCard)
             {
                 _logger.LogInformation(
                     "Enviando cobrança com cartão ao Asaas: referenceId={ReferenceId}, value={Value}, customerId={CustomerId}.",
                     referenceId, amount, request.Customer);
             }
-
             var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/payments");
             httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
-
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Erro ao criar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
@@ -356,11 +321,9 @@ namespace KlyonHubPlatform.Application.Services
                     throw new InvalidOperationException(ParseAsaasError(content));
                 throw new HttpRequestException($"Erro ao criar cobrança Asaas: {response.StatusCode}");
             }
-
             var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
             if (payment == null)
                 throw new InvalidOperationException("Resposta inválida da API Asaas");
-
             var orderResponse = new OrderResponse
             {
                 Id = payment.Id,
@@ -369,7 +332,6 @@ namespace KlyonHubPlatform.Application.Services
                 CreatedAt = AsaasDateParser.TryParse(payment.DateCreated) ?? DateTime.UtcNow,
                 PaidAt = AsaasDateParser.TryParse(payment.ConfirmedDate ?? payment.ClientPaymentDate)
             };
-
             if (method == PaymentMethod.PIX)
             {
                 var pixQr = await GetPixQrCodeAsync(payment.Id);
@@ -420,7 +382,7 @@ namespace KlyonHubPlatform.Application.Services
             else if (method == PaymentMethod.CreditCard && payment.Status != null)
             {
                 var statusUpper = payment.Status.ToUpperInvariant();
-                var paid = statusUpper == "CONFIRMED" || statusUpper == "RECEIVED";
+                var paid = statusUpper == AsaasPaymentStatus.Confirmed || statusUpper == AsaasPaymentStatus.Received;
                 orderResponse.Charges = new List<PagBankChargeResponse>
                 {
                     new PagBankChargeResponse
@@ -435,11 +397,8 @@ namespace KlyonHubPlatform.Application.Services
                     }
                 };
             }
-
             return orderResponse;
         }
-
-        /// <summary>Cria cliente no Asaas (POST /customers) ou retorna id se já existir (GET por cpfCnpj). Mesmo fluxo do teste que retorna 200.</summary>
         private async Task<string> CreateOrGetAsaasCustomerAsync(
             string clientName,
             string clientEmail,
@@ -465,12 +424,10 @@ namespace KlyonHubPlatform.Application.Services
                 State = clientAddress?.RegionCode,
                 ExternalReference = externalReference
             };
-
             var customerReq = await CreateRequestAsync(HttpMethod.Post, "/customers");
             customerReq.Content = new StringContent(JsonSerializer.Serialize(customerPayload, JsonOptions), Encoding.UTF8, "application/json");
             var customerResponse = await _httpClient.SendAsync(customerReq);
             var customerContent = await customerResponse.Content.ReadAsStringAsync();
-
             if (customerResponse.IsSuccessStatusCode)
             {
                 var customer = JsonSerializer.Deserialize<AsaasCustomerResponse>(customerContent, JsonOptions);
@@ -481,10 +438,8 @@ namespace KlyonHubPlatform.Application.Services
                     return id;
                 }
             }
-
             if (customerResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                // Cliente já pode existir (ex.: CPF duplicado). Tenta buscar por cpfCnpj.
                 var listReq = await CreateRequestAsync(HttpMethod.Get, $"/customers?cpfCnpj={Uri.EscapeDataString(cpfCnpj)}");
                 var listResponse = await _httpClient.SendAsync(listReq);
                 var listContent = await listResponse.Content.ReadAsStringAsync();
@@ -500,46 +455,36 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 throw new InvalidOperationException(ParseAsaasError(customerContent));
             }
-
             _logger.LogError("Erro ao criar/buscar cliente Asaas: {StatusCode} - {Content}", customerResponse.StatusCode, customerContent);
             throw new HttpRequestException($"Erro ao criar cliente Asaas: {customerResponse.StatusCode}. {ParseAsaasError(customerContent)}");
         }
-
         public async Task<OrderResponse> GetOrderAsync(string orderId)
         {
             var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{orderId}");
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Erro ao consultar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
                 throw new HttpRequestException($"Erro ao consultar cobrança Asaas: {response.StatusCode}");
             }
-
             var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
             if (payment == null)
                 throw new InvalidOperationException("Resposta inválida da API Asaas");
-
             return _mapper.Map<OrderResponse>(payment);
         }
-
         public async Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null)
         {
-            // Asaas: DELETE /payments/{id} para excluir cobrança (ou pode haver endpoint de cancelamento)
             var httpRequest = await CreateRequestAsync(HttpMethod.Delete, $"/payments/{chargeId}");
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Erro ao cancelar cobrança Asaas: {StatusCode} - {Content}", response.StatusCode, content);
                 throw new HttpRequestException($"Erro ao cancelar cobrança Asaas: {response.StatusCode}");
             }
-
             return new OrderResponse { Id = chargeId, Status = "CANCELLED" };
         }
-
         public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
         {
             var token = await _systemConfig.GetValueAsync(AsaasConfigKey.WebhookToken.ToConfigKey());
@@ -550,17 +495,14 @@ namespace KlyonHubPlatform.Application.Services
             }
             if (string.IsNullOrEmpty(signature))
                 return true;
-
             using var sha256 = System.Security.Cryptography.SHA256.Create();
             var dataToHash = $"{token}-{payload}";
             var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(dataToHash));
             var computed = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
             return string.Equals(computed, signature, StringComparison.OrdinalIgnoreCase);
         }
-
         public async Task<PixTransferResult> CreatePixTransferAsync(string referenceId, decimal amount, string pixKey, string pixKeyType, string receiverName, string? description = null)
         {
-            // Asaas: POST /transfers para transferência PIX
             var body = new
             {
                 value = amount,
@@ -572,13 +514,11 @@ namespace KlyonHubPlatform.Application.Services
             httpRequest.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Erro na transferência PIX Asaas: {StatusCode} - {Content}", response.StatusCode, content);
                 return new PixTransferResult { Success = false, ErrorMessage = content };
             }
-
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
             var id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
@@ -592,19 +532,16 @@ namespace KlyonHubPlatform.Application.Services
                 CreatedAt = DateTime.UtcNow
             };
         }
-
         public async Task<PixTransferResult> GetPixTransferAsync(string transferId)
         {
             var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/transfers/{transferId}");
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
-
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Erro ao consultar transferência PIX Asaas: {StatusCode}", response.StatusCode);
                 return new PixTransferResult { Success = false, TransferId = transferId, ErrorMessage = content };
             }
-
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
             var status = root.TryGetProperty("status", out var s) ? s.GetString() : null;
@@ -619,7 +556,6 @@ namespace KlyonHubPlatform.Application.Services
                 Amount = value
             };
         }
-
         private async Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string paymentId)
         {
             try
@@ -640,7 +576,6 @@ namespace KlyonHubPlatform.Application.Services
                 return null;
             }
         }
-
         private async Task<AsaasIdentificationFieldResponse?> GetIdentificationFieldAsync(string paymentId)
         {
             try
@@ -661,12 +596,11 @@ namespace KlyonHubPlatform.Application.Services
                 return null;
             }
         }
-
         private static AsaasCreditCard MapCard(PagBankCard card)
         {
             var expiry = (card.ExpirationDate ?? "").Trim();
             string month = "", year = "";
-            if (expiry.Length >= 7) // YYYY-MM
+            if (expiry.Length >= 7)
             {
                 var parts = expiry.Split('-');
                 if (parts.Length >= 2)
@@ -684,15 +618,11 @@ namespace KlyonHubPlatform.Application.Services
                 Ccv = card.SecurityCode ?? ""
             };
         }
-
-        /// <summary>Retorna apenas dígitos (CPF 11 ou CNPJ 14). Asaas exige cpfCnpj sem formatação.</summary>
         private static string NormalizeCpfCnpj(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return "";
             return new string(value.Where(char.IsDigit).ToArray());
         }
-
-        /// <summary>Valida dígitos verificadores do CPF (algoritmo Receita Federal).</summary>
         private static bool IsValidCpf(string cpf)
         {
             if (cpf.Length != 11 || cpf.All(c => c == cpf[0])) return false;
@@ -707,8 +637,6 @@ namespace KlyonHubPlatform.Application.Services
             int d2 = sum % 11; d2 = d2 < 2 ? 0 : 11 - d2;
             return (cpf[10] - '0') == d2;
         }
-
-        /// <summary>Valida dígitos verificadores do CNPJ (algoritmo Receita Federal).</summary>
         private static bool IsValidCnpj(string cnpj)
         {
             if (cnpj.Length != 14 || cnpj.All(c => c == cnpj[0])) return false;
@@ -723,16 +651,12 @@ namespace KlyonHubPlatform.Application.Services
             int d2 = sum % 11; d2 = d2 < 2 ? 0 : 11 - d2;
             return (cnpj[13] - '0') == d2;
         }
-
-        /// <summary>Retorna apenas dígitos para telefone (ex.: 27999165161). Asaas exige formato sem máscara.</summary>
         private static string? NormalizePhone(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return null;
             var digits = new string(value.Where(char.IsDigit).ToArray());
             return digits.Length >= 10 ? digits : null;
         }
-
-        /// <summary>Asaas exige city como código IBGE (número). Se não for numérico, retorna null para não enviar.</summary>
         private static int? TryGetCityAsIbgeCode(string? city)
         {
             if (string.IsNullOrWhiteSpace(city)) return null;
@@ -740,14 +664,12 @@ namespace KlyonHubPlatform.Application.Services
             if (digits.Length == 7 && int.TryParse(digits, out var code)) return code;
             return null;
         }
-
         private static string? NormalizePostalCode(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return null;
             var s = value.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
             return s.Length >= 8 ? s.Substring(0, 8) : s.PadLeft(8, '0');
         }
-
         private static string ParseAsaasError(string content)
         {
             try

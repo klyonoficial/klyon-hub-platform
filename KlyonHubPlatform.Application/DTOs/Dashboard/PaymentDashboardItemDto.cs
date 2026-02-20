@@ -1,12 +1,12 @@
-namespace KlyonHubPlatform.Api.Dtos.Dashboard
+namespace KlyonHubPlatform.Application.DTOs.Dashboard
 {
-    public class ContractDashboardItemDto
+    public class PaymentDashboardItemDto
     {
         public int Id { get; set; }
-        public string ContractNumber { get; set; } = string.Empty;
         public string ClientName { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
         public string Status { get; set; } = string.Empty;
         public string StatusDisplay { get; set; } = string.Empty;
+        public string CreatedAt { get; set; } = string.Empty;
     }
 }

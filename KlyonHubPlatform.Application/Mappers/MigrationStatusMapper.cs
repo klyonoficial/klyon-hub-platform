@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Application.Interfaces;
-
 namespace KlyonHubPlatform.Application.Mappers
 {
     public static class MigrationStatusMapper
@@ -11,7 +10,6 @@ namespace KlyonHubPlatform.Application.Mappers
             IReadOnlyList<string> pending)
         {
             var all = applied.Union(pending).ToList();
-
             return new DatabaseStatusDto
             {
                 CanConnect = canConnect,

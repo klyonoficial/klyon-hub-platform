@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Status da compra de créditos
-    /// </summary>
     public enum CreditPurchaseStatus
     {
         Pending = 0,

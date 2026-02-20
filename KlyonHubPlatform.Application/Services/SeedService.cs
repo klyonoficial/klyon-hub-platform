@@ -1,29 +1,22 @@
-using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
-using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
-using KlyonHubPlatform.Domain.Interfaces;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class SeedService
     {
         private readonly ApplicationDbContext _context;
-
         public SeedService(ApplicationDbContext context)
         {
             _context = context;
         }
-
         public async Task SeedInitialDataAsync()
         {
             try
             {
-                // Seed Roles
                 if (!_context.Roles.Any())
                 {
                     _context.Roles.AddRange(
@@ -38,10 +31,8 @@ namespace KlyonHubPlatform.Application.Services
             {
                 throw new Exception($"Erro ao fazer seed de Roles: {ex.Message}", ex);
             }
-
             try
             {
-                // Seed Admin User
                 if (!_context.Users.Any(u => u.Email == "admin@klyon.com"))
                 {
                     var adminUser = new User
@@ -54,7 +45,6 @@ namespace KlyonHubPlatform.Application.Services
                     };
                     _context.Users.Add(adminUser);
                     await _context.SaveChangesAsync();
-
                     var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Administrator);
                     if (adminRole != null)
                     {
@@ -71,9 +61,6 @@ namespace KlyonHubPlatform.Application.Services
             {
                 throw new Exception($"Erro ao fazer seed de Admin User: {ex.Message}", ex);
             }
-
-            // Seed Locations - Uma localidade por estado brasileiro
-            // Dicionário com capital de cada estado e sua região
             var brazilianStates = new Dictionary<string, (string City, string Region)>
             {
                 { "AC", ("Rio Branco", "Norte") },
@@ -104,12 +91,8 @@ namespace KlyonHubPlatform.Application.Services
                 { "SE", ("Aracaju", "Nordeste") },
                 { "TO", ("Palmas", "Norte") }
             };
-
-            // Buscar localidades existentes por estado
             var existingLocations = await _context.Locations.ToListAsync();
             var existingStates = existingLocations.Select(l => l.State).ToHashSet();
-
-            // Adicionar apenas as localidades que faltam
             var locationsToAdd = brazilianStates
                 .Where(state => !existingStates.Contains(state.Key))
                 .Select(state => new Location
@@ -119,7 +102,6 @@ namespace KlyonHubPlatform.Application.Services
                     Region = state.Value.Region,
                     IsActive = true
                 }).ToList();
-
             try
             {
                 if (locationsToAdd.Any())
@@ -127,12 +109,9 @@ namespace KlyonHubPlatform.Application.Services
                     _context.Locations.AddRange(locationsToAdd);
                     await _context.SaveChangesAsync();
                 }
-
-                // Seed Location Commissions - Garantir que todas as localidades tenham comissão
                 var allLocations = await _context.Locations.ToListAsync();
                 var existingCommissions = await _context.LocationCommissions.ToListAsync();
                 var locationsWithCommission = existingCommissions.Select(c => c.LocationId).ToHashSet();
-
                 foreach (var location in allLocations)
                 {
                     if (!locationsWithCommission.Contains(location.Id))
@@ -151,18 +130,14 @@ namespace KlyonHubPlatform.Application.Services
             {
                 throw new Exception($"Erro ao fazer seed de Locations: {ex.Message}", ex);
             }
-
-            // Localidades adicionais (além das capitais): mesmo estado pode ter várias cidades
             var additionalLocations = new[] { ("Cariacica", "ES", "Sudeste") };
             var existingByCityState = (await _context.Locations.ToListAsync())
                 .Select(l => (l.City.Trim().ToLowerInvariant(), l.State.Trim().ToUpperInvariant()))
                 .ToHashSet();
-
             foreach (var (city, state, region) in additionalLocations)
             {
                 var key = (city.Trim().ToLowerInvariant(), state.Trim().ToUpperInvariant());
                 if (existingByCityState.Contains(key)) continue;
-
                 var loc = new Location { City = city, State = state, Region = region, IsActive = true };
                 _context.Locations.Add(loc);
                 await _context.SaveChangesAsync();
@@ -175,8 +150,6 @@ namespace KlyonHubPlatform.Application.Services
                 existingByCityState.Add(key);
             }
             await _context.SaveChangesAsync();
-
-            // Seed Languages
             if (!_context.Languages.Any())
             {
                 _context.Languages.AddRange(
@@ -210,11 +183,8 @@ namespace KlyonHubPlatform.Application.Services
                 );
                 await _context.SaveChangesAsync();
             }
-
-            // Seed Services
             var existingServices = await _context.Services.ToListAsync();
             var existingServiceNames = existingServices.Select(s => s.Name.ToLower()).ToHashSet();
-            
             var servicesToAdd = new List<Service>
             {
                 new Service
@@ -273,43 +243,33 @@ namespace KlyonHubPlatform.Application.Services
                     Category = CategoryService.Client
                 }
             };
-
             var newServices = servicesToAdd
                 .Where(s => !existingServiceNames.Contains(s.Name.ToLower()))
                 .ToList();
-
             if (newServices.Any())
             {
                 _context.Services.AddRange(newServices);
                 await _context.SaveChangesAsync();
             }
-
-            // Atualizar serviços existentes com ImageUrl, rotas e códigos corretos
             var servicesToUpdate = existingServices
                 .Where(s => string.IsNullOrEmpty(s.ImageUrl) ||
                            s.Route == "/marketplace" ||
                            (s.Route == "/contracts" && s.Name.Contains("Endereço Fiscal")) ||
                            string.IsNullOrEmpty(s.Code))
                 .ToList();
-
             var needsRouteUpdate = false;
-
             foreach (var existingService in existingServices)
             {
                 var matchingService = servicesToAdd.FirstOrDefault(s =>
                     s.Code.Equals(existingService.Code, StringComparison.OrdinalIgnoreCase) ||
                     (s.Code == FiscalAddressOffer) ||
                     (s.Code == FiscalAddressContracting));
-                
                 if (matchingService != null)
                 {
-                    // Atualizar ImageUrl se não tiver
                     if (string.IsNullOrEmpty(existingService.ImageUrl) && !string.IsNullOrEmpty(matchingService.ImageUrl))
                     {
                         existingService.ImageUrl = matchingService.ImageUrl;
                     }
-
-                    // Corrigir rotas incorretas
                     if (existingService.Route == "/marketplace" ||
                         (existingService.Route.Contains("/marketplace") && !existingService.Route.Contains("/Home/Marketplace")))
                     {
@@ -321,28 +281,22 @@ namespace KlyonHubPlatform.Application.Services
                         existingService.Route = "/Client/ChooseLocation";
                         needsRouteUpdate = true;
                     }
-
-                    // Atualizar Code se não tiver ou estiver vazio
                     if (string.IsNullOrEmpty(existingService.Code) && !string.IsNullOrEmpty(matchingService.Code))
                     {
                         existingService.Code = matchingService.Code;
-                        needsRouteUpdate = true; // Reutilizando a flag para indicar que houve atualização
+                        needsRouteUpdate = true;
                     }
                 }
             }
-
             if (servicesToUpdate.Any() || needsRouteUpdate)
             {
                 await _context.SaveChangesAsync();
             }
-
             try
             {
-                // Seed System Configurations
                 if (!_context.SystemConfigurations.Any())
                 {
                     _context.SystemConfigurations.AddRange(
-                    // Email Settings
                     new SystemConfiguration
                     {
                         Key = EmailConfigKey.SmtpServer.ToConfigKey(),
@@ -424,7 +378,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // Payment Settings
                     new SystemConfiguration
                     {
                         Key = PaymentConfigKey.Provider.ToConfigKey(),
@@ -497,7 +450,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // Storage Provider Settings (Oracle, FTP ou AWS)
                     new SystemConfiguration
                     {
                         Key = StorageConfigKeys.Provider,
@@ -507,7 +459,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // Oracle Cloud Object Storage (S3 Compatibility API)
                     new SystemConfiguration
                     {
                         Key = OracleStorageConfigKey.Namespace.ToConfigKey(),
@@ -571,7 +522,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // AWS S3 Settings
                     new SystemConfiguration
                     {
                         Key = AwsS3ConfigKey.BucketName.ToConfigKey(),
@@ -626,7 +576,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // FTP Settings
                     new SystemConfiguration
                     {
                         Key = FtpConfigKey.Host.ToConfigKey(),
@@ -708,7 +657,6 @@ namespace KlyonHubPlatform.Application.Services
                         IsSensitive = false,
                         IsEncrypted = false
                     },
-                    // D4Sign - Assinatura eletrônica de contratos (endereço fiscal). Sandbox = true para testes.
                     new SystemConfiguration
                     {
                         Key = D4SignConfigKeys.TokenAPI,
@@ -784,8 +732,6 @@ namespace KlyonHubPlatform.Application.Services
                     );
                     await _context.SaveChangesAsync();
                 }
-
-                // Garantir que Features.EnableCoworkingMenus está desativada (Reservas, Reservar Sala, etc.)
                 var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 if (coworkingMenusConfig != null)
                 {
@@ -797,8 +743,6 @@ namespace KlyonHubPlatform.Application.Services
             {
                 throw new Exception($"Erro ao fazer seed de SystemConfigurations: {ex.Message}", ex);
             }
-
-            // Garantir que existe uma linha em PlatformCreditBalances (conta do administrador), se a tabela existir.
             try
             {
                 if (_context.PlatformCreditBalances.Any() == false)

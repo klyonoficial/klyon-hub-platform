@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Api.ViewModels
 {
     public class MarketplaceDetailsVm

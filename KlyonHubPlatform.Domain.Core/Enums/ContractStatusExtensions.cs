@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Extensões para obter textos de exibição do enum ContractStatus.
-    /// </summary>
     public static class ContractStatusExtensions
     {
         public static string ToDisplayString(this ContractStatus status) => status switch
@@ -15,8 +12,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             ContractStatus.Expired => DisplayStrings.Expired,
             _ => status.ToString()
         };
-
-        /// <summary>Versão em minúsculas para uso em frases (ex: "contrato ativo").</summary>
         public static string ToDisplayStringLower(this ContractStatus status) => status switch
         {
             ContractStatus.Active => DisplayStrings.ActiveLower,
@@ -27,7 +22,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             ContractStatus.Expired => DisplayStrings.ExpiredLower,
             _ => status.ToString().ToLowerInvariant()
         };
-
         public static class DisplayStrings
         {
             public const string Active = "Ativo";

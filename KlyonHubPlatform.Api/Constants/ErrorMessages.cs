@@ -1,30 +1,18 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Mensagens de erro exibidas via TempData.
-    /// Centraliza a chave do TempData e os textos para evitar strings mágicas e facilitar manutenção e consistência.
-    /// Use TempData[ErrorMessages.TempDataKey] = ErrorMessages.Mensagem (mesmo padrão de SuccessMessage.TempDataKey).
-    /// </summary>
     public static class ErrorMessages
     {
-        /// <summary>Chave usada em TempData para mensagens de erro. Use TempData[TempDataKeys.Error] ou TempData[ErrorMessages.TempDataKey].</summary>
         public const string TempDataKey = TempDataKeys.Error;
-
-        // ----- Cliente -----
         public const string ClientNotFound = "Cliente não encontrado.";
         public const string ClientNotFoundCompleteRegistration = "Cliente não encontrado. Complete seu cadastro primeiro.";
         public const string ClientAlreadyHasRegistration = "Você já possui um cadastro de cliente. Acesse seu perfil para editar as informações.";
         public const string NoPermissionToEditClient = "Você não tem permissão para editar este cliente.";
         public const string CnpjOrCpfAlreadyRegistered = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
-
-        // ----- Campos obrigatórios (Cliente) -----
         public const string FullNameRequired = "O Nome Completo é obrigatório.";
         public const string PhoneRequired = "O Telefone é obrigatório.";
         public const string CnpjRequiredForPj = "O CNPJ é obrigatório para Pessoa Jurídica.";
         public const string CompanyNameRequiredForPj = "A Razão Social é obrigatória para Pessoa Jurídica.";
         public const string CpfRequiredForPf = "O CPF é obrigatório para Pessoa Física.";
-
-        // ----- Endereço / Localidade -----
         public const string AddressNotFound = "Endereço não encontrado.";
         public const string AddressNotAvailableForContract = "Este endereço não está disponível para contratação no momento.";
         public const string InvalidLocation = "Localidade inválida.";
@@ -34,8 +22,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PartnerSuspendedNoNewContracts = "O parceiro deste endereço está suspenso. Não é possível criar novos contratos.";
         public const string AddressNoSharedRoom = "Este endereço não oferece sala compartilhada.";
         public const string AddressNoPrivateRoom = "Este endereço não oferece sala privativa.";
-
-        // ----- Cadastro rápido (QuickClientRegistration) -----
         public const string EmailAndContactNameRequired = "Email e Nome do Contato são obrigatórios.";
         public const string AnnualValueMustBeGreaterThanZero = "O valor anual deve ser maior que zero.";
         public static string ClientAlreadyExistsWithEmail(string email) =>
@@ -44,8 +30,6 @@ namespace KlyonHubPlatform.Api.Constants
             $"O CNPJ {cnpj} já está cadastrado para outro cliente.";
         public static string CpfAlreadyRegistered(string cpf) =>
             $"O CPF {cpf} já está cadastrado para outro cliente.";
-
-        // ----- Coworking -----
         public const string CoworkingNotFound = "Coworking não encontrado.";
         public const string CoworkingNoRoomRental = "Este coworking não oferece aluguel de salas.";
         public const string InvalidRoomType = "Tipo de sala inválido.";
@@ -53,13 +37,9 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CnpjInvalidFourteenDigits = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
         public static string CnpjAlreadyRegisteredForCoworking(string cnpj) =>
             $"O CNPJ {cnpj} já está cadastrado para outro coworking.";
-
-        // ----- Contrato -----
         public const string ContractNotFound = "Contrato não encontrado.";
         public const string ContractNotFoundOrNotYours = "Contrato não encontrado ou não pertence a você.";
         public const string OnlyActiveContractsCanBeCancelled = "Apenas contratos ativos podem ser cancelados.";
-
-        // ----- Reservas -----
         public const string SelectAtLeastOneDateTime = "Selecione ao menos uma data e horário.";
         public const string InvalidReservationData = "Dados das reservas inválidos.";
         public const string NoValidTimeSlots = "Nenhum horário válido. Verifique datas e horários.";
@@ -85,8 +65,6 @@ namespace KlyonHubPlatform.Api.Constants
             $"O horário {date} {start}-{end} já está reservado. Escolha outro horário.";
         public static string InsufficientCredits(int required, int available) =>
             $"Créditos insuficientes. Necessário: {required}, disponível: {available}.";
-
-        // ----- Pagamento -----
         public const string PaymentNotFound = "Pagamento não encontrado.";
         public const string OnlyPendingPaymentsCanChangeMethod = "Apenas pagamentos pendentes podem ter o método alterado.";
         public const string InvalidPaymentMethod = "Método de pagamento inválido.";
@@ -104,12 +82,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreditCardNotFound = "Cartão não encontrado ou não pertence a você.";
         public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
         public const string PurchaseNotFound = "Compra não encontrada.";
-
-        // ----- Declarações -----
         public const string DeclarationInvalidOrExpired = "Esta declaração está inválida ou expirada.";
         public const string ErrorDownloadingDeclarationFileNotFound = "Erro ao baixar declaração. Arquivo não encontrado.";
-
-        // ----- Admin: documentos e aprovações -----
         public const string DocumentNotFound = "Documento não encontrado.";
         public const string InformRejectionJustification = "Informe a justificativa ou os itens que precisam de correção.";
         public const string InformRejectionReason = "Informe o motivo da rejeição.";
@@ -144,21 +118,10 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ImportedInvoiceNotFoundOrProcessed = "Nota fiscal importada não encontrada ou já processada.";
         public const string InformRejectionReasonInvoice = "Informe o motivo da rejeição.";
         public const string PleaseInformRejectionReason = "Por favor, informe o motivo da rejeição.";
-
-        // ----- Erros genéricos (com parâmetro) -----
-        /// <summary>Erro genérico com mensagem de exceção. Use para ex.Message.</summary>
         public static string GenericError(string message) => $"Erro: {message}";
-
-        /// <summary>Padrão "Erro ao [ação]: [detalhe]". Use para ex.Message.</summary>
         public static string ErrorWithException(string action, string exceptionMessage) => $"Erro ao {action}: {exceptionMessage}";
-
-        /// <summary>CNPJ já cadastrado no sistema (fluxo de registro).</summary>
         public static string CnpjAlreadyRegisteredInSystem(string cnpj) => $"O CNPJ {cnpj} já está cadastrado no sistema.";
-
-        /// <summary>CPF já cadastrado no sistema (fluxo de registro).</summary>
         public static string CpfAlreadyRegisteredInSystem(string cpf) => $"O CPF {cpf} já está cadastrado no sistema.";
-
-        // ----- Admin: SQL, migrations, Asaas -----
         public const string SqlQueryCannotBeEmpty = "A query SQL não pode estar vazia.";
         public const string DangerousOperationsNotAllowed = "Operações perigosas não são permitidas. Use apenas ALTER TABLE, CREATE TABLE, ADD COLUMN ou SELECT.";
         public const string OnlyAllowedSqlOperations = "Apenas operações ALTER TABLE, CREATE TABLE, CREATE INDEX, ADD COLUMN, SELECT, SHOW e DESCRIBE são permitidas.";
@@ -186,10 +149,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string NfServiceAlreadyExistsForThisPayment = "Já existe uma NF de serviço emitida para este pagamento.";
         public const string NfServiceAlreadyExistsOrImported = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
         public const string InformReprovalJustification = "Por favor, informe a justificativa da reprovação.";
-
-        // ----- Coworking -----
         public const string NameAndCnpjRequired = "Nome e CNPJ são obrigatórios.";
-        public const string CnpjAlreadyRegisteredInSystemCoworking = "O CNPJ já está cadastrado no sistema."; // usado com param: CnpjAlreadyRegisteredInSystem(cnpj)
+        public const string CnpjAlreadyRegisteredInSystemCoworking = "O CNPJ já está cadastrado no sistema.";
         public const string CannotAddAnotherFiscalAddress = "Não é possível adicionar outro endereço. Você já possui um endereço fiscal cadastrado.";
         public const string CoworkingNotFoundCompleteRegistration = "Coworking não encontrado. Complete seu cadastro primeiro.";
         public const string SelectedLocationNotFound = "Localidade selecionada não encontrada. Por favor, selecione uma localidade válida.";
@@ -228,8 +189,6 @@ namespace KlyonHubPlatform.Api.Constants
         public static string PayoutRequiresBankData(string profileUrl) => "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + profileUrl + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
         public const string NoPendingCommissionsForTransfer = "Não há comissões pendentes para transferência";
         public const string ErrorProcessingPayoutRequest = "Ocorreu um erro ao processar a solicitação de repasse. Por favor, tente novamente.";
-
-        // ----- Auth -----
         public const string InvalidOrExpiredToken = "Token inválido ou expirado.";
     }
 }

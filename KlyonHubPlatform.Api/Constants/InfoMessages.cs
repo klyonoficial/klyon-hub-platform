@@ -1,20 +1,13 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Mensagens informativas exibidas via TempData[TempDataKeys.Info].
-    /// Centraliza textos para evitar strings mágicas e facilitar manutenção.
-    /// </summary>
     public static class InfoMessages
     {
-        // ----- Cliente / Cadastro -----
         public const string CompleteRegistration = "Complete seu cadastro para continuar.";
         public const string CompleteRegistrationWithFields = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar.";
         public const string CompleteRegistrationWithFieldsShort = "Complete seu cadastro (CPF ou CNPJ, Nome Completo e Estado) para continuar.";
         public const string CompleteRegistrationForFiscalAddress = "Complete seu cadastro para continuar com a contratação do endereço fiscal.";
         public const string CompleteRegistrationForContract = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar com a contratação.";
         public const string SystemNoLongerUsesCredits = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
-
-        // ----- Admin: Banco / Migrations -----
         public const string TableAddressDeclarationsAlreadyExists = "A tabela AddressDeclarations já existe no banco de dados.";
         public const string NoPendingMigrations = "Não há migrations pendentes. O banco já está atualizado.";
         public const string MigrationMarkedAsApplied = "Migration marcada como aplicada (tabela já existia). Tente executar novamente.";
@@ -30,13 +23,9 @@ namespace KlyonHubPlatform.Api.Constants
         public const string TableCoworkingRatingsAlreadyExists = "A tabela CoworkingRatings já existe no banco de dados.";
         public const string CreditPlansAlreadyInitialized = "Os planos de créditos já foram inicializados.";
         public const string ServiceInvoicesEmittedByPartnerAtSefaz = "Notas Fiscais de Serviço devem ser emitidas pelo parceiro diretamente na SEFAZ.";
-
-        // ----- Coworking -----
         public static string AlreadyHasCoworking(string coworkingName) =>
             $"Você já possui um coworking cadastrado: {coworkingName}. Redirecionando para o perfil...";
         public const string ServiceRemovalRequestAlreadyPending = "Já existe uma solicitação de remoção pendente para este serviço. Aguarde a aprovação do administrador.";
-
-        /// <summary>Mensagem genérica (quando o texto vem de variável ou é construído em tempo de execução).</summary>
         public static string Generic(string message) => message;
     }
 }

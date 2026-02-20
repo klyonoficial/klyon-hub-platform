@@ -1,73 +1,42 @@
-using System.Threading;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using KlyonHubPlatform.Application.DTOs;
 using KlyonHubPlatform.Application.Interfaces;
-using KlyonHubPlatform.Domain.Entities;
-using KlyonHubPlatform.Domain.Core.Enums;
+using KlyonHubPlatform.Application.Services;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
-using KlyonHubPlatform.Infra.Data.Context;
-using KlyonHubPlatform.Infra.CrossCutting.Helpers;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Api.Constants;
-using KlyonHubPlatform.Api.Mappers;
 using KlyonHubPlatform.Api.Requests;
 using KlyonHubPlatform.Api.Responses;
 using KlyonHubPlatform.Api.Dtos;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
-    /// <summary>
-    /// API para cadastro rápido de cliente com endereço fiscal
-    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = Administrator)]
     public class QuickClientApiController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IContractService _contractService;
+        private readonly IQuickClientRegistrationService _quickClientRegistrationService;
         private readonly ICoworkingService _coworkingService;
-        private readonly IEmailService _emailService;
-        private readonly IPaymentService _paymentService;
-        private readonly ISystemConfigurationService _systemConfigurationService;
-        private readonly IAuditService _auditService;
-        private readonly IAppBaseUrlProvider _appBaseUrlProvider;
         private readonly IMapper _mapper;
 
         public QuickClientApiController(
-            ApplicationDbContext context,
-            IContractService contractService,
+            IQuickClientRegistrationService quickClientRegistrationService,
             ICoworkingService coworkingService,
-            IEmailService emailService,
-            IPaymentService paymentService,
-            ISystemConfigurationService systemConfigurationService,
-            IAuditService auditService,
-            IAppBaseUrlProvider appBaseUrlProvider,
             IMapper mapper)
         {
-            _context = context;
-            _contractService = contractService;
+            _quickClientRegistrationService = quickClientRegistrationService;
             _coworkingService = coworkingService;
-            _emailService = emailService;
-            _paymentService = paymentService;
-            _systemConfigurationService = systemConfigurationService;
-            _auditService = auditService;
-            _appBaseUrlProvider = appBaseUrlProvider;
             _mapper = mapper;
         }
 
-        /// <summary>
-        /// Cadastra um novo cliente, cria usuário, envia email e vincula ao endereço fiscal
-        /// </summary>
         [HttpPost("Register")]
         public async Task<IActionResult> RegisterClient([FromBody] QuickClientRegistrationRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
-                // Validações básicas
                 if (string.IsNullOrWhiteSpace(request.ContactEmail) || string.IsNullOrWhiteSpace(request.ContactName))
                 {
                     return BadRequest(new QuickClientRegistrationResponse
@@ -76,7 +45,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         Message = ErrorJson.ContactEmailAndNameRequired
                     });
                 }
-
                 if (request.MonthlyValue <= 0)
                 {
                     return BadRequest(new QuickClientRegistrationResponse
@@ -85,7 +53,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         Message = ErrorJson.AnnualValueMustBeGreaterThanZero
                     });
                 }
-
                 if (request.CoworkingAddressId <= 0)
                 {
                     return BadRequest(new QuickClientRegistrationResponse
@@ -95,276 +62,84 @@ namespace KlyonHubPlatform.Api.Controllers
                     });
                 }
 
-                // Verificar se o endereço está disponível
-                var selectedAddress = await _context.CoworkingAddresses
-                    .Include(a => a.Coworking)
-                    .FirstOrDefaultAsync(a => a.Id == request.CoworkingAddressId);
-
-                if (selectedAddress == null)
+                var input = new QuickClientRegistrationInput
                 {
-                    return BadRequest(new QuickClientRegistrationResponse
-                    {
-                        Success = false,
-                        Message = ErrorJson.AddressNotFoundQuickClient
-                    });
-                }
-
-                if (!selectedAddress.Coworking.IsActive)
-                {
-                    return BadRequest(new QuickClientRegistrationResponse
-                    {
-                        Success = false,
-                        Message = ErrorJson.PartnerSuspendedNoNewContracts
-                    });
-                }
-
-                if (selectedAddress.AddressStatus != AddressStatus.Active)
-                {
-                    return BadRequest(new QuickClientRegistrationResponse
-                    {
-                        Success = false,
-                        Message = ErrorJson.AddressNotActiveForSales
-                    });
-                }
-
-                if (!selectedAddress.IsAvailable || selectedAddress.CurrentContracts >= selectedAddress.MaxContracts)
-                {
-                    return BadRequest(new QuickClientRegistrationResponse
-                    {
-                        Success = false,
-                        Message = ErrorJson.AddressNotAvailableForContract
-                    });
-                }
-
-                // Buscar ou criar usuário
-                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.ContactEmail);
-                User user;
-                bool isNewUser = existingUser == null;
-
-                if (existingUser != null)
-                {
-                    user = existingUser;
-                    // Verificar se já existe cliente para este usuário
-                    var existingClient = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == user.Id);
-                    if (existingClient != null)
-                    {
-                        return BadRequest(new QuickClientRegistrationResponse
-                        {
-                            Success = false,
-                            Message = string.Format(ErrorJson.ClientAlreadyExistsWithEmail, request.ContactEmail)
-                        });
-                    }
-                }
-                else
-                {
-                    // Gerar senha com 4 primeiras letras do email
-                    var defaultPassword = request.ContactEmail.Length >= 4
-                        ? request.ContactEmail.Substring(0, 4).ToLower()
-                        : request.ContactEmail.ToLower();
-
-                    // Criar novo usuário
-                    var passwordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword);
-                    user = new User
-                    {
-                        Email = request.ContactEmail,
-                        PasswordHash = passwordHash,
-                        FullName = request.ContactName,
-                        IsActive = true,
-                        EmailVerified = false,
-                        MustChangePassword = true
-                    };
-                    _context.Users.Add(user);
-                    await _context.SaveChangesAsync();
-
-                    // Atribuir role de Client
-                    var clientRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Client);
-                    if (clientRole != null)
-                    {
-                        _context.UserRoles.Add(new UserRole
-                        {
-                            UserId = user.Id,
-                            RoleId = clientRole.Id
-                        });
-                        await _context.SaveChangesAsync();
-                    }
-                }
-
-                // Criar cliente
-                var client = new Client
-                {
-                    UserId = user.Id,
                     ContactEmail = request.ContactEmail,
                     ContactName = request.ContactName,
                     RazaoSocial = request.RazaoSocial,
                     NomeFantasia = request.NomeFantasia,
-                    ContactPhone = request.ContactPhone?.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", ""),
+                    Cnpj = request.Cnpj,
+                    Cpf = request.Cpf,
+                    ContactPhone = request.ContactPhone,
                     Address = request.Address,
                     City = request.City,
                     State = request.State,
-                    ZipCode = request.ZipCode?.Replace("-", ""),
-                    IsActive = true
+                    ZipCode = request.ZipCode,
+                    CoworkingAddressId = request.CoworkingAddressId,
+                    MonthlyValue = request.MonthlyValue,
+                    PaymentMethod = request.PaymentMethod ?? "PIX"
                 };
 
-                // Processar CNPJ
-                if (!string.IsNullOrWhiteSpace(request.Cnpj))
-                {
-                    var cnpjClean = request.Cnpj.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                    if (cnpjClean.Length == 14)
-                    {
-                        var existingCNPJ = await _context.Clients
-                            .Where(c => c.CNPJ != null &&
-                                c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean)
-                            .FirstOrDefaultAsync();
+                var adminUserId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (int?)null;
+                var result = await _quickClientRegistrationService.RegisterAsync(
+                    input,
+                    adminUserId,
+                    HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    Request.Headers.UserAgent.FirstOrDefault(),
+                    cancellationToken);
 
-                        if (existingCNPJ != null)
-                        {
-                            return BadRequest(new QuickClientRegistrationResponse
-                            {
-                                Success = false,
-                                Message = string.Format(ErrorJson.CnpjAlreadyRegistered, request.Cnpj)
-                            });
-                        }
-                        client.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
-                    }
+                if (!result.Success)
+                {
+                    var message = GetFailureMessage(result.FailureKey!, result.FailureArgument);
+                    return BadRequest(new QuickClientRegistrationResponse { Success = false, Message = message });
                 }
 
-                // Processar CPF
-                if (!string.IsNullOrWhiteSpace(request.Cpf))
+                var messageOk = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{result.ContractNumber}";
+                if (!string.IsNullOrEmpty(result.WarningKey))
+                    messageOk += $" {result.WarningArgument}";
+
+                return Ok(new QuickClientRegistrationResponse
                 {
-                    var cpfClean = request.Cpf.Replace(".", "").Replace("-", "").Trim();
-                    if (cpfClean.Length == 11)
-                    {
-                        var existingCPF = await _context.Clients
-                            .Where(c => c.CPF != null &&
-                                c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean)
-                            .FirstOrDefaultAsync();
-
-                        if (existingCPF != null)
-                        {
-                            return BadRequest(new QuickClientRegistrationResponse
-                            {
-                                Success = false,
-                                Message = string.Format(ErrorJson.CpfAlreadyRegistered, request.Cpf)
-                            });
-                        }
-                        client.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
-                    }
-                }
-
-                _context.Clients.Add(client);
-                await _context.SaveChangesAsync();
-
-                // Converter valor anual para mensal (o monthlyValue recebido é anual, precisa dividir por 12)
-                var monthlyValueForContract = request.MonthlyValue / 12;
-
-                var adminUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-
-                // Criar contrato (venda assistida: admin responsável registrado)
-                var contract = await _contractService.CreateContractAsync(
-                    client.Id, 
-                    request.CoworkingAddressId, 
-                    monthlyValueForContract, 
-                    assistedSaleAdminId: adminUserId > 0 ? adminUserId : null);
-
-                var newValues = System.Text.Json.JsonSerializer.Serialize(new { IsAssistedSale = true, AssistedSaleAdminId = adminUserId, Origin = "VendaAssistidaAPI" });
-                await _auditService.LogActionAsync(adminUserId > 0 ? adminUserId : null, PaymentHistoryActions.ContractCreated, "Contract", contract.Id, null, newValues,
-                    HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.FirstOrDefault());
-
-                // Buscar o pagamento criado para gerar o código PIX
-                var subscription = await _context.Subscriptions
-                    .FirstOrDefaultAsync(s => s.ContractId == contract.Id);
-
-                Payment? payment = null;
-                string? pixCode = null;
-
-                if (subscription != null)
-                {
-                    payment = await _context.Payments
-                        .Where(p => p.SubscriptionId == subscription.Id && p.Status == PaymentStatus.Pending)
-                        .OrderByDescending(p => p.CreatedAt)
-                        .FirstOrDefaultAsync();
-
-                    if (payment != null)
-                    {
-                        try
-                        {
-                            pixCode = await _paymentService.GeneratePixCodeAsync(payment.Id);
-                        }
-                        catch (Exception pixEx)
-                        {
-                            // Se falhar ao gerar PIX, ainda retorna sucesso mas avisa
-                            return Ok(QuickClientRegistrationMapper.ToResponse(
-                                true,
-                                $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}. Porém, o código PIX não pôde ser gerado: {pixEx.Message}",
-                                contract, client, user, payment, null, isNewUser));
-                        }
-                    }
-                }
-
-                // Enviar email com credenciais e link para PaymentDetails
-                string? emailWarning = null;
-                if (payment != null && isNewUser)
-                {
-                    try
-                    {
-                        var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
-                        var defaultPassword = request.ContactEmail.Length >= 4
-                            ? request.ContactEmail.Substring(0, 4).ToLower()
-                            : request.ContactEmail.ToLower();
-
-                        // Criar token de autenticação automática usando PasswordResetToken
-                        var authToken = Guid.NewGuid().ToString();
-                        user.PasswordResetToken = authToken;
-                        user.PasswordResetExpires = DateTimeHelper.GetBrazilianTime().AddDays(7);
-                        await _context.SaveChangesAsync();
-
-                        var paymentDetailsUrl = $"{baseUrl}/Auth/AutoLogin?token={authToken}&redirect=/Client/PaymentDetails/{payment.Id}";
-
-                        await _emailService.SendClientCredentialsEmailAsync(
-                            request.ContactEmail,
-                            request.ContactName,
-                            request.ContactEmail,
-                            defaultPassword,
-                            paymentDetailsUrl
-                        );
-                    }
-                    catch (Exception emailEx)
-                    {
-                        emailWarning = $"Houve um erro ao enviar o email: {emailEx.Message}";
-                    }
-                }
-
-                var responseMessage = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}";
-                if (!string.IsNullOrEmpty(emailWarning))
-                {
-                    responseMessage += $" {emailWarning}";
-                }
-
-                return Ok(QuickClientRegistrationMapper.ToResponse(
-                    true, responseMessage, contract, client, user, payment, pixCode, isNewUser));
+                    Success = true,
+                    Message = messageOk,
+                    ContractNumber = result.ContractNumber,
+                    PixCode = result.PixCode,
+                    PaymentId = result.PaymentId
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, QuickClientRegistrationMapper.ToError(false, $"Erro ao cadastrar cliente: {ex.Message}"));
+                return StatusCode(500, new QuickClientRegistrationResponse
+                {
+                    Success = false,
+                    Message = $"Erro ao cadastrar cliente: {ex.Message}"
+                });
             }
         }
 
-        /// <summary>
-        /// Retorna os endereços disponíveis para cadastro rápido
-        /// </summary>
+        private static string GetFailureMessage(string failureKey, string? failureArgument)
+        {
+            return failureKey switch
+            {
+                QuickClientRegistrationService.FailureKeyEmailAndContactNameRequired => ErrorJson.ContactEmailAndNameRequired,
+                QuickClientRegistrationService.FailureKeyAnnualValueMustBeGreaterThanZero => ErrorJson.AnnualValueMustBeGreaterThanZero,
+                QuickClientRegistrationService.FailureKeyAddressNotFound => ErrorJson.AddressNotFoundQuickClient,
+                QuickClientRegistrationService.FailureKeyPartnerSuspendedNoNewContracts => ErrorJson.PartnerSuspendedNoNewContracts,
+                QuickClientRegistrationService.FailureKeyAddressNotActiveForSales => ErrorJson.AddressNotActiveForSales,
+                QuickClientRegistrationService.FailureKeyAddressNotAvailableForContractSelected => ErrorJson.AddressNotAvailableForContract,
+                QuickClientRegistrationService.FailureKeyClientAlreadyExistsWithEmail => string.Format(ErrorJson.ClientAlreadyExistsWithEmail, failureArgument ?? ""),
+                QuickClientRegistrationService.FailureKeyCnpjAlreadyRegistered => string.Format(ErrorJson.CnpjAlreadyRegistered, failureArgument ?? ""),
+                QuickClientRegistrationService.FailureKeyCpfAlreadyRegistered => string.Format(ErrorJson.CpfAlreadyRegistered, failureArgument ?? ""),
+                _ => failureArgument ?? "Erro ao processar solicitação."
+            };
+        }
+
         [HttpGet("AvailableAddresses")]
         public async Task<IActionResult> GetAvailableAddresses(CancellationToken cancellationToken = default)
         {
             try
             {
-                var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
-                var ids = availableAddresses.Select(addr => addr.Id).ToList();
-                var addressesWithLocation = await _context.CoworkingAddresses
-                    .Include(a => a.Coworking)
-                    .Include(a => a.Location)
-                    .Where(a => ids.Contains(a.Id))
-                    .ToListAsync(cancellationToken);
-
+                var addressesWithLocation = await _coworkingService.GetAvailableAddressesAsync(null, cancellationToken);
                 var dtos = _mapper.Map<List<AvailableAddressDto>>(addressesWithLocation);
                 return Ok(dtos);
             }

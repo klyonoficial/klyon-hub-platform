@@ -1,15 +1,11 @@
-using System.Threading;
 using KlyonHubPlatform.Application.DTOs;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Api.Requests;
-
 namespace KlyonHubPlatform.Api.Controllers
 {
     [ApiController]
@@ -17,15 +13,10 @@ namespace KlyonHubPlatform.Api.Controllers
     public class ChatbotController : ControllerBase
     {
         private readonly IChatbotService _chatbotService;
-
         public ChatbotController(IChatbotService chatbotService)
         {
             _chatbotService = chatbotService;
         }
-
-        /// <summary>
-        /// Inicia uma nova conversa com o KlyonBoot
-        /// </summary>
         [HttpPost("start")]
         public async Task<IActionResult> StartConversation([FromBody] StartConversationRequest request, CancellationToken cancellationToken = default)
         {
@@ -35,8 +26,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return BadRequest(new { error = ErrorJson.SessionIdRequired });
                 }
-
-                // Verificar se as tabelas do chatbot existem antes de tentar usar
                 var context = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 try
                 {
@@ -46,7 +35,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     var logger = HttpContext.RequestServices.GetService<ILogger<ChatbotController>>();
                     logger?.LogError(dbEx, "Tabelas do KlyonBoot não encontradas: {Message}", dbEx.Message);
-                    
                     return StatusCode(500, new { 
                         error = ErrorJson.KlyonBootTablesNotFound, 
                         details = "As tabelas do chatbot não foram criadas no banco de dados.",
@@ -54,32 +42,23 @@ namespace KlyonHubPlatform.Api.Controllers
                         technicalDetails = dbEx.Message
                     });
                 }
-
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
                 var userAgent = HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
-
                 var conversation = await _chatbotService.StartConversationAsync(
                     request.SessionId,
                     request.UserId,
                     ipAddress,
                     userAgent
                 );
-
-                // Retornar resposta com mensagens
                 return Ok(conversation);
             }
             catch (Exception ex)
             {
-                // Log detalhado do erro
                 var logger = HttpContext.RequestServices.GetService<ILogger<ChatbotController>>();
                 logger?.LogError(ex, "Erro ao iniciar conversa: {Message}", ex.Message);
-                
-                // Verificar se é erro de tabela não existente
                 var errorMessage = ex.Message;
                 var innerMessage = ex.InnerException?.Message ?? "";
                 var fullStackTrace = ex.ToString();
-                
-                // Verificar vários padrões de erro de tabela não existente
                 if (errorMessage.Contains("Table", StringComparison.OrdinalIgnoreCase) && 
                     (errorMessage.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase) || 
                      errorMessage.Contains("não existe", StringComparison.OrdinalIgnoreCase) ||
@@ -98,7 +77,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         technicalDetails = errorMessage
                     });
                 }
-                
                 if (errorMessage.Contains("banco de dados", StringComparison.OrdinalIgnoreCase) || 
                     errorMessage.Contains("database", StringComparison.OrdinalIgnoreCase) || 
                     errorMessage.Contains("tabelas", StringComparison.OrdinalIgnoreCase))
@@ -110,7 +88,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         technicalDetails = innerMessage
                     });
                 }
-                
                 return StatusCode(500, new { 
                     error = ErrorJson.ErrorStartingConversation, 
                     details = errorMessage,
@@ -118,10 +95,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 });
             }
         }
-
-        /// <summary>
-        /// Processa uma mensagem do usuário e retorna a resposta do KlyonBoot
-        /// </summary>
         [HttpPost("message")]
         public async Task<IActionResult> SendMessage([FromBody] ChatRequestDto request, CancellationToken cancellationToken = default)
         {
@@ -129,13 +102,10 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(request.Message))
                     return BadRequest(new { error = ErrorJson.MessageCannotBeEmpty });
-
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
                 var userAgent = HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
-
                 request.IpAddress = ipAddress;
                 request.UserAgent = userAgent;
-
                 var response = await _chatbotService.ProcessMessageAsync(request);
                 return Ok(response);
             }
@@ -144,10 +114,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao processar mensagem", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Marca uma conversa como resolvida ou não
-        /// </summary>
         [HttpPost("conversation/{conversationId}/resolve")]
         public async Task<IActionResult> ResolveConversation(int conversationId, [FromBody] ResolveRequest request, CancellationToken cancellationToken = default)
         {
@@ -161,10 +127,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao marcar conversa", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Encerra uma conversa
-        /// </summary>
         [HttpPost("conversation/{conversationId}/end")]
         public async Task<IActionResult> EndConversation(int conversationId, CancellationToken cancellationToken = default)
         {
@@ -178,10 +140,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao encerrar conversa", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Busca no FAQ
-        /// </summary>
         [HttpGet("faq/search")]
         public async Task<IActionResult> SearchFaq([FromQuery] string query, CancellationToken cancellationToken = default)
         {
@@ -189,7 +147,6 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(query))
                     return BadRequest(new { error = ErrorJson.QueryCannotBeEmpty });
-
                 var results = await _chatbotService.SearchFaqAsync(query);
                 return Ok(results);
             }
@@ -198,10 +155,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao buscar FAQ", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Obtém estatísticas do dashboard (Admin)
-        /// </summary>
         [HttpGet("admin/statistics")]
         public async Task<IActionResult> GetStatistics([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken = default)
         {
@@ -215,10 +168,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao obter estatísticas", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Obtém perguntas não respondidas (Admin)
-        /// </summary>
         [HttpGet("admin/unanswered-questions")]
         public async Task<IActionResult> GetUnansweredQuestions([FromQuery] string? status, [FromQuery] int? minFrequency, CancellationToken cancellationToken = default)
         {
@@ -232,10 +181,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao obter perguntas não respondidas", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Atualiza o status de uma pergunta não respondida (Admin)
-        /// </summary>
         [HttpPut("admin/unanswered-questions/{questionId}")]
         public async Task<IActionResult> UpdateUnansweredQuestion(int questionId, [FromBody] UpdateUnansweredQuestionRequest request, CancellationToken cancellationToken = default)
         {
@@ -247,7 +192,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     request.ReviewedBy,
                     request.Notes
                 );
-
                 return Ok(new { message = OkMessage.QuestionUpdatedSuccess });
             }
             catch (Exception ex)
@@ -255,10 +199,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao atualizar pergunta", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Obtém top intenções detectadas (Admin)
-        /// </summary>
         [HttpGet("admin/top-intentions")]
         public async Task<IActionResult> GetTopIntentions([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int top = 10, CancellationToken cancellationToken = default)
         {
@@ -272,10 +212,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = "Erro ao obter intenções", details = ex.Message });
             }
         }
-
-        /// <summary>
-        /// Diagnóstico - Verifica se as tabelas do KlyonBoot existem
-        /// </summary>
         [HttpGet("diagnostics/tables")]
         public async Task<IActionResult> CheckTables(CancellationToken cancellationToken = default)
         {
@@ -284,12 +220,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 var context = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 var tables = new List<string> { "ChatFaqItems", "ChatConversations", "ChatMessages", "ChatIntentions", "ChatUnansweredQuestions" };
                 var results = new Dictionary<string, bool>();
-
                 foreach (var table in tables)
                 {
                     try
                     {
-#pragma warning disable EF1002 // Nome da tabela vem de lista fixa, não de entrada do usuário
+#pragma warning disable EF1002
                         await context.Database.ExecuteSqlRawAsync($"SELECT 1 FROM `{table}` LIMIT 1");
 #pragma warning restore EF1002
                         results[table] = true;
@@ -299,7 +234,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         results[table] = false;
                     }
                 }
-
                 var allExist = results.Values.All(x => x);
                 return Ok(new
                 {

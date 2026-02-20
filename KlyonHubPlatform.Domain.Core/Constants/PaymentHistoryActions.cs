@@ -1,9 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Constants
 {
-    /// <summary>
-    /// Ações registradas no histórico de pagamento/contrato (PaymentHistory.Action).
-    /// Usar estas constantes em vez de strings literais.
-    /// </summary>
     public static class PaymentHistoryActions
     {
         public const string ContractCreated = "ContractCreated";

@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Extensões para obter textos de exibição do enum CoworkingDocumentType.
-    /// </summary>
     public static class CoworkingDocumentTypeExtensions
     {
         public static string ToDisplayString(this CoworkingDocumentType type) => type switch
@@ -14,8 +11,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             CoworkingDocumentType.UtilityBill => DisplayStrings.UtilityBill,
             _ => type.ToString()
         };
-
-        /// <summary>Identificador para API/storage (ex: address_cession_contract).</summary>
         public static string ToApiKey(this CoworkingDocumentType type) => type switch
         {
             CoworkingDocumentType.AddressCessionContract => "address_cession_contract",
@@ -24,7 +19,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             CoworkingDocumentType.AddressAuthorization => "address_authorization",
             _ => "other"
         };
-
         public static class DisplayStrings
         {
             public const string AddressCessionContract = "Contrato de Cessão de Endereço";

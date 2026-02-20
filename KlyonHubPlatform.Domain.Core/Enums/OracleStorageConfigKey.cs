@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Chaves de configuração do Oracle Cloud Object Storage (S3 Compatibility API).
-    /// </summary>
     public enum OracleStorageConfigKey
     {
         Namespace,
@@ -13,10 +10,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         ContractsFolder,
         PhotosFolder
     }
-
-    /// <summary>
-    /// Extensões para obter a chave de configuração do enum.
-    /// </summary>
     public static class OracleStorageConfigKeyExtensions
     {
         private static readonly IReadOnlyDictionary<OracleStorageConfigKey, string> Keys = new Dictionary<OracleStorageConfigKey, string>
@@ -29,7 +22,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             { OracleStorageConfigKey.ContractsFolder, "Oracle.OS.ContractsFolder" },
             { OracleStorageConfigKey.PhotosFolder, "Oracle.OS.PhotosFolder" }
         };
-
         private static readonly IReadOnlyDictionary<OracleStorageConfigKey, string> Descriptions = new Dictionary<OracleStorageConfigKey, string>
         {
             { OracleStorageConfigKey.Namespace, "Namespace do tenancy no Oracle Cloud (ex.: axabcdefghij). Encontre em: Object Storage > Buckets > Namespace" },
@@ -40,27 +32,16 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             { OracleStorageConfigKey.ContractsFolder, "Pasta (prefixo) no bucket para contratos e documentos" },
             { OracleStorageConfigKey.PhotosFolder, "Pasta (prefixo) no bucket para fotos dos coworkings" }
         };
-
         public static string ToConfigKey(this OracleStorageConfigKey key) => Keys[key];
         public static string GetDescription(this OracleStorageConfigKey key) => Descriptions[key];
     }
-
-    /// <summary>
-    /// Valores padrão para Oracle Object Storage.
-    /// </summary>
     public static class OracleStorageDefaults
     {
-        /// <summary>Nome do provider de storage Oracle Cloud.</summary>
         public const string ProviderName = "Oracle";
-
         public const string Region = "sa-saopaulo-1";
         public const string ContractsFolder = "contracts";
         public const string PhotosFolder = "coworking-photos";
     }
-
-    /// <summary>
-    /// Mensagens de erro relacionadas ao Oracle Object Storage.
-    /// </summary>
     public static class OracleStorageErrorMessages
     {
         public const string CredentialsNotConfigured = "Credenciais Oracle Object Storage não configuradas. Configure em Configurações do Sistema (Armazenamento) ou altere Storage.Provider para FTP.";

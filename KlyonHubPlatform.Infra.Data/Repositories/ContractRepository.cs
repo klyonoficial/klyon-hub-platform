@@ -1,22 +1,17 @@
-using System.Threading;
-using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Infra.Data.Repositories
 {
     public class ContractRepository : IContractRepository
     {
         private readonly ApplicationDbContext _context;
-
         public ContractRepository(ApplicationDbContext context)
         {
             _context = context;
         }
-
         public async Task<Contract?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -28,7 +23,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         }
-
         public async Task<List<Contract>> GetByClientIdAsync(int clientId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -39,7 +33,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
-
         public async Task<List<Contract>> GetByCoworkingAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -49,7 +42,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
-
         public async Task<Contract?> GetActiveContractByAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -58,14 +50,12 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Where(c => c.CoworkingAddressId == addressId && c.Status == ContractStatus.Active)
                 .FirstOrDefaultAsync(cancellationToken);
         }
-
         public async Task<Contract> CreateAsync(Contract contract, CancellationToken cancellationToken = default)
         {
             _context.Contracts.Add(contract);
             await _context.SaveChangesAsync(cancellationToken);
             return contract;
         }
-
         public async Task<Contract> UpdateAsync(Contract contract, CancellationToken cancellationToken = default)
         {
             contract.UpdatedAt = DateTime.UtcNow;
@@ -73,7 +63,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             await _context.SaveChangesAsync(cancellationToken);
             return contract;
         }
-
         public async Task<List<Contract>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -83,7 +72,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
-
         public async Task<List<Contract>> GetByStatusAsync(ContractStatus status, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts

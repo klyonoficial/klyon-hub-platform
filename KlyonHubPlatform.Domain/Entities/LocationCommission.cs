@@ -9,8 +9,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? EndDate { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
-
         public virtual Location Location { get; set; } = null!;
     }
 }
-

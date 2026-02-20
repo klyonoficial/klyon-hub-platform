@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Api.Dtos
 {
-    /// <summary>
-    /// DTO para endereço disponível
-    /// </summary>
     public class AvailableAddressDto
     {
         public int Id { get; set; }

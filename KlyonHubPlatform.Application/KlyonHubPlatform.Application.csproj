@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KlyonHubPlatform.Domain\KlyonHubPlatform.Domain.csproj" />
+    <ProjectReference Include="..\KlyonHubPlatform.Domain.Core\KlyonHubPlatform.Domain.Core.csproj" />
     <ProjectReference Include="..\KlyonHubPlatform.Infra.Data\KlyonHubPlatform.Infra.Data.csproj" />
   </ItemGroup>
 

@@ -9,8 +9,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsMain { get; set; }
         public int DisplayOrder { get; set; }
         public DateTime CreatedAt { get; set; }
-
         public virtual CoworkingRoom CoworkingRoom { get; set; } = null!;
     }
 }
-

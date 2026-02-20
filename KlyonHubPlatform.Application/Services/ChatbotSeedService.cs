@@ -1,35 +1,26 @@
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
-
 namespace KlyonHubPlatform.Application.Services
 {
-    /// <summary>
-    /// Serviço para popular a base de conhecimento inicial do KlyonBoot
-    /// </summary>
     public class ChatbotSeedService
     {
         private readonly IChatbotRepository _repository;
-
         public ChatbotSeedService(IChatbotRepository repository)
         {
             _repository = repository;
         }
-
         public async Task SeedFaqDataAsync()
         {
             var faqItems = GetInitialFaqItems();
-
             foreach (var faqItem in faqItems)
             {
                 await _repository.CreateFaqItemAsync(faqItem);
             }
         }
-
         private List<ChatFaqItem> GetInitialFaqItems()
         {
             return new List<ChatFaqItem>
             {
-                // CATEGORIA: CADASTRO
                 new ChatFaqItem
                 {
                     Category = "Cadastro",
@@ -63,8 +54,6 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     CreatedAt = DateTime.Now
                 },
-
-                // CATEGORIA: RESERVAS
                 new ChatFaqItem
                 {
                     Category = "Reservas",
@@ -109,8 +98,6 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     CreatedAt = DateTime.Now
                 },
-
-                // CATEGORIA: PAGAMENTOS
                 new ChatFaqItem
                 {
                     Category = "Pagamentos",
@@ -144,8 +131,6 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     CreatedAt = DateTime.Now
                 },
-
-                // CATEGORIA: ENDEREÇO FISCAL
                 new ChatFaqItem
                 {
                     Category = "Endereço Fiscal",
@@ -168,8 +153,6 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     CreatedAt = DateTime.Now
                 },
-
-                // CATEGORIA: INFORMAÇÕES GERAIS
                 new ChatFaqItem
                 {
                     Category = "Informações",
@@ -203,8 +186,6 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     CreatedAt = DateTime.Now
                 },
-
-                // CATEGORIA: SUPORTE
                 new ChatFaqItem
                 {
                     Category = "Suporte",

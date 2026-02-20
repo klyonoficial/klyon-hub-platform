@@ -8,9 +8,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? Region { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
-
-        // Navigation properties
         public virtual ICollection<LocationCommission> LocationCommissions { get; set; } = new List<LocationCommission>();
     }
 }
-

@@ -1,8 +1,5 @@
-using System.Threading;
-using System.Threading.Tasks;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Domain.Interfaces
 {
     public interface IContractRepository

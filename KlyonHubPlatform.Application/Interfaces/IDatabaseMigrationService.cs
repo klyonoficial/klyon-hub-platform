@@ -2,32 +2,12 @@ namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IDatabaseMigrationService
     {
-        /// <summary>
-        /// Obtém lista de migrations pendentes
-        /// </summary>
         Task<List<string>> GetPendingMigrationsAsync();
-
-        /// <summary>
-        /// Obtém lista de migrations já aplicadas
-        /// </summary>
         Task<List<string>> GetAppliedMigrationsAsync();
-
-        /// <summary>
-        /// Executa todas as migrations pendentes
-        /// </summary>
         Task<MigrationExecutionResult> ExecuteAllPendingMigrationsAsync();
-
-        /// <summary>
-        /// Verifica se existem migrations pendentes
-        /// </summary>
         Task<bool> HasPendingMigrationsAsync();
-
-        /// <summary>
-        /// Obtém informações sobre o estado do banco de dados
-        /// </summary>
         Task<DatabaseStatusDto> GetDatabaseStatusAsync();
     }
-
     public class MigrationExecutionResult
     {
         public bool Success { get; set; }
@@ -36,13 +16,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         public List<string> Errors { get; set; } = new();
         public DateTime ExecutedAt { get; set; }
         public TimeSpan Duration { get; set; }
-        
-        /// <summary>
-        /// Duração em segundos (para facilitar uso no JavaScript)
-        /// </summary>
         public double DurationSeconds => Duration.TotalSeconds;
     }
-
     public class DatabaseStatusDto
     {
         public bool CanConnect { get; set; }

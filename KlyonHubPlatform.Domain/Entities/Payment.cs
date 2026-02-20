@@ -1,12 +1,11 @@
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Payment
     {
         public int Id { get; set; }
-        public int? SubscriptionId { get; set; } // Nullable para permitir pagamentos de reservas sem subscription
-        public int? ReservationId { get; set; } // Para pagamentos de reservas
+        public int? SubscriptionId { get; set; }
+        public int? ReservationId { get; set; }
         public string ExternalPaymentId { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
@@ -22,19 +21,14 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? FailureReason { get; set; }
         public string? ReceiptFilePath { get; set; }
         public string? ValidationNotes { get; set; }
-        /// <summary>Número de parcelas (cartão de crédito). Null se não for cartão ou à vista sem registro.</summary>
         public int? InstallmentCount { get; set; }
-        /// <summary>Valor de cada parcela (cartão de crédito). Null se não for cartão ou à vista sem registro.</summary>
         public decimal? InstallmentValue { get; set; }
         public int? ValidatedBy { get; set; }
         public DateTime? ValidatedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-
-        // Navigation properties
         public virtual Subscription? Subscription { get; set; }
         public virtual Reservation? Reservation { get; set; }
         public virtual User? Validator { get; set; }
     }
 }
-

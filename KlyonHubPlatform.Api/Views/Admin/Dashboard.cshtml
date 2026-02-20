@@ -23,10 +23,10 @@
 
 @if (pendingMigrationsCount > 0)
 {
-    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+    <div class="alert alert-@BootstrapBadgeCss.Warning alert-dismissible fade show d-flex align-items-center" role="alert">
         <div class="flex-grow-1">
             <h5 class="alert-heading mb-2">
-                <i class="bi bi-exclamation-triangle-fill"></i> 
+                <i class="@BootstrapIcons.ExclamationTriangleFill"></i> 
                 <strong>@pendingMigrationsCount Migration(s) Pendente(s)</strong>
             </h5>
             <p class="mb-2">
@@ -1022,24 +1022,29 @@ const baseUrls = {
 
 // --- Preços no Cartão: modal lista + modal detalhe ---
 function openCardPricePendingModal() {
-    const modal = new bootstrap.Modal(document.getElementById('cardPricePendingListModal'));
-    document.getElementById('cardPricePendingListModalBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-warning" role="status"></div></div>';
+    const mid = (typeof Klyon !== 'undefined' && Klyon.ModalIds) ? Klyon.ModalIds : { CardPricePendingListModal: 'cardPricePendingListModal', CardPricePendingListModalBody: 'cardPricePendingListModalBody' };
+    const modal = new bootstrap.Modal(document.getElementById(mid.CardPricePendingListModal));
+    const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Warning: 'warning' };
+    document.getElementById(mid.CardPricePendingListModalBody).innerHTML = '<div class="text-center py-4"><div class="spinner-border text-' + badge.Warning + '" role="status"></div></div>';
     modal.show();
     loadCardPricePendingList();
 }
 
 async function loadCardPricePendingList() {
-    const body = document.getElementById('cardPricePendingListModalBody');
+    const mid = (typeof Klyon !== 'undefined' && Klyon.ModalIds) ? Klyon.ModalIds : { CardPricePendingListModalBody: 'cardPricePendingListModalBody' };
+    const body = document.getElementById(mid.CardPricePendingListModalBody);
     try {
         const res = await fetch(baseUrls.getPendingCardPriceRequests);
         const result = await res.json();
         if (!result.success) {
-            body.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (result.message || 'Erro ao carregar.') + '</div>';
+            const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Danger: 'danger', Info: 'info' };
+            body.innerHTML = '<div class="alert alert-' + badge.Danger + '"><i class="bi bi-exclamation-triangle"></i> ' + (result.message || 'Erro ao carregar.') + '</div>';
             return;
         }
         const data = result.data || [];
         if (data.length === 0) {
-            body.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Nenhuma solicitação pendente.</div>';
+            const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Info: 'info' };
+            body.innerHTML = '<div class="alert alert-' + badge.Info + '"><i class="bi bi-info-circle"></i> Nenhuma solicitação pendente.</div>';
             return;
         }
         let html = '<div class="table-responsive"><table class="table table-hover table-sm"><thead class="table-light"><tr><th>Coworking</th><th>Endereço</th><th>Valores solicitados</th><th>Data</th><th class="text-end">Ações</th></tr></thead><tbody>';
@@ -1062,28 +1067,32 @@ async function loadCardPricePendingList() {
             row.addEventListener('click', function(e) { if (!e.target.closest('.btn-approve-card-price')) openCardPriceDetailModal(parseInt(this.getAttribute('data-request-id'), 10)); });
         });
     } catch (err) {
-        body.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar: ' + err.message + '</div>';
+        const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Danger: 'danger' };
+        body.innerHTML = '<div class="alert alert-' + badge.Danger + '"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar: ' + err.message + '</div>';
     }
 }
 
 let currentCardPriceDetailRequestId = null;
 
 function openCardPriceDetailModal(requestId) {
+    const mid = (typeof Klyon !== 'undefined' && Klyon.ModalIds) ? Klyon.ModalIds : { CardPriceDetailModal: 'cardPriceDetailModal', CardPriceDetailModalBody: 'cardPriceDetailModalBody', CardPriceDetailModalLabel: 'cardPriceDetailModalLabel' };
     currentCardPriceDetailRequestId = requestId;
-    const modal = new bootstrap.Modal(document.getElementById('cardPriceDetailModal'));
-    document.getElementById('cardPriceDetailModalBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
-    document.getElementById('cardPriceDetailModalLabel').textContent = 'Detalhes da solicitação';
+    const modal = new bootstrap.Modal(document.getElementById(mid.CardPriceDetailModal));
+    document.getElementById(mid.CardPriceDetailModalBody).innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+    document.getElementById(mid.CardPriceDetailModalLabel).textContent = 'Detalhes da solicitação';
     modal.show();
     loadCardPriceDetail(requestId);
 }
 
 async function loadCardPriceDetail(requestId) {
-    const body = document.getElementById('cardPriceDetailModalBody');
+    const mid = (typeof Klyon !== 'undefined' && Klyon.ModalIds) ? Klyon.ModalIds : { CardPriceDetailModalBody: 'cardPriceDetailModalBody' };
+    const body = document.getElementById(mid.CardPriceDetailModalBody);
     try {
         const res = await fetch(baseUrls.getCardPriceRequestDetail + '?id=' + requestId);
         const result = await res.json();
         if (!result.success) {
-            body.innerHTML = '<div class="alert alert-danger">' + (result.message || 'Erro ao carregar.') + '</div>';
+            const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Danger: 'danger' };
+            body.innerHTML = '<div class="alert alert-' + badge.Danger + '">' + (result.message || 'Erro ao carregar.') + '</div>';
             return;
         }
         const d = result.data;
@@ -1097,26 +1106,30 @@ async function loadCardPriceDetail(requestId) {
         let html = '<div class="mb-3"><strong>Coworking</strong><br>' + (d.coworkingName || '—') + '</div>';
         html += '<div class="mb-3"><strong>Endereço</strong><br>' + (d.addressLabel || '—') + '</div>';
         html += '<div class="mb-3"><strong>Valores atuais (antes da solicitação)</strong><br><span class="text-muted">' + (prev.length ? prev.join(' · ') : 'Nenhum') + '</span></div>';
-        html += '<div class="mb-3"><strong>Valores solicitados pelo parceiro</strong><br><span class="badge bg-info">' + (req.length ? req.join(' ') : '—') + '</span></div>';
+        const badgeInfo = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss.Info : 'info';
+        html += '<div class="mb-3"><strong>Valores solicitados pelo parceiro</strong><br><span class="badge bg-' + badgeInfo + '">' + (req.length ? req.join(' ') : '—') + '</span></div>';
         html += '<div><strong>Data da solicitação</strong><br>' + (d.createdAt || '—') + '</div>';
         body.innerHTML = html;
     } catch (err) {
-        body.innerHTML = '<div class="alert alert-danger">Erro: ' + err.message + '</div>';
+        const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Danger: 'danger' };
+        body.innerHTML = '<div class="alert alert-' + badge.Danger + '">Erro: ' + err.message + '</div>';
     }
 }
 
-document.getElementById('cardPriceDetailApproveBtn')?.addEventListener('click', function() {
-    if (currentCardPriceDetailRequestId == null) return;
-    approveCardPriceFromList(currentCardPriceDetailRequestId);
-});
-
-document.getElementById('cardPriceDetailRejectBtn')?.addEventListener('click', function() {
-    if (currentCardPriceDetailRequestId == null) return;
-    document.getElementById('rejectCardPriceRequestIdAjax').value = currentCardPriceDetailRequestId;
-    document.getElementById('rejectCardPriceReasonAjax').value = '';
-    bootstrap.Modal.getInstance(document.getElementById('cardPriceDetailModal'))?.hide();
-    new bootstrap.Modal(document.getElementById('cardPriceRejectReasonModal')).show();
-});
+(function() {
+    const mid = (typeof Klyon !== 'undefined' && Klyon.ModalIds) ? Klyon.ModalIds : { CardPriceDetailApproveBtn: 'cardPriceDetailApproveBtn', CardPriceDetailRejectBtn: 'cardPriceDetailRejectBtn', RejectCardPriceRequestIdAjax: 'rejectCardPriceRequestIdAjax', RejectCardPriceReasonAjax: 'rejectCardPriceReasonAjax', CardPriceDetailModal: 'cardPriceDetailModal', CardPriceRejectReasonModal: 'cardPriceRejectReasonModal' };
+    document.getElementById(mid.CardPriceDetailApproveBtn)?.addEventListener('click', function() {
+        if (currentCardPriceDetailRequestId == null) return;
+        approveCardPriceFromList(currentCardPriceDetailRequestId);
+    });
+    document.getElementById(mid.CardPriceDetailRejectBtn)?.addEventListener('click', function() {
+        if (currentCardPriceDetailRequestId == null) return;
+        document.getElementById(mid.RejectCardPriceRequestIdAjax).value = currentCardPriceDetailRequestId;
+        document.getElementById(mid.RejectCardPriceReasonAjax).value = '';
+        bootstrap.Modal.getInstance(document.getElementById(mid.CardPriceDetailModal))?.hide();
+        new bootstrap.Modal(document.getElementById(mid.CardPriceRejectReasonModal)).show();
+    });
+})();
 
 document.getElementById('formRejectCardPriceAjax')?.addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -1300,37 +1313,38 @@ function buildDashboardListHtml(type, filter, result) {
             
             html += '</tr></thead><tbody>';
             
+            var b = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Success: 'success', Danger: 'danger', Warning: 'warning', Secondary: 'secondary' };
             result.data.forEach(item => {
                 html += '<tr>';
                 if (type === 'users') {
                     html += `<td>${item.fullName || 'N/A'}</td>`;
                     html += `<td>${item.email || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
-                    html += `<td><span class="badge bg-${item.emailVerified ? 'success' : 'warning'}">${item.emailVerified ? 'Sim' : 'Não'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.emailVerified ? b.Success : b.Warning}">${item.emailVerified ? 'Sim' : 'Não'}</span></td>`;
                     html += `<td><a href="${baseUrls.viewUser}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
                 } else if (type === 'coworkings') {
                     html += `<td>${item.name || 'N/A'}</td>`;
                     html += `<td>${item.cnpj || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
-                    html += `<td><span class="badge bg-${item.approvalStatus === 'Approved' ? 'success' : item.approvalStatus === 'UnderReview' ? 'warning' : 'danger'}">${item.approvalStatusDisplay || item.approvalStatus}</span></td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.approvalStatus === 'Approved' ? b.Success : item.approvalStatus === 'UnderReview' ? b.Warning : b.Danger}">${item.approvalStatusDisplay || item.approvalStatus}</span></td>`;
                     html += `<td><a href="${baseUrls.viewCoworking}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
                 } else if (type === 'contracts') {
                     html += `<td>${item.contractNumber || 'N/A'}</td>`;
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>${item.location || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.status === 'Active' ? 'success' : item.status === 'PendingPayment' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Active' ? b.Success : item.status === 'PendingPayment' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
                     html += `<td><a href="${baseUrls.contractDetails}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
                 } else if (type === 'locations') {
                     html += `<td>${item.city || 'N/A'}</td>`;
                     html += `<td>${item.state || 'N/A'}</td>`;
                     html += `<td>${item.region || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.isActive ? 'success' : 'danger'}">${item.isActive ? 'Ativa' : 'Inativa'}</span></td>`;
+                    html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativa' : 'Inativa'}</span></td>`;
                     html += `<td><a href="${baseUrls.editLocation}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Editar</a></td>`;
                 } else if (type === 'payments') {
                     html += `<td>#${item.id || 'N/A'}</td>`;
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>R$ ${(item.amount || 0).toFixed(2).replace('.', ',')}</td>`;
-                    html += `<td><span class="badge bg-${item.status === 'Paid' ? 'success' : item.status === 'Pending' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Paid' ? b.Success : item.status === 'Pending' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
                     html += `<td>${item.createdAt || 'N/A'}</td>`;
                     html += `<td><a href="${baseUrls.payments}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
                 } else if (type === 'reservations') {
@@ -1338,7 +1352,7 @@ function buildDashboardListHtml(type, filter, result) {
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>${item.coworkingName || 'N/A'}</td>`;
                     html += `<td>${item.reservationDate || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.status === 'Confirmed' ? 'success' : item.status === 'Pending' ? 'warning' : 'secondary'}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Confirmed' ? b.Success : item.status === 'Pending' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
                     html += `<td><a href="${baseUrls.reservationDetail}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
                 }
                 html += '</tr>';
@@ -1388,7 +1402,7 @@ function buildDashboardListHtml(type, filter, result) {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="cardPricePendingListModalLabel">
-                    <i class="bi bi-credit-card"></i> Preços no Cartão — Solicitações pendentes
+                    <i class="@BootstrapIcons.CreditCard"></i> Preços no Cartão — Solicitações pendentes
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
@@ -1410,7 +1424,7 @@ function buildDashboardListHtml(type, filter, result) {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="cardPriceDetailModalLabel">
-                    <i class="bi bi-info-circle"></i> Detalhes da solicitação
+                    <i class="@BootstrapIcons.InfoCircle"></i> Detalhes da solicitação
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>

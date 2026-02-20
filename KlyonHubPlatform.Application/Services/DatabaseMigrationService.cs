@@ -4,14 +4,12 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class DatabaseMigrationService : IDatabaseMigrationService
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<DatabaseMigrationService> _logger;
-
         public DatabaseMigrationService(
             ApplicationDbContext context,
             ILogger<DatabaseMigrationService> logger)
@@ -19,7 +17,6 @@ namespace KlyonHubPlatform.Application.Services
             _context = context;
             _logger = logger;
         }
-
         public async Task<List<string>> GetPendingMigrationsAsync()
         {
             try
@@ -33,7 +30,6 @@ namespace KlyonHubPlatform.Application.Services
                 return new List<string>();
             }
         }
-
         public async Task<List<string>> GetAppliedMigrationsAsync()
         {
             try
@@ -47,7 +43,6 @@ namespace KlyonHubPlatform.Application.Services
                 return new List<string>();
             }
         }
-
         public async Task<bool> HasPendingMigrationsAsync()
         {
             try
@@ -61,21 +56,16 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
         public async Task<MigrationExecutionResult> ExecuteAllPendingMigrationsAsync()
         {
             var result = new MigrationExecutionResult
             {
                 ExecutedAt = DateTime.Now
             };
-
             var stopwatch = Stopwatch.StartNew();
-
             try
             {
                 _logger.LogInformation("Iniciando execução de migrations...");
-
-                // Verificar conexão
                 var canConnect = await _context.Database.CanConnectAsync();
                 if (!canConnect)
                 {
@@ -84,10 +74,7 @@ namespace KlyonHubPlatform.Application.Services
                     result.Errors.Add("Conexão com banco falhou");
                     return result;
                 }
-
-                // Obter migrations pendentes
                 var pendingMigrations = await GetPendingMigrationsAsync();
-                
                 if (!pendingMigrations.Any())
                 {
                     result.Success = true;
@@ -96,25 +83,17 @@ namespace KlyonHubPlatform.Application.Services
                     result.Duration = stopwatch.Elapsed;
                     return result;
                 }
-
                 _logger.LogInformation($"Encontradas {pendingMigrations.Count} migrations pendentes");
-
-                // Executar migrations
                 await _context.Database.MigrateAsync();
-
-                // Verificar se foram aplicadas
                 var stillPending = await GetPendingMigrationsAsync();
                 var applied = pendingMigrations.Except(stillPending).ToList();
-
                 result.Success = !stillPending.Any();
                 result.AppliedMigrations = applied;
                 result.Message = $"✅ {applied.Count} migration(s) executada(s) com sucesso!";
-
                 if (stillPending.Any())
                 {
                     result.Errors.Add($"Ainda existem {stillPending.Count} migration(s) pendente(s)");
                 }
-
                 _logger.LogInformation($"Migrations executadas com sucesso: {string.Join(", ", applied)}");
             }
             catch (Exception ex)
@@ -123,35 +102,27 @@ namespace KlyonHubPlatform.Application.Services
                 result.Success = false;
                 result.Message = $"❌ Erro ao executar migrations: {ex.Message}";
                 result.Errors.Add(ex.Message);
-                
                 if (ex.InnerException != null)
                 {
                     result.Errors.Add($"Inner Exception: {ex.InnerException.Message}");
                 }
             }
-
             stopwatch.Stop();
             result.Duration = stopwatch.Elapsed;
-
             return result;
         }
-
         public async Task<DatabaseStatusDto> GetDatabaseStatusAsync()
         {
             var checkedAt = DateTime.Now;
-
             try
             {
                 var canConnect = await _context.Database.CanConnectAsync();
-
                 if (!canConnect)
                 {
                     return MigrationStatusMapper.ToDto(canConnect, checkedAt, new List<string>(), new List<string>());
                 }
-
                 var applied = await GetAppliedMigrationsAsync();
                 var pending = await GetPendingMigrationsAsync();
-
                 return MigrationStatusMapper.ToDto(canConnect, checkedAt, applied, pending);
             }
             catch (Exception ex)

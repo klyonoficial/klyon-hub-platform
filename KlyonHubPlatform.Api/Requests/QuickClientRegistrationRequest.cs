@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Api.Requests
 {
-    /// <summary>
-    /// Request para cadastro rápido de cliente
-    /// </summary>
     public class QuickClientRegistrationRequest
     {
         public string ContactEmail { get; set; } = string.Empty;

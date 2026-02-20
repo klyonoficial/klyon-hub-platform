@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Core.Enums;
-
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Interest
@@ -19,10 +18,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? UpdatedAt { get; set; }
         public int? ContactedByUserId { get; set; }
         public DateTime? ContactedAt { get; set; }
-
-        // Navigation properties
         public virtual CoworkingAddress CoworkingAddress { get; set; } = null!;
         public virtual User? ContactedByUser { get; set; }
     }
 }
-

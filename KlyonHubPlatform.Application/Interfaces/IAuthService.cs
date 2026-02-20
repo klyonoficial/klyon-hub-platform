@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IAuthService
@@ -12,6 +11,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<bool> ResetPasswordAsync(string token, string newPassword);
         Task<List<string>> GetUserRolesAsync(int userId);
         Task<User?> GetUserByEmailAsync(string email);
+        Task<User?> GetUserByIdAsync(int userId, CancellationToken cancellationToken = default);
+        Task<User?> GetUserByPasswordResetTokenForAutoLoginAsync(string token, CancellationToken cancellationToken = default);
         Task<User> UpdateUserAsync(User user);
     }
 }

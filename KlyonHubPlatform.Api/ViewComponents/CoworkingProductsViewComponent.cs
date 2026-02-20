@@ -4,18 +4,15 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Api.Constants;
 using System.Security.Claims;
-
 namespace KlyonHubPlatform.Api.ViewComponents
 {
     public class CoworkingProductsViewComponent : ViewComponent
     {
         private readonly ApplicationDbContext _context;
-
         public CoworkingProductsViewComponent(ApplicationDbContext context)
         {
             _context = context;
         }
-
         public async Task<IViewComponentResult> InvokeAsync()
         {
             var model = new CoworkingProductsModel
@@ -23,13 +20,11 @@ namespace KlyonHubPlatform.Api.ViewComponents
                 HasFiscalAddress = false,
                 HasRoomRental = false
             };
-
             var user = HttpContext.User as ClaimsPrincipal;
             if (user?.Identity?.IsAuthenticated != true || !user.IsInRole(RoleNames.CoworkingPartner))
             {
                 return View(model);
             }
-
             try
             {
                 var userIdClaim = user.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -37,34 +32,24 @@ namespace KlyonHubPlatform.Api.ViewComponents
                 {
                     return View(model);
                 }
-
-                // Buscar o coworking do usuário
                 var coworking = await _context.Coworkings
                     .FirstOrDefaultAsync(c => c.UserId == userId);
-
                 if (coworking == null)
                 {
                     return View(model);
                 }
-
-                // Buscar produtos ativos do coworking
                 var products = await _context.CoworkingProducts
                     .Where(p => p.CoworkingId == coworking.Id && p.IsActive)
                     .Select(p => p.ProductType)
                     .ToListAsync();
-
                 model.HasFiscalAddress = products.Contains("FiscalAddress");
                 model.HasRoomRental = products.Contains("RoomRental");
-
-                // Compartilhar via ViewContext.ViewData para uso no _Layout (compartilhado)
                 ViewContext.ViewData[ViewDataKeys.HasFiscalAddress] = model.HasFiscalAddress;
                 ViewContext.ViewData[ViewDataKeys.HasRoomRental] = model.HasRoomRental;
-
                 return View(model);
             }
             catch
             {
-                // Se a tabela não existir ou houver erro, retorna valores padrão
                 ViewContext.ViewData[ViewDataKeys.HasFiscalAddress] = false;
                 ViewContext.ViewData[ViewDataKeys.HasRoomRental] = false;
                 return View(model);

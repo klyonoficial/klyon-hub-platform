@@ -1,10 +1,6 @@
 using KlyonHubPlatform.Domain.Core.Constants;
-
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Extensões para obter textos de exibição do enum CapacityApprovalStatus.
-    /// </summary>
     public static class CapacityApprovalStatusExtensions
     {
         public static string ToDisplayString(this CapacityApprovalStatus status) => status switch
@@ -15,7 +11,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             CapacityApprovalStatus.Rejected => DisplayStrings.Rejected,
             _ => EnumDisplayConstants.None
         };
-
         public static class DisplayStrings
         {
             public const string NoneLabel = "Nenhum";

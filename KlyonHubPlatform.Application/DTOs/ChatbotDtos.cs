@@ -8,7 +8,6 @@ namespace KlyonHubPlatform.Application.DTOs
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
     }
-
     public class ChatResponseDto
     {
         public int ConversationId { get; set; }
@@ -22,7 +21,6 @@ namespace KlyonHubPlatform.Application.DTOs
         public bool SuggestHumanSupport { get; set; }
         public DateTime SentAt { get; set; }
     }
-
     public class ConversationDto
     {
         public int Id { get; set; }
@@ -34,7 +32,6 @@ namespace KlyonHubPlatform.Application.DTOs
         public bool? WasResolved { get; set; }
         public List<MessageDto> Messages { get; set; } = new();
     }
-
     public class MessageDto
     {
         public int Id { get; set; }
@@ -43,7 +40,6 @@ namespace KlyonHubPlatform.Application.DTOs
         public bool WasAnswered { get; set; }
         public DateTime SentAt { get; set; }
     }
-
     public class FaqItemDto
     {
         public int Id { get; set; }
@@ -53,7 +49,6 @@ namespace KlyonHubPlatform.Application.DTOs
         public int UsageCount { get; set; }
         public decimal? RelevanceScore { get; set; }
     }
-
     public class UnansweredQuestionDto
     {
         public int Id { get; set; }

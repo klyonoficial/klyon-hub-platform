@@ -1,12 +1,7 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Títulos de página para ViewData["Title"]. Centraliza os textos exibidos no &lt;title&gt; e no layout.
-    /// Use: ViewData[ViewDataKeys.Title] = PageTitles.RelatorioReceitaCoworking;
-    /// </summary>
     public static class PageTitles
     {
-        // ----- Auth -----
         public const string Login = "Login";
         public const string Register = "Cadastro";
         public const string ForgotPassword = "Recuperar Senha";
@@ -14,16 +9,12 @@ namespace KlyonHubPlatform.Api.Constants
         public const string VerifyEmail = "Verificar Email";
         public const string ResendVerification = "Reenviar Verificação";
         public const string ChangePasswordRequired = "Alteração de Senha Obrigatória";
-
-        // ----- Home -----
         public const string Index = "Início";
         public const string Marketplace = "Encontrar Coworking";
         public const string FiscalAddress = "Contratar Endereço Fiscal";
         public const string Rooms = "Alugar Salas";
         public const string Partner = "Quero ser Parceiro";
         public const string TermosUsoLgpd = "Termos de Uso e Política de Privacidade (LGPD)";
-
-        // ----- Admin -----
         public const string AdminDashboard = "Dashboard Administrativo";
         public const string Reports = "Relatório Financeiro da Plataforma";
         public const string ReportCredits = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
@@ -58,8 +49,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string SefazConfiguration = "Configuração SEFAZ";
         public const string Payments = "Gerenciar Pagamentos";
         public const string ReservationFinancialDetail = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
-
-        // ----- Client -----
         public const string ClientDashboard = "Dashboard Cliente";
         public const string ClientProfile = "Meu Perfil";
         public const string RegisterClient = "Cadastro de Cliente";
@@ -83,8 +72,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CoworkingsPartner = "Coworkings Parceiros";
         public const string ClientServices = "Serviços";
         public const string ServiceRemovalRequestsClient = "Solicitações de Remoção";
-
-        // ----- Coworking -----
         public const string CoworkingRegister = "Cadastro de Coworking";
         public const string CoworkingDashboard = "Dashboard Coworking";
         public const string CoworkingProfile = "Meu Perfil - Coworking";
@@ -108,8 +95,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string SefazConfigurationCoworking = "Configurações SEFAZ";
         public const string CardPrices = "Preços de Venda no Cartão";
         public const string RoomRevenueReport = "Receita de Aluguel de Salas";
-
-        // ----- Chatbot Admin -----
         public const string KlyonBootDashboard = "KlyonBoot - Dashboard";
         public const string DatabaseMigrations = "Migrations - KlyonBoot Admin";
         public const string UnansweredQuestions = "Perguntas Não Respondidas - KlyonBoot";

@@ -18,15 +18,12 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? City { get; set; }
         public string? State { get; set; }
         public string? ZipCode { get; set; }
-        public string? LogoPath { get; set; } // Caminho da logomarca
+        public string? LogoPath { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-
-        // Navigation properties
         public virtual User User { get; set; } = null!;
         public virtual ICollection<Contract> Contracts { get; set; } = new List<Contract>();
         public virtual ICollection<CreditCard> CreditCards { get; set; } = new List<CreditCard>();
     }
 }
-

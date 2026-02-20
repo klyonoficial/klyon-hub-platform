@@ -11,10 +11,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool IsTransferred { get; set; } = false;
         public DateTime CreatedAt { get; set; }
         public DateTime? TransferredAt { get; set; }
-
-        // Navigation properties
         public virtual Payment Payment { get; set; } = null!;
         public virtual Coworking Coworking { get; set; } = null!;
     }
 }
-

@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Api.Responses
 {
-    /// <summary>
-    /// Response do cadastro rápido de cliente
-    /// </summary>
     public class QuickClientRegistrationResponse
     {
         public bool Success { get; set; }

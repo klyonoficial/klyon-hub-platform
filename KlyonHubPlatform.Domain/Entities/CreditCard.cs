@@ -8,14 +8,11 @@ namespace KlyonHubPlatform.Domain.Entities
         public string CardHolderName { get; set; } = string.Empty;
         public string ExpiryMonth { get; set; } = string.Empty;
         public string ExpiryYear { get; set; } = string.Empty;
-        public string Brand { get; set; } = string.Empty; // Visa, Mastercard, etc.
+        public string Brand { get; set; } = string.Empty;
         public bool IsDefault { get; set; } = false;
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-
-        // Navigation properties
         public virtual Client Client { get; set; } = null!;
     }
 }
-

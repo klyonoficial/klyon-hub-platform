@@ -1,9 +1,5 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Nomes dos parâmetros de rota/query usados em Url.Action e RedirectToAction (new { key = value }).
-    /// Use estas constantes em vez de literais para evitar erros de digitação.
-    /// </summary>
     public static class RouteValueKeys
     {
         public const string Id = "id";

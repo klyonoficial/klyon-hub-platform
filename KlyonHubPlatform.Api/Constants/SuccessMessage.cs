@@ -1,23 +1,14 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Mensagens de sucesso exibidas via TempData.
-    /// Centraliza a chave do TempData e os textos para evitar strings mágicas e facilitar manutenção.
-    /// </summary>
     public static class SuccessMessage
     {
-        /// <summary>Chave usada em TempData para mensagens de sucesso. Use TempData[SuccessMessage.TempDataKey].</summary>
         public const string TempDataKey = "Success";
-
-        // ----- Auth -----
         public const string UserUpdated = "Usuário atualizado com sucesso!";
         public const string EmailVerified = "E-mail verificado com sucesso!";
         public const string PasswordReset = "Senha resetada com sucesso!";
         public const string LoggedOut = "Você deslogou com sucesso.";
         public const string EmailVerifiedLogin = "Email verificado com sucesso! Faça login para continuar.";
         public const string PasswordChanged = "Senha alterada com sucesso!";
-
-        // ----- Admin: Coworking / Cadastro -----
         public static string CoworkingRegistrationApproved(string coworkingName) =>
             $"Cadastro de '{coworkingName}' aprovado. O espaço já está disponível no marketplace.";
         public const string CoworkingRegistrationRejected = "Cadastro reprovado. O coworking foi notificado e poderá reenviar após os ajustes.";
@@ -39,21 +30,15 @@ namespace KlyonHubPlatform.Api.Constants
             $"Coworking '{name}' foi {statusText} com sucesso.";
         public static string CommissionUpdated(decimal percentage) =>
             $"Comissão atualizada para {percentage}%";
-
-        // ----- Admin: Localidades -----
         public static string LocationCreated(string city, string state) =>
             $"Localidade {city}/{state} criada com sucesso!";
         public static string LocationUpdated(string city, string state) =>
             $"Localidade {city}/{state} atualizada com sucesso!";
         public const string LocationDeleted = "Localidade excluída com sucesso!";
-
-        // ----- Admin: Configurações -----
         public static string ConfigurationUpdated(string key) =>
             $"Configuração '{key}' atualizada com sucesso!";
         public const string FtpSettingsUpdated = "Configurações FTP atualizadas com sucesso! O sistema agora usa FTP como provedor de armazenamento.";
         public const string OracleSettingsUpdated = "Provedor de armazenamento alterado para Oracle Cloud Object Storage. Configure Oracle.OS.* em Armazenamento e use 'Usar Oracle Cloud' para ativar.";
-
-        // ----- Admin: Migrations / Banco -----
         public const string TableAddressDeclarationsCreated = "Tabela AddressDeclarations criada com sucesso!";
         public static string MigrationsExecuted(string list) =>
             $"Migrations executadas com sucesso: {list}";
@@ -74,29 +59,21 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreditPlansInitialized = "Planos de créditos inicializados com sucesso!";
         public const string RoomConfigColumnsAdded = "Colunas de configuração de salas adicionadas com sucesso na tabela CoworkingAddresses!";
         public const string RoomTypeTotalValueColumnsAdded = "Colunas RoomType e TotalValue adicionadas com sucesso na tabela Reservations!";
-
-        // ----- Admin: Serviços -----
         public const string ServiceSaved = "Serviço salvo com sucesso!";
         public const string ServiceRemoved = "Serviço removido com sucesso!";
         public static string ServiceRemovalApproved(string serviceName, string coworkingName) =>
             $"Remoção do serviço '{serviceName}' do parceiro '{coworkingName}' aprovada e executada com sucesso!";
         public static string ServiceRemovalRejected(string serviceName, string coworkingName) =>
             $"Solicitação de remoção do serviço '{serviceName}' do parceiro '{coworkingName}' rejeitada.";
-
-        // ----- Admin: Asaas -----
         public static string AsaasSandboxPrepared(string apiKeyConfigKey) =>
             "✅ Configurações do Asaas (Sandbox) preparadas.<br/>" +
-            $"<strong>Próximo passo:</strong> Edite <strong>{apiKeyConfigKey}</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">sandbox.asaas.com</a>. Use <strong>Testar Conexão Asaas</strong> para validar.";
+            $"<strong>Próximo passo:</strong> Edite <strong>{apiKeyConfigKey}</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">painel Asaas</a>.";
         public static string AsaasConnectionValidated(string environment, int statusCode) =>
             $"✅ Conexão com Asaas ({environment}) validada com sucesso!<br/><strong>Retorno {statusCode}</strong>: API Key configurada e funcionando.";
         public static string AsaasReturnOk(int statusCode, string message) =>
             $"✅ <strong>Retorno {statusCode}</strong>: {message}";
-
-        // ----- Admin: Pagamentos -----
         public const string PaymentApproved = "Pagamento aprovado com sucesso!";
         public const string PaymentRejected = "Pagamento reprovado. O status foi alterado para 'Aguardando Pagamento'.";
-
-        // ----- Admin: Notas fiscais / Comissões / Repasses -----
         public const string SefazEsConfigSaved = "Configuração da SEFAZ ES salva com sucesso!";
         public const string ImportedInvoiceApproved = "NF importada aprovada com sucesso.";
         public const string ImportedInvoiceRejected = "NF importada rejeitada. O parceiro pode enviar uma nova NF.";
@@ -114,8 +91,6 @@ namespace KlyonHubPlatform.Api.Constants
         public static string MonthClosed(int month, int year) =>
             $"Mês {month}/{year} fechado com sucesso!";
         public const string InvoiceGeneratedAutomatically = "Nota fiscal gerada automaticamente!";
-
-        // ----- Coworking -----
         public const string CoworkingRegistered = "Coworking cadastrado com sucesso!";
         public const string AddressRegistered = "Endereço cadastrado com sucesso!";
         public const string AddressUpdated = "Endereço atualizado com sucesso!";
@@ -155,8 +130,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string SefazConfigSaved = "Configuração SEFAZ salva com sucesso!";
         public const string InvoiceSentValidationOk = "Nota fiscal enviada com sucesso! Validação automática OK. Aguardando aprovação do administrador.";
         public const string InvoiceSentPendingValidation = "Nota fiscal enviada com sucesso! Aguardando validação do administrador.";
-
-        // ----- Cliente -----
         public const string RegistrationCompleted = "Cadastro realizado com sucesso!";
         public const string ClientUpdated = "Cliente atualizado com sucesso!";
         public const string ContractCreated = "Contrato criado com sucesso!";
@@ -174,11 +147,7 @@ namespace KlyonHubPlatform.Api.Constants
             $"{count} reservas confirmadas com sucesso!";
         public const string ReservationAlreadyCompleted = "Reserva já concluída.";
         public const string ConfirmationRecorded = "Confirmação registrada. Após o coworking confirmar seu comparecimento, o pagamento será processado.";
-
-        // ----- Home -----
         public const string InterestRegistered = "Seu interesse foi registrado com sucesso! Entraremos em contato em breve.";
-
-        /// <summary>Mensagem de sucesso genérica (quando o texto vem de variável ou é construído em tempo de execução).</summary>
         public static string Generic(string message) => message;
     }
 }

@@ -1,16 +1,11 @@
 namespace KlyonHubPlatform.Domain.Core.Constants
 {
-    /// <summary>
-    /// Tipos de sala para aluguel no marketplace.
-    /// </summary>
     public static class RoomTypes
     {
-        public const string Shared = "Shared";       // Sala compartilhada
-        public const string Private = "Private";     // Sala privativa
-        public const string Auditorium = "Auditorium"; // Auditório
-
+        public const string Shared = "Shared";
+        public const string Private = "Private";
+        public const string Auditorium = "Auditorium";
         public static string[] All => new[] { Shared, Private, Auditorium };
-
         public static string GetDisplayName(string value) => value switch
         {
             Shared => "Sala compartilhada",

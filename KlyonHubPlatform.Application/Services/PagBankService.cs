@@ -6,9 +6,6 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
-using System.Linq;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class PagBankService : IPagBankService
@@ -18,7 +15,6 @@ namespace KlyonHubPlatform.Application.Services
         private readonly HttpClient _httpClient;
         private readonly string _sandboxBaseUrl = "https://sandbox.api.pagseguro.com";
         private readonly string _productionBaseUrl = "https://api.pagseguro.com";
-
         public PagBankService(
             ISystemConfigurationService systemConfigService,
             ILogger<PagBankService> logger,
@@ -28,14 +24,12 @@ namespace KlyonHubPlatform.Application.Services
             _logger = logger;
             _httpClient = httpClient;
         }
-
         private async Task<string> GetBaseUrlAsync()
         {
             var useSandbox = await _systemConfigService.GetValueAsync(PagBankConfigKey.UseSandbox.ToConfigKey());
             var isSandbox = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.IsTrue(useSandbox);
             return isSandbox ? _sandboxBaseUrl : _productionBaseUrl;
         }
-
         private async Task<string> GetAccessTokenAsync()
         {
             var token = await _systemConfigService.GetValueAsync(PagBankConfigKey.AccessToken.ToConfigKey());
@@ -43,7 +37,6 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException($"Token de acesso PagBank não configurado. Configure em Configurações do Sistema > {PagBankConfigKey.AccessToken.ToConfigKey()}");
             return token;
         }
-
         private async Task<HttpRequestMessage> CreateAuthenticatedRequestAsync(HttpMethod method, string endpoint)
         {
             var token = await GetAccessTokenAsync();
@@ -53,7 +46,6 @@ namespace KlyonHubPlatform.Application.Services
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             return request;
         }
-
         public async Task<OrderResponse> CreateOrderAsync(string referenceId, decimal amount, PaymentMethod method,
             string clientName, string clientEmail, string clientTaxId, string? clientPhone = null,
             PagBankCard? card = null, int? installments = null, PagBankAddress? clientAddress = null)
@@ -77,12 +69,10 @@ namespace KlyonHubPlatform.Application.Services
                             ReferenceId = referenceId,
                             Name = "Endereço Fiscal",
                             Quantity = 1,
-                            UnitAmount = (int)(amount * 100) // Converter para centavos
+                            UnitAmount = (int)(amount * 100)
                         }
                     }
                 };
-
-                // Configurar método de pagamento
                 if (method == PaymentMethod.PIX)
                 {
                     orderRequest.QrCodes = new List<PagBankQrCode>
@@ -99,68 +89,48 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 else if (method == PaymentMethod.BankTransfer)
                 {
-                    // Função auxiliar para validar e preencher campos obrigatórios
                     string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
                     {
                         return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
                     }
-                    
-                    // Validar e preparar dados do titular do boleto (todos obrigatórios)
                     var holderName = GetValueOrDefault(clientName, DefaultDisplayStrings.NaoInformado);
                     if (string.IsNullOrWhiteSpace(holderName) || holderName == DefaultDisplayStrings.NaoInformado)
                     {
                         holderName = "Cliente";
                     }
-                    
-                    // TaxId (CPF/CNPJ) - obrigatório, remover formatação
                     var holderTaxId = !string.IsNullOrWhiteSpace(clientTaxId)
                         ? clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim()
-                        : "00000000000"; // CPF padrão se não informado
-                    
-                    // Garantir que TaxId tenha pelo menos 11 dígitos (CPF mínimo)
+                        : "00000000000";
                     if (holderTaxId.Length < 11)
                     {
                         holderTaxId = holderTaxId.PadLeft(11, '0');
                     }
-                    
-                    // Email - obrigatório, validar formato básico
                     var holderEmail = GetValueOrDefault(clientEmail, "noreply@klyon.com.br");
                     if (!holderEmail.Contains("@") || holderEmail.Length < 5)
                     {
                         holderEmail = "noreply@klyon.com.br";
                     }
-                    
-                    // Preparar endereço do holder (todos os campos são obrigatórios)
-                    // O holder.address usa "region" ao invés de "region_code"
                     var holderStreet = GetValueOrDefault(clientAddress?.Street, DefaultDisplayStrings.NaoInformado);
                     var holderNumber = GetValueOrDefault(clientAddress?.Number, "S/N");
-                    var holderComplement = clientAddress?.Complement; // Opcional
+                    var holderComplement = clientAddress?.Complement;
                     var holderLocality = GetValueOrDefault(clientAddress?.Locality, DefaultDisplayStrings.NaoInformado);
                     var holderCity = GetValueOrDefault(clientAddress?.City, DefaultDisplayStrings.NaoInformado);
-                    
-                    // Region (UF) - obrigatório, deve ser 2 caracteres maiúsculas
-                    var holderRegion = "SP"; // Padrão
+                    var holderRegion = "SP";
                     if (!string.IsNullOrWhiteSpace(clientAddress?.RegionCode))
                     {
                         var regionTemp = clientAddress.RegionCode.Trim().ToUpper();
                         holderRegion = regionTemp.Length >= 2 ? regionTemp.Substring(0, 2) : "SP";
                     }
-                    
-                    // Validar se é uma UF válida do Brasil (lista básica)
                     if (!BrazilianUfs.All.Contains(holderRegion))
                     {
                         holderRegion = "SP";
                     }
-                    
-                    // Country - obrigatório, sempre "BRA" para Brasil
                     var holderCountry = GetValueOrDefault(clientAddress?.Country, "BRA");
                     if (holderCountry != "BRA")
                     {
                         holderCountry = "BRA";
                     }
-                    
-                    // PostalCode (CEP) - obrigatório, deve ter 8 dígitos
-                    var holderPostalCode = "00000000"; // Padrão
+                    var holderPostalCode = "00000000";
                     if (!string.IsNullOrWhiteSpace(clientAddress?.PostalCode))
                     {
                         var postalCodeTemp = clientAddress.PostalCode
@@ -168,7 +138,6 @@ namespace KlyonHubPlatform.Application.Services
                             .Replace(".", "")
                             .Replace(" ", "")
                             .Trim();
-                        
                         if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
                         {
                             holderPostalCode = postalCodeTemp;
@@ -182,8 +151,6 @@ namespace KlyonHubPlatform.Application.Services
                             holderPostalCode = postalCodeTemp.PadLeft(8, '0');
                         }
                     }
-                    
-                    // Criar endereço do holder com todos os campos validados
                     var holderAddress = new PagBankBoletoHolderAddress
                     {
                         Street = holderStreet,
@@ -196,7 +163,6 @@ namespace KlyonHubPlatform.Application.Services
                         Country = holderCountry,
                         PostalCode = holderPostalCode
                     };
-                    
                     orderRequest.Charges = new List<PagBankCharge>
                     {
                         new PagBankCharge
@@ -235,7 +201,6 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     if (card == null)
                         throw new ArgumentException("Cartão é obrigatório para pagamento com cartão de crédito");
-
                     orderRequest.Charges = new List<PagBankCharge>
                     {
                         new PagBankCharge
@@ -257,18 +222,13 @@ namespace KlyonHubPlatform.Application.Services
                         }
                     };
                 }
-
                 var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/orders");
-                
                 var jsonOptions = new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                     DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
                 };
-                
-                // Converter para snake_case para a API do PagBank
                 var json = JsonSerializer.Serialize(orderRequest, jsonOptions);
-                // Converter de camelCase para snake_case
                 json = json.Replace("\"referenceId\"", "\"reference_id\"")
                           .Replace("\"taxId\"", "\"tax_id\"")
                           .Replace("\"unitAmount\"", "\"unit_amount\"")
@@ -283,16 +243,12 @@ namespace KlyonHubPlatform.Application.Services
                           .Replace("\"firstSixDigits\"", "\"first_six_digits\"")
                           .Replace("\"lastFourDigits\"", "\"last_four_digits\"")
                           .Replace("\"formattedBarcode\"", "\"formatted_barcode\"");
-                
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
                 var response = await _httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError($"Erro ao criar pedido PagBank: {response.StatusCode} - {responseContent}");
-                    
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
                         throw new InvalidOperationException("Token de acesso PagBank inválido ou expirado. Verifique as credenciais nas Configurações do Sistema.");
@@ -303,15 +259,12 @@ namespace KlyonHubPlatform.Application.Services
                     }
                     throw new HttpRequestException($"Erro ao criar pedido PagBank: {response.StatusCode} - {responseContent}");
                 }
-
                 var orderResponse = JsonSerializer.Deserialize<OrderResponse>(responseContent, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
-
                 if (orderResponse == null)
                     throw new InvalidOperationException("Resposta inválida da API PagBank");
-
                 return orderResponse;
             }
             catch (Exception ex)
@@ -320,7 +273,6 @@ namespace KlyonHubPlatform.Application.Services
                 throw;
             }
         }
-
         public async Task<OrderResponse> GetOrderAsync(string orderId)
         {
             try
@@ -328,21 +280,17 @@ namespace KlyonHubPlatform.Application.Services
                 var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get, $"/orders/{orderId}");
                 var response = await _httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError($"Erro ao consultar pedido PagBank: {response.StatusCode} - {responseContent}");
                     throw new HttpRequestException($"Erro ao consultar pedido PagBank: {response.StatusCode}");
                 }
-
                 var orderResponse = JsonSerializer.Deserialize<OrderResponse>(responseContent, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
-
                 if (orderResponse == null)
                     throw new InvalidOperationException("Resposta inválida da API PagBank");
-
                 return orderResponse;
             }
             catch (Exception ex)
@@ -351,7 +299,6 @@ namespace KlyonHubPlatform.Application.Services
                 throw;
             }
         }
-
         public async Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null)
         {
             try
@@ -365,32 +312,23 @@ namespace KlyonHubPlatform.Application.Services
                         Currency = "BRL"
                     };
                 }
-
                 var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, $"/charges/{chargeId}/cancel");
                 request.Content = new StringContent(
                     JsonSerializer.Serialize(cancelRequest),
                     Encoding.UTF8,
                     "application/json"
                 );
-
                 var response = await _httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError($"Erro ao cancelar cobrança PagBank: {response.StatusCode} - {responseContent}");
                     throw new HttpRequestException($"Erro ao cancelar cobrança PagBank: {response.StatusCode}");
                 }
-
-                // Retornar o pedido atualizado
-                // Nota: A API pode retornar a charge cancelada, precisamos buscar o order completo
                 var chargeResponse = JsonSerializer.Deserialize<PagBankChargeResponse>(responseContent, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
-
-                // Por enquanto, retornar null ou buscar o order
-                // Isso depende da resposta da API
                 return new OrderResponse();
             }
             catch (Exception ex)
@@ -399,39 +337,30 @@ namespace KlyonHubPlatform.Application.Services
                 throw;
             }
         }
-
         public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
         {
             try
             {
-                // O PagBank usa o token de acesso da conta como chave para gerar a assinatura
-                // A assinatura é gerada usando SHA256 no formato: {token}-{payload}
                 var token = await _systemConfigService.GetValueAsync(PagBankConfigKey.AccessToken.ToConfigKey());
                 if (string.IsNullOrEmpty(token))
                 {
                     _logger.LogWarning("Token de acesso não configurado. Validação de webhook ignorada.");
-                    return true; // Se não estiver configurado, aceitar (para desenvolvimento)
+                    return true;
                 }
-
                 if (string.IsNullOrEmpty(signature))
                 {
                     _logger.LogWarning("Assinatura não enviada no webhook. Aceitando requisição (para desenvolvimento).");
-                    return true; // Aceitar se não houver assinatura (ambiente de desenvolvimento)
+                    return true;
                 }
-
-                // Gerar hash SHA256 conforme documentação do PagBank: {token}-{payload}
                 var dataToHash = $"{token}-{payload}";
                 using var sha256 = System.Security.Cryptography.SHA256.Create();
                 var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(dataToHash));
                 var computedSignature = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-
                 var isValid = string.Equals(computedSignature, signature, StringComparison.OrdinalIgnoreCase);
-                
                 if (!isValid)
                 {
                     _logger.LogWarning($"Assinatura do webhook inválida. Esperado: {computedSignature.Substring(0, 20)}..., Recebido: {signature.Substring(0, Math.Min(20, signature.Length))}...");
                 }
-
                 return isValid;
             }
             catch (Exception ex)
@@ -440,10 +369,6 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
-        /// <summary>
-        /// Converte a resposta de erro 400 do PagBank (error_messages) em mensagens amigáveis para o usuário.
-        /// </summary>
         private static string ParsePagBankErrorToFriendlyMessage(string responseContent)
         {
             var messages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -457,7 +382,6 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         var code = item.TryGetProperty("code", out var c) ? c.GetString() : null;
                         var description = item.TryGetProperty("description", out var d) ? d.GetString() : null;
-                        // Erro 40002: e-mail do comprador igual ao do comerciante
                         if ((!string.IsNullOrEmpty(description) && description.Contains("buyer email", StringComparison.OrdinalIgnoreCase) && description.Contains("merchant email", StringComparison.OrdinalIgnoreCase)))
                         {
                             messages.Add("O endereço de e-mail do comprador não pode ser igual ao endereço de e-mail do comerciante.");
@@ -470,20 +394,14 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
             catch { /* se não conseguir interpretar o JSON, usa a mensagem genérica */ }
-
             if (messages.Count > 0)
                 return string.Join(" ", messages);
-            
-            // Mensagem genérica mais apropriada - pode ser dados do cliente ou do cartão
             return "Dados inválidos. Verifique se todos os dados obrigatórios estão preenchidos corretamente em 'Meu Perfil' (CPF/CNPJ, Nome, Email).";
         }
-
         private static string? MapPagBankParameterToFriendly(string? parameterName)
         {
             if (string.IsNullOrWhiteSpace(parameterName)) return null;
             var s = parameterName.ToLowerInvariant();
-            
-            // Erros relacionados a dados do cliente (não do cartão)
             if (s.Contains("tax_id") || s.Contains("taxid") || s.Contains("cpf") || s.Contains("cnpj"))
                 return "CPF ou CNPJ inválido. Verifique os dados em 'Meu Perfil'.";
             if (s.Contains("customer") && (s.Contains("name") || s.Contains("email")))
@@ -492,22 +410,16 @@ namespace KlyonHubPlatform.Application.Services
                 return "Email inválido. Verifique o email em 'Meu Perfil'.";
             if (s.Contains("phone"))
                 return "Telefone inválido. Verifique o telefone em 'Meu Perfil'.";
-            
-            // Erros relacionados a cartão de crédito
             if (s.Contains("security_code")) return "Código de segurança (CVV) inválido. Confira os 3 ou 4 dígitos no verso do cartão.";
             if (s.Contains("number") && s.Contains("card")) return "Número do cartão inválido.";
             if (s.Contains("exp_month") || s.Contains("exp_year") || s.Contains("expiration")) return "Data de validade inválida. Confira mês e ano.";
             if (s.Contains("holder") || (s.Contains("name") && s.Contains("card"))) return "Nome no cartão inválido.";
             if (s.Contains("card")) return "Dados do cartão inválidos. Verifique número, validade, CVV e nome.";
-            
             return null;
         }
-
         private PagBankPhone ParsePhone(string phone)
         {
-            // Remover caracteres não numéricos
             var cleanPhone = phone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
-            
             if (cleanPhone.Length >= 10)
             {
                 var area = cleanPhone.Substring(0, 2);
@@ -519,7 +431,6 @@ namespace KlyonHubPlatform.Application.Services
                     Number = number
                 };
             }
-
             return new PagBankPhone
             {
                 Country = "55",
@@ -527,12 +438,7 @@ namespace KlyonHubPlatform.Application.Services
                 Number = cleanPhone
             };
         }
-
         #region PIX Transfer
-
-        /// <summary>
-        /// Cria uma transferência PIX para uma chave PIX
-        /// </summary>
         public async Task<PixTransferResult> CreatePixTransferAsync(string referenceId, decimal amount, string pixKey, 
             string pixKeyType, string receiverName, string? description = null)
         {
@@ -540,58 +446,45 @@ namespace KlyonHubPlatform.Application.Services
             {
                 _logger.LogInformation("Criando transferência PIX. Ref: {ReferenceId}, Valor: {Amount}, Chave: {PixKey}",
                     referenceId, amount, pixKey.Substring(0, Math.Min(5, pixKey.Length)) + "***");
-
-                // PagBank PIX Transfer API endpoint: POST /pix/transfers
-                // Nota: Este é um exemplo baseado na estrutura comum de APIs PIX
-                // A implementação real deve seguir a documentação oficial do PagBank
-                
                 var transferRequest = new
                 {
                     reference_id = referenceId,
                     receiver = new
                     {
                         pix_key = pixKey,
-                        pix_key_type = pixKeyType, // cpf, cnpj, email, phone, evp
+                        pix_key_type = pixKeyType,
                         name = receiverName
                     },
                     amount = new
                     {
-                        value = (int)(amount * 100), // Valor em centavos
+                        value = (int)(amount * 100),
                         currency = "BRL"
                     },
                     description = description ?? $"Repasse - Ref: {referenceId}"
                 };
-
                 var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/pix/transfers");
                 request.Content = new StringContent(
                     JsonSerializer.Serialize(transferRequest),
                     Encoding.UTF8,
                     "application/json"
                 );
-
                 var response = await _httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("Erro na transferência PIX PagBank: {StatusCode} - {Response}", 
                         response.StatusCode, responseContent);
-                    
                     return new PixTransferResult
                     {
                         Success = false,
                         ErrorMessage = $"Erro na transferência: {response.StatusCode}. Detalhes: {responseContent}"
                     };
                 }
-
-                // Parse da resposta (estrutura baseada em padrões comuns de API PIX)
                 using var doc = JsonDocument.Parse(responseContent);
                 var root = doc.RootElement;
-
                 var transferId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
                 var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
                 var endToEndId = root.TryGetProperty("end_to_end_id", out var e2eProp) ? e2eProp.GetString() : null;
-
                 return new PixTransferResult
                 {
                     Success = true,
@@ -612,10 +505,6 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
-        /// <summary>
-        /// Consulta o status de uma transferência PIX
-        /// </summary>
         public async Task<PixTransferResult> GetPixTransferAsync(string transferId)
         {
             try
@@ -623,12 +512,10 @@ namespace KlyonHubPlatform.Application.Services
                 var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get, $"/pix/transfers/{transferId}");
                 var response = await _httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("Erro ao consultar transferência PIX: {StatusCode} - {Response}",
                         response.StatusCode, responseContent);
-                    
                     return new PixTransferResult
                     {
                         Success = false,
@@ -636,20 +523,16 @@ namespace KlyonHubPlatform.Application.Services
                         ErrorMessage = $"Erro na consulta: {response.StatusCode}"
                     };
                 }
-
                 using var doc = JsonDocument.Parse(responseContent);
                 var root = doc.RootElement;
-
                 var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
                 var endToEndId = root.TryGetProperty("end_to_end_id", out var e2eProp) ? e2eProp.GetString() : null;
                 var amountValue = 0m;
-                
                 if (root.TryGetProperty("amount", out var amountProp) && 
                     amountProp.TryGetProperty("value", out var valueProp))
                 {
                     amountValue = valueProp.GetInt32() / 100m;
                 }
-
                 return new PixTransferResult
                 {
                     Success = true,
@@ -670,7 +553,6 @@ namespace KlyonHubPlatform.Application.Services
                 };
             }
         }
-
         #endregion
     }
 }

@@ -1,26 +1,17 @@
 using System.Net;
 using Microsoft.Extensions.Logging;
-
 namespace KlyonHubPlatform.Application.Handlers
 {
-    /// <summary>
-    /// DelegatingHandler que trata HTTP 429 (Too Many Requests) da Clicksign, aguardando até X-Rate-Limit-Reset e reenviando a requisição.
-    /// Documentação: https://developers.clicksign.com/docs/limite-de-requisicoes
-    /// </summary>
     public class ClicksignRateLimitHandler : DelegatingHandler
     {
-        /// <summary>Header com o horário (Unix UTC) em que o limite será reiniciado.</summary>
         public const string HeaderRateLimitReset = "X-Rate-Limit-Reset";
-
         private readonly ILogger<ClicksignRateLimitHandler> _logger;
         private readonly int _maxRetries;
-
         public ClicksignRateLimitHandler(ILogger<ClicksignRateLimitHandler> logger, int maxRetries = 3)
         {
             _logger = logger;
             _maxRetries = maxRetries > 0 ? maxRetries : 3;
         }
-
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             byte[]? contentBytes = null;
@@ -33,15 +24,12 @@ namespace KlyonHubPlatform.Application.Handlers
                 if (!string.IsNullOrEmpty(contentType))
                     request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(contentType);
             }
-
             var attempt = 0;
             while (true)
             {
                 var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
                 if (response.StatusCode != HttpStatusCode.TooManyRequests || attempt >= _maxRetries)
                     return response;
-
                 if (!response.Headers.TryGetValues(HeaderRateLimitReset, out var resetValues))
                 {
                     _logger.LogWarning("Clicksign retornou 429 sem header X-Rate-Limit-Reset. Aguardando 11 segundos antes de retry.");
@@ -67,13 +55,11 @@ namespace KlyonHubPlatform.Application.Handlers
                         await Task.Delay(TimeSpan.FromSeconds(11), cancellationToken).ConfigureAwait(false);
                     }
                 }
-
                 response.Dispose();
                 request = CloneRequest(request, contentBytes, contentType);
                 attempt++;
             }
         }
-
         private static HttpRequestMessage CloneRequest(HttpRequestMessage original, byte[]? contentBytes, string? contentType)
         {
             var clone = new HttpRequestMessage(original.Method, original.RequestUri);

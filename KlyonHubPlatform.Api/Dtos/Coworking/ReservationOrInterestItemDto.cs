@@ -1,12 +1,9 @@
 namespace KlyonHubPlatform.Api.Dtos.Coworking
 {
-    /// <summary>
-    /// Item unificado de reserva ou interesse para listagem no painel do parceiro.
-    /// </summary>
     public class ReservationOrInterestItemDto
     {
         public int Id { get; set; }
-        public string Type { get; set; } = string.Empty; // "Reservation" ou "Interest"
+        public string Type { get; set; } = string.Empty;
         public DateTime ReservationDate { get; set; }
         public object? StartTime { get; set; }
         public object? EndTime { get; set; }

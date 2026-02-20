@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Extensões para obter textos de exibição do enum PaymentMethod.
-    /// </summary>
     public static class PaymentMethodExtensions
     {
         public static string ToDisplayString(this PaymentMethod method) => method switch
@@ -12,7 +9,6 @@ namespace KlyonHubPlatform.Domain.Core.Enums
             PaymentMethod.BankTransfer => DisplayStrings.BankTransfer,
             _ => method.ToString()
         };
-
         public static class DisplayStrings
         {
             public const string Pix = "PIX";

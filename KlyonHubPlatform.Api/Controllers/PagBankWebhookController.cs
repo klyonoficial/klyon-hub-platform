@@ -1,4 +1,3 @@
-using System.Threading;
 using KlyonHubPlatform.Api.Constants;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
@@ -8,8 +7,6 @@ using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-
 namespace KlyonHubPlatform.Api.Controllers
 {
     [ApiController]
@@ -22,7 +19,6 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly ILogger<PagBankWebhookController> _logger;
         private readonly IAuditService? _auditService;
-
         public PagBankWebhookController(
             IPagBankService pagBankService,
             IPaymentRepository paymentRepository,
@@ -38,52 +34,36 @@ namespace KlyonHubPlatform.Api.Controllers
             _logger = logger;
             _auditService = auditService;
         }
-
         [HttpPost]
         public async Task<IActionResult> ReceiveWebhook(CancellationToken cancellationToken = default)
         {
             string payload = string.Empty;
             PagBankWebhookLog? webhookLog = null;
-            
             try
             {
-                // Ler o corpo da requisição
                 using var reader = new StreamReader(Request.Body);
                 payload = await reader.ReadToEndAsync();
-                
-                // Obter informações da requisição
                 var sourceIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
                 var signature = Request.Headers[HttpHeaderNames.PagBankAuthenticityToken].FirstOrDefault() 
                              ?? Request.Headers[HttpHeaderNames.PagBankSignature].FirstOrDefault();
-
-                // Deserializar notificação
                 var notification = JsonSerializer.Deserialize<PagBankWebhookNotification>(payload, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
-
                 if (notification == null)
                 {
                     _logger.LogWarning("Webhook recebido com formato inválido");
                     return BadRequest(ErrorJson.InvalidNotificationFormat);
                 }
-
-                // Extrair dados do recurso (pode vir em 'resource' ou 'charges')
                 var resourceId = notification.Resource?.Id ?? notification.Charges?.FirstOrDefault()?.Id ?? "";
                 var referenceId = notification.Resource?.ReferenceId ?? notification.Charges?.FirstOrDefault()?.ReferenceId;
                 var resourceStatus = notification.Resource?.Status ?? notification.Charges?.FirstOrDefault()?.Status ?? "";
-                
-                // Gerar EventId único se não vier na notificação
                 var eventId = notification.NotificationId ?? $"{notification.Event}_{resourceId}_{notification.CreatedAt:yyyyMMddHHmmss}";
-
-                // Verificar idempotência - se já processamos este evento, ignorar
                 if (await _webhookLogRepository.ExistsEventIdAsync(eventId))
                 {
                     _logger.LogInformation($"Webhook já processado anteriormente: EventId={eventId}");
                     return Ok(new { message = OkMessage.WebhookAlreadyProcessed });
                 }
-
-                // Criar registro de log
                 webhookLog = new PagBankWebhookLog
                 {
                     EventId = eventId,
@@ -97,11 +77,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     ReceivedAt = DateTime.UtcNow,
                     ProcessingStatus = WebhookProcessingStatus.Received
                 };
-
-                // Validar assinatura do webhook
                 var signatureValid = await _pagBankService.ValidateWebhookSignatureAsync(payload, signature ?? "");
                 webhookLog.SignatureValid = signatureValid;
-
                 if (!signatureValid)
                 {
                     _logger.LogWarning($"Webhook recebido com assinatura inválida: EventId={eventId}");
@@ -110,7 +87,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _webhookLogRepository.CreateAsync(webhookLog);
                     return Unauthorized(UnauthorizedMessage.InvalidSignature);
                 }
-
                 if (string.IsNullOrEmpty(resourceId))
                 {
                     _logger.LogWarning("Webhook recebido sem ResourceId");
@@ -119,10 +95,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _webhookLogRepository.CreateAsync(webhookLog);
                     return BadRequest(ErrorJson.ResourceIdNotFound);
                 }
-
                 _logger.LogInformation($"Webhook recebido: Evento={notification.Event}, ResourceId={resourceId}, ReferenceId={referenceId}, Status={resourceStatus}");
-
-                // Criar webhook resource para processamento
                 var webhookResource = new PagBankWebhookResource
                 {
                     Id = resourceId,
@@ -131,11 +104,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Amount = notification.Resource?.Amount ?? notification.Charges?.FirstOrDefault()?.Amount,
                     PaidAt = notification.Resource?.PaidAt ?? notification.Charges?.FirstOrDefault()?.PaidAt
                 };
-
-                // Converter evento para enum
                 var webhookEvent = notification.Event.ToWebhookEvent();
-                
-                // Processar diferentes tipos de eventos usando enum
                 var processed = false;
                 if (webhookEvent.IsPaidEvent())
                 {
@@ -159,7 +128,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (webhookEvent.IsWaitingEvent())
                 {
-                    // Evento de aguardando pagamento - apenas logamos
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                     processed = true;
                     _logger.LogInformation($"Pagamento aguardando: ResourceId={resourceId}");
@@ -170,18 +138,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Evento não processado: {notification.Event}";
                     _logger.LogInformation($"Evento não processado: {notification.Event}");
                 }
-
                 webhookLog.ProcessedAt = DateTime.UtcNow;
                 webhookLog.ProcessingAttempts++;
                 await _webhookLogRepository.CreateAsync(webhookLog);
-
                 return Ok(new { message = OkMessage.WebhookProcessed, eventId = eventId });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao processar webhook do PagBank");
-                
-                // Salvar log de erro se temos informações suficientes
                 if (webhookLog != null)
                 {
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Failed;
@@ -193,17 +157,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     catch { /* Ignorar erro ao salvar log */ }
                 }
-
-                // Retornar 200 para não gerar retry excessivo no PagBank
                 return Ok(new { message = OkMessage.ErrorProcessed, error = ex.Message });
             }
         }
-
         private async Task<bool> ProcessPaymentPaidAsync(PagBankWebhookResource resource, PagBankWebhookLog webhookLog)
         {
             try
             {
-                // Buscar pagamento usando busca melhorada (por ID ou reference_id)
                 var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(resource.Id, resource.ReferenceId);
                 if (payment == null)
                 {
@@ -212,10 +172,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Pagamento não encontrado: ID={resource.Id}, RefId={resource.ReferenceId}";
                     return false;
                 }
-
                 webhookLog.PaymentId = payment.Id;
-
-                // Verificar se já está pago (idempotência)
                 if (payment.Status == PaymentStatus.Paid)
                 {
                     _logger.LogInformation($"Pagamento {payment.Id} já está pago. Ignorando webhook.");
@@ -223,11 +180,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = "Pagamento já estava com status Paid";
                     return true;
                 }
-
-                // Confirmar pagamento
                 await _paymentService.ConfirmPaymentAsync(payment.Id, resource.Id);
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
-                
                 _logger.LogInformation($"Pagamento {payment.Id} confirmado via webhook PagBank");
                 return true;
             }
@@ -239,7 +193,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return false;
             }
         }
-
         private async Task<bool> ProcessPaymentCanceledAsync(PagBankWebhookResource resource, PagBankWebhookLog webhookLog)
         {
             try
@@ -252,27 +205,19 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Pagamento não encontrado: ID={resource.Id}";
                     return false;
                 }
-
                 webhookLog.PaymentId = payment.Id;
-
-                // Verificar se já está cancelado
                 if (payment.Status == PaymentStatus.Cancelled)
                 {
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Ignored;
                     webhookLog.ErrorMessage = "Pagamento já estava cancelado";
                     return true;
                 }
-
                 var oldStatus = payment.Status;
                 payment.Status = PaymentStatus.Cancelled;
                 await _paymentRepository.UpdateAsync(payment);
-                
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                 _logger.LogInformation($"Pagamento {payment.Id} cancelado via webhook PagBank");
-
-                // Log de auditoria
                 await LogAuditAsync("Pagamento cancelado via webhook", payment.Id, oldStatus, PaymentStatus.Cancelled);
-                
                 return true;
             }
             catch (Exception ex)
@@ -283,7 +228,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return false;
             }
         }
-
         private async Task<bool> ProcessPaymentRefundedAsync(PagBankWebhookResource resource, PagBankWebhookLog webhookLog)
         {
             try
@@ -296,27 +240,19 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Pagamento não encontrado: ID={resource.Id}";
                     return false;
                 }
-
                 webhookLog.PaymentId = payment.Id;
-
-                // Verificar se já está estornado
                 if (payment.Status == PaymentStatus.Refunded)
                 {
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Ignored;
                     webhookLog.ErrorMessage = "Pagamento já estava estornado";
                     return true;
                 }
-
                 var oldStatus = payment.Status;
                 payment.Status = PaymentStatus.Refunded;
                 await _paymentRepository.UpdateAsync(payment);
-                
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                 _logger.LogInformation($"Pagamento {payment.Id} estornado via webhook PagBank");
-
-                // Log de auditoria
                 await LogAuditAsync("Pagamento estornado via webhook", payment.Id, oldStatus, PaymentStatus.Refunded);
-
                 return true;
             }
             catch (Exception ex)
@@ -327,7 +263,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return false;
             }
         }
-
         private async Task<bool> ProcessPaymentInAnalysisAsync(PagBankWebhookResource resource, PagBankWebhookLog webhookLog)
         {
             try
@@ -340,19 +275,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Pagamento não encontrado: ID={resource.Id}";
                     return false;
                 }
-
                 webhookLog.PaymentId = payment.Id;
-
-                // Atualizar para status de análise (processing)
                 if (payment.Status != PaymentStatus.Processing)
                 {
                     payment.Status = PaymentStatus.Processing;
                     await _paymentRepository.UpdateAsync(payment);
                 }
-                
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                 _logger.LogInformation($"Pagamento {payment.Id} em análise via webhook PagBank");
-
                 return true;
             }
             catch (Exception ex)
@@ -363,7 +293,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return false;
             }
         }
-
         private async Task<bool> ProcessPaymentDeclinedAsync(PagBankWebhookResource resource, PagBankWebhookLog webhookLog)
         {
             try
@@ -376,28 +305,20 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ErrorMessage = $"Pagamento não encontrado: ID={resource.Id}";
                     return false;
                 }
-
                 webhookLog.PaymentId = payment.Id;
-
-                // Verificar se já falhou
                 if (payment.Status == PaymentStatus.Failed)
                 {
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Ignored;
                     webhookLog.ErrorMessage = "Pagamento já estava com status Failed";
                     return true;
                 }
-
                 var oldStatus = payment.Status;
                 payment.Status = PaymentStatus.Failed;
                 payment.FailureReason = resource.PaymentResponse?.Message ?? "Pagamento recusado pelo PagBank";
                 await _paymentRepository.UpdateAsync(payment);
-                
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                 _logger.LogInformation($"Pagamento {payment.Id} recusado via webhook PagBank");
-
-                // Log de auditoria
                 await LogAuditAsync("Pagamento recusado via webhook", payment.Id, oldStatus, PaymentStatus.Failed);
-
                 return true;
             }
             catch (Exception ex)
@@ -408,18 +329,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 return false;
             }
         }
-
         private async Task LogAuditAsync(string action, int paymentId, PaymentStatus oldStatus, PaymentStatus newStatus)
         {
             if (_auditService == null) return;
-
             try
             {
                 var ipAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
                 var userAgent = Request.Headers[HttpHeaderNames.UserAgent].ToString();
-                
                 await _auditService.LogActionAsync(
-                    null, // Webhook do PagBank (sistema externo)
+                    null,
                     action,
                     "Payment",
                     paymentId,
@@ -434,10 +352,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 _logger.LogError(ex, "Erro ao registrar log de auditoria");
             }
         }
-
-        /// <summary>
-        /// Endpoint para consultar logs de webhook (uso administrativo)
-        /// </summary>
         [HttpGet("logs")]
         public async Task<IActionResult> GetWebhookLogs([FromQuery] int count = 50, CancellationToken cancellationToken = default)
         {
@@ -468,63 +382,32 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, "Erro ao consultar logs");
             }
         }
-
         #region Endpoints de Simulação (apenas para ambiente de desenvolvimento/sandbox)
-
-        /// <summary>
-        /// Simula um webhook de pagamento confirmado (CHARGE_PAID)
-        /// Uso: POST /api/PagBankWebhook/simulate/paid?paymentId=123
-        /// </summary>
         [HttpPost("simulate/paid")]
         public async Task<IActionResult> SimulatePaidWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargePaid, "PAID");
         }
-
-        /// <summary>
-        /// Simula um webhook de pagamento cancelado (CHARGE_CANCELED)
-        /// Uso: POST /api/PagBankWebhook/simulate/canceled?paymentId=123
-        /// </summary>
         [HttpPost("simulate/canceled")]
         public async Task<IActionResult> SimulateCanceledWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeCanceled, "CANCELED");
         }
-
-        /// <summary>
-        /// Simula um webhook de pagamento estornado (CHARGE_REFUNDED)
-        /// Uso: POST /api/PagBankWebhook/simulate/refunded?paymentId=123
-        /// </summary>
         [HttpPost("simulate/refunded")]
         public async Task<IActionResult> SimulateRefundedWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeRefunded, "REFUNDED");
         }
-
-        /// <summary>
-        /// Simula um webhook de pagamento em análise (CHARGE_IN_ANALYSIS)
-        /// Uso: POST /api/PagBankWebhook/simulate/analysis?paymentId=123
-        /// </summary>
         [HttpPost("simulate/analysis")]
         public async Task<IActionResult> SimulateInAnalysisWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeInAnalysis, "IN_ANALYSIS");
         }
-
-        /// <summary>
-        /// Simula um webhook de pagamento recusado (CHARGE_DECLINED)
-        /// Uso: POST /api/PagBankWebhook/simulate/declined?paymentId=123
-        /// </summary>
         [HttpPost("simulate/declined")]
         public async Task<IActionResult> SimulateDeclinedWebhook([FromQuery] int paymentId, CancellationToken cancellationToken = default)
         {
             return await SimulateWebhookAsync(paymentId, PagBankWebhookEvent.ChargeDeclined, "DECLINED");
         }
-
-        /// <summary>
-        /// Simula webhook genérico com evento customizado
-        /// Uso: POST /api/PagBankWebhook/simulate?paymentId=123&eventType=CHARGE_PAID
-        /// </summary>
         [HttpPost("simulate")]
         public async Task<IActionResult> SimulateWebhook([FromQuery] int paymentId, [FromQuery] string eventType, CancellationToken cancellationToken = default)
         {
@@ -542,22 +425,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                 });
             }
-
             return await SimulateWebhookAsync(paymentId, webhookEvent, eventType.ToUpper().Replace("CHARGE_", "").Replace("PAYMENT_", "").Replace("ORDER_", ""));
         }
-
         private async Task<IActionResult> SimulateWebhookAsync(int paymentId, PagBankWebhookEvent webhookEvent, string status)
         {
             try
             {
-                // Buscar pagamento
                 var payment = await _paymentRepository.GetByIdAsync(paymentId);
                 if (payment == null)
                 {
                     return NotFound(new { error = $"Pagamento {paymentId} não encontrado" });
                 }
-
-                // Montar payload simulado
                 var eventName = webhookEvent switch
                 {
                     PagBankWebhookEvent.ChargePaid => "CHARGE_PAID",
@@ -568,7 +446,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     PagBankWebhookEvent.ChargeWaiting => "CHARGE_WAITING",
                     _ => webhookEvent.ToString().ToUpper()
                 };
-
                 var simulatedPayload = new
                 {
                     id = $"SIM_{Guid.NewGuid():N}",
@@ -587,15 +464,11 @@ namespace KlyonHubPlatform.Api.Controllers
                         paid_at = webhookEvent.IsPaidEvent() ? DateTime.UtcNow : (DateTime?)null
                     }
                 };
-
                 var payload = JsonSerializer.Serialize(simulatedPayload, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
-
                 _logger.LogInformation($"[SIMULAÇÃO] Webhook simulado: Event={eventName}, PaymentId={paymentId}, ExternalId={payment.ExternalPaymentId}");
-
-                // Criar registro de log
                 var webhookLog = new PagBankWebhookLog
                 {
                     EventId = $"SIM_{Guid.NewGuid():N}",
@@ -611,16 +484,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     ProcessingStatus = WebhookProcessingStatus.Received,
                     PaymentId = payment.Id
                 };
-
-                // Criar webhook resource para processamento
                 var webhookResource = new PagBankWebhookResource
                 {
                     Id = payment.ExternalPaymentId,
                     ReferenceId = payment.ExternalPaymentId,
                     Status = status
                 };
-
-                // Processar evento
                 bool processed = false;
                 if (webhookEvent.IsPaidEvent())
                 {
@@ -647,14 +516,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                     processed = true;
                 }
-
                 webhookLog.ProcessedAt = DateTime.UtcNow;
                 webhookLog.ProcessingAttempts++;
                 await _webhookLogRepository.CreateAsync(webhookLog);
-
-                // Recarregar pagamento para ver status atualizado
                 var updatedPayment = await _paymentRepository.GetByIdAsync(paymentId);
-
                 return Ok(new
                 {
                     message = OkMessage.WebhookSimulatedSuccess,
@@ -675,7 +540,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
-
         #endregion
     }
 }

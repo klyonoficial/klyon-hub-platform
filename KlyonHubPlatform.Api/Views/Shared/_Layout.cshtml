@@ -473,6 +473,7 @@
     <script src="~/js/loading.js" asp-append-version="true"></script>
     <script src="~/js/autocomplete.js" asp-append-version="true"></script>
     <script src="~/js/drilldown.js" asp-append-version="true"></script>
+    <script src="~/js/klyon-constants.js" asp-append-version="true"></script>
     <script>
         // Garantir que os formulários de idioma recarreguem a página após o submit
         document.addEventListener('DOMContentLoaded', function() {
@@ -706,36 +707,16 @@
          * showToast('Mensagem de aviso', 'warning');
          * showToast('Mensagem informativa', 'info');
          */
-        function showToast(message, type = 'info', duration = 5000) {
-            // Tipos disponíveis: success, error, warning, info
-            const toastTypes = {
-                'success': {
-                    class: 'bg-success text-white',
-                    icon: 'bi-check-circle-fill',
-                    title: 'Sucesso',
-                    closeClass: 'btn-close btn-close-white'
-                },
-                'error': {
-                    class: 'bg-danger text-white',
-                    icon: 'bi-exclamation-triangle-fill',
-                    title: 'Erro',
-                    closeClass: 'btn-close btn-close-white'
-                },
-                'warning': {
-                    class: 'bg-warning text-dark',
-                    icon: 'bi-exclamation-triangle-fill',
-                    title: 'Atenção',
-                    closeClass: 'btn-close'
-                },
-                'info': {
-                    class: 'bg-info text-white',
-                    icon: 'bi-info-circle-fill',
-                    title: 'Informação',
-                    closeClass: 'btn-close btn-close-white'
-                }
+        function showToast(message, type, duration) {
+            type = type || (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Info : 'info');
+            duration = duration || 5000;
+            const toastTypes = (typeof Klyon !== 'undefined' && Klyon.ToastTypes) ? Klyon.ToastTypes : {
+                success: { class: 'bg-success text-white', icon: 'bi-check-circle-fill', title: 'Sucesso', closeClass: 'btn-close btn-close-white' },
+                error: { class: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Erro', closeClass: 'btn-close btn-close-white' },
+                warning: { class: 'bg-warning text-dark', icon: 'bi-exclamation-triangle-fill', title: 'Atenção', closeClass: 'btn-close' },
+                info: { class: 'bg-info text-white', icon: 'bi-info-circle-fill', title: 'Informação', closeClass: 'btn-close btn-close-white' }
             };
-            
-            const config = toastTypes[type] || toastTypes['info'];
+            const config = toastTypes[type] || toastTypes.info;
             const closeBtnClass = config.closeClass || 'btn-close btn-close-white';
             const toastId = 'toast-' + Date.now();
             
@@ -821,10 +802,10 @@
                     var errDetail = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastErrorDetails ?? ""));
                     showTempToast(errDetail ? (err + " " + errDetail) : err, 'error', 7000);
                 }
-                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastWarning ?? "")), 'warning');
-                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastSuccess ?? "")), 'success');
-                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastInfo ?? "")), 'info');
-                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastUnsupportedStates ?? "")), 'warning');
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastWarning ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Warning : 'warning'));
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastSuccess ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Success : 'success'));
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastInfo ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Info : 'info'));
+                showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastUnsupportedStates ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Warning : 'warning'));
             });
         })();
     </script>

@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Status da reserva (salas, etc.)
-    /// </summary>
     public enum ReservationStatus
     {
         Pending = 0,

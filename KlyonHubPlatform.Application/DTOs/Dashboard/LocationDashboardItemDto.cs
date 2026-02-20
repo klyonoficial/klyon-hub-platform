@@ -1,4 +1,4 @@
-namespace KlyonHubPlatform.Api.Dtos.Dashboard
+namespace KlyonHubPlatform.Application.DTOs.Dashboard
 {
     public class LocationDashboardItemDto
     {

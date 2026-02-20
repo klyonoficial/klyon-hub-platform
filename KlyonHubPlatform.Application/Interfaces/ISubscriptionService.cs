@@ -1,5 +1,4 @@
 using KlyonHubPlatform.Domain.Entities;
-
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface ISubscriptionService

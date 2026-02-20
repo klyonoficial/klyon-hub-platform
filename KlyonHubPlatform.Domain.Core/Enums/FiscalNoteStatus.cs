@@ -1,8 +1,5 @@
 namespace KlyonHubPlatform.Domain.Core.Enums
 {
-    /// <summary>
-    /// Status da nota fiscal no sistema
-    /// </summary>
     public enum FiscalNoteStatus
     {
         Pendente = 0,

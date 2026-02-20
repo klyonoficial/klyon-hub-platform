@@ -5,7 +5,6 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class ServiceCatalogService : IServiceCatalogService
@@ -13,7 +12,6 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ApplicationDbContext _context;
         private readonly IClientMenuService _clientMenuService;
         private readonly ISystemConfigurationService _systemConfig;
-
         public ServiceCatalogService(
             ApplicationDbContext context,
             IClientMenuService clientMenuService,
@@ -23,24 +21,19 @@ namespace KlyonHubPlatform.Application.Services
             _clientMenuService = clientMenuService;
             _systemConfig = systemConfig;
         }
-
-        /// <inheritdoc />
         public async Task<List<Service>> GetActiveServicesForClientAsync(int userId, string marketplaceRoute, string chooseLocationRoute)
         {
             if (await _clientMenuService.ClientHasActiveContractAsync(userId))
                 return new List<Service>();
-
             var services = await _context.Services
                 .Where(s => s.IsActive)
                 .OrderBy(s => s.DisplayOrder)
                 .ToListAsync();
-
             var uniqueServices = services
                 .GroupBy(s => s.Name)
                 .Select(g => g.First())
                 .OrderBy(s => s.DisplayOrder)
                 .ToList();
-
             if (services.Count != uniqueServices.Count)
             {
                 var duplicates = services.Except(uniqueServices).ToList();
@@ -57,9 +50,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 services = uniqueServices;
             }
-
             var needsUpdate = ApplyClientFriendlyFixes(services, marketplaceRoute);
-
             if (needsUpdate)
             {
                 await _context.SaveChangesAsync();
@@ -73,7 +64,6 @@ namespace KlyonHubPlatform.Application.Services
                     .OrderBy(s => s.DisplayOrder)
                     .ToList();
             }
-
             if (!services.Any())
             {
                 await EnsureDefaultClientServicesAsync(chooseLocationRoute, marketplaceRoute);
@@ -82,15 +72,12 @@ namespace KlyonHubPlatform.Application.Services
                     .OrderBy(s => s.DisplayOrder)
                     .ToListAsync();
             }
-
             var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
-
             if (!showCoworkingMenus)
                 return services.Where(s => s.Code == FiscalAddressContracting).ToList();
             return services.Where(s => s.Code != FiscalAddressOffer).ToList();
         }
-
         private static bool ApplyClientFriendlyFixes(List<Service> services, string marketplaceRoute)
         {
             var roomServiceKeywords = new[] { "Sala", "Auditório", "Aluguel" };
@@ -98,7 +85,6 @@ namespace KlyonHubPlatform.Application.Services
             var partnerDescriptions = new[] { "Ofereça", "amplie", "receita", "rede", "Oferecer", "ampliar", "ganhe" };
             var clientFiscalDescription = "Contrate um endereço fiscal para sua empresa de forma rápida e segura";
             var now = DateTime.UtcNow;
-
             foreach (var service in services)
             {
                 if (service.Name.Contains("Endereço Fiscal", StringComparison.OrdinalIgnoreCase) ||
@@ -112,7 +98,6 @@ namespace KlyonHubPlatform.Application.Services
                         needsUpdate = true;
                     }
                 }
-
                 if (roomServiceKeywords.Any(k => service.Name.Contains(k, StringComparison.OrdinalIgnoreCase)) &&
                     service.Route != marketplaceRoute &&
                     !service.Route.Contains("/Home/Marketplace"))
@@ -129,10 +114,8 @@ namespace KlyonHubPlatform.Application.Services
                     needsUpdate = true;
                 }
             }
-
             return needsUpdate;
         }
-
         private async Task EnsureDefaultClientServicesAsync(string chooseLocationRoute, string marketplaceRoute)
         {
             var now = DateTime.UtcNow;
@@ -163,7 +146,6 @@ namespace KlyonHubPlatform.Application.Services
                     Category = CategoryService.ClientAndPartner
                 }
             };
-
             foreach (var service in defaultServices)
                 _context.Services.Add(service);
             await _context.SaveChangesAsync();

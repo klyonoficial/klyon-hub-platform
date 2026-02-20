@@ -4,7 +4,6 @@ using Amazon.S3.Model;
 using Amazon;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Configuration;
-
 namespace KlyonHubPlatform.Application.Services
 {
     public class AWSStorageService : IStorageService
@@ -14,51 +13,39 @@ namespace KlyonHubPlatform.Application.Services
         private AmazonS3Client? _s3Client;
         private string? _bucketName;
         private string? _region;
-
         public AWSStorageService(IConfiguration configuration, ISystemConfigurationService systemConfigService)
         {
             _configuration = configuration;
             _systemConfigService = systemConfigService;
         }
-
         private async Task<AmazonS3Client> GetS3ClientAsync()
         {
             if (_s3Client != null)
                 return _s3Client;
-
             var accessKeyId = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.AccessKeyId.ToConfigKey());
             var secretAccessKey = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.SecretAccessKey.ToConfigKey());
             _region = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.Region.ToConfigKey()) ?? AwsS3Defaults.Region;
-
             if (string.IsNullOrEmpty(accessKeyId) || string.IsNullOrEmpty(secretAccessKey))
                 throw new InvalidOperationException(AwsS3ErrorMessages.CredentialsNotConfigured);
-
             var regionEndpoint = RegionEndpoint.GetBySystemName(_region);
             _s3Client = new AmazonS3Client(accessKeyId, secretAccessKey, regionEndpoint);
-
             return _s3Client;
         }
-
         private async Task<string> GetBucketNameAsync()
         {
             if (!string.IsNullOrEmpty(_bucketName))
                 return _bucketName;
-
             _bucketName = await _systemConfigService.GetValueAsync(AwsS3ConfigKey.BucketName.ToConfigKey());
             if (string.IsNullOrEmpty(_bucketName))
                 throw new InvalidOperationException(AwsS3ErrorMessages.BucketNameNotConfigured);
-
             return _bucketName;
         }
-
         public async Task<string> SaveFileAsync(byte[] fileContent, string fileName, string folder)
         {
             var client = await GetS3ClientAsync();
             var bucketName = await GetBucketNameAsync();
-
             var folderPath = folder.Trim('/');
             var key = string.IsNullOrEmpty(folderPath) ? fileName : $"{folderPath}/{fileName}";
-
             var request = new PutObjectRequest
             {
                 BucketName = bucketName,
@@ -66,35 +53,26 @@ namespace KlyonHubPlatform.Application.Services
                 InputStream = new MemoryStream(fileContent),
                 ContentType = GetContentType(fileName)
             };
-
             await client.PutObjectAsync(request);
-
-            // Retorna a URL do arquivo
             return $"s3://{bucketName}/{key}";
         }
-
         public async Task<byte[]?> GetFileAsync(string filePath)
         {
             try
             {
                 var client = await GetS3ClientAsync();
                 var bucketName = await GetBucketNameAsync();
-
-                // Extrai a chave do caminho s3://bucket/key ou apenas key
                 var key = filePath.StartsWith("s3://") 
                     ? filePath.Substring(filePath.IndexOf('/', 5) + 1)
                     : filePath;
-
                 var request = new GetObjectRequest
                 {
                     BucketName = bucketName,
                     Key = key
                 };
-
                 using var response = await client.GetObjectAsync(request);
                 using var memoryStream = new MemoryStream();
                 await response.ResponseStream.CopyToAsync(memoryStream);
-
                 return memoryStream.ToArray();
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -102,24 +80,20 @@ namespace KlyonHubPlatform.Application.Services
                 return null;
             }
         }
-
         public async Task<bool> DeleteFileAsync(string filePath)
         {
             try
             {
                 var client = await GetS3ClientAsync();
                 var bucketName = await GetBucketNameAsync();
-
                 var key = filePath.StartsWith("s3://")
                     ? filePath.Substring(filePath.IndexOf('/', 5) + 1)
                     : filePath;
-
                 var request = new DeleteObjectRequest
                 {
                     BucketName = bucketName,
                     Key = key
                 };
-
                 await client.DeleteObjectAsync(request);
                 return true;
             }
@@ -128,24 +102,20 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
         public async Task<bool> FileExistsAsync(string filePath)
         {
             try
             {
                 var client = await GetS3ClientAsync();
                 var bucketName = await GetBucketNameAsync();
-
                 var key = filePath.StartsWith("s3://")
                     ? filePath.Substring(filePath.IndexOf('/', 5) + 1)
                     : filePath;
-
                 var request = new GetObjectMetadataRequest
                 {
                     BucketName = bucketName,
                     Key = key
                 };
-
                 await client.GetObjectMetadataAsync(request);
                 return true;
             }
@@ -154,7 +124,6 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             }
         }
-
         private string GetContentType(string fileName)
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();

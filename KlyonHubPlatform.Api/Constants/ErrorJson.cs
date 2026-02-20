@@ -1,16 +1,9 @@
 namespace KlyonHubPlatform.Api.Constants
 {
-    /// <summary>
-    /// Mensagens de erro para respostas JSON (API). Centraliza textos usados em
-    /// return Json(new { success = false, error = "..." }), BadRequest(new { error = "..." }), etc.
-    /// </summary>
     public static class ErrorJson
     {
-        // ----- Cliente -----
         public const string ClientNotFound = "Cliente não encontrado.";
         public const string ClientNotFoundShort = "Cliente não encontrado";
-
-        // ----- Pagamento -----
         public const string CardDataRequired = "Dados do cartão são obrigatórios.";
         public const string PaymentNotFound = "Pagamento não encontrado.";
         public const string PaymentNotFoundShort = "Pagamento não encontrado";
@@ -26,41 +19,27 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PaymentDeclinedVerifyData = "Pagamento recusado. Verifique os dados do cartão e tente novamente.";
         public const string ErrorProcessingPayment = "Erro ao processar pagamento. Tente novamente ou use outra forma de pagamento.";
         public const string CouldNotProcessPayment = "Não foi possível processar o pagamento. Tente novamente ou entre em contato com o suporte.";
-
-        // ----- Créditos / Planos (legado) -----
         public const string CreditsNoLongerUsed = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
         public const string InvalidPlan = "Plano inválido.";
         public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
         public const string PurchaseNotFound = "Compra não encontrada.";
-
-        // ----- Dados gerais -----
         public const string InvalidData = "Dados inválidos.";
-
-        // ----- Endereço / Coworking -----
         public const string AddressNotFound = "Endereço não encontrado";
         public const string InvalidRoomType = "Tipo de sala inválido";
         public const string AddressNoSharedRoom = "Endereço não oferece sala compartilhada";
         public const string AddressNoPrivateRoom = "Endereço não oferece sala privativa";
         public const string CoworkingNotOpenOnDay = "Coworking não funciona neste dia";
-
-        // ----- API / Endereços -----
         public const string ErrorFetchingAddresses = "Erro ao buscar endereços disponíveis";
-
-        // ----- Database / Migrations -----
         public const string ErrorDatabaseStatus = "Erro ao obter status do banco de dados";
         public const string ErrorPendingMigrations = "Erro ao obter migrations pendentes";
         public const string ErrorAppliedMigrations = "Erro ao obter migrations aplicadas";
         public const string ConfirmationRequiredMigrations = "Confirmação necessária para executar migrations";
         public const string ErrorCriticalMigrations = "Erro crítico ao executar migrations";
         public const string ErrorVerifyMigrations = "Erro ao verificar migrations";
-
-        // ----- Webhooks -----
         public const string ErrorProcessingWebhook = "Erro ao processar webhook";
         public const string InvalidEvent = "Evento inválido";
         public const string InvalidNotificationFormat = "Formato de notificação inválido";
         public const string ResourceIdNotFound = "ResourceId não encontrado";
-
-        // ----- Chatbot -----
         public const string SessionIdRequired = "SessionId é obrigatório";
         public const string KlyonBootTablesNotFound = "Tabelas do KlyonBoot não encontradas";
         public const string DatabaseError = "Erro de banco de dados";
@@ -76,8 +55,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ErrorUpdatingQuestion = "Erro ao atualizar pergunta";
         public const string ErrorGettingIntentions = "Erro ao obter intenções";
         public const string ErrorVerifyingTables = "Erro ao verificar tabelas";
-
-        // ----- Focus NFe -----
         public const string EmptyBody = "Body vazio";
         public const string InvalidPayload = "Payload inválido";
         public const string FiscalNoteNotFound = "Nota fiscal não encontrada";
@@ -86,8 +63,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string WebhookUrlRequired = "URL do webhook é obrigatória";
         public const string SefazConfigNotFoundOrToken = "Configuração da SEFAZ não encontrada ou token não configurado";
         public const string ErrorConfiguringWebhookFocusNFe = "Falha ao configurar webhook no Focus NFe";
-
-        // ----- Quick Client API -----
         public const string ContactEmailAndNameRequired = "Email e Nome do Contato são obrigatórios.";
         public const string AnnualValueMustBeGreaterThanZero = "O valor anual deve ser maior que zero.";
         public const string FiscalAddressRequired = "O endereço fiscal é obrigatório.";
