@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão</h2>
-    <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Admin)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar para Notas Fiscais
     </a>
 </div>
@@ -15,7 +15,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("CommissionFiscalNotes", "Admin")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Admin)" class="row g-3">
             <input type="hidden" name="page" value="1" />
             <input type="hidden" name="pageSize" value="@(ViewBag.PageSize ?? 10)" />
             <div class="col-md-4">
@@ -47,7 +47,7 @@
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("CommissionFiscalNotes", "Admin")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Admin)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -70,7 +70,7 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total</h6>
-                <h2 class="mb-0">R$ @(Model.Sum(c => c.Amount).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @(Model.Sum(c => c.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 <small class="text-white-50">Em comissões pendentes</small>
             </div>
         </div>
@@ -164,18 +164,18 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @commission.TotalPaymentAmount.ToString("N2")</strong>
+                                    <strong>R$ @commission.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                 </td>
                                 <td>
-                                    <strong class="text-primary">R$ @commission.Amount.ToString("N2")</strong><br>
-                                    <small class="text-muted">@commission.Percentage.ToString("F2")%</small>
+                                    <strong class="text-primary">R$ @commission.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong><br>
+                                    <small class="text-muted">@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</small>
                                 </td>
                                 <td>
-                                    @commission.CreatedAt.ToString("dd/MM/yyyy")<br>
+                                    @commission.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)<br>
                                     <small class="text-muted">@commission.CreatedAt.ToString("HH:mm")</small>
                                 </td>
                                 <td onclick="event.stopPropagation();">
-                                    <form method="post" action="@Url.Action("IssueCommissionFiscalNote", "Admin")" style="display: inline;" class="confirm-required">
+                                    <form method="post" action="@Url.Action(ActionNames.IssueCommissionFiscalNote, ControllerNames.Admin)" style="display: inline;" class="confirm-required">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="commissionId" value="@commission.Id" />
                                         <button type="submit" class="btn btn-sm btn-success mb-1" onclick="return confirm('Tem certeza que deseja emitir a NF de comissão para esta comissão?');">
@@ -184,7 +184,7 @@
                                     </form>
                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importNfModal" 
                                             data-commission-id="@commission.Id" 
-                                            data-commission-amount="@commission.Amount.ToString("N2")"
+                                            data-commission-amount="@commission.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)"
                                             data-client-name="@(client != null ? (client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName ?? "N/A") : "N/A")">
                                         <i class="bi bi-upload"></i> Importar NF
                                     </button>
@@ -262,7 +262,7 @@
 <div class="modal fade" id="importNfModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="@Url.Action("ImportCommissionFiscalNote", "Admin")" enctype="multipart/form-data">
+            <form method="post" action="@Url.Action(ActionNames.ImportCommissionFiscalNote, ControllerNames.Admin)" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="commissionId" id="importNfCommissionId" value="" />
                 <div class="modal-header">
@@ -312,7 +312,7 @@
                 $loading.removeClass('d-none');
                 $modal.modal('show');
 
-                $.get('@Url.Action("CommissionFiscalNoteDetail", "Admin")', { id: commissionId })
+                $.get('@Url.Action(ActionNames.CommissionFiscalNoteDetail, ControllerNames.Admin)', { id: commissionId })
                     .done(function(data) {
                         $loading.addClass('d-none');
                         $content.removeClass('d-none').html(renderDetalhes(data));
@@ -427,7 +427,7 @@
                 placeholder: 'Digite para buscar um cliente...',
                 allowClear: true,
                 ajax: {
-                    url: '@Url.Action("SearchClients", "Admin")',
+                    url: '@Url.Action(ActionNames.SearchClients, ControllerNames.Admin)',
                     dataType: 'json',
                     delay: 250,
                     data: function(params) {

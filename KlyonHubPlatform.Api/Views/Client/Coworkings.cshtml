@@ -53,7 +53,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Coworkings", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Client, new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
                             </li>
@@ -62,14 +62,14 @@
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("Coworkings", new { page = i, pageSize = ViewBag.PageSize })">@i</a>
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Client, new { page = i, pageSize = ViewBag.PageSize })">@i</a>
                             </li>
                         }
 
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Coworkings", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Client, new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
                             </li>

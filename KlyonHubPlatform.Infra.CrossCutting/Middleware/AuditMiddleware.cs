@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using Microsoft.AspNetCore.Http;
 
 namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
@@ -25,7 +26,7 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var action = $"{context.Request.Method} {context.Request.Path}";
             var ipAddress = context.Connection.RemoteIpAddress?.ToString();
-            var userAgent = context.Request.Headers["User-Agent"].ToString();
+            var userAgent = context.Request.Headers[HttpHeaderNames.UserAgent].ToString();
 
             await _next(context);
 

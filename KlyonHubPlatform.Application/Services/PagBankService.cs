@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
 using System.Text;
@@ -99,14 +100,14 @@ namespace KlyonHubPlatform.Application.Services
                 else if (method == PaymentMethod.BankTransfer)
                 {
                     // Função auxiliar para validar e preencher campos obrigatórios
-                    string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+                    string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
                     {
                         return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
                     }
                     
                     // Validar e preparar dados do titular do boleto (todos obrigatórios)
-                    var holderName = GetValueOrDefault(clientName, "Não informado");
-                    if (string.IsNullOrWhiteSpace(holderName) || holderName == "Não informado")
+                    var holderName = GetValueOrDefault(clientName, DefaultDisplayStrings.NaoInformado);
+                    if (string.IsNullOrWhiteSpace(holderName) || holderName == DefaultDisplayStrings.NaoInformado)
                     {
                         holderName = "Cliente";
                     }
@@ -131,11 +132,11 @@ namespace KlyonHubPlatform.Application.Services
                     
                     // Preparar endereço do holder (todos os campos são obrigatórios)
                     // O holder.address usa "region" ao invés de "region_code"
-                    var holderStreet = GetValueOrDefault(clientAddress?.Street, "Não informado");
+                    var holderStreet = GetValueOrDefault(clientAddress?.Street, DefaultDisplayStrings.NaoInformado);
                     var holderNumber = GetValueOrDefault(clientAddress?.Number, "S/N");
                     var holderComplement = clientAddress?.Complement; // Opcional
-                    var holderLocality = GetValueOrDefault(clientAddress?.Locality, "Não informado");
-                    var holderCity = GetValueOrDefault(clientAddress?.City, "Não informado");
+                    var holderLocality = GetValueOrDefault(clientAddress?.Locality, DefaultDisplayStrings.NaoInformado);
+                    var holderCity = GetValueOrDefault(clientAddress?.City, DefaultDisplayStrings.NaoInformado);
                     
                     // Region (UF) - obrigatório, deve ser 2 caracteres maiúsculas
                     var holderRegion = "SP"; // Padrão
@@ -146,10 +147,7 @@ namespace KlyonHubPlatform.Application.Services
                     }
                     
                     // Validar se é uma UF válida do Brasil (lista básica)
-                    var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
-                                          "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", 
-                                          "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
-                    if (!validUFs.Contains(holderRegion))
+                    if (!BrazilianUfs.All.Contains(holderRegion))
                     {
                         holderRegion = "SP";
                     }

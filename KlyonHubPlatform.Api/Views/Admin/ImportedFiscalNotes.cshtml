@@ -80,16 +80,16 @@
                     <tbody>
                         @foreach (var fn in list)
                         {
-                            var clientName = fn.Client?.RazaoSocial ?? fn.Client?.NomeFantasia ?? fn.Client?.User?.FullName ?? "—";
+                            var clientName = fn.Client?.RazaoSocial ?? fn.Client?.NomeFantasia ?? fn.Client?.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder;
                             <tr>
                                 <td>
-                                    <strong>@(fn.Coworking?.Name ?? "—")</strong>
+                                    <strong>@(fn.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder)</strong>
                                     @if (fn.Coworking?.CNPJ != null) { <br /><small class="text-muted">@fn.Coworking.CNPJ</small> }
                                 </td>
                                 <td>@clientName</td>
-                                <td><strong class="text-success">R$ @fn.Amount.ToString("N2")</strong></td>
+                                <td><strong class="text-success">R$ @fn.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                 <td>#@(fn.PaymentId ?? 0)</td>
-                                <td>@fn.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@fn.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(fn.PdfUrl))
                                     {

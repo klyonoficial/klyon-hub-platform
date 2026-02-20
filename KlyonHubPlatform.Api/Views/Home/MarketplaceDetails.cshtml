@@ -5,7 +5,7 @@
 
     var isClientLogged = ViewBag.IsClientLogged ?? false;
     var isAvailable = Model.Address.IsAvailable && Model.Address.CurrentContracts < Model.Address.MaxContracts;
-    var returnUrl = Model.ReturnUrl ?? Url.Action("Marketplace", "Home")!;
+    var returnUrl = Model.ReturnUrl ?? Url.Action(ActionNames.Marketplace, ControllerNames.Home)!;
     
     // Verificar se o coworking oferece aluguel de sala
     var offersRoomRental = Model.Coworking.Products?.Any(p => p.ProductType == "RoomRental" && p.IsActive) ?? false;
@@ -123,8 +123,8 @@
     <div class="container mt-3">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Home")">Início</a></li>
-                <li class="breadcrumb-item"><a href="@Url.Action("Marketplace", "Home")">Marketplace</a></li>
+                <li class="breadcrumb-item"><a href="@Url.Action(ActionNames.Index, ControllerNames.Home)">Início</a></li>
+                <li class="breadcrumb-item"><a href="@Url.Action(ActionNames.Marketplace, ControllerNames.Home)">Marketplace</a></li>
                 <li class="breadcrumb-item"><a href="@returnUrl">Listagem</a></li>
                 <li class="breadcrumb-item active">@Model.Coworking.Name</li>
             </ol>
@@ -136,7 +136,7 @@
         <div class="hero-section">
             @if (Model.MainPhotoId.HasValue)
             {
-                <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = Model.MainPhotoId.Value })"
+                <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = Model.MainPhotoId.Value })"
                      alt="@Model.Coworking.Name"
                      class="hero-image"
                      onclick="openPhotoGallery(0)" 
@@ -184,7 +184,7 @@
                                         }
                                     }
                                 </div>
-                                <strong>@avgRating.ToString("F1")</strong>
+                                <strong>@avgRating.ToString(NumberFormatConstants.OneDecimal)</strong>
                                 <span class="text-muted">(@totalRatings @(totalRatings == 1 ? "avaliação" : "avaliações"))</span>
                             </div>
                         }
@@ -420,7 +420,7 @@
                                 @foreach (var photoId in Model.PhotoIds.Skip(1).Take(6))
                                 {
                                     <div class="col-md-4">
-                                        <img src="@Url.Action("GetPhoto", "Coworking", new { photoId })"
+                                        <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId })"
                                              alt="Foto do coworking"
                                              class="photo-thumb"
                                              onclick="openPhotoGallery(@Model.PhotoIds.IndexOf(photoId))"
@@ -470,7 +470,7 @@
                                                 }
                                             </div>
                                         </div>
-                                        <small class="text-muted">@rating.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                        <small class="text-muted">@rating.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(rating.Comment))
                                     {
@@ -522,7 +522,7 @@
                                                 }
                                             }
                                         </div>
-                                        <strong>@avgRating.ToString("F1")</strong>
+                                        <strong>@avgRating.ToString(NumberFormatConstants.OneDecimal)</strong>
                                         <span class="text-muted">(@totalRatings)</span>
                                     </div>
                                 }
@@ -534,7 +534,7 @@
                                 {
                                     @if (availableCredits > 0)
                                     {
-                                        <a href="@Url.Action("BookRoom", "Client", new { id = Model.Address.Id })" class="btn btn-warning w-100 btn-lg mb-2">
+                                        <a href="@Url.Action(ActionNames.BookRoom, ControllerNames.Client, new { id = Model.Address.Id })" class="btn btn-warning w-100 btn-lg mb-2">
                                             <i class="bi bi-calendar-check"></i> Reservar com Calendário
                                         </a>
                                         <button type="button" class="btn btn-outline-warning w-100 btn-lg mb-3" data-bs-toggle="modal" data-bs-target="#reservationModal">
@@ -548,7 +548,7 @@
                                     }
                                     else
                                     {
-                                        <a href="@Url.Action("BookRoom", "Client", new { id = Model.Address.Id })" class="btn btn-warning w-100 btn-lg mb-2">
+                                        <a href="@Url.Action(ActionNames.BookRoom, ControllerNames.Client, new { id = Model.Address.Id })" class="btn btn-warning w-100 btn-lg mb-2">
                                             <i class="bi bi-calendar-check"></i> Reservar com Calendário
                                         </a>
                                         <div class="alert alert-info mb-0">
@@ -587,7 +587,7 @@
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-muted">Sala Privativa</span>
-                                        <strong>R$ @Model.Address.PrivateRoomPricePerHour.Value.ToString("F2")/hora</strong>
+                                        <strong>R$ @Model.Address.PrivateRoomPricePerHour.Value.ToString(NumberFormatConstants.TwoDecimals)/hora</strong>
                                     </div>
                                 </div>
                             }
@@ -645,7 +645,7 @@
                     <div class="alert alert-info mb-3">
                         <i class="bi bi-info-circle"></i> <strong>Pagamento:</strong> O valor será calculado automaticamente e o pagamento será processado ao confirmar a reserva.
                     </div>
-                    <form method="post" action="@Url.Action("CreateReservation", "Home")" id="reservationForm" novalidate>
+                    <form method="post" action="@Url.Action(ActionNames.CreateReservation, ControllerNames.Home)" id="reservationForm" novalidate>
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="CoworkingAddressId" value="@Model.Address.Id" />
                         
@@ -689,7 +689,7 @@
                                                 <i class="bi bi-door-closed"></i> Privativa
                                                 @if (ViewBag.PrivateRoomPricePerHour != null)
                                                 {
-                                                    <small class="d-block">R$ @(((decimal)ViewBag.PrivateRoomPricePerHour).ToString("F2"))/hora</small>
+                                                    <small class="d-block">R$ @(((decimal)ViewBag.PrivateRoomPricePerHour).ToString(NumberFormatConstants.TwoDecimals))/hora</small>
                                                 }
                                             </label>
                                         }
@@ -937,7 +937,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form method="post" action="@Url.Action("SubmitInterest", "Home")" id="interestForm" novalidate>
+                <form method="post" action="@Url.Action(ActionNames.SubmitInterest, ControllerNames.Home)" id="interestForm" novalidate>
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="CoworkingAddressId" value="@Model.Address.Id" />
                     
@@ -1030,7 +1030,7 @@
                         {
                             <div class="carousel-item h-100 @(i == 0 ? "active" : "")">
                                 <div class="d-flex align-items-center justify-content-center h-100">
-                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = Model.PhotoIds[i] })"
+                                    <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = Model.PhotoIds[i] })"
                                          class="d-block"
                                          style="max-width: 100%; max-height: 100%; object-fit: contain;"
                                          alt="Foto @(i + 1)">
@@ -1110,8 +1110,8 @@
         // Validação de horários no modal de reserva
         var reservationStartTime = document.getElementById('reservationStartTime');
         var reservationEndTime = document.getElementById('reservationEndTime');
-        var sharedPricePerHour = @(ViewBag.SharedRoomPricePerHour?.ToString("F2") ?? "0");
-        var privatePricePerHour = @(ViewBag.PrivateRoomPricePerHour?.ToString("F2") ?? "0");
+        var sharedPricePerHour = @(ViewBag.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals) ?? "0");
+        var privatePricePerHour = @(ViewBag.PrivateRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals) ?? "0");
 
         // Garantir que as variáveis globais estejam inicializadas
         window.unavailableDates = window.unavailableDates || [];
@@ -1124,7 +1124,7 @@
             currentRoomType = roomType;
             
             try {
-                var url = '@Url.Action("GetAvailability", "Home")?addressId=' + addressId + '&roomType=' + roomType;
+                var url = '@Url.Action(ActionNames.GetAvailability, ControllerNames.Home)?addressId=' + addressId + '&roomType=' + roomType;
                 if (selectedDate) {
                     url += '&date=' + selectedDate;
                 }

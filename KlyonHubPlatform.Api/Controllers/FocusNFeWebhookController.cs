@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Requests;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
+using KlyonHubPlatform.Domain.Core.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -190,7 +192,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 string? apiToken = null;
                 bool isProduction = false;
 
-                if (fiscalNote.Type == "Intermediacao")
+                if (fiscalNote.Type == FiscalNoteType.Intermediacao)
                 {
                     var config = await _context.SefazConfigurations
                         .Where(c => c.IsActive)

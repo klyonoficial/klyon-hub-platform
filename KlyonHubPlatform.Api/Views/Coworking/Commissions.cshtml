@@ -24,7 +24,7 @@
         <div class="card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
             <div class="card-body">
                 <h6 class="card-title mb-2"><i class="bi bi-wallet2"></i> Total Ganho</h6>
-                <h2 class="mb-0">R$ @(Model.Sum(c => c.TotalPaymentAmount - c.Amount).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @(Model.Sum(c => c.TotalPaymentAmount - c.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 <small class="text-white-50">Valor total creditado</small>
             </div>
         </div>
@@ -33,7 +33,7 @@
         <div class="card text-white" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
             <div class="card-body">
                 <h6 class="card-title mb-2"><i class="bi bi-hourglass-split"></i> Aguardando Repasse</h6>
-                <h2 class="mb-0">R$ @(Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @(Model.Where(c => !c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 <small class="text-white-50">Disponível para transferência</small>
             </div>
         </div>
@@ -42,7 +42,7 @@
         <div class="card text-white" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
             <div class="card-body">
                 <h6 class="card-title mb-2"><i class="bi bi-check-circle-fill"></i> Já Recebido</h6>
-                <h2 class="mb-0">R$ @(Model.Where(c => c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @(Model.Where(c => c.IsTransferred).Sum(c => c.TotalPaymentAmount - c.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 <small class="text-white-50">Valor já transferido</small>
             </div>
         </div>
@@ -83,39 +83,39 @@
                                     : "Pendente")
                                 : commission.IsTransferred ? "Repasse Realizado" : "Aguardando Repasse";
                             var dataRepasse = transfer != null && transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer.ProcessedAt.HasValue
-                                ? transfer.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                ? transfer.ProcessedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                 : transfer != null && transfer.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice && transfer.ScheduledDate != default
-                                    ? transfer.ScheduledDate.ToString("dd/MM/yyyy")
-                                    : commission.TransferredAt.HasValue ? commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm") : "";
+                                    ? transfer.ScheduledDate.ToString(DateFormatConstants.DisplayDateOnly)
+                                    : commission.TransferredAt.HasValue ? commission.TransferredAt.Value.ToString(DateFormatConstants.DisplayDateAndTime) : "";
                             <tr class="commission-row cursor-pointer" role="button" tabindex="0"
                                 data-id="@commission.Id"
-                                data-created="@commission.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
-                                data-total-pago="@commission.TotalPaymentAmount.ToString("N2")"
-                                data-percentual="@commission.Percentage.ToString("F2")"
-                                data-valor-creditado="@valorCreditado.ToString("N2")"
+                                data-created="@commission.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
+                                data-total-pago="@commission.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)"
+                                data-percentual="@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)"
+                                data-valor-creditado="@valorCreditado.ToString(NumberFormatConstants.CurrencyTwoDecimals)"
                                 data-status="@statusTexto"
                                 data-repasse="@dataRepasse"
                                 data-transferido="@(commission.IsTransferred ? "Sim" : "Não")"
                                 data-transfer-status="@(transfer?.Status.ToString() ?? "")"
                                 data-transfer-id="@(transfer?.Id.ToString() ?? "")"
-                                data-transfer-amount="@(transfer?.Amount.ToString("N2") ?? "")"
-                                data-transfer-created="@(transfer?.CreatedAt.ToString("dd/MM/yyyy HH:mm") ?? "")"
-                                data-transfer-processed="@(transfer?.ProcessedAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
-                                data-transfer-scheduled="@(transfer?.ScheduledDate != default ? transfer.ScheduledDate.ToString("dd/MM/yyyy") : "")"
+                                data-transfer-amount="@(transfer?.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? "")"
+                                data-transfer-created="@(transfer?.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
+                                data-transfer-processed="@(transfer?.ProcessedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
+                                data-transfer-scheduled="@(transfer?.ScheduledDate != default ? transfer.ScheduledDate.ToString(DateFormatConstants.DisplayDateOnly) : "")"
                                 data-transfer-failure="@(transfer?.FailureReason ?? "")"
                                 data-payment-id="@commission.PaymentId"
-                                data-payment-amount="@(commission.Payment?.Amount.ToString("N2") ?? "")"
+                                data-payment-amount="@(commission.Payment?.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? "")"
                                 data-payment-status="@(commission.Payment?.Status.ToString() ?? "")"
                                 data-payment-method="@(commission.Payment?.Method.ToString() ?? "")"
-                                data-payment-paid="@(commission.Payment?.PaidAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-payment-paid="@(commission.Payment?.PaidAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
                                 data-payment-transaction="@(commission.Payment?.TransactionId ?? "")">
-                                <td>@commission.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@commission.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                 <td>
-                                    <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString("N2")</span>
-                                    <br><small class="text-muted">(@commission.Percentage.ToString("F2")% de comissão da plataforma)</small>
+                                    <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                    <br><small class="text-muted">(@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)% de comissão da plataforma)</small>
                                 </td>
                                 <td>
-                                    <strong class="text-success" style="font-size: 1.1em;">R$ @valorCreditado.ToString("N2")</strong>
+                                    <strong class="text-success" style="font-size: 1.1em;">R$ @valorCreditado.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                 </td>
                                 <td>
                                     @{
@@ -172,20 +172,20 @@
                                         if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.AwaitingInvoice && transfer2.ScheduledDate != default)
                                         {
                                             <span class="text-info" title="Repasse agendado">
-                                                <i class="bi bi-calendar-event"></i> @transfer2.ScheduledDate.ToString("dd/MM/yyyy")
+                                                <i class="bi bi-calendar-event"></i> @transfer2.ScheduledDate.ToString(DateFormatConstants.DisplayDateOnly)
                                             </span>
                                         }
                                         else if (transfer2 != null && transfer2.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Completed && transfer2.ProcessedAt.HasValue)
                                         {
                                             <span class="text-success">
-                                                <i class="bi bi-calendar-check"></i> @transfer2.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                                <i class="bi bi-calendar-check"></i> @transfer2.ProcessedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                             </span>
                                         }
                                         else if (commission.TransferredAt.HasValue)
                                         {
                                             // Casos antigos onde a comissão já foi marcada como transferida
                                             <span class="text-success">
-                                                <i class="bi bi-calendar-check"></i> @commission.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                                <i class="bi bi-calendar-check"></i> @commission.TransferredAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                             </span>
                                         }
                                         else
@@ -240,7 +240,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h6 class="mb-1"><i class="bi bi-info-circle text-primary"></i> Você tem ganhos disponíveis para repasse!</h6>
-                                <p class="mb-0 text-muted">Total disponível: <strong class="text-success">R$ @totalPendente.ToString("N2")</strong></p>
+                                <p class="mb-0 text-muted">Total disponível: <strong class="text-success">R$ @totalPendente.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></p>
                             </div>
                             <form method="post" action="@Url.Action("RequestTransfer", "Coworking")" class="d-inline">
                                 @Html.AntiForgeryToken()

@@ -32,7 +32,7 @@
         <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros de Pesquisa</h5>
     </div>
     <div class="card-body">
-        <form method="get" action="@Url.Action("Declarations", "Client")" id="filterForm">
+        <form method="get" action="@Url.Action(ActionNames.Declarations, ControllerNames.Client)" id="filterForm">
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label for="search" class="form-label">Buscar</label>
@@ -107,7 +107,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> Pesquisar
                     </button>
-                    <a href="@Url.Action("Declarations", "Client")" class="btn btn-secondary">
+                    <a href="@Url.Action(ActionNames.Declarations, ControllerNames.Client)" class="btn btn-secondary">
                         <i class="bi bi-x-circle"></i> Limpar Filtros
                     </a>
                 </div>
@@ -176,7 +176,7 @@ else
                                 <div>
                                     @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
                                     {
-                                        <form method="post" action="@Url.Action("GenerateDeclaration", "Client")" class="d-inline" onclick="event.stopPropagation();">
+                                        <form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline" onclick="event.stopPropagation();">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="contractId" value="@contract.Id">
                                             <button type="submit" class="btn btn-primary btn-sm" 
@@ -226,13 +226,13 @@ else
                         </h6>
                         <p class="mb-2">
                             <strong>Data Inicial:</strong><br>
-                            <span class="badge bg-info">@contract.StartDate.ToString("dd/MM/yyyy")</span>
+                            <span class="badge bg-info">@contract.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</span>
                         </p>
                         <p class="mb-2">
                             <strong>Data Final:</strong><br>
                             @if (contract.ExpiryDate.HasValue)
                             {
-                                <span class="badge bg-success">@contract.ExpiryDate.Value.ToString("dd/MM/yyyy")</span>
+                                <span class="badge bg-success">@contract.ExpiryDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</span>
                             }
                             else
                             {
@@ -282,8 +282,8 @@ else
                                     <tr class="@(isValid ? "" : "table-secondary")">
                                         <td>@declaration.DeclarationNumber</td>
                                         <td>v@(declaration.Version)</td>
-                                        <td>@declaration.StartDate.ToString("dd/MM/yyyy")</td>
-                                        <td>@declaration.EndDate.ToString("dd/MM/yyyy")</td>
+                                        <td>@declaration.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
+                                        <td>@declaration.EndDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                         <td>
                                             @if (isValid)
                                             {
@@ -298,11 +298,11 @@ else
                                                 <span class="badge bg-secondary">Inválida</span>
                                             }
                                         </td>
-                                        <td>@declaration.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                         <td>
                                             @if (isValid)
                                             {
-                                                <a href="@Url.Action("DownloadDeclaration", "Client", new { declarationId = declaration.Id })" 
+                                                <a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id })" 
                                                    class="btn btn-sm btn-primary" target="_blank">
                                                     <i class="bi bi-download"></i> Baixar PDF
                                                 </a>
@@ -356,7 +356,7 @@ else
                     <div>
                         @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
                         {
-                            <form method="post" action="@Url.Action("GenerateDeclaration", "Client")" class="d-inline">
+                            <form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="contractId" value="@contract.Id">
                                 <button type="submit" class="btn btn-light btn-sm" 
@@ -403,13 +403,13 @@ else
                             </h6>
                             <p class="mb-2">
                                 <strong>Data Inicial:</strong><br>
-                                <span class="badge bg-info">@contract.StartDate.ToString("dd/MM/yyyy")</span>
+                                <span class="badge bg-info">@contract.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</span>
                             </p>
                             <p class="mb-2">
                                 <strong>Data Final:</strong><br>
                                 @if (contract.ExpiryDate.HasValue)
                                 {
-                                    <span class="badge bg-success">@contract.ExpiryDate.Value.ToString("dd/MM/yyyy")</span>
+                                    <span class="badge bg-success">@contract.ExpiryDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</span>
                                 }
                                 else
                                 {
@@ -459,8 +459,8 @@ else
                                         <tr class="@(isValid ? "" : "table-secondary")">
                                             <td>@declaration.DeclarationNumber</td>
                                             <td>v@(declaration.Version)</td>
-                                            <td>@declaration.StartDate.ToString("dd/MM/yyyy")</td>
-                                            <td>@declaration.EndDate.ToString("dd/MM/yyyy")</td>
+                                            <td>@declaration.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
+                                            <td>@declaration.EndDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                             <td>
                                                 @if (isValid)
                                                 {
@@ -475,11 +475,11 @@ else
                                                     <span class="badge bg-secondary">Inválida</span>
                                                 }
                                             </td>
-                                            <td>@declaration.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>@declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                             <td>
                                                 @if (isValid)
                                                 {
-                                                    <a href="@Url.Action("DownloadDeclaration", "Client", new { declarationId = declaration.Id })" 
+                                                    <a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id })" 
                                                        class="btn btn-sm btn-primary" target="_blank">
                                                         <i class="bi bi-download"></i> Baixar PDF
                                                     </a>
@@ -514,7 +514,7 @@ else
                 @if (currentPage > 1)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                        <a class="page-link" href="@Url.Action(ActionNames.Declarations, ControllerNames.Client, new { 
                             search = search, 
                             contractId = contractId, 
                             status = status, 
@@ -530,7 +530,7 @@ else
                 @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                 {
                     <li class="page-item @(i == currentPage ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                        <a class="page-link" href="@Url.Action(ActionNames.Declarations, ControllerNames.Client, new { 
                             search = search, 
                             contractId = contractId, 
                             status = status, 
@@ -546,7 +546,7 @@ else
                 @if (currentPage < totalPages)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("Declarations", "Client", new { 
+                        <a class="page-link" href="@Url.Action(ActionNames.Declarations, ControllerNames.Client, new { 
                             search = search, 
                             contractId = contractId, 
                             status = status, 

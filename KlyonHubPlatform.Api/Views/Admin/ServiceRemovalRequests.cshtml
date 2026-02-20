@@ -50,12 +50,12 @@ else
                                     <small class="text-muted">@(ps.Service?.Description ?? "-")</small>
                                 </td>
                                 <td>
-                                    <span class="badge bg-success">@ps.Percentage.ToString("F2")%</span>
+                                    <span class="badge bg-success">@ps.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</span>
                                 </td>
                                 <td>
                                     @if (ps.RemovalRequestedAt.HasValue)
                                     {
-                                        <small>@ps.RemovalRequestedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                                        <small>@ps.RemovalRequestedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</small>
                                     }
                                     else
                                     {
@@ -88,7 +88,7 @@ else
                 @if (currentPage > 1)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = currentPage - 1 })">
+                        <a class="page-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin, new { page = currentPage - 1 })">
                             <i class="bi bi-chevron-left"></i> Anterior
                         </a>
                     </li>
@@ -97,7 +97,7 @@ else
                 @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                 {
                     <li class="page-item @(i == currentPage ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = i })">
+                        <a class="page-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin, new { page = i })">
                             @i
                         </a>
                     </li>
@@ -106,7 +106,7 @@ else
                 @if (currentPage < totalPages)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("ServiceRemovalRequests", "Admin", new { page = currentPage + 1 })">
+                        <a class="page-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin, new { page = currentPage + 1 })">
                             Próxima <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
@@ -124,7 +124,7 @@ else
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form id="rejectForm" method="post" action="@Url.Action("RejectServiceRemoval", "Admin")">
+            <form id="rejectForm" method="post" action="@Url.Action(ActionNames.RejectServiceRemoval, ControllerNames.Admin)">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="partnerServiceId" id="rejectPartnerServiceId" />
                 <div class="modal-header">
@@ -161,7 +161,7 @@ else
             if (confirmed) {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = '@Url.Action("ApproveServiceRemoval", "Admin")';
+                form.action = '@Url.Action(ActionNames.ApproveServiceRemoval, ControllerNames.Admin)';
                 
                 const token = document.querySelector('input[name="__RequestVerificationToken"]');
                 if (token) {

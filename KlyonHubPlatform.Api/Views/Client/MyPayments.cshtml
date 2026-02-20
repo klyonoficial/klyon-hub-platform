@@ -24,7 +24,7 @@ else
             <div class="card border-0 bg-pending-payment text-white">
                 <div class="card-body">
                     <h6 class="card-title"><i class="bi bi-cash-coin me-1"></i> Pendentes</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Pending).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Pending).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                 </div>
             </div>
         </div>
@@ -32,7 +32,7 @@ else
             <div class="card border-0 bg-suspended text-white">
                 <div class="card-body">
                     <h6 class="card-title"><i class="bi bi-arrow-repeat me-1"></i> Processando / Aguardando Validação</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                 </div>
             </div>
         </div>
@@ -40,7 +40,7 @@ else
             <div class="card border-0 bg-active text-white">
                 <div class="card-body">
                     <h6 class="card-title"><i class="bi bi-check-circle-fill me-1"></i> Pagas</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString("N2")</h4>
+                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                 </div>
             </div>
         </div>
@@ -70,7 +70,7 @@ else
                                     <small class="text-muted">@payment.Subscription?.Contract?.CoworkingAddress?.Address</small>
                                 </td>
                                 <td>
-                                    <strong>R$ @payment.Amount.ToString("N2")</strong>
+                                    <strong>R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                 </td>
                                 <td>
                                     @switch (payment.Method)
@@ -82,7 +82,7 @@ else
                                             <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
                                             @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
                                             {
-                                                <br><small class="text-muted">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString("N2")</small>
+                                                <br><small class="text-muted">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small>
                                             }
                                             break;
                                         case PaymentMethod.BankTransfer:
@@ -120,7 +120,7 @@ else
                                     }
                                 </td>
                                 <td>
-                                    @payment.DueDate.ToString("dd/MM/yyyy")
+                                    @payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
                                     @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
                                     {
                                         <br><span class="badge bg-cancelled">Vencido</span>
@@ -129,7 +129,7 @@ else
                                 <td>
                                     @if (payment.PaidAt.HasValue)
                                     {
-                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                        @payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                     }
                                     else
                                     {
@@ -137,7 +137,7 @@ else
                                     }
                                 </td>
                                 <td>
-                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = payment.Id })" class="btn btn-sm btn-primary">
+                                    <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = payment.Id })" class="btn btn-sm btn-primary">
                                         <i class="bi bi-eye"></i> Ver Detalhes
                                     </a>
                                 </td>
@@ -156,19 +156,19 @@ else
                 @if (ViewBag.CurrentPage > 1)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("MyPayments", new { page = ViewBag.CurrentPage - 1 })">Anterior</a>
+                        <a class="page-link" href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client, new { page = ViewBag.CurrentPage - 1 })">Anterior</a>
                     </li>
                 }
                 @for (int i = 1; i <= ViewBag.TotalPages; i++)
                 {
                     <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("MyPayments", new { page = i })">@i</a>
+                        <a class="page-link" href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client, new { page = i })">@i</a>
                     </li>
                 }
                 @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("MyPayments", new { page = ViewBag.CurrentPage + 1 })">Próximo</a>
+                        <a class="page-link" href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client, new { page = ViewBag.CurrentPage + 1 })">Próximo</a>
                     </li>
                 }
             </ul>

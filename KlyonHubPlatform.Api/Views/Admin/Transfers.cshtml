@@ -105,7 +105,7 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor (página)</h6>
-                <h2 class="mb-0">R$ @((Model != null && Model.Any()) ? Model.Sum(t => t.Amount).ToString("N2") : "0,00")</h2>
+                <h2 class="mb-0">R$ @((Model != null && Model.Any()) ? Model.Sum(t => t.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals) : "0,00")</h2>
                 <small class="text-white-50">na página atual</small>
             </div>
         </div>
@@ -136,16 +136,16 @@
                             <tr class="clickable-row" data-href="@Url.Action("TransferDetails", "Admin", new { id = t.Id })" style="cursor: pointer;">
                                 <td>#@t.Id</td>
                                 <td>
-                                    <strong>@(t.Coworking?.Name ?? "—")</strong>
+                                    <strong>@(t.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder)</strong>
                                     @if (t.Coworking?.CNPJ != null)
                                     {
                                         <br /><small class="text-muted">@t.Coworking.CNPJ</small>
                                     }
                                 </td>
-                                <td><strong class="text-success">R$ @t.Amount.ToString("N2")</strong></td>
-                                <td>@(t.Description ?? "—")</td>
+                                <td><strong class="text-success">R$ @t.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                <td>@(t.Description ?? DefaultDisplayStrings.EmptyPlaceholder)</td>
                                 <td>
-                                    @t.CreatedAt.ToString("dd/MM/yyyy")<br />
+                                    @t.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)<br />
                                     <small class="text-muted">@t.CreatedAt.ToString("HH:mm")</small>
                                 </td>
                                 <td>
@@ -180,7 +180,7 @@
                                         <form method="post" action="@Url.Action("ApproveTransfer", "Admin")" class="d-inline approve-transfer-form" onclick="event.stopPropagation();">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="transferId" value="@t.Id" />
-                                            <button type="submit" class="btn btn-sm btn-success" data-amount="@t.Amount.ToString("N2")">
+                                            <button type="submit" class="btn btn-sm btn-success" data-amount="@t.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)">
                                                 <i class="bi bi-check-circle"></i> Aprovar
                                             </button>
                                         </form>

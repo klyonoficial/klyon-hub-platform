@@ -56,7 +56,7 @@
                                 <td class="text-end">
                                     @if (ps.Percentage > 0)
                                     {
-                                        <span class="badge bg-success fs-6">@ps.Percentage.ToString("F2")%</span>
+                                        <span class="badge bg-success fs-6">@ps.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</span>
                                     }
                                     else
                                     {
@@ -64,7 +64,7 @@
                                     }
                                 </td>
                                 <td class="text-center">
-                                    <small>@ps.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                    <small>@ps.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                                 </td>
                                 <td class="text-center">
                                     @if (ps.RemovalRequestStatus == RemovalRequestStatus.Pending)
@@ -87,7 +87,7 @@
                                     }
                                     else
                                     {
-                                        <form method="post" action="@Url.Action("RemoveService", "Coworking")" class="d-inline" 
+                                        <form method="post" action="@Url.Action(ActionNames.RemoveService, ControllerNames.Coworking)" class="d-inline" 
                                               onsubmit="event.preventDefault(); handleRemoveService(this, '@ps.Service.Name', @disableRemoveButton.ToString().ToLower()); return false;">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="partnerServiceId" value="@ps.Id" />
@@ -169,7 +169,7 @@
                                 }
                                 else
                                 {
-                                    <form method="post" action="@Url.Action("AddService", "Coworking")" class="d-inline">
+                                    <form method="post" action="@Url.Action(ActionNames.AddService, ControllerNames.Coworking)" class="d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="serviceId" value="@service.Id" />
                                         <button type="submit" class="btn btn-sm btn-primary w-100">

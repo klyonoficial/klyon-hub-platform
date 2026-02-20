@@ -1,14 +1,14 @@
 @using System.Security.Claims
 @using KlyonHubPlatform.Api.Constants
 @{
-    var enableCoworkingMenus = ViewData["EnableCoworkingMenus"] as bool? ?? true;
+    var enableCoworkingMenus = ViewData[ViewDataKeys.EnableCoworkingMenus] as bool? ?? true;
 }
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " — " : "")Klyon — Endereço Fiscal e Espaços Corporativos</title>
+    <title>@(ViewData[ViewDataKeys.Title] != null ? ViewData[ViewDataKeys.Title] + " — " : "")Klyon — Endereço Fiscal e Espaços Corporativos</title>
     <meta name="description" content="Marketplace que conecta clientes a parceiros: endereço fiscal, coworking, salas de reunião e espaços corporativos. Simples, seguro e premium." />
     <link rel="icon" href="~/favicon.png" type="image/png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +22,7 @@
 <body class="landing-body">
     <nav class="navbar navbar-expand-lg landing-nav fixed-top">
         <div class="lp-container container-fluid">
-            <a class="navbar-brand fw-bold d-flex align-items-center" href="@Url.Action("Index", "Home")">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="@Url.Action(ActionNames.Index, ControllerNames.Home)">
                 <img src="~/images/logo-klyon-transparente-dourado-horizontal.png" alt="Klyon" class="d-inline-block" />
             </a>
             <button class="navbar-toggler border-0 text-light" type="button" data-bs-toggle="collapse" data-bs-target="#landingNav" aria-controls="landingNav" aria-expanded="false" aria-label="Menu">
@@ -31,29 +31,29 @@
             <div class="collapse navbar-collapse" id="landingNav">
                 <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
                     <li class="nav-item">
-                        <a class="nav-link" href="@Url.Action("Index", "Home")">Início</a>
+                        <a class="nav-link" href="@Url.Action(ActionNames.Index, ControllerNames.Home)">Início</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("ChooseLocation", "Client") : Url.Action("FiscalAddress", "Home"))">Endereço Fiscal</a>
+                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action(ActionNames.ChooseLocation, ControllerNames.Client) : Url.Action(ActionNames.FiscalAddress, ControllerNames.Home))">Endereço Fiscal</a>
                     </li>
                     @if (enableCoworkingMenus)
                     {
                     <li class="nav-item">
-                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Rooms", "Home"))">Aluguel de Salas</a>
+                        <a class="nav-link" href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action(ActionNames.Marketplace, ControllerNames.Home) : Url.Action(ActionNames.Rooms, ControllerNames.Home))">Aluguel de Salas</a>
                     </li>
                     }
                     <li class="nav-item">
-                        <a class="nav-link" href="@Url.Action("Partner", "Home")">Quero ser Parceiro</a>
+                        <a class="nav-link" href="@Url.Action(ActionNames.Partner, ControllerNames.Home)">Quero ser Parceiro</a>
                     </li>
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <li class="nav-item">
-                            <a class="nav-link" href="@(User.IsInRole("Administrator") ? Url.Action("Dashboard", "Admin") : User.IsInRole("Client") ? Url.Action("DashboardDetails", "Client") : Url.Action("Dashboard", "Coworking"))">
+                            <a class="nav-link" href="@(User.IsInRole("Administrator") ? Url.Action(ActionNames.Dashboard, ControllerNames.Admin) : User.IsInRole("Client") ? Url.Action(ActionNames.DashboardDetails, ControllerNames.Client) : Url.Action(ActionNames.Dashboard, ControllerNames.Coworking))">
                                 <i class="fa-solid fa-th-large me-1" aria-hidden="true"></i> Área logada
                             </a>
                         </li>
                         <li class="nav-item">
-                            <form method="post" action="@Url.Action("Logout", "Auth")" class="d-inline ms-lg-2">
+                            <form method="post" action="@Url.Action(ActionNames.Logout, ControllerNames.Auth)" class="d-inline ms-lg-2">
                                 <button type="submit" class="btn btn-outline-light btn-sm">
                                     <i class="fa-solid fa-right-from-bracket me-1" aria-hidden="true"></i> Sair
                                 </button>
@@ -63,10 +63,10 @@
                     else
                     {
                         <li class="nav-item">
-                            <a class="nav-link" href="@Url.Action("Login", "Auth")">Entrar</a>
+                            <a class="nav-link" href="@Url.Action(ActionNames.Login, ControllerNames.Auth)">Entrar</a>
                         </li>
                         <li class="nav-item">
-                            <a class="btn btn-primary btn-sm ms-lg-2" href="@Url.Action("Register", "Auth")">
+                            <a class="btn btn-primary btn-sm ms-lg-2" href="@Url.Action(ActionNames.Register, ControllerNames.Auth)">
                                 <i class="fa-solid fa-user-plus me-1" aria-hidden="true"></i> Cadastrar
                             </a>
                         </li>
@@ -84,7 +84,7 @@
         <div class="lp-container">
             <div class="row g-4">
                 <div class="col-md-4">
-                    <a href="@Url.Action("Index", "Home")" class="footer-brand d-inline-flex align-items-center mb-3">
+                    <a href="@Url.Action(ActionNames.Index, ControllerNames.Home)" class="footer-brand d-inline-flex align-items-center mb-3">
                         <img src="~/images/logo-klyon-transparente-dourado-vertical.png" alt="Klyon" />
                     </a>
                     <p class="lp-text-muted small mb-0">
@@ -94,21 +94,21 @@
                 <div class="col-md-2 col-6">
                     <h6 class="text-uppercase small fw-600 text-white mb-3">Institucional</h6>
                     <ul class="list-unstyled small">
-                        <li class="mb-2"><a href="@Url.Action("Privacy", "Home")">Política de privacidade</a></li>
-                        <li class="mb-2"><a href="@Url.Action("Privacy", "Home")">Termos de uso</a></li>
+                        <li class="mb-2"><a href="@Url.Action(ActionNames.Privacy, ControllerNames.Home)">Política de privacidade</a></li>
+                        <li class="mb-2"><a href="@Url.Action(ActionNames.Privacy, ControllerNames.Home)">Termos de uso</a></li>
                         <li class="mb-2"><a href="#contato">Contato</a></li>
                     </ul>
                 </div>
                 <div class="col-md-2 col-6">
                     <h6 class="text-uppercase small fw-600 text-white mb-3">Produto</h6>
                     <ul class="list-unstyled small">
-                        <li class="mb-2"><a href="@Url.Action("Index", "Home")">Início</a></li>
-                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("ChooseLocation", "Client") : Url.Action("FiscalAddress", "Home"))">Endereço Fiscal</a></li>
+                        <li class="mb-2"><a href="@Url.Action(ActionNames.Index, ControllerNames.Home)">Início</a></li>
+                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action(ActionNames.ChooseLocation, ControllerNames.Client) : Url.Action(ActionNames.FiscalAddress, ControllerNames.Home))">Endereço Fiscal</a></li>
                         @if (enableCoworkingMenus)
                         {
-                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action("Marketplace", "Home") : Url.Action("Rooms", "Home"))">Aluguel de Salas</a></li>
+                        <li class="mb-2"><a href="@(User.Identity?.IsAuthenticated == true && User.IsInRole("Client") ? Url.Action(ActionNames.Marketplace, ControllerNames.Home) : Url.Action(ActionNames.Rooms, ControllerNames.Home))">Aluguel de Salas</a></li>
                         }
-                        <li class="mb-2"><a href="@Url.Action("Partner", "Home")">Quero ser Parceiro</a></li>
+                        <li class="mb-2"><a href="@Url.Action(ActionNames.Partner, ControllerNames.Home)">Quero ser Parceiro</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4 text-md-end">

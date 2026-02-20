@@ -84,7 +84,7 @@
                     <i class="bi bi-shield-check"></i> Auditoria total da reserva #@reservation?.Id
                 </p>
             </div>
-            <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary">
+            <a href="@Url.Action(ActionNames.ReportCoworkingRevenue, ControllerNames.Admin)" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
@@ -96,15 +96,15 @@
             <div class="row g-4">
                 <div class="col-md-3">
                     <h6 class="opacity-75 mb-2">Valor Bruto</h6>
-                    <h2 class="mb-0">R$ @grossValue.ToString("N2")</h2>
+                    <h2 class="mb-0">R$ @grossValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
                 <div class="col-md-3">
                     <h6 class="opacity-75 mb-2">Comissão Aplicada</h6>
-                    <h2 class="mb-0">@commissionPercentage.ToString("F1")% (R$ @commissionAmount.ToString("N2"))</h2>
+                    <h2 class="mb-0">@commissionPercentage.ToString(NumberFormatConstants.OneDecimal)% (R$ @commissionAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 </div>
                 <div class="col-md-3">
                     <h6 class="opacity-75 mb-2">Valor Líquido</h6>
-                    <h2 class="mb-0">R$ @netValue.ToString("N2")</h2>
+                    <h2 class="mb-0">R$ @netValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
                 <div class="col-md-3">
                     <h6 class="opacity-75 mb-2">Status</h6>
@@ -243,7 +243,7 @@
                         </div>
                         <div class="info-row">
                             <div class="info-label">Data da Reserva</div>
-                            <div class="info-value">@reservation?.ReservationDate.ToString("dd/MM/yyyy")</div>
+                            <div class="info-value">@reservation?.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly)</div>
                         </div>
                         @if (reservation?.StartTime != null && reservation?.EndTime != null)
                         {
@@ -273,33 +273,33 @@
                         <div class="info-row">
                             <div class="info-label">Valor Bruto</div>
                             <div class="info-value">
-                                <strong class="text-success">R$ @grossValue.ToString("N2")</strong>
+                                <strong class="text-success">R$ @grossValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                             </div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Comissão Aplicada</div>
                             <div class="info-value">
-                                <strong class="text-warning">@commissionPercentage.ToString("F1")% = R$ @commissionAmount.ToString("N2")</strong>
+                                <strong class="text-warning">@commissionPercentage.ToString(NumberFormatConstants.OneDecimal)% = R$ @commissionAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                             </div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Valor Líquido Repassado</div>
                             <div class="info-value">
-                                <strong class="text-primary">R$ @netValue.ToString("N2")</strong>
+                                <strong class="text-primary">R$ @netValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                             </div>
                         </div>
                         @if (reservation?.ClientConfirmedAt != null)
                         {
                             <div class="info-row">
                                 <div class="info-label">Data da Confirmação do Cliente</div>
-                                <div class="info-value">@reservation.ClientConfirmedAt.Value.ToString("dd/MM/yyyy HH:mm")</div>
+                                <div class="info-value">@reservation.ClientConfirmedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</div>
                             </div>
                         }
                         @if (reservation?.CoworkingConfirmedAt != null)
                         {
                             <div class="info-row">
                                 <div class="info-label">Data da Confirmação do Coworking</div>
-                                <div class="info-value">@reservation.CoworkingConfirmedAt.Value.ToString("dd/MM/yyyy HH:mm")</div>
+                                <div class="info-value">@reservation.CoworkingConfirmedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</div>
                             </div>
                         }
                         @if (transfer != null)
@@ -307,7 +307,7 @@
                             <div class="info-row">
                                 <div class="info-label">Data do Repasse Automático</div>
                                 <div class="info-value">
-                                    @((transfer.ProcessedAt ?? transfer.CreatedAt).ToString("dd/MM/yyyy HH:mm"))
+                                    @((transfer.ProcessedAt ?? transfer.CreatedAt).ToString(DateFormatConstants.DisplayDateAndTime))
                                     @if (transfer.Status == TransferStatus.Completed)
                                     {
                                         <span class="badge bg-success ms-2">
@@ -356,7 +356,7 @@
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div>
                                             <strong>@log.Action</strong>
-                                            <div class="text-muted small">@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</div>
+                                            <div class="text-muted small">@log.ActionDate.ToString(DateFormatConstants.DisplayDateAndTime)</div>
                                         </div>
                                         <span class="badge bg-secondary">@log.EntityType</span>
                                     </div>
@@ -365,11 +365,11 @@
                                         <div class="before-after">
                                             <div>
                                                 <strong class="text-danger">Antes:</strong>
-                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.OldValues ?? "—")</pre>
+                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.OldValues ?? DefaultDisplayStrings.EmptyPlaceholder)</pre>
                                             </div>
                                             <div>
                                                 <strong class="text-success">Depois:</strong>
-                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.NewValues ?? "—")</pre>
+                                                <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.85rem; white-space: pre-wrap;">@(log.NewValues ?? DefaultDisplayStrings.EmptyPlaceholder)</pre>
                                             </div>
                                         </div>
                                     }

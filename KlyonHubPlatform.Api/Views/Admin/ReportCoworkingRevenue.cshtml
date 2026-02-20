@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model List<CoworkingRevenueReportDto>
 @{
-    ViewData["Title"] = "Relatório de Receita por Coworking";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = PageTitles.ReportCoworkingRevenue;
+    Layout = LayoutPaths.Layout;
     
     var totalTransactions = Model?.Sum(x => x.Products?.Sum(p => p.TransactionCount) ?? 0) ?? 0;
     var totalRevenue = Model?.Sum(x => x.TotalRevenue) ?? 0m;
@@ -89,7 +89,7 @@
                     <i class="bi bi-info-circle"></i> Receita por parceiro/coworking de todos os produtos. Clique no produto para ver detalhes.
                 </p>
             </div>
-            <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-secondary">
+            <a href="@Url.Action(ActionNames.Reports, ControllerNames.Admin)" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar aos Relatórios
             </a>
         </div>
@@ -114,7 +114,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-1 opacity-75">Faturamento Bruto</h6>
-                            <div class="kpi-value">R$ @totalRevenue.ToString("N2")</div>
+                            <div class="kpi-value">R$ @totalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</div>
                         </div>
                         <i class="bi bi-cash-stack" style="font-size: 3rem; opacity: 0.3;"></i>
                     </div>
@@ -125,7 +125,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-1 opacity-75">Comissão Total</h6>
-                            <div class="kpi-value">R$ @totalCommission.ToString("N2")</div>
+                            <div class="kpi-value">R$ @totalCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</div>
                         </div>
                         <i class="bi bi-percent" style="font-size: 3rem; opacity: 0.3;"></i>
                     </div>
@@ -136,7 +136,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-1 opacity-75">Valor Líquido Repassado</h6>
-                            <div class="kpi-value">R$ @estimatedNetValue.ToString("N2")</div>
+                            <div class="kpi-value">R$ @estimatedNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</div>
                         </div>
                         <i class="bi bi-arrow-down-circle" style="font-size: 3rem; opacity: 0.3;"></i>
                     </div>
@@ -193,13 +193,13 @@
                                             </span>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-success">R$ @coworking.TotalRevenue.ToString("N2")</strong>
+                                            <strong class="text-success">R$ @coworking.TotalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td class="text-end">
-                                            <span class="text-warning">R$ @coworkingCommission.ToString("N2")</span>
+                                            <span class="text-warning">R$ @coworkingCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-primary">R$ @coworkingNetValue.ToString("N2")</strong>
+                                            <strong class="text-primary">R$ @coworkingNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                     </tr>
                                     
@@ -216,7 +216,7 @@
                                                 : product.ProductType == "AluguelSalas" ? "success" 
                                                 : "info";
                                             
-                                            <tr class="product-row" onclick="window.location.href='@Url.Action("ReportCoworkingProductDetail", "Admin", new { id = coworking.CoworkingId, productType = product.ProductType })'">
+                                            <tr class="product-row" onclick="window.location.href='@Url.Action(ActionNames.ReportCoworkingProductDetail, ControllerNames.Admin, new { id = coworking.CoworkingId, productType = product.ProductType })'">
                                                 <td>
                                                     <i class="bi bi-chevron-right text-muted ms-3"></i>
                                                 </td>
@@ -230,14 +230,14 @@
                                                     <span class="badge bg-secondary">@product.TransactionCount</span>
                                                 </td>
                                                 <td class="text-end">
-                                                    <strong class="text-success">R$ @product.TotalRevenue.ToString("N2")</strong>
+                                                    <strong class="text-success">R$ @product.TotalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                                 </td>
                                                 <td class="text-end">
-                                                    <small class="text-muted">@product.CommissionPercentage.ToString("F2")%</small><br>
-                                                    <span class="text-warning">R$ @productCommission.ToString("N2")</span>
+                                                    <small class="text-muted">@product.CommissionPercentage.ToString(NumberFormatConstants.TwoDecimals)%</small><br>
+                                                    <span class="text-warning">R$ @productCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                                 </td>
                                                 <td class="text-end">
-                                                    <strong class="text-primary">R$ @productNetValue.ToString("N2")</strong>
+                                                    <strong class="text-primary">R$ @productNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                                 </td>
                                             </tr>
                                         }
@@ -248,9 +248,9 @@
                                 <tr>
                                     <td colspan="2"><strong>TOTAL</strong></td>
                                     <td class="text-end"><strong>@totalTransactions</strong></td>
-                                    <td class="text-end"><strong>R$ @totalRevenue.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>R$ @totalCommission.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>R$ @estimatedNetValue.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>R$ @totalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                    <td class="text-end"><strong>R$ @totalCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                    <td class="text-end"><strong>R$ @estimatedNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                 </tr>
                             </tfoot>
                         </table>

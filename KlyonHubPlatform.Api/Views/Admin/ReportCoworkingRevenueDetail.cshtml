@@ -56,7 +56,7 @@
                     <i class="bi bi-info-circle"></i> Aqui você "abre" o coworking: <strong>@(Model?.CoworkingName ?? "Coworking")</strong>
                 </p>
             </div>
-            <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-secondary">
+            <a href="@Url.Action(ActionNames.ReportCoworkingRevenue, ControllerNames.Admin)" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar à lista
             </a>
         </div>
@@ -66,7 +66,7 @@
     <div class="container mb-4">
         <div class="drill-down-card card">
             <div class="card-body p-4">
-                <form method="get" action="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })">
+                <form method="get" action="@Url.Action(ActionNames.ReportCoworkingRevenueDetail, ControllerNames.Admin, new { id = Model?.CoworkingId })">
                     <input type="hidden" name="id" value="@Model?.CoworkingId" />
                     <div class="row g-3 align-items-end">
                         <div class="col-md-3">
@@ -83,7 +83,7 @@
                             </button>
                         </div>
                         <div class="col-md-2">
-                            <a href="@Url.Action("ReportCoworkingRevenueDetail", "Admin", new { id = Model?.CoworkingId })" class="btn btn-outline-secondary w-100">
+                            <a href="@Url.Action(ActionNames.ReportCoworkingRevenueDetail, ControllerNames.Admin, new { id = Model?.CoworkingId })" class="btn btn-outline-secondary w-100">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </a>
                         </div>
@@ -105,19 +105,19 @@
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     <h6 class="mb-1 opacity-75">Faturamento Bruto</h6>
-                    <h2 class="mb-0">R$ @totalRevenue.ToString("N2")</h2>
+                    <h2 class="mb-0">R$ @totalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <h6 class="mb-1 opacity-75">Comissão (@avgCommissionPercentage.ToString("F2")%)</h6>
-                    <h2 class="mb-0">R$ @totalCommission.ToString("N2")</h2>
+                    <h6 class="mb-1 opacity-75">Comissão (@avgCommissionPercentage.ToString(NumberFormatConstants.TwoDecimals)%)</h6>
+                    <h2 class="mb-0">R$ @totalCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                     <h6 class="mb-1 opacity-75">Valor Líquido Repassado</h6>
-                    <h2 class="mb-0">R$ @totalNetValue.ToString("N2")</h2>
+                    <h2 class="mb-0">R$ @totalNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
         </div>
@@ -159,7 +159,7 @@
                                     var commission = r.TotalValue * (r.CommissionPercentage / 100m);
                                     var netValue = r.TotalValue - commission;
                                     var statusClass = r.Status == "Concluída" ? "success" : r.Status == "Confirmada" ? "info" : "warning";
-                                    <tr class="clickable-reservation-row" onclick="window.location.href='@Url.Action("ReservationFinancialDetail", "Admin", new { id = r.ReservationId })'">
+                                    <tr class="clickable-reservation-row" onclick="window.location.href='@Url.Action(ActionNames.ReservationFinancialDetail, ControllerNames.Admin, new { id = r.ReservationId })'">
                                         <td>
                                             <i class="bi bi-chevron-right text-muted"></i>
                                         </td>
@@ -175,21 +175,21 @@
                                             </span>
                                         </td>
                                         <td>
-                                            @r.Date.ToString("dd/MM/yyyy")
+                                            @r.Date.ToString(DateFormatConstants.DisplayDateOnly)
                                             @if (r.Date.TimeOfDay.Ticks > 0)
                                             {
                                                 <br><small class="text-muted">@r.Date.ToString("HH:mm")</small>
                                             }
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-success">R$ @r.TotalValue.ToString("N2")</strong>
+                                            <strong class="text-success">R$ @r.TotalValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td class="text-end">
-                                            <span class="text-warning">@r.CommissionPercentage.ToString("F2")%</span><br>
-                                            <small class="text-muted">R$ @commission.ToString("N2")</small>
+                                            <span class="text-warning">@r.CommissionPercentage.ToString(NumberFormatConstants.TwoDecimals)%</span><br>
+                                            <small class="text-muted">R$ @commission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-primary">R$ @netValue.ToString("N2")</strong>
+                                            <strong class="text-primary">R$ @netValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td>
                                             <span class="badge bg-@statusClass">
@@ -210,9 +210,9 @@
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="5"><strong>TOTAL</strong></td>
-                                    <td class="text-end"><strong>R$ @totalRevenue.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>@avgCommissionPercentage.ToString("F2")%</strong><br><small>R$ @totalCommission.ToString("N2")</small></td>
-                                    <td class="text-end"><strong>R$ @totalNetValue.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>R$ @totalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                    <td class="text-end"><strong>@avgCommissionPercentage.ToString(NumberFormatConstants.TwoDecimals)%</strong><br><small>R$ @totalCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small></td>
+                                    <td class="text-end"><strong>R$ @totalNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>

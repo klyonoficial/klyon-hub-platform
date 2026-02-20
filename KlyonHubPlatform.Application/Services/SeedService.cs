@@ -348,7 +348,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.SmtpServer.ToConfigKey(),
                         Value = "smtp.gmail.com",
                         Description = "Servidor SMTP para envio de e-mails",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -357,7 +357,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.SmtpPort.ToConfigKey(),
                         Value = "587",
                         Description = "Porta do servidor SMTP",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -366,7 +366,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.SmtpUsername.ToConfigKey(),
                         Value = "klyonoficial@gmail.com",
                         Description = "Usuário do servidor SMTP (Gmail)",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -375,7 +375,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.SmtpPassword.ToConfigKey(),
                         Value = "yxgb vizz jmxk veci",
                         Description = "Senha do servidor SMTP (App Password do Gmail)",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -384,7 +384,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.FromEmail.ToConfigKey(),
                         Value = "noreply@klyon.com.br",
                         Description = "E-mail remetente padrão",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -393,7 +393,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.FromName.ToConfigKey(),
                         Value = "Klyon Endereço Fiscal",
                         Description = "Nome do remetente",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -402,7 +402,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.EnableSsl.ToConfigKey(),
                         Value = StringBooleanValue.True,
                         Description = "Habilitar SSL/TLS para conexão SMTP",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -411,7 +411,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = EmailConfigKey.ReplyToEmail.ToConfigKey(),
                         Value = "",
                         Description = "E-mail para resposta (Reply-To). Deixe vazio para usar o FromEmail",
-                        Category = "Email",
+                        Category = SystemConfigurationCategoryKeys.Email,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -420,7 +420,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AppSettingsConfigKey.BaseUrl.ToConfigKey(),
                         Value = "https://localhost:5001",
                         Description = "URL base da aplicação (usado em links de email)",
-                        Category = "General",
+                        Category = SystemConfigurationCategoryKeys.General,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -430,7 +430,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PaymentConfigKey.Provider.ToConfigKey(),
                         Value = "Asaas",
                         Description = "Provedor de pagamento (Asaas é o fixo)",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -439,7 +439,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AsaasConfigKey.ApiKey.ToConfigKey(),
                         Value = "",
                         Description = "API Key do Asaas (painel Asaas > Integrações)",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -448,7 +448,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AsaasConfigKey.UseSandbox.ToConfigKey(),
                         Value = StringBooleanValue.True,
                         Description = "Usar ambiente sandbox do Asaas (true/false)",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -457,7 +457,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AsaasConfigKey.WebhookToken.ToConfigKey(),
                         Value = "",
                         Description = "Token para validação de webhooks do Asaas (opcional)",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -466,7 +466,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PagBankConfigKey.AccessToken.ToConfigKey(),
                         Value = "",
                         Description = "[Legado] Token da API PagBank",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -475,7 +475,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PagBankConfigKey.UseSandbox.ToConfigKey(),
                         Value = StringBooleanValue.True,
                         Description = "[Legado] Sandbox PagBank",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -484,7 +484,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PagBankConfigKey.WebhookSecret.ToConfigKey(),
                         Value = "",
                         Description = "[Legado] Secret webhooks PagBank",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -493,7 +493,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PaymentConfigKey.DefaultCurrency.ToConfigKey(),
                         Value = "BRL",
                         Description = "Moeda padrão para pagamentos",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -503,7 +503,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = StorageConfigKeys.Provider,
                         Value = OracleStorageDefaults.ProviderName,
                         Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -513,7 +513,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.Namespace.ToConfigKey(),
                         Value = "",
                         Description = OracleStorageConfigKey.Namespace.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -522,7 +522,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.Region.ToConfigKey(),
                         Value = OracleStorageDefaults.Region,
                         Description = OracleStorageConfigKey.Region.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -531,7 +531,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.BucketName.ToConfigKey(),
                         Value = "",
                         Description = OracleStorageConfigKey.BucketName.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -540,7 +540,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.AccessKeyId.ToConfigKey(),
                         Value = "",
                         Description = OracleStorageConfigKey.AccessKeyId.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -549,7 +549,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.SecretAccessKey.ToConfigKey(),
                         Value = "",
                         Description = OracleStorageConfigKey.SecretAccessKey.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -558,7 +558,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.ContractsFolder.ToConfigKey(),
                         Value = OracleStorageDefaults.ContractsFolder,
                         Description = OracleStorageConfigKey.ContractsFolder.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -567,7 +567,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = OracleStorageConfigKey.PhotosFolder.ToConfigKey(),
                         Value = OracleStorageDefaults.PhotosFolder,
                         Description = OracleStorageConfigKey.PhotosFolder.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -577,7 +577,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.BucketName.ToConfigKey(),
                         Value = "klyon-hub-platform-documents",
                         Description = "Nome do bucket S3 para armazenamento de documentos",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -586,7 +586,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.Region.ToConfigKey(),
                         Value = AwsS3Defaults.Region,
                         Description = "Região do bucket S3",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -595,7 +595,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.AccessKeyId.ToConfigKey(),
                         Value = "your-access-key-id",
                         Description = "Access Key ID da AWS",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -604,7 +604,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.SecretAccessKey.ToConfigKey(),
                         Value = "your-secret-access-key",
                         Description = "Secret Access Key da AWS",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -613,7 +613,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.ContractsFolder.ToConfigKey(),
                         Value = AwsS3Defaults.ContractsFolder,
                         Description = "Pasta no bucket para armazenar contratos",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -622,7 +622,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = AwsS3ConfigKey.PhotosFolder.ToConfigKey(),
                         Value = AwsS3Defaults.PhotosFolder,
                         Description = "Pasta no bucket para armazenar fotos dos coworkings",
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -632,7 +632,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.Host.ToConfigKey(),
                         Value = "187.110.161.110",
                         Description = FtpConfigKey.Host.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -641,7 +641,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.Port.ToConfigKey(),
                         Value = FtpDefaults.PortString,
                         Description = FtpConfigKey.Port.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -650,7 +650,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.Username.ToConfigKey(),
                         Value = "gestorhub",
                         Description = FtpConfigKey.Username.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -659,7 +659,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.Password.ToConfigKey(),
                         Value = "F@z3rd@rC3rt0",
                         Description = FtpConfigKey.Password.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -668,7 +668,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.RootPath.ToConfigKey(),
                         Value = "/documents",
                         Description = FtpConfigKey.RootPath.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -677,7 +677,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.ContractsFolder.ToConfigKey(),
                         Value = FtpDefaults.ContractsFolder,
                         Description = FtpConfigKey.ContractsFolder.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -686,7 +686,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.PhotosFolder.ToConfigKey(),
                         Value = "coworking-photos",
                         Description = FtpConfigKey.PhotosFolder.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -695,7 +695,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.UsePassiveMode.ToConfigKey(),
                         Value = FtpDefaults.UsePassive,
                         Description = FtpConfigKey.UsePassiveMode.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -704,7 +704,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FtpConfigKey.UseSSL.ToConfigKey(),
                         Value = FtpDefaults.UseSsl,
                         Description = FtpConfigKey.UseSSL.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -714,7 +714,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = D4SignConfigKeys.TokenAPI,
                         Value = "",
                         Description = "Token da API D4Sign (menu Dev API na conta D4Sign)",
-                        Category = "D4Sign",
+                        Category = SystemConfigurationCategoryKeys.D4Sign,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -723,7 +723,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = D4SignConfigKeys.CryptKey,
                         Value = "",
                         Description = "Chave criptográfica D4Sign (obrigatória se habilitada na conta)",
-                        Category = "D4Sign",
+                        Category = SystemConfigurationCategoryKeys.D4Sign,
                         IsSensitive = true,
                         IsEncrypted = false
                     },
@@ -732,7 +732,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = D4SignConfigKeys.UseSandbox,
                         Value = StringBooleanValue.True,
                         Description = "Usar ambiente sandbox D4Sign (true/false). true = testes; false = produção.",
-                        Category = "D4Sign",
+                        Category = SystemConfigurationCategoryKeys.D4Sign,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -741,7 +741,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = D4SignConfigKeys.SafeUuid,
                         Value = "",
                         Description = "UUID do cofre D4Sign onde os contratos serão armazenados (GET /safes)",
-                        Category = "D4Sign",
+                        Category = SystemConfigurationCategoryKeys.D4Sign,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -750,7 +750,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = UploadConfigKey.MaxPhotoSizeMB.ToConfigKey(),
                         Value = "5",
                         Description = "Tamanho máximo por foto (MB) em uploads: galeria do coworking, fotos de sócios, salas, logo do cliente. Ex.: 5 ou 10.",
-                        Category = "Upload",
+                        Category = SystemConfigurationCategoryKeys.Upload,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -759,7 +759,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PlatformConfigKey.CommissionPercentage.ToConfigKey(),
                         Value = "20",
                         Description = "Percentual de comissão da plataforma sobre reservas (ex: 20 = 20%). Alterável em Configurações do Sistema.",
-                        Category = "Platform",
+                        Category = SystemConfigurationCategoryKeys.Platform,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -768,7 +768,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(),
                         Value = StringBooleanValue.False,
                         Description = "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false.",
-                        Category = "Features",
+                        Category = SystemConfigurationCategoryKeys.Features,
                         IsSensitive = false,
                         IsEncrypted = false
                     },
@@ -777,7 +777,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = PaymentConfigKey.CreditCardFeePercentage.ToConfigKey(),
                         Value = "10",
                         Description = "Percentual adicional a ser cobrado quando o pagamento for realizado com cartão de crédito. Exemplo: 2.5 para 2,5%.",
-                        Category = "Payment",
+                        Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     }

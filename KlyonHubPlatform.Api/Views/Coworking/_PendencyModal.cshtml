@@ -22,7 +22,7 @@
                 </div>
             </div>
             <div class="modal-footer bg-light">
-                <a href="@Url.Action("Profile", "Coworking")" class="btn btn-outline-primary" id="pendencyModalProfileLink">
+                <a href="@Url.Action(ActionNames.Profile, ControllerNames.Coworking)" class="btn btn-outline-primary" id="pendencyModalProfileLink">
                     <i class="bi bi-person-badge"></i> Meu Perfil
                 </a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -34,11 +34,11 @@
 <script>
 (function () {
     var pendencyModalEl = document.getElementById('pendencyModal');
-    var pendencyDetailsUrl = '@Url.Action("GetPendencyDetails", "Coworking")';
+    var pendencyDetailsUrl = '@Url.Action(ActionNames.GetPendencyDetails, ControllerNames.Coworking)';
 
     window.openPendencyModal = function (scrollToSection) {
         if (!pendencyModalEl) {
-            window.location.href = '@Url.Action("Profile", "Coworking")';
+            window.location.href = '@Url.Action(ActionNames.Profile, ControllerNames.Coworking)';
             return;
         }
         var modal = bootstrap.Modal.getOrCreateInstance(pendencyModalEl);

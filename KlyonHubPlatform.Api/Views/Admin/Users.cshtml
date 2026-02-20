@@ -13,7 +13,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("Users", "Admin")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.Users, ControllerNames.Admin)" class="row g-3">
             <input type="hidden" name="page" value="1" />
             <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
@@ -50,7 +50,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("Users", "Admin")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.Users, ControllerNames.Admin)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -130,21 +130,21 @@
                                         <i class="bi bi-x-circle text-danger"></i>
                                     }
                                 </td>
-                                <td>@user.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                <td>@user.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="@Url.Action("ViewUser", "Admin", new { id = user.Id })" class="btn btn-sm btn-info" title="Visualizar">
+                                        <a href="@Url.Action(ActionNames.ViewUser, ControllerNames.Admin, new { id = user.Id })" class="btn btn-sm btn-info" title="Visualizar">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <a href="@Url.Action("EditUser", "Admin", new { id = user.Id })" class="btn btn-sm btn-warning" title="Editar">
+                                        <a href="@Url.Action(ActionNames.EditUser, ControllerNames.Admin, new { id = user.Id })" class="btn btn-sm btn-warning" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="@Url.Action("ViewUser", "Admin", new { id = user.Id })#resetPassword" class="btn btn-sm btn-danger" title="Resetar Senha">
+                                        <a href="@Url.Action(ActionNames.ViewUser, ControllerNames.Admin, new { id = user.Id })#resetPassword" class="btn btn-sm btn-danger" title="Resetar Senha">
                                             <i class="bi bi-key"></i>
                                         </a>
                                         @if (!user.EmailVerified)
                                         {
-                                            <form method="post" action="@Url.Action("VerifyUserEmail", "Admin", new { id = user.Id })" class="d-inline">
+                                            <form method="post" action="@Url.Action(ActionNames.VerifyUserEmail, ControllerNames.Admin, new { id = user.Id })" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-success" title="Verificar Email" onclick="event.preventDefault(); handleVerifyEmailUser(this);">
                                                     <i class="bi bi-envelope-check"></i>
@@ -167,7 +167,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 
                                     status = ViewBag.Status, 
@@ -188,7 +188,7 @@
                         @if (startPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 
                                     status = ViewBag.Status, 
@@ -210,7 +210,7 @@
                         @for (int i = startPage; i <= endPage; i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 
                                     status = ViewBag.Status, 
@@ -232,7 +232,7 @@
                                 </li>
                             }
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 
                                     status = ViewBag.Status, 
@@ -248,7 +248,7 @@
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Users", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 
                                     status = ViewBag.Status, 

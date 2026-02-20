@@ -59,13 +59,13 @@
                     </tr>
                     <tr>
                         <th>Data de Cadastro:</th>
-                        <td>@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                     </tr>
                     @if (Model.UpdatedAt.HasValue)
                     {
                         <tr>
                             <th>Última Atualização:</th>
-                            <td>@Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@Model.UpdatedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                         </tr>
                     }
                 </table>

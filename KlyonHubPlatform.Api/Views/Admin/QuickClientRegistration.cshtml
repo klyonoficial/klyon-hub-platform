@@ -5,7 +5,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-person-plus-fill"></i> Cadastro Rápido de Cliente com Endereço Fiscal</h2>
-    <a href="@Url.Action("Contracts", "Admin")" class="btn btn-outline-secondary">
+    <a href="@Url.Action(ActionNames.Contracts, ControllerNames.Admin)" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Voltar para Contratos
     </a>
 </div>
@@ -17,7 +17,7 @@
                 <h5 class="mb-0"><i class="bi bi-person"></i> Dados do Cliente</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="@Url.Action("QuickClientRegistration", "Admin")" id="clientForm">
+                <form method="post" action="@Url.Action(ActionNames.QuickClientRegistration, ControllerNames.Admin)" id="clientForm">
                     @Html.AntiForgeryToken()
                     
                     <div class="row">
@@ -138,8 +138,8 @@
                                             data-location="@locationLabel" 
                                             data-coworking="@coworkingName" 
                                             data-vacancies="@vacancies"
-                                            data-base-price="@addr.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
-                                        @coworkingName - @addr.Address, @addr.Number (@locationLabel) - R$ @addr.BasePrice.ToString("F2")
+                                            data-base-price="@addr.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)">
+                                        @coworkingName - @addr.Address, @addr.Number (@locationLabel) - R$ @addr.BasePrice.ToString(NumberFormatConstants.TwoDecimals)
                                         @if (vacancies <= 2)
                                         {
                                             <text> - Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")</text>

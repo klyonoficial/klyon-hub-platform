@@ -39,7 +39,7 @@
                     </dd>
 
                     <dt class="col-sm-4">Valor:</dt>
-                    <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4></dd>
+                    <dd class="col-sm-8"><h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4></dd>
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
@@ -52,7 +52,7 @@
                                 <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
                                 @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                 {
-                                    <span class="text-muted ms-1">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</span>
+                                    <span class="text-muted ms-1">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                 }
                                 break;
                             case PaymentMethod.BankTransfer:
@@ -62,10 +62,10 @@
                     </dd>
 
                     <dt class="col-sm-4">Data de Vencimento:</dt>
-                    <dd class="col-sm-8">@Model.DueDate.ToString("dd/MM/yyyy")</dd>
+                    <dd class="col-sm-8">@Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
 
                     <dt class="col-sm-4">Data de Envio:</dt>
-                    <dd class="col-sm-8">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</dd>
+                    <dd class="col-sm-8">@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</dd>
                 </dl>
             </div>
         </div>

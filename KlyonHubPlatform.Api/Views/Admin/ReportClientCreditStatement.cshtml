@@ -130,7 +130,7 @@
                      onclick="filterStatementTable('all', this)"
                      title="Clique para ver todos os lançamentos">
                     <h6>Saldo Atual</h6>
-                    <h2>R$ @currentBalance.ToString("N2")</h2>
+                    <h2>R$ @currentBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                     <small class="opacity-75">disponível</small>
                 </div>
             </div>
@@ -141,7 +141,7 @@
                      onclick="filterStatementTable('entrada', this)"
                      title="Clique para ver apenas entradas (pagamentos)">
                     <h6>Total Recebido</h6>
-                    <h2>R$ @totalEntries.ToString("N2")</h2>
+                    <h2>R$ @totalEntries.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                     <small class="opacity-75">total pago</small>
                 </div>
             </div>
@@ -152,7 +152,7 @@
                      onclick="filterStatementTable('saida', this)"
                      title="Clique para ver apenas saídas (reservas)">
                     <h6>Total Gasto</h6>
-                    <h2>R$ @totalExits.ToString("N2")</h2>
+                    <h2>R$ @totalExits.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                     <small class="opacity-75">em reservas</small>
                 </div>
             </div>
@@ -163,7 +163,7 @@
                      onclick="filterStatementTable('all', this)"
                      title="Clique para ver todos os lançamentos">
                     <h6>Saldo Disponível</h6>
-                    <h2>R$ @currentBalance.ToString("N2")</h2>
+                    <h2>R$ @currentBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                     <small class="opacity-75">saldo atual</small>
                 </div>
             </div>
@@ -222,7 +222,7 @@
                                         data-reservation-id="@(m.ReservationId?.ToString() ?? "")"
                                         onclick="showMovementDetails(@(m.PaymentId.HasValue ? m.PaymentId.Value.ToString() : "null"), @(m.ReservationId.HasValue ? m.ReservationId.Value.ToString() : "null"))"
                                         style="cursor: pointer;">
-                                        <td>@m.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@m.Date.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                         <td>@m.Description</td>
                                         <td class="text-center">
                                             @if (m.Type == "Entrada")
@@ -240,12 +240,12 @@
                                         </td>
                                         <td class="text-end">
                                             <strong class="@(m.Type == "Entrada" ? "text-success" : "text-danger")">
-                                                @(m.Type == "Entrada" ? "+" : "-")R$ @m.Amount.ToString("N2")
+                                                @(m.Type == "Entrada" ? "+" : "-")R$ @m.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </strong>
                                         </td>
                                         <td class="text-end">
                                             <strong class="@(runningBalance >= 0 ? "text-success" : "text-danger")">
-                                                R$ @runningBalance.ToString("N2")
+                                                R$ @runningBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </strong>
                                         </td>
                                     </tr>

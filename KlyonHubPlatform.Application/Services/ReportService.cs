@@ -1,4 +1,6 @@
+using AutoMapper;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.Mappers;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -11,10 +13,12 @@ namespace KlyonHubPlatform.Application.Services
     public class ReportService : IReportService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IMapper _mapper;
 
-        public ReportService(ApplicationDbContext context)
+        public ReportService(ApplicationDbContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         public async Task<DashboardViewModel> GetDashboardDataAsync()
@@ -827,18 +831,9 @@ namespace KlyonHubPlatform.Application.Services
                 .ThenByDescending(r => r.StartTime)
                 .ToListAsync();
 
-            var res = reservations.Select(r => new CoworkingReservationDetailRowDto
-            {
-                ReservationId = r.Id,
-                Date = r.ReservationDate,
-                RoomType = r.RoomType,
-                RoomTypeDisplay = r.RoomType == "Shared" ? "Sala compartilhada" : r.RoomType == "Private" ? "Sala privativa" : r.RoomType == "Auditorium" ? "Auditório" : r.RoomType,
-                TotalValue = r.TotalValue,
-                CreditsUsed = 0, // Não usamos mais créditos
-                ClientName = r.Client == null ? "Cliente não identificado" : (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "N/A"),
-                Status = r.Status == ReservationStatus.Completed ? "Concluída" : "Confirmada",
-                CommissionPercentage = defaultCommissionPercentage
-            }).ToList();
+            var res = _mapper.Map<List<CoworkingReservationDetailRowDto>>(reservations);
+            foreach (var row in res)
+                row.CommissionPercentage = defaultCommissionPercentage;
 
             return new CoworkingRevenueDetailDto
             {

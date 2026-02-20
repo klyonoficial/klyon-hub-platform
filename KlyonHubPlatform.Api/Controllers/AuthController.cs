@@ -37,11 +37,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToDashboardByRole(role, returnUrl);
             }
 
-            ViewData["ReturnUrl"] = returnUrl;
+            ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
             // Exibir mensagem de sucesso vinda do redirect (ex.: após verificar email)
             if (TempData[SuccessMessage.TempDataKey] != null)
             {
-                ViewData["Success"] = TempData[SuccessMessage.TempDataKey];
+                ViewData[ViewDataKeys.Success] = TempData[SuccessMessage.TempDataKey];
             }
             return View();
         }
@@ -58,14 +58,14 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
             {
-                ViewData["Error"] = "Email e senha são obrigatórios";
+                ViewData[ViewDataKeys.Error] = "Email e senha são obrigatórios";
                 return View();
             }
 
             var user = await _authService.AuthenticateAsync(email, password);
             if (user == null)
             {
-                ViewData["Error"] = "Email ou senha inválidos";
+                ViewData[ViewDataKeys.Error] = "Email ou senha inválidos";
                 return View();
             }
 
@@ -85,10 +85,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
-            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
 
-            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
 
             HttpContext.Session.SetString("UserId", user.Id.ToString());
             HttpContext.Session.SetString("UserEmail", user.Email);
@@ -130,7 +130,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (role == RoleNames.CoworkingPartner)
                 ViewBag.PreSelectedRole = RoleNames.CoworkingPartner;
-            ViewData["ReturnUrl"] = returnUrl;
+            ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
             return View();
         }
 
@@ -143,8 +143,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             void PreserveRegisterForm(string? err = null)
             {
-                if (err != null) ViewData["Error"] = err;
-                ViewData["ReturnUrl"] = returnUrl;
+                if (err != null) ViewData[ViewDataKeys.Error] = err;
+                ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
                 ViewBag.RegisterFullName = fullName;
                 ViewBag.RegisterEmail = email;
                 ViewBag.RegisterRole = role;
@@ -175,15 +175,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 return View();
             }
 
-            ViewData["Success"] = "Conta criada com sucesso! Verifique seu email para ativar a conta.";
-            ViewData["ReturnUrl"] = returnUrl;
+            ViewData[ViewDataKeys.Success] = "Conta criada com sucesso! Verifique seu email para ativar a conta.";
+            ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
             return View(ViewNames.Login);
         }
 
         [HttpPost]
         public async Task<IActionResult> Logout(CancellationToken cancellationToken = default)
         {
-            await HttpContext.SignOutAsync("Cookies");
+            await HttpContext.SignOutAsync(AuthConstants.CookieScheme);
             HttpContext.Session.Clear();
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.LoggedOut;
             return RedirectToAction(ActionNames.Index, ControllerNames.Home);
@@ -223,19 +223,19 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (string.IsNullOrEmpty(email))
             {
-                ViewData["Error"] = "Email é obrigatório.";
+                ViewData[ViewDataKeys.Error] = "Email é obrigatório.";
                 return View();
             }
 
             var success = await _authService.RequestPasswordResetAsync(email);
             if (success)
             {
-                ViewData["Success"] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha em alguns minutos.";
+                ViewData[ViewDataKeys.Success] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha em alguns minutos.";
             }
             else
             {
                 // Por segurança, não revelar se o email existe
-                ViewData["Success"] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.";
+                ViewData[ViewDataKeys.Success] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.";
             }
             return View();
         }
@@ -251,7 +251,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (string.IsNullOrEmpty(token))
             {
-                ViewData["Error"] = "Token de redefinição não fornecido.";
+                ViewData[ViewDataKeys.Error] = "Token de redefinição não fornecido.";
                 return View();
             }
             return View();
@@ -262,30 +262,30 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (string.IsNullOrEmpty(token))
             {
-                ViewData["Error"] = "Token de redefinição não fornecido.";
+                ViewData[ViewDataKeys.Error] = "Token de redefinição não fornecido.";
                 return View();
             }
 
             if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6)
             {
-                ViewData["Error"] = "A senha deve ter no mínimo 6 caracteres.";
+                ViewData[ViewDataKeys.Error] = "A senha deve ter no mínimo 6 caracteres.";
                 return View();
             }
 
             if (newPassword != confirmPassword)
             {
-                ViewData["Error"] = "As senhas não coincidem.";
+                ViewData[ViewDataKeys.Error] = "As senhas não coincidem.";
                 return View();
             }
 
             var success = await _authService.ResetPasswordAsync(token, newPassword);
             if (success)
             {
-                ViewData["Success"] = "Senha redefinida com sucesso! Você já pode fazer login com sua nova senha.";
+                ViewData[ViewDataKeys.Success] = "Senha redefinida com sucesso! Você já pode fazer login com sua nova senha.";
             }
             else
             {
-                ViewData["Error"] = "Token inválido ou expirado. Solicite um novo link de redefinição.";
+                ViewData[ViewDataKeys.Error] = "Token inválido ou expirado. Solicite um novo link de redefinição.";
             }
 
             return View();
@@ -300,8 +300,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 var success = await _authService.VerifyEmailAsync(token);
                 if (success)
                 {
-                    ViewData["Success"] = "Email verificado com sucesso! Você já pode fazer login.";
-                    ViewData["ReturnUrl"] = returnUrl;
+                    ViewData[ViewDataKeys.Success] = "Email verificado com sucesso! Você já pode fazer login.";
+                    ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
                     // Redirecionar para Login com returnUrl para que, após login, o usuário continue (ex.: contratação)
                     if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     {
@@ -311,14 +311,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else
                 {
-                    ViewData["Error"] = "Token inválido ou expirado.";
+                    ViewData[ViewDataKeys.Error] = "Token inválido ou expirado.";
                 }
             }
             else
             {
-                ViewData["Message"] = "Token de verificação não fornecido.";
+                ViewData[ViewDataKeys.Message] = "Token de verificação não fornecido.";
             }
-            ViewData["ReturnUrl"] = returnUrl;
+            ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
             return View();
         }
 
@@ -329,8 +329,8 @@ namespace KlyonHubPlatform.Api.Controllers
             var success = await _authService.VerifyEmailAsync(token);
             if (success)
             {
-                ViewData["Success"] = "Email verificado com sucesso! Você já pode fazer login.";
-                ViewData["ReturnUrl"] = returnUrl;
+                ViewData[ViewDataKeys.Success] = "Email verificado com sucesso! Você já pode fazer login.";
+                ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
                 if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                 {
                     TempData[SuccessMessage.TempDataKey] = SuccessMessage.EmailVerifiedLogin;
@@ -339,9 +339,9 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             else
             {
-                ViewData["Error"] = "Token inválido ou expirado.";
+                ViewData[ViewDataKeys.Error] = "Token inválido ou expirado.";
             }
-            ViewData["ReturnUrl"] = returnUrl;
+            ViewData[ViewDataKeys.ReturnUrl] = returnUrl;
             return View(ViewNames.VerifyEmail);
         }
 
@@ -362,7 +362,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (string.IsNullOrEmpty(email))
             {
-                ViewData["Error"] = "Email é obrigatório.";
+                ViewData[ViewDataKeys.Error] = "Email é obrigatório.";
                 return View();
             }
 
@@ -370,13 +370,13 @@ namespace KlyonHubPlatform.Api.Controllers
             if (user == null)
             {
                 // Por segurança, não revelar se o email existe ou não
-                ViewData["Success"] = "Se o email existir em nosso sistema, você receberá um novo link de verificação.";
+                ViewData[ViewDataKeys.Success] = "Se o email existir em nosso sistema, você receberá um novo link de verificação.";
                 return View();
             }
 
             if (user.EmailVerified)
             {
-                ViewData["Message"] = "Este email já está verificado. Você pode fazer login normalmente.";
+                ViewData[ViewDataKeys.Message] = "Este email já está verificado. Você pode fazer login normalmente.";
                 return View();
             }
 
@@ -391,16 +391,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 
                 if (sent)
                 {
-                    ViewData["Success"] = "Email de verificação reenviado com sucesso! Verifique sua caixa de entrada.";
+                    ViewData[ViewDataKeys.Success] = "Email de verificação reenviado com sucesso! Verifique sua caixa de entrada.";
                 }
                 else
                 {
-                    ViewData["Error"] = "Erro ao enviar email. Verifique as configurações de email no appsettings.json ou entre em contato com o administrador.";
+                    ViewData[ViewDataKeys.Error] = "Erro ao enviar email. Verifique as configurações de email no appsettings.json ou entre em contato com o administrador.";
                 }
             }
             catch (Exception ex)
             {
-                ViewData["Error"] = $"Erro ao enviar email: {ex.Message}";
+                ViewData[ViewDataKeys.Error] = $"Erro ao enviar email: {ex.Message}";
             }
 
             return View();
@@ -445,10 +445,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
-            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
 
-            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
 
             HttpContext.Session.SetString("UserId", user.Id.ToString());
             HttpContext.Session.SetString("UserEmail", user.Email);
@@ -501,19 +501,19 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
             {
-                ViewData["Error"] = "Todos os campos são obrigatórios.";
+                ViewData[ViewDataKeys.Error] = "Todos os campos são obrigatórios.";
                 return View();
             }
 
             if (newPassword != confirmPassword)
             {
-                ViewData["Error"] = "As senhas não coincidem.";
+                ViewData[ViewDataKeys.Error] = "As senhas não coincidem.";
                 return View();
             }
 
             if (newPassword.Length < 6)
             {
-                ViewData["Error"] = "A senha deve ter no mínimo 6 caracteres.";
+                ViewData[ViewDataKeys.Error] = "A senha deve ter no mínimo 6 caracteres.";
                 return View();
             }
 
@@ -522,14 +522,14 @@ namespace KlyonHubPlatform.Api.Controllers
             
             if (user == null)
             {
-                ViewData["Error"] = "Usuário não encontrado.";
+                ViewData[ViewDataKeys.Error] = "Usuário não encontrado.";
                 return View();
             }
 
             // Verificar senha atual
             if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
             {
-                ViewData["Error"] = "Senha atual incorreta.";
+                ViewData[ViewDataKeys.Error] = "Senha atual incorreta.";
                 return View();
             }
 

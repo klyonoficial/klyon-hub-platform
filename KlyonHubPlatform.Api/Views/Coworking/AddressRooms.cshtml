@@ -8,7 +8,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-door-open"></i> Salas — @(address?.Address), @(address?.Number)</h2>
-    <a href="@Url.Action("Products", "Coworking")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Products, ControllerNames.Coworking)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -51,7 +51,7 @@
                                 <td>
                                     @if (mainPhoto != null)
                                     {
-                                        <img src="@Url.Action("GetRoomPhoto", "Coworking", new { photoId = mainPhoto.Id })" alt="" class="rounded" style="width:48px;height:48px;object-fit:cover;">
+                                        <img src="@Url.Action(ActionNames.GetRoomPhoto, ControllerNames.Coworking, new { photoId = mainPhoto.Id })" alt="" class="rounded" style="width:48px;height:48px;object-fit:cover;">
                                     }
                                     else
                                     {
@@ -73,7 +73,7 @@
                                             data-room-id="@r.Id" data-name="@r.Name" data-room-type="@r.RoomType" data-capacity="@r.Capacity" data-credits="@r.CreditsPerHour" data-active="@(r.IsActive ? "true" : "false")" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <form method="post" action="@Url.Action("DeleteRoom", "Coworking")" style="display:inline;" onsubmit="event.preventDefault(); handleDeleteRoom(this); return false;">
+                                    <form method="post" action="@Url.Action(ActionNames.DeleteRoom, ControllerNames.Coworking)" style="display:inline;" onsubmit="event.preventDefault(); handleDeleteRoom(this); return false;">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="roomId" value="@r.Id" />
                                         <input type="hidden" name="addressId" value="@address.Id" />
@@ -100,7 +100,7 @@
                 <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Adicionar sala</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" action="@Url.Action("AddRoom", "Coworking")" enctype="multipart/form-data">
+            <form method="post" action="@Url.Action(ActionNames.AddRoom, ControllerNames.Coworking)" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="addressId" value="@address?.Id" />
                 <div class="modal-body">
@@ -149,7 +149,7 @@
                 <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar sala</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" action="@Url.Action("UpdateRoom", "Coworking")" enctype="multipart/form-data" id="editRoomForm">
+            <form method="post" action="@Url.Action(ActionNames.UpdateRoom, ControllerNames.Coworking)" enctype="multipart/form-data" id="editRoomForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="roomId" id="editRoomId" value="" />
                 <input type="hidden" name="addressId" value="@address?.Id" />

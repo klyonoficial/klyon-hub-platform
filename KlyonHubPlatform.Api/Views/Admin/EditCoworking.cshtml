@@ -9,12 +9,12 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Editar Coworking - @Model.Name</h2>
-    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
 
-<form method="post" action="@Url.Action("UpdateCoworking", "Admin")" id="editCoworkingForm">
+<form method="post" action="@Url.Action(ActionNames.UpdateCoworking, ControllerNames.Admin)" id="editCoworkingForm">
     @Html.AntiForgeryToken()
     <input type="hidden" name="Id" value="@Model.Id" />
 
@@ -86,7 +86,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Data de Cadastro</label>
-                            <p class="form-control-plaintext">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                            <p class="form-control-plaintext">@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</p>
                         </div>
                     </div>
                 </div>
@@ -260,7 +260,7 @@
                                             data-city="@(address.City ?? "")"
                                             data-state="@(address.State ?? "")"
                                             data-zipcode="@(address.ZipCode ?? "")"
-                                            data-baseprice="@address.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-baseprice="@address.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
                                             data-isavailable="@(address.IsAvailable ? "Sim" : "Não")"
                                             data-addressstatus="@label"
                                             data-maxcontracts="@address.MaxContracts"
@@ -269,13 +269,13 @@
                                             data-approvedfiscalcapacity="@address.ApprovedFiscalCapacity"
                                             data-requestedmaxcontracts="@address.RequestedMaxContracts"
                                             data-offerssharedroom="@(address.OffersSharedRoom ? "Sim" : "Não")"
-                                            data-sharedroomprice="@(address.SharedRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "—")"
-                                            data-sharedroommaxseats="@(address.SharedRoomMaxSeats?.ToString() ?? "—")"
+                                            data-sharedroomprice="@(address.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-sharedroommaxseats="@(address.SharedRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-offersprivateroom="@(address.OffersPrivateRoom ? "Sim" : "Não")"
-                                            data-privateroomprice="@(address.PrivateRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "—")"
-                                            data-privateroommaxseats="@(address.PrivateRoomMaxSeats?.ToString() ?? "—")"
-                                            data-createdat="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
-                                            data-updatedat="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")">
+                                            data-privateroomprice="@(address.PrivateRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-privateroommaxseats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-createdat="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
+                                            data-updatedat="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)">
                                             <td>@address.Address, @address.Number</td>
                                             <td>@address.City</td>
                                             <td>@address.State</td>
@@ -317,7 +317,7 @@
                             {
                                 <div class="col-md-3 mb-3">
                                     <div class="card">
-                                        <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
+                                        <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
                                         @if (!string.IsNullOrEmpty(photo.Description))
                                         {
                                             <div class="card-body">
@@ -348,7 +348,7 @@
                     <p class="text-muted small mb-2">
                         <i class="bi bi-info-circle"></i> Nesta tela você só visualiza a quantidade de documentos. Para aprovar, reprovar ou ver detalhes, use a tela de visualização do coworking.
                     </p>
-                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })#documentos" class="btn btn-sm btn-outline-primary">
+                    <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id })#documentos" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-eye"></i> Ir para Documentos na tela de visualização
                     </a>
                 </div>
@@ -361,10 +361,10 @@
         <button type="submit" class="btn btn-primary">
             <i class="bi bi-save"></i> Salvar Alterações
         </button>
-        <a href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id })" class="btn btn-secondary">
+        <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-secondary">
             <i class="bi bi-x-circle"></i> Cancelar
         </a>
-        <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-outline-secondary">
+        <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Voltar para Lista
         </a>
     </div>

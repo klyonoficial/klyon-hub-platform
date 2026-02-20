@@ -126,8 +126,8 @@ namespace KlyonHubPlatform.Application.Services
             var clientName = !string.IsNullOrWhiteSpace(contract.Client.RazaoSocial) ? contract.Client.RazaoSocial
                 : !string.IsNullOrWhiteSpace(contract.Client.NomeFantasia) ? contract.Client.NomeFantasia
                 : !string.IsNullOrWhiteSpace(contract.Client.ContactName) ? contract.Client.ContactName
-                : "Não informado";
-            var clientCnpjCpf = !string.IsNullOrEmpty(contract.Client.CNPJ) ? contract.Client.CNPJ : contract.Client.CPF ?? "Não informado";
+                : DefaultDisplayStrings.NaoInformado;
+            var clientCnpjCpf = !string.IsNullOrEmpty(contract.Client.CNPJ) ? contract.Client.CNPJ : contract.Client.CPF ?? DefaultDisplayStrings.NaoInformado;
 
             // Primeiro parágrafo
             var para1 = new Paragraph();
@@ -247,7 +247,7 @@ namespace KlyonHubPlatform.Application.Services
                     assinaturaInfo.Add(new Chunk("\nCargo: ", normalFont));
                     assinaturaInfo.Add(new Chunk(partner.Role ?? "Sócio", normalFont));
                     assinaturaInfo.Add(new Chunk("\nCPF: ", normalFont));
-                    assinaturaInfo.Add(new Chunk(partner.CPF ?? "Não informado", normalFont));
+                    assinaturaInfo.Add(new Chunk(partner.CPF ?? DefaultDisplayStrings.NaoInformado, normalFont));
                     
                     // Adicionar informações da empresa apenas na última assinatura
                     if (i == partners.Count - 1)

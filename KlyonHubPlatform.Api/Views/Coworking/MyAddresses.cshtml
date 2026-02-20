@@ -47,7 +47,7 @@
                 <li>
                     <strong>@address.Address, @address.City/@address.State</strong> - 
                     @address.CurrentContracts de @address.MaxContracts contratos 
-                    (@percentageUsed.ToString("F1")% utilizado, faltam @remaining)
+                    (@percentageUsed.ToString(NumberFormatConstants.OneDecimal)% utilizado, faltam @remaining)
                     <a href="/Parceiro/EditMaxContracts?id=@address.Id" class="btn btn-sm btn-warning ms-2">
                         <i class="bi bi-pencil"></i> Ajustar Quantidade
                     </a>
@@ -159,7 +159,7 @@
                                 data-city="@address.City"
                                 data-state="@address.State"
                                 data-zip="@address.ZipCode"
-                                data-base-price="@address.BasePrice.ToString("F2")"
+                                data-base-price="@address.BasePrice.ToString(NumberFormatConstants.TwoDecimals)"
                                 data-available="@(address.IsAvailable ? "Sim" : "Não")"
                                 data-status-label="@addressStatusLabel"
                                 data-status-badge="@addressStatusBadge"
@@ -171,17 +171,17 @@
                                 data-requested-max-contracts="@address.RequestedMaxContracts"
                                 data-max-contracts-approval-status="@maxContractsApprovalLabel"
                                 data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
-                                data-shared-price="@(address.SharedRoomPricePerHour?.ToString("F2") ?? "—")"
-                                data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? "—")"
+                                data-shared-price="@(address.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-private-room="@(address.OffersPrivateRoom ? "Sim" : "Não")"
-                                data-private-price="@(address.PrivateRoomPricePerHour?.ToString("F2") ?? "—")"
-                                data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? "—")"
-                                data-card-1x="@(address.CardPrice1x?.ToString("F2") ?? "—")"
-                                data-card-monthly="@(address.CardPriceMonthly?.ToString("F2") ?? "—")"
-                                data-card-12x="@(address.CardPrice12x?.ToString("F2") ?? "—")"
-                                data-location="@(address.Location != null ? $"{address.Location.City}/{address.Location.State}" : "—")"
-                                data-created-at="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
-                                data-updated-at="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")"
+                                data-private-price="@(address.PrivateRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-card-1x="@(address.CardPrice1x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-card-monthly="@(address.CardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-card-12x="@(address.CardPrice12x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-location="@(address.Location != null ? $"{address.Location.City}/{address.Location.State}" : DefaultDisplayStrings.EmptyPlaceholder)"
+                                data-created-at="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
+                                data-updated-at="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 style="cursor: pointer;">
                                 <td>
                                     @address.Address, @address.Number
@@ -201,7 +201,7 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td><strong>R$ @address.BasePrice.ToString("F2")</strong></td>
+                                <td><strong>R$ @address.BasePrice.ToString(NumberFormatConstants.TwoDecimals)</strong></td>
                                 <td>
                                     @{
                                         var warningThreshold = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9) : 0;

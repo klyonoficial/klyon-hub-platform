@@ -152,8 +152,8 @@
                     <select class="form-select" id="State" name="State" required>
                         <option value="">Selecione o estado</option>
                         @{
-                            var states = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
-                            var stateNames = new[] { "Acre", "Alagoas", "Amapá", "Amazonas", "Bahia", "Ceará", "Distrito Federal", "Espírito Santo", "Goiás", "Maranhão", "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Pará", "Paraíba", "Paraná", "Pernambuco", "Piauí", "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia", "Roraima", "Santa Catarina", "São Paulo", "Sergipe", "Tocantins" };
+                            var states = BrazilianUfs.All;
+                            var stateNames = BrazilianUfs.Names;
                         }
                         @for (int i = 0; i < states.Length; i++)
                         {
@@ -170,12 +170,12 @@
                     <label for="BasePrice" class="form-label">Preço Base (R$) <span class="text-danger">*</span></label>
                     @if (hasActiveContracts)
                     {
-                        <div class="form-control-plaintext">R$ @Model.BasePrice.ToString("F2")</div>
+                        <div class="form-control-plaintext">R$ @Model.BasePrice.ToString(NumberFormatConstants.TwoDecimals)</div>
                     }
                     else
                     {
                         <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" 
-                               value="@Model.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" required>
+                               value="@Model.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" required>
                         <small class="form-text text-muted">O valor deve ser maior ou igual a zero</small>
                     }
                 </div>

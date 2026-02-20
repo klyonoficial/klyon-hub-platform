@@ -9,7 +9,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Visualizar Coworking - @Model.Name</h2>
-    <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -32,7 +32,7 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Nome Fantasia</label>
-                        <p class="form-control-plaintext">@(Model.TradeName ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.TradeName ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Status</label>
@@ -70,7 +70,7 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Data de Cadastro</label>
-                        <p class="form-control-plaintext">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                        <p class="form-control-plaintext">@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</p>
                     </div>
                 </div>
             </div>
@@ -84,19 +84,19 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Email de Contato</label>
-                        <p class="form-control-plaintext">@(Model.ContactEmail ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.ContactEmail ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Telefone</label>
-                        <p class="form-control-plaintext">@(Model.ContactPhone ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.ContactPhone ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Email Secundário</label>
-                        <p class="form-control-plaintext">@(Model.SecondaryEmail ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.SecondaryEmail ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Telefone Secundário</label>
-                        <p class="form-control-plaintext">@(Model.SecondaryPhone ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.SecondaryPhone ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                 </div>
             </div>
@@ -110,19 +110,19 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Banco</label>
-                        <p class="form-control-plaintext">@(Model.BankName ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.BankName ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Agência</label>
-                        <p class="form-control-plaintext">@(Model.BankAgency ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.BankAgency ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Conta</label>
-                        <p class="form-control-plaintext">@(Model.BankAccount ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.BankAccount ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Chave PIX</label>
-                        <p class="form-control-plaintext">@(Model.BankPixKey ?? "-")</p>
+                        <p class="form-control-plaintext">@(Model.BankPixKey ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                 </div>
             </div>
@@ -161,15 +161,15 @@
                                     <tr>
                                         <td>@addr.Address, @addr.Number — @addr.City/@addr.State</td>
                                         <td>
-                                            @if (req.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @req.RequestedCardPrice1x.Value.ToString("N2")</span> }
-                                            @if (req.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @req.RequestedCardPriceMonthly.Value.ToString("N2")</span> }
-                                            @if (req.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @req.RequestedCardPrice12x.Value.ToString("N2")</span> }
+                                            @if (req.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @req.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (req.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @req.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (req.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @req.RequestedCardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                             @if (!req.RequestedCardPrice1x.HasValue && !req.RequestedCardPriceMonthly.HasValue && !req.RequestedCardPrice12x.HasValue) { <span class="text-muted">—</span> }
                                         </td>
                                         <td>
-                                            @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString("N2")</span> }
-                                            @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString("N2")</span> }
-                                            @if (addr.CardPrice12x.HasValue) { <span class="badge bg-secondary">12x: R$ @addr.CardPrice12x.Value.ToString("N2")</span> }
+                                            @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (addr.CardPrice12x.HasValue) { <span class="badge bg-secondary">12x: R$ @addr.CardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                             @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue && !addr.CardPrice12x.HasValue) { <span class="text-muted">Nenhum</span> }
                                         </td>
                                         <td class="text-end">
@@ -258,21 +258,21 @@
                                         data-city="@(System.Net.WebUtility.HtmlEncode(address.City))"
                                         data-state="@(System.Net.WebUtility.HtmlEncode(address.State))"
                                         data-zip="@(System.Net.WebUtility.HtmlEncode(address.ZipCode))"
-                                        data-base-price="@address.BasePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-base-price="@address.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
                                         data-available="@(address.IsAvailable ? "Sim" : "Não")"
                                         data-status-label="@label"
                                         data-status-badge="@badge"
                                         data-max-contracts="@address.MaxContracts"
                                         data-current-contracts="@address.CurrentContracts"
                                         data-fiscal-capacity="@address.ApprovedFiscalCapacity"
-                                        data-created-at="@address.CreatedAt.ToString("dd/MM/yyyy HH:mm")"
-                                        data-updated-at="@(address.UpdatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")"
+                                        data-created-at="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
+                                        data-updated-at="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                         data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
-                                        data-shared-price="@(address.SharedRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "-")"
-                                        data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? "-")"
+                                        data-shared-price="@(address.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                        data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                         data-private-room="@(address.OffersPrivateRoom ? "Sim" : "Não")"
-                                        data-private-price="@(address.PrivateRoomPricePerHour?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "-")"
-                                        data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? "-")"
+                                        data-private-price="@(address.PrivateRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                        data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                         style="cursor: pointer;">
                                         <td>@address.Address, @address.Number</td>
                                         <td>@address.City</td>
@@ -379,7 +379,7 @@
                         {
                             <div class="col-md-3 mb-3">
                                 <div class="card">
-                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
+                                    <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })" class="card-img-top" alt="@photo.Description" style="height: 200px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EImagem não encontrada%3C/text%3E%3C/svg%3E';">
                                     @if (!string.IsNullOrEmpty(photo.Description))
                                     {
                                         <div class="card-body">
@@ -445,7 +445,7 @@
                                         @if (d != null)
                                         {
                                             <span>@d.FileName</span>
-                                            <br><small class="text-muted">@d.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                            <br><small class="text-muted">@d.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                                         }
                                         else
                                         {
@@ -481,7 +481,7 @@
                                     <td class="text-end">
                                         @if (d != null)
                                         {
-                                            <a href="@Url.Action("DownloadDocument", "Coworking", new { documentId = d.Id })" class="btn btn-sm btn-outline-primary" target="_blank" title="Visualizar"><i class="bi bi-download"></i></a>
+                                            <a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Coworking, new { documentId = d.Id })" class="btn btn-sm btn-outline-primary" target="_blank" title="Visualizar"><i class="bi bi-download"></i></a>
                                             @if (d.Status == KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentStatus.Pending)
                                             {
                                                 <form asp-action="ApproveDocument" asp-controller="Admin" method="post" class="d-inline">
@@ -515,7 +515,7 @@
                             @if (documentsPage > 1)
                             {
                                 <li class="page-item">
-                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = documentsPage - 1, pageSize = documentsPageSize })#documentos">
+                                    <a class="page-link" href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id, page = documentsPage - 1, pageSize = documentsPageSize })#documentos">
                                         <i class="bi bi-chevron-left"></i> Anterior
                                     </a>
                                 </li>
@@ -524,7 +524,7 @@
                             @for (int i = Math.Max(1, documentsPage - 2); i <= Math.Min(documentsTotalPages, documentsPage + 2); i++)
                             {
                                 <li class="page-item @(i == documentsPage ? "active" : "")">
-                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = i, pageSize = documentsPageSize })#documentos">
+                                    <a class="page-link" href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id, page = i, pageSize = documentsPageSize })#documentos">
                                         @i
                                     </a>
                                 </li>
@@ -533,7 +533,7 @@
                             @if (documentsPage < documentsTotalPages)
                             {
                                 <li class="page-item">
-                                    <a class="page-link" href="@Url.Action("ViewCoworking", "Admin", new { id = Model.Id, page = documentsPage + 1, pageSize = documentsPageSize })#documentos">
+                                    <a class="page-link" href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id, page = documentsPage + 1, pageSize = documentsPageSize })#documentos">
                                         Próxima <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>
@@ -585,7 +585,7 @@
         </script>
 
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            <a href="@Url.Action("CoworkingHistory", "Admin", new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
+            <a href="@Url.Action(ActionNames.CoworkingHistory, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
                 <i class="bi bi-clock-history"></i> Histórico
             </a>
             @if (Model.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview)
@@ -599,10 +599,10 @@
                     <i class="bi bi-x-octagon"></i> Reprovar
                 </button>
             }
-            <a href="@Url.Action("EditCoworking", "Admin", new { id = Model.Id })" class="btn btn-warning">
+            <a href="@Url.Action(ActionNames.EditCoworking, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Editar
             </a>
-            <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+            <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
@@ -664,8 +664,8 @@
                                     <tr class="row-clickable row-service-detail"
                                         data-service-name="@(System.Net.WebUtility.HtmlEncode(ps.Service?.Name ?? "Serviço removido"))"
                                         data-service-desc="@(System.Net.WebUtility.HtmlEncode(ps.Service?.Description ?? ""))"
-                                        data-percentage="@ps.Percentage.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
-                                        data-created-at="@ps.CreatedAt.ToString("dd/MM/yyyy")"
+                                        data-percentage="@ps.Percentage.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-created-at="@ps.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)"
                                         style="cursor: pointer;">
                                         <td>
                                             <strong>@(ps.Service?.Name ?? "Serviço removido")</strong>
@@ -679,9 +679,9 @@
                                             }
                                         </td>
                                         <td class="text-end">
-                                            <span class="badge bg-primary fs-6">@ps.Percentage.ToString("F2")%</span>
+                                            <span class="badge bg-primary fs-6">@ps.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</span>
                                         </td>
-                                        <td>@ps.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                        <td>@ps.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                         <td class="no-row-click">
                                             @if (ps.Service != null)
                                             {
@@ -694,7 +694,7 @@
                                             {
                                                 <span class="text-muted">Serviço removido</span>
                                             }
-                                            <form method="post" action="@Url.Action("DeletePartnerService", "Admin")" class="d-inline" 
+                                            <form method="post" action="@Url.Action(ActionNames.DeletePartnerService, ControllerNames.Admin)" class="d-inline" 
                                                   onsubmit="event.stopPropagation(); event.preventDefault(); handleDeleteService(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@ps.Id" />
@@ -842,7 +842,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="@Url.Action("SavePartnerService", "Admin")" id="serviceForm">
+            <form method="post" action="@Url.Action(ActionNames.SavePartnerService, ControllerNames.Admin)" id="serviceForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Id" id="serviceId" value="0" />
                 <input type="hidden" name="CoworkingId" value="@Model.Id" />
@@ -885,7 +885,7 @@
         document.getElementById('serviceSelect').disabled = true;
         document.getElementById('servicePercentage').value = percentage;
         document.getElementById('serviceModalTitle').textContent = 'Editar Percentagem do Serviço';
-        document.getElementById('serviceForm').action = '@Url.Action("SavePartnerService", "Admin")';
+        document.getElementById('serviceForm').action = '@Url.Action(ActionNames.SavePartnerService, ControllerNames.Admin)';
         var modal = new bootstrap.Modal(document.getElementById('addServiceModal'));
         modal.show();
     }

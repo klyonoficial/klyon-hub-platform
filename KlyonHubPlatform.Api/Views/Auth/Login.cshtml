@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Login";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = PageTitles.Login;
+    Layout = LayoutPaths.Layout;
 }
 
 <div class="container">
@@ -12,24 +12,24 @@
                         <i class="bi bi-box-arrow-in-right"></i> Entrar
                     </h2>
 
-                    @if (ViewData["Error"] != null)
+                    @if (ViewData[ViewDataKeys.Error] != null)
                     {
                         <div class="alert alert-danger" role="alert">
-                            <i class="bi bi-exclamation-triangle"></i> @ViewData["Error"]
+                            <i class="bi bi-exclamation-triangle"></i> @ViewData[ViewDataKeys.Error]
                         </div>
                     }
 
-                    @if (ViewData["Success"] != null)
+                    @if (ViewData[ViewDataKeys.Success] != null)
                     {
                         <div class="alert alert-success" role="alert">
-                            <i class="bi bi-check-circle"></i> @ViewData["Success"]
+                            <i class="bi bi-check-circle"></i> @ViewData[ViewDataKeys.Success]
                         </div>
                     }
 
-                    <form method="post" action="@Url.Action("Login", "Auth")">
-                        @if (ViewData["ReturnUrl"] != null)
+                    <form method="post" action="@Url.Action(ActionNames.Login, ControllerNames.Auth)">
+                        @if (ViewData[ViewDataKeys.ReturnUrl] != null)
                         {
-                            <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                            <input type="hidden" name="returnUrl" value="@ViewData[ViewDataKeys.ReturnUrl]" />
                         }
                         <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
@@ -51,11 +51,11 @@
                     </form>
 
                     <div class="text-center">
-                        <a href="@Url.Action("ForgotPassword", "Auth")">Esqueceu sua senha?</a>
+                        <a href="@Url.Action(ActionNames.ForgotPassword, ControllerNames.Auth)">Esqueceu sua senha?</a>
                     </div>
                     <hr>
                     <div class="text-center">
-                        <p>Não tem uma conta? <a href="@(Url.Action("Register", "Auth") + (ViewData["ReturnUrl"] != null && !string.IsNullOrEmpty(ViewData["ReturnUrl"]?.ToString()) ? "?returnUrl=" + Uri.EscapeDataString(ViewData["ReturnUrl"]!.ToString()!) : ""))">Cadastre-se</a></p>
+                        <p>Não tem uma conta? <a href="@(Url.Action(ActionNames.Register, ControllerNames.Auth) + (ViewData[ViewDataKeys.ReturnUrl] != null && !string.IsNullOrEmpty(ViewData[ViewDataKeys.ReturnUrl]?.ToString()) ? "?returnUrl=" + Uri.EscapeDataString(ViewData[ViewDataKeys.ReturnUrl]!.ToString()!) : ""))">Cadastre-se</a></p>
                     </div>
                 </div>
             </div>

@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Constants;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     /// <summary>
@@ -14,7 +16,7 @@ namespace KlyonHubPlatform.Domain.Entities
         /// <summary>Nome do usuário no momento da execução</summary>
         public string ExecutedByUserName { get; set; } = string.Empty;
         /// <summary>Tipo: Intermediacao ou Servico</summary>
-        public string NoteType { get; set; } = "Intermediacao";
+        public string NoteType { get; set; } = FiscalNoteType.Default;
         /// <summary>Data inicial do período filtrado</summary>
         public DateTime StartDate { get; set; }
         /// <summary>Data final do período filtrado</summary>

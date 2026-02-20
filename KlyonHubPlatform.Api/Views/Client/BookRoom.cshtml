@@ -13,7 +13,7 @@
 }
 
 <div class="container py-4">
-    <a href="@Url.Action("MarketplaceDetails", "Home", new { id = address?.Id })" class="btn btn-outline-secondary mb-3">
+    <a href="@Url.Action(ActionNames.MarketplaceDetails, ControllerNames.Home, new { id = address?.Id })" class="btn btn-outline-secondary mb-3">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 
@@ -29,7 +29,7 @@
                 </p>
             }
 
-            <form method="post" action="@Url.Action("CreateReservations", "Client")" id="bookForm">
+            <form method="post" action="@Url.Action(ActionNames.CreateReservations, ControllerNames.Client)" id="bookForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="CoworkingAddressId" value="@address?.Id" />
                 <input type="hidden" name="RoomType" id="roomTypeInput" value="@defaultRoom" />
@@ -43,12 +43,12 @@
                             @if (offersShared)
                             {
                                 <input type="radio" class="btn-check" name="RoomTypeRadio" id="roomShared" value="Shared" @(defaultRoom == "Shared" ? "checked" : "")>
-                                <label class="btn btn-outline-primary" for="roomShared"><i class="bi bi-people"></i> Compartilhada (R$ @sharedPrice.ToString("F2")/h)</label>
+                                <label class="btn btn-outline-primary" for="roomShared"><i class="bi bi-people"></i> Compartilhada (R$ @sharedPrice.ToString(NumberFormatConstants.TwoDecimals)/h)</label>
                             }
                             @if (offersPrivate)
                             {
                                 <input type="radio" class="btn-check" name="RoomTypeRadio" id="roomPrivate" value="Private" @(defaultRoom == "Private" ? "checked" : "")>
-                                <label class="btn btn-outline-primary" for="roomPrivate"><i class="bi bi-door-closed"></i> Privativa (R$ @privatePrice.ToString("F2")/h)</label>
+                                <label class="btn btn-outline-primary" for="roomPrivate"><i class="bi bi-door-closed"></i> Privativa (R$ @privatePrice.ToString(NumberFormatConstants.TwoDecimals)/h)</label>
                             }
                         </div>
                     </div>
@@ -94,8 +94,8 @@
 <script>
 (function() {
     var mes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-    var sharedPrice = @sharedPrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-    var privatePrice = @privatePrice.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    var sharedPrice = @sharedPrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
+    var privatePrice = @privatePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
     var availableCredits = @availableCredits;
     var selectedSlots = [];
     var calDate = new Date();

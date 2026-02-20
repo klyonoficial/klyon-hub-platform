@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +54,7 @@ namespace KlyonHubPlatform.Application.Services
             if (_httpContextAccessor?.HttpContext != null)
             {
                 ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
-                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
             }
 
             string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;

@@ -138,7 +138,7 @@ else
                                 <tr>
                                     <td>@contract.ContractNumber</td>
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
-                                    <td>R$ @contract.MonthlyValue.ToString("F2")</td>
+                                    <td>R$ @contract.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals)</td>
                                     <td>
                                         @switch (contract.Status)
                                         {

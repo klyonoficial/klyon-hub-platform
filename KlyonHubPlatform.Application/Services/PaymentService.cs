@@ -63,7 +63,7 @@ namespace KlyonHubPlatform.Application.Services
             if (_httpContextAccessor?.HttpContext != null)
             {
                 ipAddress = _httpContextAccessor.HttpContext.Connection.RemoteIpAddress?.ToString();
-                userAgent = _httpContextAccessor.HttpContext.Request.Headers["User-Agent"].ToString();
+                userAgent = _httpContextAccessor.HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
             }
 
             string? oldValuesJson = oldValues != null ? JsonSerializer.Serialize(oldValues) : null;
@@ -122,7 +122,7 @@ namespace KlyonHubPlatform.Application.Services
                         _context.PaymentHistories.Add(new PaymentHistory
                         {
                             PaymentId = p.Id,
-                            Action = "Cancelled",
+                            Action = PaymentHistoryActions.Cancelled,
                             RejectionReason = rejectionReasonPayment,
                             ActionBy = actionBy,
                             ActionAt = now
@@ -402,8 +402,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 
                 // Verificar se não são valores padrão inválidos
-                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
-                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
                     clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
                 {
                     clientTaxId = "";
@@ -490,8 +489,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 
                 // Verificar se não são valores padrão inválidos
-                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
-                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
                     clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
                 {
                     clientTaxId = "";
@@ -506,28 +504,25 @@ namespace KlyonHubPlatform.Application.Services
             var clientPhone = client.ContactPhone ?? client.User.Phone;
             
             // Função auxiliar para validar e preencher campos
-            string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
             {
                 return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
             }
             
             // Preparar endereço do cliente para o boleto com validação completa
             // Street (Rua) - obrigatório
-            var street = GetValueOrDefault(client.Address, "Não informado");
+            var street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado);
             
             // Number (Número) - obrigatório
             var number = "S/N"; // Padrão se não informado
             
             // Locality (Bairro) - obrigatório
-            var locality = "Não informado";
+            var locality = DefaultDisplayStrings.NaoInformado;
             
             // City (Cidade) - obrigatório
-            var city = GetValueOrDefault(client.City, "Não informado");
+            var city = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado);
             
             // RegionCode (UF) - obrigatório, validar formato
-            var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
-                                  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", 
-                                  "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
             var regionCode = "SP"; // Padrão
             if (!string.IsNullOrWhiteSpace(client.State))
             {
@@ -535,7 +530,7 @@ namespace KlyonHubPlatform.Application.Services
                 if (stateTemp.Length >= 2)
                 {
                     stateTemp = stateTemp.Substring(0, 2);
-                    if (validUFs.Contains(stateTemp))
+                    if (BrazilianUfs.All.Contains(stateTemp))
                     {
                         regionCode = stateTemp;
                     }
@@ -658,8 +653,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 
                 // Verificar se não são valores padrão inválidos
-                if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || 
-                    clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
+                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
                     clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
                 {
                     clientTaxId = "";
@@ -674,7 +668,7 @@ namespace KlyonHubPlatform.Application.Services
             var clientPhone = client.ContactPhone ?? client.User.Phone;
 
             // Endereço do cliente (cadastrado no perfil) - obrigatório para o Asaas (CEP do titular do cartão)
-            string GetValueOrDefault(string? value, string defaultValue = "Não informado")
+            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
             {
                 return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
             }
@@ -693,23 +687,20 @@ namespace KlyonHubPlatform.Application.Services
             {
                 throw new InvalidOperationException("CEP não informado. Atualize em 'Meu Perfil' com o CEP do titular do cartão.");
             }
-            var validUFs = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
-                "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
-                "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
             var regionCode = "SP";
             if (!string.IsNullOrWhiteSpace(client.State))
             {
                 var stateTemp = client.State.Trim().ToUpper();
-                if (stateTemp.Length >= 2 && validUFs.Contains(stateTemp.Substring(0, 2)))
+                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
                     regionCode = stateTemp.Substring(0, 2);
             }
             var clientAddress = new PagBankAddress
             {
-                Street = GetValueOrDefault(client.Address, "Não informado"),
+                Street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado),
                 Number = "S/N",
                 Complement = null,
-                Locality = "Não informado",
-                City = GetValueOrDefault(client.City, "Não informado"),
+                Locality = DefaultDisplayStrings.NaoInformado,
+                City = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado),
                 RegionCode = regionCode,
                 Country = "BRA",
                 PostalCode = postalCode
@@ -836,7 +827,7 @@ namespace KlyonHubPlatform.Application.Services
                     _context.PaymentHistories.Add(new PaymentHistory
                     {
                         PaymentId = payment.Id,
-                        Action = "Approved",
+                        Action = PaymentHistoryActions.Approved,
                         ActionBy = userId,
                         ActionAt = DateTime.UtcNow
                     });

@@ -181,7 +181,7 @@ class KlyonBoot {
         try {
             const response = await fetch(`${this.apiBaseUrl}/start`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { [(window.KlyonHeaders && window.KlyonHeaders.ContentType) || 'Content-Type']: (window.KlyonHeaders && window.KlyonHeaders.ContentTypeJson) || 'application/json' },
                 body: JSON.stringify({
                     sessionId: this.sessionId,
                     userId: this.userId
@@ -280,7 +280,7 @@ class KlyonBoot {
         try {
             const response = await fetch(`${this.apiBaseUrl}/message`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { [(window.KlyonHeaders && window.KlyonHeaders.ContentType) || 'Content-Type']: (window.KlyonHeaders && window.KlyonHeaders.ContentTypeJson) || 'application/json' },
                 body: JSON.stringify({
                     sessionId: this.sessionId,
                     message: message,
@@ -395,7 +395,7 @@ class KlyonBoot {
         try {
             await fetch(`${this.apiBaseUrl}/conversation/${this.conversationId}/resolve`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { [(window.KlyonHeaders && window.KlyonHeaders.ContentType) || 'Content-Type']: (window.KlyonHeaders && window.KlyonHeaders.ContentTypeJson) || 'application/json' },
                 body: JSON.stringify({ wasResolved })
             });
 

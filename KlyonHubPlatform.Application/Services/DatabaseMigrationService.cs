@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.Mappers;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -137,39 +138,27 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task<DatabaseStatusDto> GetDatabaseStatusAsync()
         {
-            var status = new DatabaseStatusDto
-            {
-                CheckedAt = DateTime.Now
-            };
+            var checkedAt = DateTime.Now;
 
             try
             {
-                // Testar conexão
-                status.CanConnect = await _context.Database.CanConnectAsync();
+                var canConnect = await _context.Database.CanConnectAsync();
 
-                if (!status.CanConnect)
+                if (!canConnect)
                 {
-                    return status;
+                    return MigrationStatusMapper.ToDto(canConnect, checkedAt, new List<string>(), new List<string>());
                 }
 
-                // Obter migrations
                 var applied = await GetAppliedMigrationsAsync();
                 var pending = await GetPendingMigrationsAsync();
-                var all = applied.Union(pending).ToList();
 
-                status.AppliedMigrations = applied.Count;
-                status.PendingMigrations = pending.Count;
-                status.TotalMigrations = all.Count;
-                status.AppliedMigrationsList = applied;
-                status.PendingMigrationsList = pending;
-                status.LastMigration = applied.LastOrDefault() ?? "Nenhuma";
+                return MigrationStatusMapper.ToDto(canConnect, checkedAt, applied, pending);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao obter status do banco de dados");
+                return MigrationStatusMapper.ToDto(false, checkedAt, new List<string>(), new List<string>());
             }
-
-            return status;
         }
     }
 }

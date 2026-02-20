@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Localization;
 using System.Globalization;
+using KlyonHubPlatform.Domain.Core.Constants;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -12,14 +13,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (string.IsNullOrEmpty(culture))
             {
-                culture = "pt-BR";
+                culture = CultureNames.Default;
             }
 
             // Validar se a cultura é suportada
-            var supportedCultures = new[] { "pt-BR", "en-US", "es-ES" };
+            var supportedCultures = new[] { CultureNames.PtBr, CultureNames.EnUs, CultureNames.EsEs };
             if (!supportedCultures.Contains(culture))
             {
-                culture = "pt-BR";
+                culture = CultureNames.Default;
             }
 
             // Definir o cookie de cultura

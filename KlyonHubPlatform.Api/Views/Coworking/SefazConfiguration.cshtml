@@ -60,7 +60,7 @@
                                 <td>@config.PartnerCNPJ</td>
                                 <td>@config.PartnerMunicipalRegistration</td>
                                 <td>@config.ServiceCode</td>
-                                <td>@config.ISSAliquot.ToString("F2")%</td>
+                                <td>@config.ISSAliquot.ToString(NumberFormatConstants.TwoDecimals)%</td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(config.ApiToken))
                                     {

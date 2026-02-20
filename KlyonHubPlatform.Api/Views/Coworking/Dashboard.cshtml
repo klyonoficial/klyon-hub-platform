@@ -28,7 +28,7 @@
                 <i class="bi bi-check-circle-fill"></i> Seu espaço está agora disponível no marketplace e você já pode começar a receber clientes para endereços fiscais e serviços de coworking. 
                 Desejamos muito sucesso! 🎉
             </p>
-            <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+            <form method="post" action="@Url.Action(ActionNames.DismissStatusNotification, ControllerNames.Coworking)" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-success btn-sm">
                     <i class="bi bi-check"></i> Entendi
@@ -47,7 +47,7 @@
                 <i class="bi bi-info-circle-fill"></i> Infelizmente seu cadastro não foi aprovado e necessita de ajustes. 
                 Por favor, revise as informações indicadas abaixo e reenvie para análise.
             </p>
-            <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+            <form method="post" action="@Url.Action(ActionNames.DismissStatusNotification, ControllerNames.Coworking)" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-warning btn-sm">
                     <i class="bi bi-check"></i> Entendi
@@ -62,7 +62,7 @@
     <div class="alert alert-info">
         <h5><i class="bi bi-info-circle"></i> Complete seu cadastro</h5>
         <p>Para começar a cadastrar endereços, você precisa completar o cadastro do seu coworking.</p>
-        <a href="@Url.Action("Register", "Coworking")" class="btn btn-primary">
+        <a href="@Url.Action(ActionNames.Register, ControllerNames.Coworking)" class="btn btn-primary">
             <i class="bi bi-building"></i> Cadastrar Coworking
         </a>
     </div>
@@ -85,7 +85,7 @@ else
             {
                 <p class="mb-2 mt-2">Justificativa / itens a corrigir: <span class="text-dark">@c.RejectionReason</span></p>
             }
-            <form method="post" action="@Url.Action("ResubmitForApproval", "Coworking")" class="d-inline">
+            <form method="post" action="@Url.Action(ActionNames.ResubmitForApproval, ControllerNames.Coworking)" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Reenviar para análise</button>
             </form>
@@ -149,11 +149,11 @@ else
 
     <div class="row mb-4">
         <div class="col-md-2">
-            <div class="card text-white bg-primary" data-drilldown="@Url.Action("ActiveContracts", "Parceiro")">
+            <div class="card text-white bg-primary" data-drilldown="@Url.Action(ActionNames.ActiveContracts, ControllerNames.Parceiro)">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal</h5>
                     <h2 class="display-4">@ViewBag.ActiveContracts</h2>
-                    <a href="@Url.Action("ActiveContracts", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
+                    <a href="@Url.Action(ActionNames.ActiveContracts, ControllerNames.Parceiro)" class="btn btn-light btn-sm mt-2 w-100">
                         <i class="bi bi-arrow-right"></i> Ver Todos
                     </a>
                 </div>
@@ -162,11 +162,11 @@ else
         @if (showCoworkingMenus)
         {
             <div class="col-md-2">
-                <div class="card text-white" style="background-color: #6f42c1;" data-drilldown="@Url.Action("Reservations", "Parceiro")">
+                <div class="card text-white" style="background-color: #6f42c1;" data-drilldown="@Url.Action(ActionNames.Reservations, ControllerNames.Parceiro)">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-calendar-check"></i> Reservas</h5>
                         <h2 class="display-4">@(ViewBag.PendingReservationsCount ?? 0)</h2>
-                        <a href="@Url.Action("Reservations", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
+                        <a href="@Url.Action(ActionNames.Reservations, ControllerNames.Parceiro)" class="btn btn-light btn-sm mt-2 w-100">
                             <i class="bi bi-arrow-right"></i> Ver Todas
                         </a>
                     </div>
@@ -174,13 +174,13 @@ else
             </div>
         }
         <div class="col-md-2">
-            <div class="card text-white bg-warning" data-drilldown="@((ViewBag.PendingPaymentsCount ?? 0) > 0 ? Url.Action("PendingPayments", "Parceiro") : "#")">
+            <div class="card text-white bg-warning" data-drilldown="@((ViewBag.PendingPaymentsCount ?? 0) > 0 ? Url.Action(ActionNames.PendingPayments, ControllerNames.Parceiro) : "#")">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagamentos</h5>
                     <h2 class="display-4">@(ViewBag.PendingPaymentsCount ?? 0)</h2>
                     @if ((ViewBag.PendingPaymentsCount ?? 0) > 0)
                     {
-                        <a href="@Url.Action("PendingPayments", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
+                        <a href="@Url.Action(ActionNames.PendingPayments, ControllerNames.Parceiro)" class="btn btn-light btn-sm mt-2 w-100">
                             <i class="bi bi-arrow-right"></i> Validar
                         </a>
                     }
@@ -188,15 +188,15 @@ else
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card text-white bg-success" data-drilldown="@Url.Action("Commissions", "Parceiro")">
+            <div class="card text-white bg-success" data-drilldown="@Url.Action(ActionNames.Commissions, ControllerNames.Parceiro)">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-trophy-fill"></i> Ganhos Pendentes</h5>
-                    <h2 class="mb-0" style="font-size: 1.75rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString("F2"))</h2>
+                    <h2 class="mb-0" style="font-size: 1.75rem; font-weight: 700; line-height: 1.2; white-space: nowrap;">R$ @(((decimal)ViewBag.PendingCommissions).ToString(NumberFormatConstants.TwoDecimals))</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card text-white bg-info" data-drilldown="@Url.Action("MyAddresses", "Parceiro")">
+            <div class="card text-white bg-info" data-drilldown="@Url.Action(ActionNames.MyAddresses, ControllerNames.Parceiro)">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>
                     <h2 class="display-4">@(ViewBag.TotalAddresses ?? 0)</h2>
@@ -204,13 +204,13 @@ else
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card text-white @((ViewBag.PendenciasTotal ?? 0) > 0 ? "bg-warning" : "bg-secondary")" data-drilldown="@Url.Action("Profile", "Parceiro")">
+            <div class="card text-white @((ViewBag.PendenciasTotal ?? 0) > 0 ? "bg-warning" : "bg-secondary")" data-drilldown="@Url.Action(ActionNames.Profile, ControllerNames.Parceiro)">
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-exclamation-triangle"></i> Pendências</h5>
                     <h2 class="display-4">@(ViewBag.PendenciasTotal ?? 0)</h2>
                     @if ((ViewBag.PendenciasTotal ?? 0) > 0)
                     {
-                        <a href="@Url.Action("Profile", "Parceiro")" class="btn btn-light btn-sm mt-2 w-100">
+                        <a href="@Url.Action(ActionNames.Profile, ControllerNames.Parceiro)" class="btn btn-light btn-sm mt-2 w-100">
                             <i class="bi bi-list-check"></i> Verificar
                         </a>
                     }
@@ -244,18 +244,18 @@ else
                             {
                                 var valorCreditado = commission.TotalPaymentAmount - commission.Amount;
                                 <tr>
-                                    <td>@commission.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                    <td>@commission.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                     <td>
-                                        <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString("F2")</span>
-                                        <br><small class="text-muted">(@commission.Percentage.ToString("F2")% de comissão da plataforma)</small>
+                                        <span class="text-muted">R$ @commission.TotalPaymentAmount.ToString(NumberFormatConstants.TwoDecimals)</span>
+                                        <br><small class="text-muted">(@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)% de comissão da plataforma)</small>
                                     </td>
-                                    <td><strong class="text-success" style="font-size: 1.1em;">R$ @valorCreditado.ToString("F2")</strong></td>
+                                    <td><strong class="text-success" style="font-size: 1.1em;">R$ @valorCreditado.ToString(NumberFormatConstants.TwoDecimals)</strong></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
-                <form method="post" action="@Url.Action("RequestTransfer", "Coworking")">
+                <form method="post" action="@Url.Action(ActionNames.RequestTransfer, ControllerNames.Coworking)">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-success">
                         <i class="bi bi-arrow-left-right"></i> Solicitar Repasse

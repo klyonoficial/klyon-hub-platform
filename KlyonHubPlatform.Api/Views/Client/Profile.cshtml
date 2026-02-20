@@ -28,7 +28,7 @@
         <h5><i class="bi bi-person"></i> Dados Cadastrais</h5>
     </div>
     <div class="card-body">
-        <form method="post" action="@Url.Action("UpdateProfile", "Client")" enctype="multipart/form-data" id="clientProfileForm">
+        <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Client)" enctype="multipart/form-data" id="clientProfileForm">
             @Html.AntiForgeryToken()
             
             <!-- Seção de Logo -->
@@ -39,7 +39,7 @@
                         @if (!string.IsNullOrEmpty(Model.LogoPath))
                         {
                             <div class="border rounded p-2" style="max-width: 200px; max-height: 200px; background-color: #f8f9fa;">
-                                <img src="@Url.Action("GetLogo", "Client", new { clientId = Model.Id })" 
+                                <img src="@Url.Action(ActionNames.GetLogo, ControllerNames.Client, new { clientId = Model.Id })" 
                                      alt="Logo" 
                                      class="img-fluid" 
                                      style="max-width: 100%; max-height: 200px; object-fit: contain;">
@@ -196,7 +196,7 @@
                 <button type="submit" class="btn btn-primary profile-save-btn">
                     <i class="bi bi-check-circle"></i> Salvar Alterações
                 </button>
-                <a href="@Url.Action("DashboardDetails", "Client")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.DashboardDetails, ControllerNames.Client)" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
             </div>

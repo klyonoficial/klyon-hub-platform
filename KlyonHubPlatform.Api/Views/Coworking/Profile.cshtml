@@ -26,7 +26,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 id="coworkingProfileTitle"><i class="bi bi-person-badge"></i> Meu Perfil - @Model.Name</h2>
-    <a href="@Url.Action("Dashboard", "Parceiro")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Dashboard, ControllerNames.Parceiro)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -45,7 +45,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
         {
             <p class="mb-2 mt-2">Justificativa / itens a corrigir: <span class="text-dark">@Model.RejectionReason</span></p>
         }
-        <form method="post" action="@Url.Action("ResubmitForApproval", "Parceiro")" class="d-inline">
+        <form method="post" action="@Url.Action(ActionNames.ResubmitForApproval, ControllerNames.Parceiro)" class="d-inline">
             @Html.AntiForgeryToken()
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Reenviar para análise</button>
         </form>
@@ -66,7 +66,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                 <text>Você já pode cadastrar endereços fiscais e receber clientes. Ao alterar qualquer informação, o cadastro voltará para análise.</text>
             }
         </p>
-        <form method="post" action="@Url.Action("DismissStatusNotification", "Coworking")" class="d-inline">
+        <form method="post" action="@Url.Action(ActionNames.DismissStatusNotification, ControllerNames.Coworking)" class="d-inline">
             @Html.AntiForgeryToken()
             <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-check"></i> Entendi</button>
         </form>
@@ -169,7 +169,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <div class="tab-pane fade show active" id="basic" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Parceiro)">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="activeTab" value="basic" />
                     
@@ -209,7 +209,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <div class="tab-pane fade" id="contact" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Parceiro)">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -250,7 +250,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <div class="tab-pane fade" id="address" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Parceiro)">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -293,8 +293,8 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                             <select class="form-select" id="AddressState" name="AddressState">
                                 <option value="">Selecione</option>
                                 @{
-                                    var states = new[] { "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO" };
-                                    var stateNames = new[] { "Acre", "Alagoas", "Amapá", "Amazonas", "Bahia", "Ceará", "Distrito Federal", "Espírito Santo", "Goiás", "Maranhão", "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Pará", "Paraíba", "Paraná", "Pernambuco", "Piauí", "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia", "Roraima", "Santa Catarina", "São Paulo", "Sergipe", "Tocantins" };
+                                    var states = BrazilianUfs.All;
+                                    var stateNames = BrazilianUfs.Names;
                                 }
                                 @for (int i = 0; i < states.Length; i++)
                                 {
@@ -317,7 +317,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <div class="tab-pane fade" id="bank" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Parceiro)">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -384,7 +384,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
     <div class="tab-pane fade" id="social" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <form method="post" action="@Url.Action("UpdateProfile", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Parceiro)">
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="Name" value="@Model.Name" />
                     <input type="hidden" name="CNPJ" value="@Model.CNPJ" />
@@ -475,7 +475,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                             </span>
                                         </div>
                                     }
-                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = photo.Id })" 
+                                    <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })" 
                                          class="card-img-top" 
                                          alt="@photo.Description" 
                                          style="height: 200px; object-fit: cover; cursor: pointer;"
@@ -519,7 +519,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                     int currentPage = ViewBag.PhotosCurrentPage ?? 1;
                                     int totalPages = ViewBag.PhotosTotalPages ?? 1;
                                     int pageSize = ViewBag.PhotosPageSize ?? 6;
-                                    string PhotosPageUrl(int p) => Url.Action("Profile", "Coworking", new
+                                    string PhotosPageUrl(int p) => Url.Action(ActionNames.Profile, ControllerNames.Coworking, new
                                     {
                                         photosPage = p,
                                         photosPageSize = pageSize
@@ -629,7 +629,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                         <td>
                                             @if (!string.IsNullOrEmpty(partner.PhotoPath))
                                             {
-                                                <img src="@Url.Action("GetPartnerPhoto", "Coworking", new { partnerId = partner.Id })" alt="" class="rounded-circle" style="width:40px;height:40px;object-fit:cover;">
+                                                <img src="@Url.Action(ActionNames.GetPartnerPhoto, ControllerNames.Coworking, new { partnerId = partner.Id })" alt="" class="rounded-circle" style="width:40px;height:40px;object-fit:cover;">
                                             }
                                             else
                                             {
@@ -645,7 +645,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-partner-json='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { Id=partner.Id, Name=partner.Name, CPF=partner.CPF, Email=partner.Email, Phone=partner.Phone, Role=partner.Role, SharePercentage=partner.SharePercentage, IsPrincipal=partner.IsPrincipal, IsContractSigner=partner.IsContractSigner, PhotoPath=partner.PhotoPath }))' onclick="editPartnerFromData(this)" title="Editar">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <form method="post" action="@Url.Action("DeletePartner", "Coworking")" style="display: inline;" onsubmit="event.preventDefault(); handleDeletePartner(this); return false;">
+                                            <form method="post" action="@Url.Action(ActionNames.DeletePartner, ControllerNames.Coworking)" style="display: inline;" onsubmit="event.preventDefault(); handleDeletePartner(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="partnerId" value="@partner.Id" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -666,7 +666,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                     int currentPage = ViewBag.PartnersCurrentPage ?? 1;
                                     int totalPages = ViewBag.PartnersTotalPages ?? 1;
                                     int pageSize = ViewBag.PartnersPageSize ?? 10;
-                                    string PartnersPageUrl(int p) => Url.Action("Profile", "Coworking", new
+                                    string PartnersPageUrl(int p) => Url.Action(ActionNames.Profile, ControllerNames.Coworking, new
                                     {
                                         partnersPage = p,
                                         partnersPageSize = pageSize
@@ -792,12 +792,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                                 <strong>Arquivo:</strong> @existingDoc.FileName
                                             </p>
                                             <p class="mb-1">
-                                                <strong>Enviado em:</strong> @existingDoc.CreatedAt.ToString("dd/MM/yyyy")
+                                                <strong>Enviado em:</strong> @existingDoc.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)
                                             </p>
                                             @if (existingDoc.ExpiresAt.HasValue)
                                             {
                                                 <p class="mb-1 @(isExpired ? "text-danger" : "")">
-                                                    <strong>Válido até:</strong> @existingDoc.ExpiresAt.Value.ToString("dd/MM/yyyy")
+                                                    <strong>Válido até:</strong> @existingDoc.ExpiresAt.Value.ToString(DateFormatConstants.DisplayDateOnly)
                                                     @if (isExpired)
                                                     {
                                                         <span class="badge bg-danger ms-2">Expirado</span>
@@ -806,12 +806,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                             }
                                         </div>
                                         <div class="btn-group w-100">
-                                            <a href="@Url.Action("DownloadDocument", "Coworking", new { documentId = existingDoc.Id })" 
+                                            <a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Coworking, new { documentId = existingDoc.Id })" 
                                                class="btn btn-sm btn-outline-primary" target="_blank">
                                                 <i class="bi bi-download"></i> Visualizar
                                             </a>
                                         </div>
-                                        <form method="post" action="@Url.Action("UploadDocument", "Coworking")" 
+                                        <form method="post" action="@Url.Action(ActionNames.UploadDocument, ControllerNames.Coworking)" 
                                               enctype="multipart/form-data" class="mt-2 document-upload-form" 
                                               data-doc-type="@((int)docType)">
                                             @Html.AntiForgeryToken()
@@ -828,7 +828,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                     }
                                     else
                                     {
-                                        <form method="post" action="@Url.Action("UploadDocument", "Coworking")" 
+                                        <form method="post" action="@Url.Action(ActionNames.UploadDocument, ControllerNames.Coworking)" 
                                               enctype="multipart/form-data" class="document-upload-form" 
                                               data-doc-type="@((int)docType)">
                                             @Html.AntiForgeryToken()
@@ -880,7 +880,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     };
                 }
 
-                <form method="post" action="@Url.Action("SaveOperatingHours", "Parceiro")" id="operatingHoursForm" onsubmit="enableAllTimeInputs()">
+                <form method="post" action="@Url.Action(ActionNames.SaveOperatingHours, ControllerNames.Parceiro)" id="operatingHoursForm" onsubmit="enableAllTimeInputs()">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="CoworkingId" value="@Model.Id" />
                     
@@ -969,7 +969,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                 @foreach (var blockedDate in blockedDates)
                                 {
                                     <tr>
-                                        <td>@blockedDate.BlockedDateValue.ToString("dd/MM/yyyy")</td>
+                                        <td>@blockedDate.BlockedDateValue.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                         <td>@blockedDate.Reason</td>
                                         <td>
                                             @if (blockedDate.BlocksFullDay)
@@ -984,7 +984,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                             }
                                         </td>
                                         <td>
-                                            <form method="post" action="@Url.Action("DeleteBlockedDate", "Parceiro")" class="d-inline" onsubmit="event.preventDefault(); handleDeleteBlockedDate(this); return false;">
+                                            <form method="post" action="@Url.Action(ActionNames.DeleteBlockedDate, ControllerNames.Parceiro)" class="d-inline" onsubmit="event.preventDefault(); handleDeleteBlockedDate(this); return false;">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@blockedDate.Id" />
                                                 <button type="submit" class="btn btn-sm btn-danger">
@@ -1020,7 +1020,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="post" action="@Url.Action("UploadPhotos", "Coworking")" enctype="multipart/form-data" id="uploadPhotoForm">
+                <form method="post" action="@Url.Action(ActionNames.UploadPhotos, ControllerNames.Coworking)" enctype="multipart/form-data" id="uploadPhotoForm">
                     @Html.AntiForgeryToken()
                     <div class="modal-body">
                         <div class="alert alert-info mb-3">
@@ -1071,7 +1071,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="post" action="@Url.Action("AddPartner", "Coworking")" id="partnerForm" enctype="multipart/form-data">
+                <form method="post" action="@Url.Action(ActionNames.AddPartner, ControllerNames.Coworking)" id="partnerForm" enctype="multipart/form-data">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="Id" id="partnerId" value="0" />
                     <div class="modal-body">
@@ -1392,7 +1392,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         // Função para atualizar tabela de datas bloqueadas
         function updateBlockedDatesTable() {
             var timestamp = new Date().getTime();
-            fetch('@Url.Action("Profile", "Coworking")?tab=hours&_=' + timestamp, {
+            fetch('@Url.Action(ActionNames.Profile, ControllerNames.Coworking)?tab=hours&_=' + timestamp, {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
@@ -1429,7 +1429,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         // Função para atualizar galeria de fotos
         function updatePhotosGallery() {
             var timestamp = new Date().getTime();
-            fetch('@Url.Action("Profile", "Coworking")?tab=photos&_=' + timestamp, {
+            fetch('@Url.Action(ActionNames.Profile, ControllerNames.Coworking)?tab=photos&_=' + timestamp, {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
@@ -1771,7 +1771,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         // Visualizar foto
         function viewPhoto(photoId) {
             const img = document.getElementById('viewPhotoImg');
-            img.src = '@Url.Action("GetPhoto", "Coworking")?photoId=' + photoId;
+            img.src = '@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking)?photoId=' + photoId;
             const modal = new bootstrap.Modal(document.getElementById('viewPhotoModal'));
             modal.show();
         }
@@ -1802,7 +1802,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             formData.append('__RequestVerificationToken', token);
             formData.append('photoId', photoId);
             
-            fetch('@Url.Action("SetMainPhoto", "Coworking")', {
+            fetch('@Url.Action(ActionNames.SetMainPhoto, ControllerNames.Coworking)', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -1860,7 +1860,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             formData.append('__RequestVerificationToken', token);
             formData.append('photoId', photoId);
             
-            fetch('@Url.Action("DeletePhoto", "Coworking")', {
+            fetch('@Url.Action(ActionNames.DeletePhoto, ControllerNames.Coworking)', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -2012,7 +2012,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             if (d.Id && d.Id > 0 && d.PhotoPath) {
                 // Adicionar timestamp para forçar atualização da imagem e evitar cache
                 var photoTimestamp = new Date().getTime();
-                imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id + '&t=' + photoTimestamp;
+                imgCur.src = '@Url.Action(ActionNames.GetPartnerPhoto, ControllerNames.Coworking)?partnerId=' + d.Id + '&t=' + photoTimestamp;
                 wrap.style.display = 'block';
                 // Forçar reload da imagem para garantir que a versão mais recente seja exibida
                 var newImg = new Image();
@@ -2021,7 +2021,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                 };
                 newImg.onerror = function() {
                     // Se falhar, tentar sem timestamp
-                    imgCur.src = '@Url.Action("GetPartnerPhoto", "Coworking")?partnerId=' + d.Id;
+                    imgCur.src = '@Url.Action(ActionNames.GetPartnerPhoto, ControllerNames.Coworking)?partnerId=' + d.Id;
                 };
                 newImg.src = imgCur.src;
             } else {
@@ -2033,7 +2033,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             document.getElementById('partnerPhotoPreview').src = '';
             document.getElementById('modalTitle').textContent = 'Editar Sócio';
             document.getElementById('modalSubmitText').textContent = 'Salvar Alterações';
-            document.getElementById('partnerForm').action = '@Url.Action("UpdatePartner", "Coworking")';
+            document.getElementById('partnerForm').action = '@Url.Action(ActionNames.UpdatePartner, ControllerNames.Coworking)';
             var modalEl = document.getElementById('addPartnerModal');
             if (!modalEl) return;
             var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -2224,7 +2224,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             document.getElementById('partnerId').value = '0';
             document.getElementById('modalTitle').textContent = 'Adicionar Sócio';
             document.getElementById('modalSubmitText').textContent = 'Adicionar';
-            document.getElementById('partnerForm').action = '@Url.Action("AddPartner", "Coworking")';
+            document.getElementById('partnerForm').action = '@Url.Action(ActionNames.AddPartner, ControllerNames.Coworking)';
             document.getElementById('partnerIsPrincipal').checked = false;
             document.getElementById('partnerRole').value = '';
             var pi = document.getElementById('partnerPhotoInput');
@@ -2323,7 +2323,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="post" action="@Url.Action("AddBlockedDate", "Parceiro")">
+                <form method="post" action="@Url.Action(ActionNames.AddBlockedDate, ControllerNames.Parceiro)">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="CoworkingId" value="@Model.Id" />
                     <div class="modal-body">
@@ -2372,7 +2372,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
             // Fazer requisição para buscar apenas a tabela atualizada
             // Adicionar timestamp para evitar cache
             var timestamp = new Date().getTime();
-            fetch('@Url.Action("Profile", "Coworking")?tab=partners&_=' + timestamp, {
+            fetch('@Url.Action(ActionNames.Profile, ControllerNames.Coworking)?tab=partners&_=' + timestamp, {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
@@ -2432,11 +2432,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
         }
 
         function updatePartnersPageSize(newSize) {
-            window.location.href = '@Url.Action("Profile", "Coworking")?partnersPage=1&partnersPageSize=' + newSize;
+            window.location.href = '@Url.Action(ActionNames.Profile, ControllerNames.Coworking)?partnersPage=1&partnersPageSize=' + newSize;
         }
         
         function updatePhotosPageSize(newSize) {
-            window.location.href = '@Url.Action("Profile", "Coworking")?photosPage=1&photosPageSize=' + newSize;
+            window.location.href = '@Url.Action(ActionNames.Profile, ControllerNames.Coworking)?photosPage=1&photosPageSize=' + newSize;
         }
 
         // Habilitar/desabilitar campos de horário baseado no checkbox

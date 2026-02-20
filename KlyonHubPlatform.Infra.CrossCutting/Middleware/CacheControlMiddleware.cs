@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Domain.Core.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using System.Linq;
@@ -74,15 +75,15 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             // Aplicar headers ANTES de processar a requisição
             if (!string.IsNullOrEmpty(cacheControlValue))
             {
-                context.Response.Headers["Cache-Control"] = cacheControlValue;
+                context.Response.Headers[HttpHeaderNames.CacheControl] = cacheControlValue;
             }
             if (!string.IsNullOrEmpty(pragmaValue))
             {
-                context.Response.Headers["Pragma"] = pragmaValue;
+                context.Response.Headers[HttpHeaderNames.Pragma] = pragmaValue;
             }
             if (!string.IsNullOrEmpty(expiresValue))
             {
-                context.Response.Headers["Expires"] = expiresValue;
+                context.Response.Headers[HttpHeaderNames.Expires] = expiresValue;
             }
 
             // Processar a requisição

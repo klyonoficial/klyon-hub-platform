@@ -9,7 +9,7 @@
     <h2><i class="bi bi-file-earmark-text"></i> Contrato de Endereço Fiscal</h2>
     @if (!(ViewBag.HasActiveContract as bool? ?? false))
     {
-        <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-primary">
+        <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-primary">
             <i class="bi bi-geo-alt-fill"></i> Alugar Endereço Fiscal
         </a>
     }
@@ -18,7 +18,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("MyContracts", "Client")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="row g-3">
             <div class="col-md-6">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
@@ -41,7 +41,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -110,7 +110,7 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("F2") : contract.MonthlyValue.ToString("F2"))</strong>
+                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString(NumberFormatConstants.TwoDecimals) : contract.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals))</strong>
                                 </td>
                                 <td>
                                     @{
@@ -167,9 +167,9 @@
                                         @statusText
                                     </span>
                                 </td>
-                                <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
+                                <td>@contract.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
-                                    <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" 
+                                    <a href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = contract.Id })" 
                                        class="btn btn-sm btn-primary" title="Ver Detalhes">
                                         <i class="bi bi-eye"></i> Detalhes
                                     </a>
@@ -188,7 +188,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("MyContracts", "Client", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     page = ViewBag.CurrentPage - 1 
@@ -201,7 +201,7 @@
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("MyContracts", "Client", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     page = i 
@@ -214,7 +214,7 @@
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("MyContracts", "Client", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     page = ViewBag.CurrentPage + 1 
@@ -233,13 +233,13 @@
                 <i class="bi bi-info-circle"></i> Nenhum contrato encontrado.
                 @if (ViewBag.Search != null || ViewBag.Status != null)
                 {
-                    <a href="@Url.Action("MyContracts", "Client")" class="btn btn-sm btn-outline-primary mt-2">
+                    <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="btn btn-sm btn-outline-primary mt-2">
                         <i class="bi bi-x-circle"></i> Limpar Filtros
                     </a>
                 }
                 else if (!(ViewBag.HasActiveContract as bool? ?? false))
                 {
-                    <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-primary mt-2">
+                    <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-primary mt-2">
                         <i class="bi bi-plus-circle"></i> Contratar Agora
                     </a>
                 }

@@ -1,6 +1,8 @@
-using KlyonHubPlatform.Application.Interfaces;
-using KlyonHubPlatform.Application.DTOs.PagBank;
+using AutoMapper;
 using KlyonHubPlatform.Application.DTOs.Asaas;
+using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Application.Helpers;
+using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Logging;
@@ -29,14 +31,18 @@ namespace KlyonHubPlatform.Application.Services
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
 
+        private readonly IMapper _mapper;
+
         public AsaasService(
             ISystemConfigurationService systemConfig,
             ILogger<AsaasService> logger,
-            HttpClient httpClient)
+            HttpClient httpClient,
+            IMapper mapper)
         {
             _systemConfig = systemConfig;
             _logger = logger;
             _httpClient = httpClient;
+            _mapper = mapper;
         }
 
         private async Task<string> GetBaseUrlAsync()
@@ -360,8 +366,8 @@ namespace KlyonHubPlatform.Application.Services
                 Id = payment.Id,
                 ReferenceId = referenceId,
                 Status = payment.Status,
-                CreatedAt = TryParseDate(payment.DateCreated) ?? DateTime.UtcNow,
-                PaidAt = TryParseDate(payment.ConfirmedDate ?? payment.ClientPaymentDate)
+                CreatedAt = AsaasDateParser.TryParse(payment.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = AsaasDateParser.TryParse(payment.ConfirmedDate ?? payment.ClientPaymentDate)
             };
 
             if (method == PaymentMethod.PIX)
@@ -375,7 +381,7 @@ namespace KlyonHubPlatform.Application.Services
                         {
                             Id = payment.Id,
                             Text = pixQr.Payload ?? pixQr.EncodedImage,
-                            ExpirationDate = TryParseDate(pixQr.ExpirationDate),
+                            ExpirationDate = AsaasDateParser.TryParse(pixQr.ExpirationDate),
                             Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" }
                         }
                     };
@@ -402,7 +408,7 @@ namespace KlyonHubPlatform.Application.Services
                                 Id = payment.Id,
                                 FormattedBarcode = identification?.IdentificationField,
                                 Barcode = identification?.IdentificationField,
-                                DueDate = TryParseDate(payment.DueDate),
+                                DueDate = AsaasDateParser.TryParse(payment.DueDate),
                                 Links = !string.IsNullOrEmpty(payment.BankSlipUrl)
                                     ? new List<PagBankLink> { new PagBankLink { Rel = "bankSlip", Href = payment.BankSlipUrl } }
                                     : null
@@ -515,14 +521,7 @@ namespace KlyonHubPlatform.Application.Services
             if (payment == null)
                 throw new InvalidOperationException("Resposta inválida da API Asaas");
 
-            return new OrderResponse
-            {
-                Id = payment.Id,
-                ReferenceId = payment.ExternalReference ?? "",
-                Status = payment.Status,
-                CreatedAt = TryParseDate(payment.DateCreated) ?? DateTime.UtcNow,
-                PaidAt = TryParseDate(payment.ConfirmedDate ?? payment.ClientPaymentDate)
-            };
+            return _mapper.Map<OrderResponse>(payment);
         }
 
         public async Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null)
@@ -747,14 +746,6 @@ namespace KlyonHubPlatform.Application.Services
             if (string.IsNullOrWhiteSpace(value)) return null;
             var s = value.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
             return s.Length >= 8 ? s.Substring(0, 8) : s.PadLeft(8, '0');
-        }
-
-        private static DateTime? TryParseDate(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            if (DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
-                return d;
-            return null;
         }
 
         private static string ParseAsaasError(string content)

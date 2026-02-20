@@ -95,7 +95,7 @@
             </div>
             <div class="card-body">
                 <p><strong>ID:</strong> @Model.Id</p>
-                <p><strong>Cadastrado em:</strong> @Model.CreatedAt.ToString("dd/MM/yyyy")</p>
+                <p><strong>Cadastrado em:</strong> @Model.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</p>
                 <p><strong>Email Verificado:</strong> 
                     @if (Model.EmailVerified)
                     {

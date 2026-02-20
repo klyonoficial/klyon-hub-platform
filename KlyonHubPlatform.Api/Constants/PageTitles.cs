@@ -1,0 +1,117 @@
+namespace KlyonHubPlatform.Api.Constants
+{
+    /// <summary>
+    /// Títulos de página para ViewData["Title"]. Centraliza os textos exibidos no &lt;title&gt; e no layout.
+    /// Use: ViewData[ViewDataKeys.Title] = PageTitles.RelatorioReceitaCoworking;
+    /// </summary>
+    public static class PageTitles
+    {
+        // ----- Auth -----
+        public const string Login = "Login";
+        public const string Register = "Cadastro";
+        public const string ForgotPassword = "Recuperar Senha";
+        public const string ResetPassword = "Redefinir Senha";
+        public const string VerifyEmail = "Verificar Email";
+        public const string ResendVerification = "Reenviar Verificação";
+        public const string ChangePasswordRequired = "Alteração de Senha Obrigatória";
+
+        // ----- Home -----
+        public const string Index = "Início";
+        public const string Marketplace = "Encontrar Coworking";
+        public const string FiscalAddress = "Contratar Endereço Fiscal";
+        public const string Rooms = "Alugar Salas";
+        public const string Partner = "Quero ser Parceiro";
+        public const string TermosUsoLgpd = "Termos de Uso e Política de Privacidade (LGPD)";
+
+        // ----- Admin -----
+        public const string AdminDashboard = "Dashboard Administrativo";
+        public const string Reports = "Relatório Financeiro da Plataforma";
+        public const string ReportCredits = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
+        public const string ReportClientCreditStatement = "Extrato Financeiro do Cliente (Ledger)";
+        public const string ReportCoworkingRevenue = "Relatório de Receita por Coworking";
+        public const string ReportCoworkingRevenueDetail = "Drill-Down – Relatório de Reservas por Coworking";
+        public const string ReportCoworkingProductDetail = "Detalhes do Produto";
+        public const string Coworkings = "Gerenciar Coworkings";
+        public const string ViewCoworking = "Visualizar Coworking";
+        public const string EditCoworking = "Editar Coworking";
+        public const string CoworkingHistory = "Histórico do cadastro";
+        public const string Users = "Gerenciar Usuários";
+        public const string ViewUser = "Visualizar Usuário";
+        public const string EditUser = "Editar Usuário";
+        public const string Locations = "Gerenciar Localidades";
+        public const string EditLocation = "Editar Localidade";
+        public const string CreateLocation = "Cadastrar Localidade";
+        public const string Contracts = "Gerenciar Contratos de Endereço Fiscal";
+        public const string FiscalNotes = "Notas Fiscais";
+        public const string ImportedFiscalNotes = "NF Importadas – Validação";
+        public const string InvoiceValidation = "Validação de Notas Fiscais";
+        public const string CommissionFiscalNotes = "Emitir NF de Comissão";
+        public const string Transfers = "Solicitações de Repasse";
+        public const string TransferDetails = "Detalhes da Transferência";
+        public const string TransferSchedule = "Programação de Repasses";
+        public const string ServiceRemovalRequests = "Solicitações de Remoção de Serviços";
+        public const string QuickClientRegistration = "Cadastro Rápido de Cliente com Endereço Fiscal";
+        public const string QuickClientRegistrationSuccess = "Cadastro Realizado com Sucesso";
+        public const string SystemConfigurations = "Configurações do Sistema";
+        public const string EditSystemConfiguration = "Editar Configuração";
+        public const string DatabaseManager = "Gerenciador de Banco de Dados";
+        public const string SefazConfiguration = "Configuração SEFAZ";
+        public const string Payments = "Gerenciar Pagamentos";
+        public const string ReservationFinancialDetail = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
+
+        // ----- Client -----
+        public const string ClientDashboard = "Dashboard Cliente";
+        public const string ClientProfile = "Meu Perfil";
+        public const string RegisterClient = "Cadastro de Cliente";
+        public const string EditClient = "Editar Cliente";
+        public const string ChooseLocation = "Contratar Endereço Fiscal - Escolher Endereço";
+        public const string AvailableAddresses = "Endereços Disponíveis";
+        public const string CompleteContractAfterLogin = "Contratar Endereço Fiscal";
+        public const string MyContracts = "Contrato de Endereço Fiscal";
+        public const string ContractDetails = "Detalhes do Contrato";
+        public const string MyPayments = "Cobranças de Endereço Fiscal";
+        public const string PaymentDetails = "Detalhes do Pagamento";
+        public const string SelectPaymentPlan = "Escolher forma de pagamento";
+        public const string Declarations = "Declarações de Uso de Endereço Fiscal";
+        public const string BuyCredits = "Comprar Créditos";
+        public const string CheckoutCredits = "Checkout - Comprar Créditos";
+        public const string CreditPurchasePayment = "Pagamento - Comprar Créditos";
+        public const string BookRoom = "Reservar sala de reunião";
+        public const string MyReservations = "Minhas Reservas";
+        public const string ClientFiscalNotes = "Notas Fiscais";
+        public const string CommissionFiscalNotesClient = "Emitir NF de Comissão";
+        public const string CoworkingsPartner = "Coworkings Parceiros";
+        public const string ClientServices = "Serviços";
+        public const string ServiceRemovalRequestsClient = "Solicitações de Remoção";
+
+        // ----- Coworking -----
+        public const string CoworkingRegister = "Cadastro de Coworking";
+        public const string CoworkingDashboard = "Dashboard Coworking";
+        public const string CoworkingProfile = "Meu Perfil - Coworking";
+        public const string MyAddresses = "Meus Endereços";
+        public const string AddAddress = "Adicionar Endereço";
+        public const string EditAddress = "Editar Endereço";
+        public const string AddressRooms = "Salas do Endereço";
+        public const string EditMaxContracts = "Ajustar Quantidade de Contratos";
+        public const string Products = "Produtos";
+        public const string ServicesAndPercentages = "Serviços e Percentagens";
+        public const string Commissions = "Meus Ganhos";
+        public const string Reservations = "Reservas";
+        public const string ActiveContracts = "Contratos de Endereço Fiscal Ativos";
+        public const string MyContract = "Meu Contrato";
+        public const string PendingPayments = "Pagamentos Pendentes de Validação";
+        public const string ValidatePayment = "Validar Pagamento";
+        public const string ServiceFiscalNotes = "Emitir NF de Serviço";
+        public const string ListServiceFiscalNotes = "Notas Fiscais Emitidas";
+        public const string MonthlySettlements = "Meus Repasses";
+        public const string SettlementDetails = "Detalhes do Repasse";
+        public const string SefazConfigurationCoworking = "Configurações SEFAZ";
+        public const string CardPrices = "Preços de Venda no Cartão";
+        public const string RoomRevenueReport = "Receita de Aluguel de Salas";
+
+        // ----- Chatbot Admin -----
+        public const string KlyonBootDashboard = "KlyonBoot - Dashboard";
+        public const string DatabaseMigrations = "Migrations - KlyonBoot Admin";
+        public const string UnansweredQuestions = "Perguntas Não Respondidas - KlyonBoot";
+    }
+}

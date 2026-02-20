@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Api.Requests;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -54,7 +56,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-                var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+                var userAgent = HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
 
                 var conversation = await _chatbotService.StartConversationAsync(
                     request.SessionId,
@@ -129,7 +131,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return BadRequest(new { error = ErrorJson.MessageCannotBeEmpty });
 
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-                var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+                var userAgent = HttpContext.Request.Headers[HttpHeaderNames.UserAgent].ToString();
 
                 request.IpAddress = ipAddress;
                 request.UserAgent = userAgent;

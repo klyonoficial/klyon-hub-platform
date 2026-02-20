@@ -1,9 +1,9 @@
 @{
     ViewData["Title"] = "Contratar Endereço Fiscal";
     Layout = "~/Views/Shared/_LandingLayout.cshtml";
-    var urlChooseLocation = Url.Action("ChooseLocation", "Client");
-    var urlRegister = Url.Action("Register", "Auth");
-    var urlLogin = Url.Action("Login", "Auth");
+    var urlChooseLocation = Url.Action(ActionNames.ChooseLocation, ControllerNames.Client);
+    var urlRegister = Url.Action(ActionNames.Register, ControllerNames.Auth);
+    var urlLogin = Url.Action(ActionNames.Login, ControllerNames.Auth);
 }
 
 <section class="lp-commercial-hero">

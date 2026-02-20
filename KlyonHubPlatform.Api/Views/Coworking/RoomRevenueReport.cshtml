@@ -47,7 +47,7 @@
         <div class="card border-success">
             <div class="card-body">
                 <h5 class="card-title text-success"><i class="bi bi-cash-stack"></i> Total receita (aluguel de salas)</h5>
-                <h2 class="mb-0">R$ @total.ToString("F2")</h2>
+                <h2 class="mb-0">R$ @total.ToString(NumberFormatConstants.TwoDecimals)</h2>
                 <small class="text-muted">Reservas confirmadas e concluídas@(dateFrom.HasValue || dateTo.HasValue ? " no período" : " (todas)")</small>
             </div>
         </div>
@@ -80,7 +80,7 @@
                             <td>@if (cnt > 0) { <i class="bi bi-chevron-right expand-icon text-muted"></i> } else { <span class="text-muted">—</span> }</td>
                             <td>@V(x, "Label", "")</td>
                             <td class="text-end">@cnt</td>
-                            <td class="text-end">R$ @(V(x, "Revenue", 0m).ToString("F2"))</td>
+                            <td class="text-end">R$ @(V(x, "Revenue", 0m).ToString(NumberFormatConstants.TwoDecimals))</td>
                         </tr>
                         <tr class="detail-row" style="display:none">
                             <td colspan="4" class="p-0">
@@ -100,7 +100,7 @@
                                                     <tr>
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "ClientName", "")</td>
-                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
+                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString(NumberFormatConstants.TwoDecimals))</td>
                                                     </tr>
                                                 }
                                             </tbody>
@@ -194,7 +194,7 @@
                             <td><i class="bi bi-chevron-right expand-icon text-muted"></i></td>
                             <td>@V(c, "ClientName", "")</td>
                             <td class="text-end">@cnt</td>
-                            <td class="text-end">R$ @(V(c, "Revenue", 0m).ToString("F2"))</td>
+                            <td class="text-end">R$ @(V(c, "Revenue", 0m).ToString(NumberFormatConstants.TwoDecimals))</td>
                             <td class="text-end">@V(c, "Credits", 0)</td>
                         </tr>
                         <tr class="detail-row" style="display:none">
@@ -215,7 +215,7 @@
                                                     <tr>
                                                         <td>@V(d, "DateFormatted", "")</td>
                                                         <td>@V(d, "RoomTypeLabel", "")</td>
-                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString("F2"))</td>
+                                                        <td class="text-end">R$ @(V(d, "Value", 0m).ToString(NumberFormatConstants.TwoDecimals))</td>
                                                     </tr>
                                                 }
                                             </tbody>

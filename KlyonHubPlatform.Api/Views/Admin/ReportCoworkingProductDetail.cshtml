@@ -102,19 +102,19 @@
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     <h6 class="mb-1 opacity-75">Faturamento Bruto</h6>
-                    <h2 class="mb-0">R$ @(Model?.TotalRevenue.ToString("N2") ?? "0,00")</h2>
+                    <h2 class="mb-0">R$ @(Model?.TotalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? "0,00")</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <h6 class="mb-1 opacity-75">Comissão (@(Model?.CommissionPercentage.ToString("F2") ?? "0,00")%)</h6>
-                    <h2 class="mb-0">R$ @totalCommission.ToString("N2")</h2>
+                    <h6 class="mb-1 opacity-75">Comissão (@(Model?.CommissionPercentage.ToString(NumberFormatConstants.TwoDecimals) ?? "0,00")%)</h6>
+                    <h2 class="mb-0">R$ @totalCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="summary-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                     <h6 class="mb-1 opacity-75">Valor Líquido Repassado</h6>
-                    <h2 class="mb-0">R$ @totalNetValue.ToString("N2")</h2>
+                    <h2 class="mb-0">R$ @totalNetValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
         </div>
@@ -152,7 +152,7 @@
                                 {
                                     <tr class="transaction-row">
                                         <td>
-                                            <strong>@transaction.Date.ToString("dd/MM/yyyy")</strong><br>
+                                            <strong>@transaction.Date.ToString(DateFormatConstants.DisplayDateOnly)</strong><br>
                                             <small class="text-muted">@transaction.Date.ToString("HH:mm")</small>
                                         </td>
                                         <td>
@@ -163,7 +163,7 @@
                                             }
                                         </td>
                                         <td>
-                                            <strong class="text-success">R$ @transaction.Amount.ToString("N2")</strong>
+                                            <strong class="text-success">R$ @transaction.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td>
                                             <span class="badge bg-info">@transaction.PaymentMethod</span>
@@ -193,7 +193,7 @@
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="2"><strong>TOTAL</strong></td>
-                                    <td><strong>R$ @(Model?.TotalRevenue.ToString("N2") ?? "0,00")</strong></td>
+                                    <td><strong>R$ @(Model?.TotalRevenue.ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? "0,00")</strong></td>
                                     <td colspan="3"></td>
                                 </tr>
                             </tfoot>

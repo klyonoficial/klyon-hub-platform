@@ -12,8 +12,8 @@
     var clientHasActiveContract = contractedAddressIds.Count > 0;
     var activeContractId = ViewBag.ActiveContractId as int?;
     var urlContratoAtivo = activeContractId.HasValue
-        ? Url.Action("ContractDetails", "Client", new { id = activeContractId.Value })
-        : Url.Action("MyContracts", "Client");
+        ? Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = activeContractId.Value })
+        : Url.Action(ActionNames.MyContracts, ControllerNames.Client);
     var regions = ViewBag.Regions as List<string> ?? new List<string>();
     var cities = ViewBag.Cities as List<string> ?? new List<string>();
     var states = ViewBag.States as List<string> ?? new List<string>();
@@ -41,7 +41,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-building"></i> Contratar Endereço Fiscal</h2>
-    <a href="@Url.Action("MyContracts", "Client")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -52,7 +52,7 @@
         <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
     </div>
     <div class="card-body">
-        <form method="get" action="@Url.Action("ChooseLocation", "Client")" id="filterForm">
+        <form method="get" action="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" id="filterForm">
             <div class="row g-3">
                 <div class="col-6 col-md-3">
                     <label for="region" class="form-label"><i class="bi bi-map"></i> Filtrar por Região</label>
@@ -106,7 +106,7 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-3 d-flex align-items-end">
-                    <button type="button" class="btn btn-secondary w-100" onclick="window.location.href='@Url.Action("ChooseLocation", "Client")';">
+                    <button type="button" class="btn btn-secondary w-100" onclick="window.location.href='@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)';">
                         <i class="bi bi-arrow-counterclockwise me-1"></i> Limpar Filtros
                     </button>
                 </div>
@@ -152,7 +152,7 @@
                                 </span>
                             }
                             <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill"><i class="bi bi-geo-alt me-1"></i>@locationLabel</span>
-                            <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = mainPhoto.Id })"
+                            <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = mainPhoto.Id })"
                                  alt="@coworkingName"
                                  class="card-img-top"
                                  style="width: 100%; height: 100%; object-fit: contain; object-position: center;"
@@ -195,10 +195,10 @@
                         <div class="mt-auto pt-3 border-top">
                             <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
                                 <div>
-                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString("N2")</span>
+                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                     <span class="text-muted">/ano</span>
                                     <div class="small text-success fw-semibold">
-                                        <i class="bi bi-tag-fill me-1"></i> Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
+                                        <i class="bi bi-tag-fill me-1"></i> Equiv. R$ @monthlyEquivalent.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
                                     </div>
                                 </div>
                                 @{
@@ -213,7 +213,7 @@
                                     var badgeClass = isProcessing ? "bg-suspended" : "bg-pending-payment";
                                     var statusLabel = isProcessing ? "Processando" : (isAwaitingValidation ? "Aguardando Validação" : "Aguardando Pagamento");
                                     var statusIcon = isProcessing ? "bi-arrow-repeat" : (isAwaitingValidation ? "bi-clock-history" : "bi-cash-coin");
-                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = pendingPaymentId.Value })" class="badge @badgeClass text-white rounded-pill px-4 py-2 text-decoration-none contract-btn d-inline-flex align-items-center" style="font-size: 0.9rem;">
+                                    <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = pendingPaymentId.Value })" class="badge @badgeClass text-white rounded-pill px-4 py-2 text-decoration-none contract-btn d-inline-flex align-items-center" style="font-size: 0.9rem;">
                                         <i class="bi @statusIcon me-1"></i> @statusLabel
                                     </a>
                                 }
@@ -225,7 +225,7 @@
                                 }
                                 else
                                 {
-                                    <a href="@Url.Action("SelectPaymentPlan", "Client", new { coworkingAddressId = address.Id })" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                    <a href="@Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId = address.Id })" class="btn btn-primary rounded-pill px-4 contract-btn">
                                         <i class="bi bi-file-earmark-text me-1"></i> Contratar
                                     </a>
                                 }
@@ -249,7 +249,7 @@
                 @if (currentPage > 1)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = currentPage - 1 })">
+                        <a class="page-link" href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client, new { region = currentRegion, city = currentCity, state = currentState, page = currentPage - 1 })">
                             <i class="bi bi-chevron-left"></i> Anterior
                         </a>
                     </li>
@@ -264,14 +264,14 @@
                 @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                 {
                     <li class="page-item @(i == currentPage ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = i })">@i</a>
+                        <a class="page-link" href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client, new { region = currentRegion, city = currentCity, state = currentState, page = i })">@i</a>
                     </li>
                 }
 
                 @if (currentPage < totalPages)
                 {
                     <li class="page-item">
-                        <a class="page-link" href="@Url.Action("ChooseLocation", "Client", new { region = currentRegion, city = currentCity, state = currentState, page = currentPage + 1 })">
+                        <a class="page-link" href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client, new { region = currentRegion, city = currentCity, state = currentState, page = currentPage + 1 })">
                             Próxima <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
@@ -357,8 +357,8 @@ document.addEventListener('submit', function(e) {
             var msg = 'Erro de conexão. Tente novamente.';
             var addressIdInput = form.querySelector('input[name="coworkingAddressId"]');
             var addressId = addressIdInput ? addressIdInput.value : '';
-            var completeContractUrl = '@Url.Action("CompleteContractAfterLogin", "Client")' + (addressId ? '?coworkingAddressId=' + encodeURIComponent(addressId) : '');
-            var loginUrl = '@Url.Action("Login", "Auth")' + (completeContractUrl ? '?returnUrl=' + encodeURIComponent(completeContractUrl) : '');
+            var completeContractUrl = '@Url.Action(ActionNames.CompleteContractAfterLogin, ControllerNames.Client)' + (addressId ? '?coworkingAddressId=' + encodeURIComponent(addressId) : '');
+            var loginUrl = '@Url.Action(ActionNames.Login, ControllerNames.Auth)' + (completeContractUrl ? '?returnUrl=' + encodeURIComponent(completeContractUrl) : '');
             if (err && err.status === 400) {
                 msg = 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
             } else if (err && (err.status === 401 || err.status === 403)) {

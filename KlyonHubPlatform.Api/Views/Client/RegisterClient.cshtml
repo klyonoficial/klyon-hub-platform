@@ -11,7 +11,7 @@
 
 <div class="card">
     <div class="card-body">
-        <form method="post" action="@Url.Action("RegisterClient", "Client")" id="formRegisterClient">
+        <form method="post" action="@Url.Action(ActionNames.RegisterClient, ControllerNames.Client)" id="formRegisterClient">
             @Html.AntiForgeryToken()
             @if (ViewBag.ReturnUrl != null && !string.IsNullOrEmpty((string)ViewBag.ReturnUrl))
             {
@@ -174,7 +174,7 @@
     var inputRazaoSocial = document.getElementById('RazaoSocial');
     var inputContactName = document.getElementById('ContactName');
 
-    var checkDocumentUrl = '@Url.Action("CheckDocumentExists", "Client")';
+    var checkDocumentUrl = '@Url.Action(ActionNames.CheckDocumentExists, ControllerNames.Client)';
     var excludeClientId = @(Model?.Id ?? 0);
 
     function onlyDigits(s) { return (s || '').replace(/\D/g, ''); }

@@ -13,7 +13,7 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-credit-card-2-front"></i> Escolher forma de pagamento</h2>
-        <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-outline-secondary">
+        <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
@@ -30,7 +30,7 @@
             <h5 class="mb-0"><i class="bi bi-wallet2"></i> Selecione como deseja pagar</h5>
         </div>
         <div class="card-body">
-            <form method="post" action="@Url.Action("CreateContract", "Client")" id="paymentPlanForm">
+            <form method="post" action="@Url.Action(ActionNames.CreateContract, ControllerNames.Client)" id="paymentPlanForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="coworkingAddressId" value="@Model.Id" />
 
@@ -41,9 +41,9 @@
                             <input type="radio" name="paymentOption" value="PIX" class="form-check-input me-3" checked>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-qr-code text-primary me-2"></i>PIX</span>
-                                <span class="text-muted d-block small">Pagamento via PIX — R$ @Model.BasePrice.ToString("N2")/mês</span>
+                                <span class="text-muted d-block small">Pagamento via PIX — R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</span>
                             </div>
-                            <span class="badge bg-primary rounded-pill">R$ @Model.BasePrice.ToString("N2")</span>
+                            <span class="badge bg-primary rounded-pill">R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </label>
                     }
                     @if (hasCard1x)
@@ -54,7 +54,7 @@
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão à vista (1x)</span>
                                 <span class="text-muted d-block small">Pagamento único no cartão de crédito</span>
                             </div>
-                            <span class="badge bg-info rounded-pill">R$ @Model.CardPrice1x!.Value.ToString("N2")</span>
+                            <span class="badge bg-info rounded-pill">R$ @Model.CardPrice1x!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </label>
                     }
                     @if (hasCardMonthly)
@@ -65,7 +65,7 @@
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão — mensal</span>
                                 <span class="text-muted d-block small">Cobrança mensal no cartão</span>
                             </div>
-                            <span class="badge bg-info rounded-pill">R$ @Model.CardPriceMonthly!.Value.ToString("N2")/mês</span>
+                            <span class="badge bg-info rounded-pill">R$ @Model.CardPriceMonthly!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</span>
                         </label>
                     }
                     @if (hasCard12x)
@@ -74,9 +74,9 @@
                             <input type="radio" name="paymentOption" value="Card12x" class="form-check-input me-3">
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão — 12x</span>
-                                <span class="text-muted d-block small">12 parcelas de R$ @Model.CardPrice12x!.Value.ToString("N2") no cartão</span>
+                                <span class="text-muted d-block small">12 parcelas de R$ @Model.CardPrice12x!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals) no cartão</span>
                             </div>
-                            <span class="badge bg-info rounded-pill">12x R$ @Model.CardPrice12x.Value.ToString("N2")</span>
+                            <span class="badge bg-info rounded-pill">12x R$ @Model.CardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </label>
                     }
                 </div>
@@ -90,7 +90,7 @@
                     <button type="submit" class="btn btn-primary btn-lg">
                         <i class="bi bi-check-lg me-1"></i> Continuar para pagamento
                     </button>
-                    <a href="@Url.Action("ChooseLocation", "Client")" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                    <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-outline-secondary btn-lg">Cancelar</a>
                 </div>
             </form>
         </div>

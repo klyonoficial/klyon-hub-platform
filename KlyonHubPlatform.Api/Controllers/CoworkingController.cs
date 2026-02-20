@@ -1,4 +1,5 @@
 using System.Threading;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,8 @@ using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Dtos;
+using KlyonHubPlatform.Api.Dtos.Coworking;
 using Microsoft.EntityFrameworkCore;
 
 namespace KlyonHubPlatform.Api.Controllers
@@ -32,6 +35,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISystemConfigurationService _systemConfig;
         private readonly ISefazService _sefazService;
         private readonly IMonthlySettlementService _monthlySettlementService;
+        private readonly IMapper _mapper;
 
         public CoworkingController(
             ICoworkingService coworkingService,
@@ -44,7 +48,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IReservationTransferService reservationTransferService,
             ISystemConfigurationService systemConfig,
             ISefazService sefazService,
-            IMonthlySettlementService monthlySettlementService)
+            IMonthlySettlementService monthlySettlementService,
+            IMapper mapper)
         {
             _coworkingService = coworkingService;
             _commissionService = commissionService;
@@ -57,6 +62,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _systemConfig = systemConfig;
             _sefazService = sefazService;
             _monthlySettlementService = monthlySettlementService;
+            _mapper = mapper;
         }
 
         private async Task RefreshUserPrincipalAsync(User user)
@@ -79,10 +85,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
             }
 
-            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
 
-            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
             HttpContext.Session.SetString("UserName", user.FullName);
         }
 
@@ -108,16 +114,16 @@ namespace KlyonHubPlatform.Api.Controllers
             var alerts = new List<object>();
             if (coworkingEntity.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment)
             {
-                alerts.Add(new { Type = "danger", Icon = "bi-exclamation-triangle-fill", Title = "Cadastro Aguardando Ajuste", Message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) ? coworkingEntity.RejectionReason : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Perfil" });
+                alerts.Add(new { Type = BootstrapBadgeCss.Danger, Icon = "bi-exclamation-triangle-fill", Title = "Cadastro Aguardando Ajuste", Message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) ? coworkingEntity.RejectionReason : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.", ActionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking), ActionText = "Ver Perfil" });
             }
             var rejectedDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Rejected).OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt).ToListAsync();
             foreach (var doc in rejectedDocs)
             {
                 var docTypeName = GetDocumentTypeDisplayName(doc.Type);
-                alerts.Add(new { Type = "danger", Icon = "bi-file-earmark-x-fill", Title = $"Documento Rejeitado: {docTypeName}", Message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Documentos" });
+                alerts.Add(new { Type = BootstrapBadgeCss.Danger, Icon = "bi-file-earmark-x-fill", Title = $"Documento Rejeitado: {docTypeName}", Message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.", ActionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking), ActionText = "Ver Documentos" });
             }
             var pendingDocs = await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingEntity.Id && d.Status == CoworkingDocumentStatus.Pending).CountAsync();
-            if (pendingDocs > 0) alerts.Add(new { Type = "info", Icon = "bi-file-earmark-check", Title = "Documentos Em Análise", Message = $"{pendingDocs} documento(s) aguardando análise administrativa.", ActionUrl = Url.Action("Profile", "Coworking"), ActionText = "Ver Documentos" });
+            if (pendingDocs > 0) alerts.Add(new { Type = BootstrapBadgeCss.Info, Icon = "bi-file-earmark-check", Title = "Documentos Em Análise", Message = $"{pendingDocs} documento(s) aguardando análise administrativa.", ActionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking), ActionText = "Ver Documentos" });
             var pendingNf = 0;
             try
             {
@@ -131,35 +137,35 @@ namespace KlyonHubPlatform.Api.Controllers
                                 (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
-                        fn.Type == "Servico" &&
+                        fn.Type == FiscalNoteType.Servico &&
                         (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                     ))
                     .CountAsync();
             }
             catch { }
-            if (pendingNf > 0) alerts.Add(new { Type = "warning", Icon = "bi-receipt", Title = "NF de Serviço Não Emitidas", Message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir NF" });
+            if (pendingNf > 0) alerts.Add(new { Type = BootstrapBadgeCss.Warning, Icon = "bi-receipt", Title = "NF de Serviço Não Emitidas", Message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.", ActionUrl = Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking), ActionText = "Emitir NF" });
             var rejectedNf = 0;
             try
             {
                 // Contar apenas notas rejeitadas que não têm uma NF aprovada (Emitida ou Importada) posteriormente para o mesmo PaymentId
                 // Se existe uma NF aprovada para aquele PaymentId, não há pendência, mesmo que existam notas rejeitadas
                 rejectedNf = await _context.FiscalNotes
-                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Rejeitada)
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == FiscalNoteType.Servico && fn.Status == FiscalNoteStatus.Rejeitada)
                     .Where(fn => !_context.FiscalNotes.Any(fn2 =>
                         fn2.PaymentId == fn.PaymentId &&
-                        fn2.Type == "Servico" &&
+                        fn2.Type == FiscalNoteType.Servico &&
                         (fn2.Status == FiscalNoteStatus.Emitida || fn2.Status == FiscalNoteStatus.Importada) &&
                         fn2.Id != fn.Id
                     ))
                     .CountAsync();
             }
             catch { }
-            if (rejectedNf > 0) alerts.Add(new { Type = "danger", Icon = "bi-x-circle-fill", Title = "NF Importadas Rejeitadas", Message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.", ActionUrl = Url.Action("ServiceFiscalNotes", "Coworking"), ActionText = "Emitir / Importar NF" });
+            if (rejectedNf > 0) alerts.Add(new { Type = BootstrapBadgeCss.Danger, Icon = "bi-x-circle-fill", Title = "NF Importadas Rejeitadas", Message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.", ActionUrl = Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking), ActionText = "Emitir / Importar NF" });
             var addrs = await _context.CoworkingAddresses.Where(a => a.CoworkingId == coworkingEntity.Id && (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected)).ToListAsync();
             foreach (var a in addrs)
             {
-                if (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending) alerts.Add(new { Type = "warning", Icon = "bi-clock-history", Title = "Capacidade Fiscal Aguardando Aprovação", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} está aguardando aprovação administrativa.", ActionUrl = Url.Action("MyAddresses", "Coworking"), ActionText = "Ver Endereços" });
-                else alerts.Add(new { Type = "danger", Icon = "bi-x-circle-fill", Title = "Capacidade Fiscal Rejeitada", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} foi rejeitada.", ActionUrl = Url.Action("MyAddresses", "Coworking"), ActionText = "Ver Endereços" });
+                if (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending) alerts.Add(new { Type = BootstrapBadgeCss.Warning, Icon = "bi-clock-history", Title = "Capacidade Fiscal Aguardando Aprovação", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} está aguardando aprovação administrativa.", ActionUrl = Url.Action(ActionNames.MyAddresses, ControllerNames.Coworking), ActionText = "Ver Endereços" });
+                else alerts.Add(new { Type = BootstrapBadgeCss.Danger, Icon = "bi-x-circle-fill", Title = "Capacidade Fiscal Rejeitada", Message = $"A alteração de capacidade do endereço {a.Address}, {a.City} foi rejeitada.", ActionUrl = Url.Action(ActionNames.MyAddresses, ControllerNames.Coworking), ActionText = "Ver Endereços" });
             }
             return alerts;
         }
@@ -245,7 +251,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                 (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
                         fn.PaymentId == p.Id &&
-                        fn.Type == "Servico" &&
+                        fn.Type == FiscalNoteType.Servico &&
                         (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                     ))
                     .CountAsync();
@@ -315,11 +321,11 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 pendencies.Add(new
                 {
-                    type = "danger",
+                    type = BootstrapBadgeCss.Danger,
                     icon = "bi-exclamation-triangle-fill",
                     title = "Cadastro Aguardando Ajuste",
                     message = !string.IsNullOrEmpty(coworkingEntity.RejectionReason) ? coworkingEntity.RejectionReason : "Seu cadastro foi reprovado e requer ajustes. Verifique os itens indicados e reenvie para análise.",
-                    actionUrl = Url.Action("Profile", "Coworking"),
+                    actionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking),
                     actionText = "Ver Perfil",
                     details = (string[]?)null
                 });
@@ -334,11 +340,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 var docTypeName = GetDocumentTypeDisplayName(doc.Type);
                 pendencies.Add(new
                 {
-                    type = "danger",
+                    type = BootstrapBadgeCss.Danger,
                     icon = "bi-file-earmark-x-fill",
                     title = $"Documento Rejeitado: {docTypeName}",
                     message = !string.IsNullOrEmpty(doc.RejectionReason) ? doc.RejectionReason : "Este documento foi rejeitado e requer correção.",
-                    actionUrl = Url.Action("Profile", "Coworking") + "#documents",
+                    actionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking) + "#documents",
                     actionText = "Ver Documentos",
                     details = (string[]?)null
                 });
@@ -352,11 +358,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 var docTypeNames = pendingDocsList.Select(d => GetDocumentTypeDisplayName(d.Type)).Distinct().OrderBy(x => x).ToArray();
                 pendencies.Add(new
                 {
-                    type = "info",
+                    type = BootstrapBadgeCss.Info,
                     icon = "bi-file-earmark-check",
                     title = "Documentos Em Análise",
                     message = $"{pendingDocsList.Count} documento(s) aguardando análise administrativa.",
-                    actionUrl = Url.Action("Profile", "Coworking") + "#documents",
+                    actionUrl = Url.Action(ActionNames.Profile, ControllerNames.Coworking) + "#documents",
                     actionText = "Ver Documentos",
                     details = docTypeNames
                 });
@@ -371,7 +377,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     .Where(p => p.Status == PaymentStatus.Paid)
                     .Where(p => (p.Subscription != null && p.Subscription.Contract.Status == ContractStatus.Active) || (p.Reservation != null))
                     .Where(p => !_context.FiscalNotes.Any(fn =>
-                        fn.PaymentId == p.Id && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)))
+                        fn.PaymentId == p.Id && fn.Type == FiscalNoteType.Servico && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)))
                     .CountAsync();
             }
             catch { }
@@ -379,11 +385,11 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 pendencies.Add(new
                 {
-                    type = "warning",
+                    type = BootstrapBadgeCss.Warning,
                     icon = "bi-receipt",
                     title = "NF de Serviço Não Emitidas",
                     message = $"{pendingNf} pagamento(s) aguardando emissão de NF. Você só recebe o repasse após emitir a nota fiscal.",
-                    actionUrl = Url.Action("ServiceFiscalNotes", "Coworking"),
+                    actionUrl = Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking),
                     actionText = "Emitir NF",
                     details = (string[]?)null
                 });
@@ -393,9 +399,9 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 rejectedNf = await _context.FiscalNotes
-                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Rejeitada)
+                    .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == FiscalNoteType.Servico && fn.Status == FiscalNoteStatus.Rejeitada)
                     .Where(fn => !_context.FiscalNotes.Any(fn2 =>
-                        fn2.PaymentId == fn.PaymentId && fn2.Type == "Servico" &&
+                        fn2.PaymentId == fn.PaymentId && fn2.Type == FiscalNoteType.Servico &&
                         (fn2.Status == FiscalNoteStatus.Emitida || fn2.Status == FiscalNoteStatus.Importada) && fn2.Id != fn.Id))
                     .CountAsync();
             }
@@ -404,11 +410,11 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 pendencies.Add(new
                 {
-                    type = "danger",
+                    type = BootstrapBadgeCss.Danger,
                     icon = "bi-x-circle-fill",
                     title = "NF Importadas Rejeitadas",
                     message = $"{rejectedNf} NF(s) importada(s) foram rejeitadas. Verifique o motivo e reenvie pela tela Emitir NF de Serviço.",
-                    actionUrl = Url.Action("ServiceFiscalNotes", "Coworking"),
+                    actionUrl = Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking),
                     actionText = "Emitir / Importar NF",
                     details = (string[]?)null
                 });
@@ -422,22 +428,22 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending)
                     pendencies.Add(new
                     {
-                        type = "warning",
+                        type = BootstrapBadgeCss.Warning,
                         icon = "bi-clock-history",
                         title = "Capacidade Fiscal Aguardando Aprovação",
                         message = $"A alteração de capacidade do endereço {a.Address}, {a.City} está aguardando aprovação administrativa.",
-                        actionUrl = Url.Action("MyAddresses", "Coworking"),
+                        actionUrl = Url.Action(ActionNames.MyAddresses, ControllerNames.Coworking),
                         actionText = "Ver Endereços",
                         details = (string[]?)null
                     });
                 else
                     pendencies.Add(new
                     {
-                        type = "danger",
+                        type = BootstrapBadgeCss.Danger,
                         icon = "bi-x-circle-fill",
                         title = "Capacidade Fiscal Rejeitada",
                         message = $"A alteração de capacidade do endereço {a.Address}, {a.City} foi rejeitada.",
-                        actionUrl = Url.Action("MyAddresses", "Coworking"),
+                        actionUrl = Url.Action(ActionNames.MyAddresses, ControllerNames.Coworking),
                         actionText = "Ver Endereços",
                         details = (string[]?)null
                     });
@@ -1672,7 +1678,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Status: {statusPt}",
                     Description = $"Status do contrato alterado para {statusPt}",
                     Icon = "bi-arrow-repeat",
-                    Color = "info"
+                    Color = BootstrapBadgeCss.Info
                 });
             }
 
@@ -1686,7 +1692,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Pagamento de R$ {payment.Amount:N2}",
                     Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
                     Icon = "bi-cash-coin",
-                    Color = payment.Status == PaymentStatus.Paid ? "success" : "warning",
+                    Color = payment.Status == PaymentStatus.Paid ? BootstrapBadgeCss.Success : BootstrapBadgeCss.Warning,
                     Payment = payment
                 });
 
@@ -1699,7 +1705,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Pagamento Confirmado",
                         Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
                         Icon = "bi-check-circle",
-                        Color = "success",
+                        Color = BootstrapBadgeCss.Success,
                         Payment = payment
                     });
                 }
@@ -1710,7 +1716,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
                     {
-                        if (history.Action == "ContractCreated")
+                        if (history.Action == PaymentHistoryActions.ContractCreated)
                             continue;
 
                         string title, description, icon, color;
@@ -1719,7 +1725,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             title = "Pagamento Aprovado";
                             description = $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}";
                             icon = "bi-check-circle";
-                            color = "success";
+                            color = BootstrapBadgeCss.Success;
                         }
                         else if (history.Action == "Cancelled")
                         {
@@ -1733,14 +1739,14 @@ namespace KlyonHubPlatform.Api.Controllers
                             title = "Comprovante enviado";
                             description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
                             icon = "bi-file-earmark-arrow-up";
-                            color = "info";
+                            color = BootstrapBadgeCss.Info;
                         }
-                        else if (history.Action == "Rejected")
+                        else if (history.Action == PaymentHistoryActions.Rejected)
                         {
                             title = "Pagamento Reprovado";
                             description = $"Reprovado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}";
                             icon = "bi-x-circle";
-                            color = "danger";
+                            color = BootstrapBadgeCss.Danger;
                         }
                         else
                             continue;
@@ -1769,7 +1775,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Declaração {declaration.DeclarationNumber}",
                     Description = $"Versão {declaration.Version} gerada",
                     Icon = "bi-file-earmark-pdf",
-                    Color = "info",
+                    Color = BootstrapBadgeCss.Info,
                     Declaration = declaration
                 });
             }
@@ -2024,41 +2030,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Tabela Interests pode não existir ainda, continuar apenas com Reservations
             }
 
-            // Combinar e ordenar todas as reservas usando Dictionary para garantir compatibilidade
-            var allReservations = confirmedReservations.Select(r => new Dictionary<string, object>
-            {
-                ["Id"] = r.Id,
-                ["Type"] = "Reservation",
-                ["ReservationDate"] = r.ReservationDate,
-                ["StartTime"] = r.StartTime ?? (object)DBNull.Value,
-                ["EndTime"] = r.EndTime ?? (object)DBNull.Value,
-                ["ClientName"] = r.Client.User.FullName ?? "",
-                ["ClientEmail"] = r.Client.ContactEmail ?? r.Client.User.Email ?? "",
-                ["ClientPhone"] = r.Client.ContactPhone ?? r.Client.User.Phone ?? "",
-                ["Address"] = r.CoworkingAddress,
-                ["Status"] = r.Status.ToString(),
-                ["CreatedAt"] = r.CreatedAt,
-                ["RoomType"] = r.RoomType ?? "",
-                ["TotalValue"] = (object?)r.TotalValue ?? DBNull.Value,
-                ["ClientConfirmedAt"] = r.ClientConfirmedAt ?? (object)DBNull.Value,
-                ["CoworkingConfirmedAt"] = r.CoworkingConfirmedAt ?? (object)DBNull.Value
-            }).Concat(interests.Select(i => new Dictionary<string, object>
-            {
-                ["Id"] = i.Id,
-                ["Type"] = "Interest",
-                ["ReservationDate"] = i.AllocationDate ?? DateTime.MinValue,
-                ["StartTime"] = i.StartTime ?? (object)DBNull.Value,
-                ["EndTime"] = i.EndTime ?? (object)DBNull.Value,
-                ["ClientName"] = $"{i.Name} {i.LastName}",
-                ["ClientEmail"] = i.Email ?? "",
-                ["ClientPhone"] = i.Phone ?? "",
-                ["Address"] = i.CoworkingAddress,
-                ["Status"] = i.Status.ToString(),
-                ["CreatedAt"] = i.CreatedAt,
-                ["RoomType"] = (object?)null ?? DBNull.Value,
-                ["TotalValue"] = DBNull.Value,
-            })).OrderByDescending(x => ((DateTime)x["ReservationDate"]))
-                .ThenByDescending(x => ((DateTime)x["CreatedAt"]))
+            var fromRes = _mapper.Map<List<ReservationOrInterestItemDto>>(confirmedReservations);
+            var fromInt = _mapper.Map<List<ReservationOrInterestItemDto>>(interests);
+            var allReservations = fromRes.Concat(fromInt)
+                .OrderByDescending(x => x.ReservationDate)
+                .ThenByDescending(x => x.CreatedAt)
                 .ToList();
 
             // Paginação manual
@@ -2218,7 +2194,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             string ClientDisplayName(Reservation r) => r.Client != null
-                ? (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? "—")
+                ? (r.Client.RazaoSocial ?? r.Client.NomeFantasia ?? r.Client.ContactName ?? DefaultDisplayStrings.EmptyPlaceholder)
                 : "Cliente não identificado";
 
             var total = list.Sum(r => r.TotalValue);
@@ -2231,7 +2207,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var allDetails = x.Item3.Select(r => new Dictionary<string, object>
                 {
-                    ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                    ["DateFormatted"] = r.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly),
                     ["ClientName"] = ClientDisplayName(r),
                     ["Value"] = r.TotalValue,
                 }).ToList();
@@ -2267,7 +2243,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     var allDetails = g.Select(r => new Dictionary<string, object>
                     {
-                        ["DateFormatted"] = r.ReservationDate.ToString("dd/MM/yyyy"),
+                        ["DateFormatted"] = r.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly),
                         ["RoomTypeLabel"] = RoomTypes.GetDisplayName(r.RoomType ?? "Shared"),
                         ["Value"] = r.TotalValue,
                     }).ToList();
@@ -2416,7 +2392,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var paymentIds = commissions.Select(c => c.PaymentId).Distinct().ToList();
             var paymentIdsWithEmitidaNf = await _context.FiscalNotes
                 .Where(fn => fn.PaymentId != null && paymentIds.Contains(fn.PaymentId.Value)
-                    && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada))
+                    && fn.Type == FiscalNoteType.Servico && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada))
                 .Select(fn => fn.PaymentId!.Value)
                 .Distinct()
                 .ToListAsync();
@@ -2468,7 +2444,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (!hasBankData)
             {
-                TempData[ErrorMessages.TempDataKey] = "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + Url.Action("Profile", "Coworking") + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
+                TempData[ErrorMessages.TempDataKey] = "Para solicitar repasse, é necessário cadastrar os dados bancários: Chave PIX ou Conta Corrente (Banco, Agência, Conta e Tipo de conta). <a href=\"" + Url.Action(ActionNames.Profile, ControllerNames.Coworking) + "\" class=\"alert-link\">Clique aqui para cadastrar seus dados bancários</a>.";
                 return RedirectToAction(ActionNames.Dashboard);
             }
 
@@ -2639,7 +2615,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 // Verificar se é requisição AJAX (declarar uma única vez no início do método)
-                var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
+                var isAjaxRequest = Request.Headers[HttpHeaderNames.XRequestedWith].ToString() == HttpHeaderNames.XRequestedWithValue;
 
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var existingCoworking = await _coworkingService.GetByUserIdAsync(userId);
@@ -2857,7 +2833,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 // Verificar se é requisição AJAX no catch também
-                var isAjaxRequestCatch = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
+                var isAjaxRequestCatch = Request.Headers[HttpHeaderNames.XRequestedWith].ToString() == HttpHeaderNames.XRequestedWithValue;
 
                 var errorMessage = $"Erro ao atualizar dados: {ex.Message}";
                 TempData[ErrorMessages.TempDataKey] = errorMessage;
@@ -2889,7 +2865,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 if (coworkingEntity == null)
                 {
-                    if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                     {
                         return Json(new { success = false, message = JsonMessage.CoworkingNaoEncontrado });
                     }
@@ -2921,7 +2897,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 // Se for requisição AJAX, retornar JSON
-                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                 {
                     var updatedProducts = await _context.CoworkingProducts
                         .Where(p => p.CoworkingId == coworkingEntity.Id && p.IsActive)
@@ -2942,7 +2918,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (Exception ex)
             {
-                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                 {
                     return Json(new { success = false, message = $"Erro ao atualizar produtos: {ex.Message}" });
                 }
@@ -3292,7 +3268,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 _context.PaymentHistories.Add(new PaymentHistory
                 {
                     PaymentId = paymentId,
-                    Action = "Approved",
+                    Action = PaymentHistoryActions.Approved,
                     ActionBy = userId,
                     ActionAt = DateTimeHelper.GetBrazilianTime()
                 });
@@ -3361,7 +3337,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             _context.PaymentHistories.Add(new PaymentHistory
                             {
                                 PaymentId = p.Id,
-                                Action = "Cancelled",
+                                Action = PaymentHistoryActions.Cancelled,
                                 RejectionReason = rejectionReasonPayment,
                                 ActionBy = userId,
                                 ActionAt = nowBr
@@ -3522,7 +3498,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> UploadPhotos(List<IFormFile> Photos, CancellationToken cancellationToken = default)
         {
             var isAjax = Request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase)
-                || Request.Headers["X-Requested-With"] == "XMLHttpRequest";
+                || Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue;
 
             try
             {
@@ -4719,7 +4695,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 )
                 .Where(p => !_context.FiscalNotes.Any(fn =>
                     fn.PaymentId == p.Id &&
-                    fn.Type == "Servico" &&
+                    fn.Type == FiscalNoteType.Servico &&
                     (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada)
                 ))
                 .AsQueryable();
@@ -4967,7 +4943,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 // Verificar se já existe NF emitida
                 var existingNote = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && fn.Status == FiscalNoteStatus.Emitida);
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == FiscalNoteType.Servico && fn.Status == FiscalNoteStatus.Emitida);
 
                 if (existingNote != null)
                 {
@@ -4993,7 +4969,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 // Criar registro de NF com valor total (com percentagem)
                 var fiscalNote = new FiscalNote
                 {
-                    Type = "Servico",
+                    Type = FiscalNoteType.Servico,
                     PaymentId = payment.Id,
                     CoworkingId = coworkingEntity.Id,
                     ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
@@ -5072,7 +5048,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
 
                 var existing = await _context.FiscalNotes
-                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == "Servico" && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada));
+                    .FirstOrDefaultAsync(fn => fn.PaymentId == paymentId && fn.Type == FiscalNoteType.Servico && (fn.Status == FiscalNoteStatus.Emitida || fn.Status == FiscalNoteStatus.Importada));
                 if (existing != null)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Já existe NF de serviço (emitida ou importada) para este pagamento.";
@@ -5098,7 +5074,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 var fiscalNote = new FiscalNote
                 {
-                    Type = "Servico",
+                    Type = FiscalNoteType.Servico,
                     PaymentId = payment.Id,
                     CoworkingId = coworkingEntity.Id,
                     ClientId = payment.Subscription?.Contract?.ClientId ?? payment.Reservation?.ClientId,
@@ -5151,7 +5127,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 .Include(fn => fn.Reservation)
                     .ThenInclude(r => r.CoworkingAddress)
                         .ThenInclude(ca => ca.Location)
-                .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == "Servico")
+                .Where(fn => fn.CoworkingId == coworkingEntity.Id && fn.Type == FiscalNoteType.Servico)
                 .AsQueryable();
 
             // Aplicar filtros
@@ -5232,7 +5208,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var fileName = Path.GetFileName(fn.PdfUrl) ?? $"nota_fiscal_{fn.Id}.pdf";
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            Response.Headers.Append(HttpHeaderNames.ContentDisposition, $"inline; filename=\"{fileName}\"");
             return File(fileBytes, "application/pdf");
         }
 

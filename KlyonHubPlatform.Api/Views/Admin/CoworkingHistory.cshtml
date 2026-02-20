@@ -52,7 +52,7 @@
                         @foreach (var log in Model)
                         {
                             <tr class="cursor-pointer" style="cursor: pointer;" onclick="showLogDetails(@log.Id)" data-log-id="@log.Id">
-                                <td>@log.ActionDate.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@log.ActionDate.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                 <td>
                                     @{
                                         var actionLabel = KlyonHubPlatform.Domain.Core.Constants.CoworkingHistoryActionLabels.GetDisplayLabel(log.Action ?? string.Empty);

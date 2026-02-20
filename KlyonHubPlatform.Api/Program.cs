@@ -13,6 +13,8 @@ using KlyonHubPlatform.Infra.Data.Repositories;
 using KlyonHubPlatform.Infra.CrossCutting.Middleware;
 using Microsoft.AspNetCore.Localization;
 using System.Globalization;
+using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Domain.Core.Constants;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -57,12 +59,12 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     var supportedCultures = new[]
     {
-        new CultureInfo("pt-BR"),
-        new CultureInfo("en-US"),
-        new CultureInfo("es-ES")
+        new CultureInfo(CultureNames.PtBr),
+        new CultureInfo(CultureNames.EnUs),
+        new CultureInfo(CultureNames.EsEs)
     };
 
-    options.DefaultRequestCulture = new RequestCulture("pt-BR");
+    options.DefaultRequestCulture = new RequestCulture(CultureNames.Default);
     options.SupportedCultures = supportedCultures;
     options.SupportedUICultures = supportedCultures;
     
@@ -86,7 +88,7 @@ var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is required");
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie("Cookies", options =>
+    .AddCookie(AuthConstants.CookieScheme, options =>
     {
         options.LoginPath = "/Auth/Login";
         options.LogoutPath = "/Auth/Logout";
@@ -168,6 +170,7 @@ builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService
 
 // Client Menu (ex.: ocultar "Localidades Disponíveis" quando cliente tem endereço ativo)
 builder.Services.AddScoped<IClientMenuService, ClientMenuService>();
+builder.Services.AddScoped<IClientDashboardService, ClientDashboardService>();
 builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
 
 // Storage Services
@@ -184,8 +187,8 @@ builder.Services.AddHostedService<ContractExpiryBackgroundService>();
 builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 builder.Services.AddHostedService<MonthlySettlementBackgroundService>();
 
-// AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
+// AutoMapper (scan Api + Application para profiles)
+builder.Services.AddAutoMapper(typeof(Program), typeof(KlyonHubPlatform.Application.Mappers.ApplicationMappingProfile));
 
 // HttpContextAccessor para acesso ao contexto HTTP nos serviços
 builder.Services.AddHttpContextAccessor();

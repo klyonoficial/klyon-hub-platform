@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +36,7 @@ namespace KlyonHubPlatform.Application.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)
-                return new ClientRegistrationStatus(false, "CompleteRegistration", "RegisterClient");
+                return new ClientRegistrationStatus(false, ClientRegistrationMessageKeys.CompleteRegistration, "RegisterClient");
 
             var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
             var missingRequired = !hasDocument ||
@@ -43,7 +44,7 @@ namespace KlyonHubPlatform.Application.Services
                 string.IsNullOrWhiteSpace(client.ContactName) ||
                 string.IsNullOrWhiteSpace(client.State);
             if (missingRequired)
-                return new ClientRegistrationStatus(false, "CompleteRegistrationWithFields", "RegisterClient");
+                return new ClientRegistrationStatus(false, ClientRegistrationMessageKeys.CompleteRegistrationWithFields, "RegisterClient");
 
             return new ClientRegistrationStatus(true, null, null);
         }

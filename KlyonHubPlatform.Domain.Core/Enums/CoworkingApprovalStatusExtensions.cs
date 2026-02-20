@@ -28,10 +28,10 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         /// <summary>Classe CSS do badge Bootstrap (warning, danger, success).</summary>
         public static string ToBadgeCssClass(this CoworkingApprovalStatus status) => status switch
         {
-            CoworkingApprovalStatus.UnderReview => "warning",
-            CoworkingApprovalStatus.AwaitingAdjustment => "danger",
-            CoworkingApprovalStatus.Approved => "success",
-            _ => "secondary"
+            CoworkingApprovalStatus.UnderReview => BootstrapBadgeCss.Warning,
+            CoworkingApprovalStatus.AwaitingAdjustment => BootstrapBadgeCss.Danger,
+            CoworkingApprovalStatus.Approved => BootstrapBadgeCss.Success,
+            _ => BootstrapBadgeCss.Secondary
         };
 
         /// <summary>Converte string (enum.ToString do audit log) para display. Ex: "UnderReview" → "Aguardando Aprovação".</summary>

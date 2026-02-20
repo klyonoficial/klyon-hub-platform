@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-cash-stack"></i> Meus Repasses</h2>
-    <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Dashboard, ControllerNames.Coworking)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -46,7 +46,7 @@
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
-                    <h4>R$ @summary.TotalAmountPending.ToString("N2")</h4>
+                    <h4>R$ @summary.TotalAmountPending.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                     <small>Pendente</small>
                 </div>
             </div>
@@ -99,11 +99,11 @@
                             <tr>
                                 <td><strong>@monthName</strong></td>
                                 <td>
-                                    R$ @settlement.TotalGrossAmount.ToString("N2")
+                                    R$ @settlement.TotalGrossAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                     <br><small class="text-muted">@settlement.CommissionCount item(ns)</small>
                                 </td>
-                                <td class="text-danger">- R$ @settlement.TotalPlatformCommission.ToString("N2")</td>
-                                <td class="text-success fw-bold">R$ @settlement.TotalAmount.ToString("N2")</td>
+                                <td class="text-danger">- R$ @settlement.TotalPlatformCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</td>
+                                <td class="text-success fw-bold">R$ @settlement.TotalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</td>
                                 <td>
                                     <span class="badge bg-@statusBadge">@statusText</span>
                                     @if (settlement.Status == KlyonHubPlatform.Domain.Core.Enums.SettlementStatus.AwaitingInvoice && settlement.InvoiceDeadline.HasValue)
@@ -118,11 +118,11 @@
                                 <td>
                                     @if (settlement.TransferredAt.HasValue)
                                     {
-                                        @settlement.TransferredAt.Value.ToString("dd/MM/yyyy")
+                                        @settlement.TransferredAt.Value.ToString(DateFormatConstants.DisplayDateOnly)
                                     }
                                     else if (settlement.ScheduledTransferDate.HasValue)
                                     {
-                                        <small class="text-muted">Previsto: @settlement.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</small>
+                                        <small class="text-muted">Previsto: @settlement.ScheduledTransferDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                                     }
                                     else
                                     {
@@ -140,7 +140,7 @@
                                     }
                                     else
                                     {
-                                        <a href="@Url.Action("SettlementDetails", "Coworking", new { id = settlement.Id })" 
+                                        <a href="@Url.Action(ActionNames.SettlementDetails, ControllerNames.Coworking, new { id = settlement.Id })" 
                                            class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-eye"></i> Detalhes
                                         </a>
@@ -171,7 +171,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="@Url.Action("UploadPartnerInvoice", "Coworking")" enctype="multipart/form-data" id="uploadForm">
+            <form method="post" action="@Url.Action(ActionNames.UploadPartnerInvoice, ControllerNames.Coworking)" enctype="multipart/form-data" id="uploadForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" id="settlementId" name="settlementId" />
                 <div class="modal-body">

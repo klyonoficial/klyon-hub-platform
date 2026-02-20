@@ -15,7 +15,7 @@
                     @if (ViewData["Success"] != null)
                     {
                         var loginReturnUrl = ViewData["ReturnUrl"]?.ToString();
-                        var loginUrl = string.IsNullOrEmpty(loginReturnUrl) ? Url.Action("Login", "Auth") : Url.Action("Login", "Auth") + "?returnUrl=" + Uri.EscapeDataString(loginReturnUrl);
+                        var loginUrl = string.IsNullOrEmpty(loginReturnUrl) ? Url.Action(ActionNames.Login, ControllerNames.Auth) : Url.Action(ActionNames.Login, ControllerNames.Auth) + "?returnUrl=" + Uri.EscapeDataString(loginReturnUrl);
                         <div class="alert alert-success" role="alert">
                             <i class="bi bi-check-circle"></i> @ViewData["Success"]
                             <div class="mt-3">
@@ -40,7 +40,7 @@
 
                     @if (ViewData["Success"] == null)
                     {
-                        <form method="post" action="@Url.Action("VerifyEmail", "Auth")">
+                        <form method="post" action="@Url.Action(ActionNames.VerifyEmail, ControllerNames.Auth)">
                             <div class="mb-3">
                                 <label for="token" class="form-label">Token de Verificação</label>
                                 <input type="text" class="form-control" id="token" name="token" 
@@ -59,7 +59,7 @@
 
                         <div class="text-center">
                             <p class="text-muted">Não recebeu o email?</p>
-                            <a href="@Url.Action("ResendVerification", "Auth")" class="btn btn-outline-secondary">
+                            <a href="@Url.Action(ActionNames.ResendVerification, ControllerNames.Auth)" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-clockwise"></i> Solicitar Novo Token
                             </a>
                         </div>
@@ -68,7 +68,7 @@
                     <div class="text-center mt-4">
                         @{
                             var backReturnUrl = ViewData["ReturnUrl"]?.ToString();
-                            var backLoginUrl = string.IsNullOrEmpty(backReturnUrl) ? Url.Action("Login", "Auth") : Url.Action("Login", "Auth") + "?returnUrl=" + Uri.EscapeDataString(backReturnUrl);
+                            var backLoginUrl = string.IsNullOrEmpty(backReturnUrl) ? Url.Action(ActionNames.Login, ControllerNames.Auth) : Url.Action(ActionNames.Login, ControllerNames.Auth) + "?returnUrl=" + Uri.EscapeDataString(backReturnUrl);
                         }
                         <a href="@backLoginUrl">Voltar para o login</a>
                     </div>

@@ -10,7 +10,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-info-circle"></i> Detalhes da Transferência #@Model.Id</h2>
-    <a href="@Url.Action("Transfers", "Admin")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Transfers, ControllerNames.Admin)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar para Transferências
     </a>
 </div>
@@ -29,7 +29,7 @@
 
                     <dt class="col-sm-4">Parceiro:</dt>
                     <dd class="col-sm-8">
-                        <strong>@(Model.Coworking?.Name ?? "—")</strong>
+                        <strong>@(Model.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder)</strong>
                         @if (Model.Coworking?.CNPJ != null)
                         {
                             <br /><small class="text-muted">CNPJ: @Model.Coworking.CNPJ</small>
@@ -37,7 +37,7 @@
                     </dd>
 
                     <dt class="col-sm-4">Valor:</dt>
-                    <dd class="col-sm-8"><strong class="text-success" style="font-size: 1.2em;">R$ @Model.Amount.ToString("N2")</strong></dd>
+                    <dd class="col-sm-8"><strong class="text-success" style="font-size: 1.2em;">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></dd>
 
                     <dt class="col-sm-4">Status:</dt>
                     <dd class="col-sm-8">
@@ -71,23 +71,23 @@
             <div class="col-md-6">
                 <dl class="row">
                     <dt class="col-sm-4">Descrição:</dt>
-                    <dd class="col-sm-8">@(Model.Description ?? "—")</dd>
+                    <dd class="col-sm-8">@(Model.Description ?? DefaultDisplayStrings.EmptyPlaceholder)</dd>
 
                     <dt class="col-sm-4">Data de Solicitação:</dt>
                     <dd class="col-sm-8">
-                        @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                        @Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                     </dd>
 
                     <dt class="col-sm-4">Data Agendada:</dt>
                     <dd class="col-sm-8">
-                        @Model.ScheduledDate.ToString("dd/MM/yyyy HH:mm")
+                        @Model.ScheduledDate.ToString(DateFormatConstants.DisplayDateAndTime)
                     </dd>
 
                     @if (Model.ProcessedAt.HasValue)
                     {
                         <dt class="col-sm-4">Data do Repasse:</dt>
                         <dd class="col-sm-8">
-                            @Model.ProcessedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                            @Model.ProcessedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                         </dd>
                     }
 
@@ -123,7 +123,7 @@
                         <dd class="col-sm-8"><strong>#@Model.Reservation.Id</strong></dd>
 
                         <dt class="col-sm-4">Data da Reserva:</dt>
-                        <dd class="col-sm-8">@Model.Reservation.ReservationDate.ToString("dd/MM/yyyy")</dd>
+                        <dd class="col-sm-8">@Model.Reservation.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
 
                         @if (Model.Reservation.StartTime.HasValue && Model.Reservation.EndTime.HasValue)
                         {
@@ -137,7 +137,7 @@
                         <dd class="col-sm-8">@Model.Reservation.RoomType</dd>
 
                         <dt class="col-sm-4">Valor Total:</dt>
-                        <dd class="col-sm-8"><strong class="text-success">R$ @Model.Reservation.TotalValue.ToString("N2")</strong></dd>
+                        <dd class="col-sm-8"><strong class="text-success">R$ @Model.Reservation.TotalValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></dd>
                     </dl>
                 </div>
                 <div class="col-md-6">
@@ -197,8 +197,8 @@
                         {
                             var client = commission.Payment?.Subscription?.Contract?.Client 
                                 ?? commission.Payment?.Reservation?.Client;
-                            var clientName = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? "—";
-                            var clientDoc = client?.CNPJ ?? client?.CPF ?? "—";
+                            var clientName = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder;
+                            var clientDoc = client?.CNPJ ?? client?.CPF ?? DefaultDisplayStrings.EmptyPlaceholder;
                             var paymentType = commission.Payment?.Subscription != null ? "Endereço Fiscal" : "Reserva de Sala";
                             
                             <tr>
@@ -207,13 +207,13 @@
                                     <strong>@clientName</strong>
                                     <br /><small class="text-muted">@clientDoc</small>
                                 </td>
-                                <td><strong>R$ @commission.TotalPaymentAmount.ToString("N2")</strong></td>
-                                <td>@commission.Percentage.ToString("F2")%</td>
-                                <td><strong class="text-success">R$ @commission.Amount.ToString("N2")</strong></td>
+                                <td><strong>R$ @commission.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                <td>@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</td>
+                                <td><strong class="text-success">R$ @commission.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                 <td>
                                     @if (commission.Payment?.PaidAt.HasValue == true)
                                     {
-                                        @commission.Payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                        @commission.Payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                     }
                                     else
                                     {
@@ -244,10 +244,10 @@
                 var payment = commission.Payment;
                 var client = payment?.Subscription?.Contract?.Client 
                     ?? payment?.Reservation?.Client;
-                var clientName = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? "—";
-                var clientDoc = client?.CNPJ ?? client?.CPF ?? "—";
-                var clientEmail = client?.ContactEmail ?? client?.User?.Email ?? "—";
-                var clientPhone = client?.ContactPhone ?? "—";
+                var clientName = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder;
+                var clientDoc = client?.CNPJ ?? client?.CPF ?? DefaultDisplayStrings.EmptyPlaceholder;
+                var clientEmail = client?.ContactEmail ?? client?.User?.Email ?? DefaultDisplayStrings.EmptyPlaceholder;
+                var clientPhone = client?.ContactPhone ?? DefaultDisplayStrings.EmptyPlaceholder;
                 var paymentType = payment?.Subscription != null ? "Endereço Fiscal" : "Reserva de Sala";
                 
                 <div class="card mb-3">
@@ -270,7 +270,7 @@
                                     <dt class="col-sm-5">Email:</dt>
                                     <dd class="col-sm-7">@clientEmail</dd>
 
-                                    @if (!string.IsNullOrEmpty(clientPhone) && clientPhone != "—")
+                                    @if (!string.IsNullOrEmpty(clientPhone) && clientPhone != DefaultDisplayStrings.EmptyPlaceholder)
                                     {
                                         <dt class="col-sm-5">Telefone:</dt>
                                         <dd class="col-sm-7">@clientPhone</dd>
@@ -281,7 +281,7 @@
                                 <h6 class="text-success"><i class="bi bi-cash-stack"></i> Informações do Pagamento</h6>
                                 <dl class="row mb-0">
                                     <dt class="col-sm-5">Valor:</dt>
-                                    <dd class="col-sm-7"><strong class="text-success">R$ @payment.Amount.ToString("N2")</strong></dd>
+                                    <dd class="col-sm-7"><strong class="text-success">R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></dd>
 
                                     <dt class="col-sm-5">Método:</dt>
                                     <dd class="col-sm-7">
@@ -297,7 +297,7 @@
                                                 <span class="badge bg-success">Cartão de Crédito</span>
                                                 @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
                                                 {
-                                                    <span class="text-muted ms-1">— @payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString("N2")</span>
+                                                    <span class="text-muted ms-1">— @payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                                 }
                                                 break;
                                             default:
@@ -331,7 +331,7 @@
                                     @if (payment.PaidAt.HasValue)
                                     {
                                         <dt class="col-sm-5">Data do Pagamento:</dt>
-                                        <dd class="col-sm-7">@payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</dd>
+                                        <dd class="col-sm-7">@payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</dd>
                                     }
 
                                     @if (!string.IsNullOrEmpty(payment.TransactionId))
@@ -352,15 +352,15 @@
                                 <dd class="col-sm-4"><strong>@payment.Subscription.Contract.ContractNumber</strong></dd>
 
                                 <dt class="col-sm-2">Valor Anual:</dt>
-                                <dd class="col-sm-4"><strong>R$ @((payment.Subscription.Contract.MonthlyValue * 12).ToString("N2"))</strong></dd>
+                                <dd class="col-sm-4"><strong>R$ @((payment.Subscription.Contract.MonthlyValue * 12).ToString(NumberFormatConstants.CurrencyTwoDecimals))</strong></dd>
 
                                 <dt class="col-sm-2">Data de Início:</dt>
-                                <dd class="col-sm-4">@payment.Subscription.Contract.StartDate.ToString("dd/MM/yyyy")</dd>
+                                <dd class="col-sm-4">@payment.Subscription.Contract.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
 
                                 @if (payment.Subscription.Contract.EndDate.HasValue)
                                 {
                                     <dt class="col-sm-2">Data de Término:</dt>
-                                    <dd class="col-sm-4">@payment.Subscription.Contract.EndDate.Value.ToString("dd/MM/yyyy")</dd>
+                                    <dd class="col-sm-4">@payment.Subscription.Contract.EndDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</dd>
                                 }
                             </dl>
                         }
@@ -381,15 +381,15 @@ else
 <div class="card">
     <div class="card-body">
         <div class="d-flex gap-2">
-            <a href="@Url.Action("Transfers", "Admin")" class="btn btn-secondary">
+            <a href="@Url.Action(ActionNames.Transfers, ControllerNames.Admin)" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Voltar para Lista
             </a>
             @if (Model.Status == KlyonHubPlatform.Domain.Core.Enums.TransferStatus.Pending)
             {
-                <form method="post" action="@Url.Action("ApproveTransfer", "Admin")" class="d-inline">
+                <form method="post" action="@Url.Action(ActionNames.ApproveTransfer, ControllerNames.Admin)" class="d-inline">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="transferId" value="@Model.Id" />
-                    <button type="submit" class="btn btn-success" onclick="return confirm('Tem certeza que deseja aprovar o repasse de R$ @(Model.Amount.ToString("N2"))?');">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Tem certeza que deseja aprovar o repasse de R$ @(Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals))?');">
                         <i class="bi bi-check-circle"></i> Aprovar Transferência
                     </button>
                 </form>

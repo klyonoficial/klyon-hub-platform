@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-geo-alt"></i> Gerenciar Localidades</h2>
-    <a href="@Url.Action("CreateLocation", "Admin")" class="btn btn-primary">
+    <a href="@Url.Action(ActionNames.CreateLocation, ControllerNames.Admin)" class="btn btn-primary">
         <i class="bi bi-plus-circle"></i> Nova Localidade
     </a>
 </div>
@@ -15,7 +15,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("Locations", "Admin")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.Locations, ControllerNames.Admin)" class="row g-3">
             <div class="col-md-3">
                 <label for="search" class="form-label">Buscar</label>
                 <input type="text" class="form-control" id="search" name="search" 
@@ -53,7 +53,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("Locations", "Admin")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.Locations, ControllerNames.Admin)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -105,19 +105,19 @@
                         <strong>Região:</strong> @location.Region
                     </p>
                     <hr>
-                    <form method="post" action="@Url.Action("UpdateLocationCommission", "Admin")" id="form_@location.Id">
+                    <form method="post" action="@Url.Action(ActionNames.UpdateLocationCommission, ControllerNames.Admin)" id="form_@location.Id">
                         <input type="hidden" name="locationId" value="@location.Id">
                         <div class="mb-3">
                             <label for="commission_@location.Id" class="form-label">Comissão (%)</label>
                             <input type="number" step="0.1" min="0" max="100" class="form-control" 
                                    id="commission_@location.Id" 
                                    name="commissionPercentage" 
-                                   value="@(activeCommission?.CommissionPercentage.ToString("F1") ?? "15.0")" 
+                                   value="@(activeCommission?.CommissionPercentage.ToString(NumberFormatConstants.OneDecimal) ?? "15.0")" 
                                    required>
                             @if (activeCommission != null)
                             {
                                 <small class="form-text text-success">
-                                    <i class="bi bi-check-circle"></i> Valor atual: <strong>@activeCommission.CommissionPercentage.ToString("F1")%</strong>
+                                    <i class="bi bi-check-circle"></i> Valor atual: <strong>@activeCommission.CommissionPercentage.ToString(NumberFormatConstants.OneDecimal)%</strong>
                                 </small>
                             }
                             else
@@ -136,10 +136,10 @@
                             @(location.IsActive ? "Ativa" : "Inativa")
                         </span>
                         <div class="btn-group btn-group-sm">
-                            <a href="@Url.Action("EditLocation", "Admin", new { id = location.Id })" class="btn btn-sm btn-warning" title="Editar">
+                            <a href="@Url.Action(ActionNames.EditLocation, ControllerNames.Admin, new { id = location.Id })" class="btn btn-sm btn-warning" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <form method="post" action="@Url.Action("DeleteLocation", "Admin", new { id = location.Id })" class="d-inline" 
+                            <form method="post" action="@Url.Action(ActionNames.DeleteLocation, ControllerNames.Admin, new { id = location.Id })" class="d-inline" 
                                   onsubmit="event.preventDefault(); handleDeleteLocation(this); return false;">
                                 <button type="submit" class="btn btn-sm btn-danger" title="Excluir">
                                     <i class="bi bi-trash"></i>
@@ -168,7 +168,7 @@
             @if (ViewBag.CurrentPage > 1)
             {
                 <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Locations", "Admin", new { 
+                    <a class="page-link" href="@Url.Action(ActionNames.Locations, ControllerNames.Admin, new { 
                         search = ViewBag.Search, 
                         state = ViewBag.State, 
                         region = ViewBag.Region, 
@@ -183,7 +183,7 @@
             @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
             {
                 <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                    <a class="page-link" href="@Url.Action("Locations", "Admin", new { 
+                    <a class="page-link" href="@Url.Action(ActionNames.Locations, ControllerNames.Admin, new { 
                         search = ViewBag.Search, 
                         state = ViewBag.State, 
                         region = ViewBag.Region, 
@@ -198,7 +198,7 @@
             @if (ViewBag.CurrentPage < ViewBag.TotalPages)
             {
                 <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Locations", "Admin", new { 
+                    <a class="page-link" href="@Url.Action(ActionNames.Locations, ControllerNames.Admin, new { 
                         search = ViewBag.Search, 
                         state = ViewBag.State, 
                         region = ViewBag.Region, 

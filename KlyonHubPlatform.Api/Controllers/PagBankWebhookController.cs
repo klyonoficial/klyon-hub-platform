@@ -5,6 +5,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -52,8 +53,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 
                 // Obter informações da requisição
                 var sourceIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-                var signature = Request.Headers["x-authenticity-token"].FirstOrDefault() 
-                             ?? Request.Headers["X-PagSeguro-Signature"].FirstOrDefault();
+                var signature = Request.Headers[HttpHeaderNames.PagBankAuthenticityToken].FirstOrDefault() 
+                             ?? Request.Headers[HttpHeaderNames.PagBankSignature].FirstOrDefault();
 
                 // Deserializar notificação
                 var notification = JsonSerializer.Deserialize<PagBankWebhookNotification>(payload, new JsonSerializerOptions
@@ -415,7 +416,7 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 var ipAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-                var userAgent = Request.Headers["User-Agent"].ToString();
+                var userAgent = Request.Headers[HttpHeaderNames.UserAgent].ToString();
                 
                 await _auditService.LogActionAsync(
                     null, // Webhook do PagBank (sistema externo)

@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Notas Fiscais";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = PageTitles.ClientFiscalNotes;
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
@@ -21,21 +21,21 @@
                 <label class="form-label">Tipo</label>
                 <select class="form-select" name="type">
                     <option value="">Todos</option>
-                    @if (ViewBag.Type == "Intermediacao")
+                    @if (ViewBag.Type == FiscalNoteType.Intermediacao)
                     {
-                        <option value="Intermediacao" selected>Intermediação</option>
+                        <option value="@FiscalNoteType.Intermediacao" selected>@FiscalNoteType.DisplayStrings.Intermediacao</option>
                     }
                     else
                     {
-                        <option value="Intermediacao">Intermediação</option>
+                        <option value="@FiscalNoteType.Intermediacao">@FiscalNoteType.DisplayStrings.Intermediacao</option>
                     }
-                    @if (ViewBag.Type == "Servico")
+                    @if (ViewBag.Type == FiscalNoteType.Servico)
                     {
-                        <option value="Servico" selected>Serviço</option>
+                        <option value="@FiscalNoteType.Servico" selected>@FiscalNoteType.DisplayStrings.Servico</option>
                     }
                     else
                     {
-                        <option value="Servico">Serviço</option>
+                        <option value="@FiscalNoteType.Servico">@FiscalNoteType.DisplayStrings.Servico</option>
                     }
                 </select>
             </div>
@@ -76,7 +76,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-outline-secondary">
+                <a href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Client)" class="btn btn-outline-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -131,15 +131,15 @@
                                 data-note-number="@(note.Number ?? "")"
                                 data-note-access-key="@(note.AccessKey ?? "")"
                                 data-note-verification-code="@(note.VerificationCode ?? "")"
-                                data-note-amount="@note.Amount.ToString("F2")"
-                                data-note-service-amount="@(note.ServiceAmount?.ToString("F2") ?? "")"
-                                data-note-commission-amount="@(note.CommissionAmount?.ToString("F2") ?? "")"
+                                data-note-amount="@note.Amount.ToString(NumberFormatConstants.TwoDecimals)"
+                                data-note-service-amount="@(note.ServiceAmount?.ToString(NumberFormatConstants.TwoDecimals) ?? "")"
+                                data-note-commission-amount="@(note.CommissionAmount?.ToString(NumberFormatConstants.TwoDecimals) ?? "")"
                                 data-note-status="@note.Status"
-                                data-note-issue-date="@note.IssueDate.ToString("dd/MM/yyyy")"
-                                data-note-due-date="@(note.DueDate?.ToString("dd/MM/yyyy") ?? "")"
-                                data-note-authorized-at="@(note.AuthorizedAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-issue-date="@note.IssueDate.ToString(DateFormatConstants.DisplayDateOnly)"
+                                data-note-due-date="@(note.DueDate?.ToString(DateFormatConstants.DisplayDateOnly) ?? "")"
+                                data-note-authorized-at="@(note.AuthorizedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
                                 data-note-authorization-protocol="@(note.AuthorizationProtocol ?? "")"
-                                data-note-cancelled-at="@(note.CancelledAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-cancelled-at="@(note.CancelledAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
                                 data-note-cancellation-reason="@(note.CancellationReason ?? "")"
                                 data-note-error-message="@(note.ErrorMessage ?? "")"
                                 data-note-view-url="@(note.ViewUrl ?? "")"
@@ -175,9 +175,9 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @note.Amount.ToString("F2")</strong>
+                                    <strong>R$ @note.Amount.ToString(NumberFormatConstants.TwoDecimals)</strong>
                                 </td>
-                                <td>@note.IssueDate.ToString("dd/MM/yyyy")</td>
+                                <td>@note.IssueDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
                                     @{
                                         var statusClass = note.Status switch
@@ -202,7 +202,7 @@
                                         }
                                         @if (!string.IsNullOrEmpty(note.PdfUrl))
                                         {
-                                            <a href="@Url.Action("DownloadFiscalNotePdf", "Client", new { fiscalNoteId = note.Id })" target="_blank" class="btn btn-sm btn-outline-danger" title="Download PDF" onclick="event.stopPropagation();">
+                                            <a href="@Url.Action(ActionNames.DownloadFiscalNotePdf, ControllerNames.Client, new { fiscalNoteId = note.Id })" target="_blank" class="btn btn-sm btn-outline-danger" title="Download PDF" onclick="event.stopPropagation();">
                                                 <i class="bi bi-file-pdf"></i>
                                             </a>
                                         }
@@ -253,7 +253,7 @@
                         {
                             routeValues["page"] = currentPage - 1;
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">
+                                <a class="page-link" href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Client, routeValues)">
                                     <i class="bi bi-chevron-left"></i> Anterior
                                 </a>
                             </li>
@@ -263,7 +263,7 @@
                         {
                             routeValues["page"] = i;
                             <li class="page-item @(i == currentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">@i</a>
+                                <a class="page-link" href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Client, routeValues)">@i</a>
                             </li>
                         }
 
@@ -271,7 +271,7 @@
                         {
                             routeValues["page"] = currentPage + 1;
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("FiscalNotes", routeValues)">
+                                <a class="page-link" href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Client, routeValues)">
                                     Próxima <i class="bi bi-chevron-right"></i>
                                 </a>
                             </li>
@@ -454,7 +454,7 @@
 
             const rows = document.querySelectorAll('.fiscal-note-row');
             const modal = new bootstrap.Modal(document.getElementById('fiscalNoteDetailModal'));
-            const downloadPdfBaseUrl = '@Url.Action("DownloadFiscalNotePdf", "Client")';
+            const downloadPdfBaseUrl = '@Url.Action(ActionNames.DownloadFiscalNotePdf, ControllerNames.Client)';
 
             rows.forEach(row => {
                 row.addEventListener('click', function(e) {

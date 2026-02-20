@@ -31,8 +31,8 @@
                 <label class="form-label">Tipo</label>
                 <select class="form-select" name="type" onchange="this.form.submit()">
                     <option value="">Todos</option>
-                    <option value="Intermediacao" selected="@(ViewBag.Type == "Intermediacao")">Intermediação</option>
-                    <option value="Servico" selected="@(ViewBag.Type == "Servico")">Serviço</option>
+                    <option value="@FiscalNoteType.Intermediacao" selected="@(ViewBag.Type == FiscalNoteType.Intermediacao)">@FiscalNoteType.DisplayStrings.Intermediacao</option>
+                    <option value="@FiscalNoteType.Servico" selected="@(ViewBag.Type == FiscalNoteType.Servico)">@FiscalNoteType.DisplayStrings.Servico</option>
                 </select>
             </div>
             <div class="col-md-6 d-flex align-items-end">
@@ -92,16 +92,16 @@
                                 data-note-number="@(note.Number ?? "")"
                                 data-note-access-key="@(note.AccessKey ?? "")"
                                 data-note-verification-code="@(note.VerificationCode ?? "")"
-                                data-note-amount="@note.Amount.ToString("F2")"
-                                data-note-service-amount="@(note.ServiceAmount?.ToString("F2") ?? "")"
-                                data-note-commission-amount="@(note.CommissionAmount?.ToString("F2") ?? "")"
+                                data-note-amount="@note.Amount.ToString(NumberFormatConstants.TwoDecimals)"
+                                data-note-service-amount="@(note.ServiceAmount?.ToString(NumberFormatConstants.TwoDecimals) ?? "")"
+                                data-note-commission-amount="@(note.CommissionAmount?.ToString(NumberFormatConstants.TwoDecimals) ?? "")"
                                 data-note-status="@note.Status"
                                 data-note-type="@note.Type"
-                                data-note-issue-date="@note.IssueDate.ToString("dd/MM/yyyy")"
-                                data-note-due-date="@(note.DueDate?.ToString("dd/MM/yyyy") ?? "")"
-                                data-note-authorized-at="@(note.AuthorizedAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-issue-date="@note.IssueDate.ToString(DateFormatConstants.DisplayDateOnly)"
+                                data-note-due-date="@(note.DueDate?.ToString(DateFormatConstants.DisplayDateOnly) ?? "")"
+                                data-note-authorized-at="@(note.AuthorizedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
                                 data-note-authorization-protocol="@(note.AuthorizationProtocol ?? "")"
-                                data-note-cancelled-at="@(note.CancelledAt?.ToString("dd/MM/yyyy HH:mm") ?? "")"
+                                data-note-cancelled-at="@(note.CancelledAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? "")"
                                 data-note-cancellation-reason="@(note.CancellationReason ?? "")"
                                 data-note-error-message="@(note.ErrorMessage ?? "")"
                                 data-note-view-url="@(note.ViewUrl ?? "")"
@@ -124,8 +124,8 @@
                                     }
                                 </td>
                                 <td>
-                                    <span class="badge bg-@(note.Type == "Intermediacao" ? "primary" : "info")">
-                                        @(note.Type == "Intermediacao" ? "Intermediação" : "Serviço")
+                                    <span class="badge bg-@(note.Type == FiscalNoteType.Intermediacao ? BootstrapBadgeCss.Primary : BootstrapBadgeCss.Info)">
+                                        @FiscalNoteType.ToDisplayString(note.Type)
                                     </span>
                                 </td>
                                 <td>
@@ -148,18 +148,18 @@
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td>R$ @note.Amount.ToString("F2")</td>
+                                <td>R$ @note.Amount.ToString(NumberFormatConstants.TwoDecimals)</td>
                                 <td>
                                     @if (note.CommissionAmount.HasValue)
                                     {
-                                        <text>R$ @note.CommissionAmount.Value.ToString("F2")</text>
+                                        <text>R$ @note.CommissionAmount.Value.ToString(NumberFormatConstants.TwoDecimals)</text>
                                     }
                                     else
                                     {
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                <td>@note.IssueDate.ToString("dd/MM/yyyy")</td>
+                                <td>@note.IssueDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
                                     @{
                                         var statusClass = note.Status switch

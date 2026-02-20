@@ -1,57 +1,14 @@
 @model List<KlyonHubPlatform.Domain.Entities.Interest>
+@using KlyonHubPlatform.Api.Dtos.Coworking
 @{
     ViewData["Title"] = "Reservas";
     Layout = "~/Views/Shared/_Layout.cshtml";
-    
-    // Converter ViewBag.Reservations para lista de Dictionary
-    var reservationsRaw = ViewBag.Reservations;
-    var reservations = new List<Dictionary<string, object>>();
-    if (reservationsRaw != null)
-    {
-        if (reservationsRaw is IEnumerable<Dictionary<string, object>> dictList)
-        {
-            reservations = dictList.ToList();
-        }
-        else if (reservationsRaw is System.Collections.IEnumerable enumerable)
-        {
-            foreach (var item in enumerable)
-            {
-                if (item is Dictionary<string, object> dict)
-                {
-                    reservations.Add(dict);
-                }
-            }
-        }
-    }
-}
-
-@* Helper functions para acessar valores do Dictionary *@
-@functions {
-    private T GetValue<T>(Dictionary<string, object> dict, string key, T defaultValue = default(T))
-    {
-        if (dict.ContainsKey(key) && dict[key] != null && dict[key] != DBNull.Value)
-        {
-            try
-            {
-                return (T)Convert.ChangeType(dict[key], typeof(T));
-            }
-            catch
-            {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
-    
-    private object GetValue(Dictionary<string, object> dict, string key)
-    {
-        return dict.ContainsKey(key) ? dict[key] : null;
-    }
+    var reservations = (ViewBag.Reservations as List<ReservationOrInterestItemDto>) ?? new List<ReservationOrInterestItemDto>();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-calendar-check"></i> Reservas</h2>
-    <a href="@Url.Action("RoomRevenueReport", "Coworking")" class="btn btn-success"><i class="bi bi-currency-dollar"></i> Ver minha receita de salas</a>
+    <a href="@Url.Action(ActionNames.RoomRevenueReport, ControllerNames.Coworking)" class="btn btn-success"><i class="bi bi-currency-dollar"></i> Ver minha receita de salas</a>
 </div>
 
 <!-- Filtros -->
@@ -140,12 +97,10 @@
                     <tbody>
                         @if (hasReservations)
                         {
-                            @foreach (var reservation in reservations)
+                            @foreach (var r in reservations)
                             {
-                                var reservationObj = reservation;
-                                var isReservation = reservationObj.ContainsKey("Type") && reservationObj["Type"]?.ToString() == "Reservation";
-                                var isInterest = reservationObj.ContainsKey("Type") && reservationObj["Type"]?.ToString() == "Interest";
-                                
+                                var isReservation = r.Type == "Reservation";
+                                var isInterest = r.Type == "Interest";
                                 <tr>
                                     <td>
                                         @if (isReservation)
@@ -157,63 +112,49 @@
                                             <span class="badge bg-warning"><i class="bi bi-clock"></i> Interesse</span>
                                         }
                                     </td>
-                                    <td>@(GetValue<DateTime>(reservationObj, "CreatedAt").ToString("dd/MM/yyyy HH:mm"))</td>
-                                    <td>@(GetValue<string>(reservationObj, "ClientName", ""))</td>
-                                    <td>@(GetValue<string>(reservationObj, "ClientEmail", ""))</td>
-                                    <td>@(GetValue<string>(reservationObj, "ClientPhone") ?? "Não informado")</td>
+                                    <td>@r.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
+                                    <td>@(r.ClientName ?? "")</td>
+                                    <td>@(r.ClientEmail ?? "")</td>
+                                    <td>@(r.ClientPhone ?? "Não informado")</td>
                                     <td>
                                         @if (isReservation)
                                         {
-                                            var resDate = GetValue<DateTime>(reservationObj, "ReservationDate");
-                                            <div>@resDate.ToString("dd/MM/yyyy")</div>
-                                            var startTime = GetValue(reservationObj, "StartTime");
-                                            var endTime = GetValue(reservationObj, "EndTime");
-                                            @if (startTime != null && startTime != DBNull.Value && endTime != null && endTime != DBNull.Value)
+                                            <div>@r.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly)</div>
+                                            @if (r.StartTime is TimeSpan start && r.EndTime is TimeSpan end)
                                             {
-                                                <small class="text-muted">
-                                                    @(((TimeSpan)startTime).ToString(@"hh\:mm")) - @(((TimeSpan)endTime).ToString(@"hh\:mm"))
-                                                </small>
+                                                <small class="text-muted">@start.ToString(@"hh\:mm") - @end.ToString(@"hh\:mm")</small>
                                             }
                                         }
                                         else
                                         {
-                                            var resDate = GetValue<DateTime>(reservationObj, "ReservationDate");
-                                            @if (resDate != DateTime.MinValue)
+                                            @if (r.ReservationDate != DateTime.MinValue)
                                             {
-                                                <div>@resDate.ToString("dd/MM/yyyy")</div>
+                                                <div>@r.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly)</div>
                                             }
                                             else
                                             {
                                                 <text>Não informada</text>
                                             }
-                                            var startTime = GetValue(reservationObj, "StartTime");
-                                            var endTime = GetValue(reservationObj, "EndTime");
-                                            @if ((startTime != null && startTime != DBNull.Value) || (endTime != null && endTime != DBNull.Value))
+                                            @if (r.StartTime is TimeSpan start2 && r.EndTime is TimeSpan end2)
                                             {
-                                                <small class="text-muted">
-                                                    @if (startTime != null && startTime != DBNull.Value && endTime != null && endTime != DBNull.Value)
-                                                    {
-                                                        <text>@(((TimeSpan)startTime).ToString(@"hh\:mm")) - @(((TimeSpan)endTime).ToString(@"hh\:mm"))</text>
-                                                    }
-                                                    else if (startTime != null && startTime != DBNull.Value)
-                                                    {
-                                                        <text>A partir de @(((TimeSpan)startTime).ToString(@"hh\:mm"))</text>
-                                                    }
-                                                    else if (endTime != null && endTime != DBNull.Value)
-                                                    {
-                                                        <text>Até @(((TimeSpan)endTime).ToString(@"hh\:mm"))</text>
-                                                    }
-                                                </small>
+                                                <small class="text-muted">@start2.ToString(@"hh\:mm") - @end2.ToString(@"hh\:mm")</small>
+                                            }
+                                            else if (r.StartTime is TimeSpan startOnly)
+                                            {
+                                                <small class="text-muted">A partir de @startOnly.ToString(@"hh\:mm")</small>
+                                            }
+                                            else if (r.EndTime is TimeSpan endOnly)
+                                            {
+                                                <small class="text-muted">Até @endOnly.ToString(@"hh\:mm")</small>
                                             }
                                         }
                                     </td>
                                     <td>
                                         @if (isReservation)
                                         {
-                                            var roomType = GetValue<string>(reservationObj, "RoomType");
-                                            @if (!string.IsNullOrEmpty(roomType))
+                                            @if (!string.IsNullOrEmpty(r.RoomType))
                                             {
-                                                @if (roomType == "Shared")
+                                                @if (r.RoomType == "Shared")
                                                 {
                                                     <span class="badge bg-info"><i class="bi bi-people"></i> Compartilhada</span>
                                                 }
@@ -233,18 +174,13 @@
                                         }
                                     </td>
                                     <td>
-                                        @if (isReservation)
+                                        @if (isReservation && r.TotalValue.HasValue)
                                         {
-                                            var totalValue = GetValue(reservationObj, "TotalValue");
-                                            var creditsUsed = GetValue(reservationObj, "CreditsUsed");
-                                            @if (totalValue != null && totalValue != DBNull.Value)
-                                            {
-                                                <div><strong>R$ @(((decimal)totalValue).ToString("N2"))</strong></div>
-                                            }
-                                            else
-                                            {
-                                                <text>-</text>
-                                            }
+                                            <div><strong>R$ @(r.TotalValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals))</strong></div>
+                                        }
+                                        else if (isReservation)
+                                        {
+                                            <text>-</text>
                                         }
                                         else
                                         {
@@ -253,7 +189,7 @@
                                     </td>
                                     <td>
                                         @{
-                                            var address = GetValue(reservationObj, "Address") as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
+                                            var address = r.Address as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
                                         }
                                         @if (address != null)
                                         {
@@ -269,9 +205,9 @@
                                     </td>
                                     <td>
                                         @{
-                                            var status = GetValue<string>(reservationObj, "Status", "");
+                                            var itemStatus = r.Status;
                                         }
-                                        @switch (status)
+                                        @switch (itemStatus)
                                         {
                                             case "Confirmed":
                                                 <span class="badge bg-success">Confirmada</span>
@@ -295,16 +231,15 @@
                                                 <span class="badge bg-danger">Rejeitado</span>
                                                 break;
                                             default:
-                                                <span class="badge bg-secondary">@status</span>
+                                                <span class="badge bg-secondary">@itemStatus</span>
                                                 break;
                                         }
                                     </td>
                                     <td>
                                         @{
-                                            var reservationId = GetValue<int>(reservationObj, "Id");
-                                            var resStatus = GetValue<string>(reservationObj, "Status", "");
-                                            var cowConfirmed = GetValue(reservationObj, "CoworkingConfirmedAt");
-                                            var cowConfirmedAt = (cowConfirmed == null || cowConfirmed == DBNull.Value) ? (DateTime?)null : (DateTime?)cowConfirmed;
+                                            var reservationId = r.Id;
+                                            var resStatus = r.Status;
+                                            var cowConfirmedAt = r.CoworkingConfirmedAt;
                                         }
                                         @if (isInterest)
                                         {
@@ -316,7 +251,7 @@
                                         }
                                         else if (isReservation && resStatus == "Confirmed" && !cowConfirmedAt.HasValue)
                                         {
-                                            <form method="post" action="@Url.Action("ConfirmReservationAttended", "Coworking")" class="d-inline">
+                                            <form method="post" action="@Url.Action(ActionNames.ConfirmReservationAttended, ControllerNames.Coworking)" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@reservationId" />
                                                 <button type="submit" class="btn btn-sm btn-outline-success" title="Confirmar que o cliente compareceu e utilizou o espaço">
@@ -345,17 +280,17 @@
                                                     <h5 class="modal-title">Atualizar Status do Interesse</h5>
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                 </div>
-                                                <form method="post" action="@Url.Action("UpdateReservationStatus", "Coworking")">
+                                                <form method="post" action="@Url.Action(ActionNames.UpdateReservationStatus, ControllerNames.Coworking)">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@reservationId" />
                                                     <div class="modal-body">
                                                         <div class="mb-3">
                                                             <label class="form-label">Status</label>
                                                             <select class="form-select" name="status" required>
-                                                                <option value="Pending" selected="@(status == "Pending")">Pendente</option>
-                                                                <option value="Contacted" selected="@(status == "Contacted")">Contatado</option>
-                                                                <option value="Converted" selected="@(status == "Converted")">Convertido</option>
-                                                                <option value="Rejected" selected="@(status == "Rejected")">Rejeitado</option>
+                                                                <option value="Pending" selected="@(ViewBag.Status as string == "Pending")">Pendente</option>
+                                                                <option value="Contacted" selected="@(ViewBag.Status as string == "Contacted")">Contatado</option>
+                                                                <option value="Converted" selected="@(ViewBag.Status as string == "Converted")">Convertido</option>
+                                                                <option value="Rejected" selected="@(ViewBag.Status as string == "Rejected")">Rejeitado</option>
                                                             </select>
                                                         </div>
                                                         <div class="mb-3">
@@ -364,9 +299,9 @@
                                                         </div>
                                                         <div class="mb-2">
                                                             <strong>Informações:</strong><br />
-                                                            <small>Nome: @(GetValue<string>(reservationObj, "ClientName", ""))</small><br />
-                                                            <small>E-mail: @(GetValue<string>(reservationObj, "ClientEmail", ""))</small><br />
-                                                            <small>Telefone: @(GetValue<string>(reservationObj, "ClientPhone") ?? "Não informado")</small>
+                                                            <small>Nome: @(r.ClientName ?? "")</small><br />
+                                                            <small>E-mail: @(r.ClientEmail ?? "")</small><br />
+                                                            <small>Telefone: @(r.ClientPhone ?? "Não informado")</small>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -394,7 +329,7 @@
                             int currentPage = ViewBag.CurrentPage ?? 1;
                             int totalPages = ViewBag.TotalPages ?? 1;
                             int pageSize = ViewBag.PageSize ?? 15;
-                            string PageUrl(int p) => Url.Action("Reservations", "Coworking", new
+                            string PageUrl(int p) => Url.Action(ActionNames.Reservations, ControllerNames.Coworking, new
                             {
                                 search = ViewBag.Search,
                                 status = ViewBag.Status,

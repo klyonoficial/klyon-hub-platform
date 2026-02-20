@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Comissão</h2>
-    <a href="@Url.Action("FiscalNotes", "Client")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.FiscalNotes, ControllerNames.Client)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar para Notas Fiscais
     </a>
 </div>
@@ -27,7 +27,7 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total</h6>
-                <h2 class="mb-0">R$ @(Model?.Sum(c => c.Amount).ToString("N2") ?? "0,00")</h2>
+                <h2 class="mb-0">R$ @(Model?.Sum(c => c.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? "0,00")</h2>
                 <small class="text-white-50">Em comissões pendentes</small>
             </div>
         </div>
@@ -73,14 +73,14 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @commission.TotalPaymentAmount.ToString("N2")</strong>
+                                    <strong>R$ @commission.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                 </td>
                                 <td>
-                                    <strong class="text-primary">R$ @commission.Amount.ToString("N2")</strong><br>
-                                    <small class="text-muted">@commission.Percentage.ToString("F2")%</small>
+                                    <strong class="text-primary">R$ @commission.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong><br>
+                                    <small class="text-muted">@commission.Percentage.ToString(NumberFormatConstants.TwoDecimals)%</small>
                                 </td>
                                 <td>
-                                    @commission.CreatedAt.ToString("dd/MM/yyyy")<br>
+                                    @commission.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)<br>
                                     <small class="text-muted">@commission.CreatedAt.ToString("HH:mm")</small>
                                 </td>
                             </tr>
@@ -97,7 +97,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Client, new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize })">
                                     Anterior
                                 </a>
                             </li>
@@ -106,7 +106,7 @@
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Client, new { page = i, pageSize = ViewBag.PageSize })">
                                     @i
                                 </a>
                             </li>
@@ -115,7 +115,7 @@
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
+                                <a class="page-link" href="@Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Client, new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize })">
                                     Próximo
                                 </a>
                             </li>

@@ -18,6 +18,7 @@ using System.Security.Claims;
 using System.IO;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Requests;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -231,13 +232,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     alerts.Add(new
                     {
-                        Type = "warning",
+                        Type = BootstrapBadgeCss.Warning,
                         Icon = "bi-exclamation-triangle-fill",
                         Title = $"Comissões Pendentes há mais de {daysThreshold} dias",
                         Message = $"{pendingCommissionsCount} comissão(ões) pendente(s) há mais de {daysThreshold} dias. Valor total: R$ {pendingCommissionsAmount:N2}",
                         Count = pendingCommissionsCount,
                         ActionKey = (string?)null,
-                        ActionUrl = Url.Action("CommissionFiscalNotes", "Admin"),
+                        ActionUrl = Url.Action(ActionNames.CommissionFiscalNotes, ControllerNames.Admin),
                         ActionText = "Ver Comissões"
                     });
                 }
@@ -265,13 +266,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     alerts.Add(new
                     {
-                        Type = "danger",
+                        Type = BootstrapBadgeCss.Danger,
                         Icon = "bi-exclamation-circle-fill",
                         Title = "Pagamentos Atrasados",
                         Message = $"{overduePayments.Count} pagamento(s) atrasado(s). Valor total: R$ {overdueAmount:N2}. Mais antigo há {daysOverdue} dia(s).",
                         Count = overduePayments.Count,
                         ActionKey = (string?)null,
-                        ActionUrl = Url.Action("Payments", "Admin", new { status = "Pending" }),
+                        ActionUrl = Url.Action(ActionNames.Payments, ControllerNames.Admin, new { status = "Pending" }),
                         ActionText = "Ver Pagamentos Atrasados"
                     });
                 }
@@ -302,13 +303,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     alerts.Add(new
                     {
-                        Type = "info",
+                        Type = BootstrapBadgeCss.Info,
                         Icon = "bi-info-circle-fill",
                         Title = "Capacidade Próxima do Limite",
                         Message = $"{addressesNearCapacity.Count} endereço(s) com capacidade próxima ou no limite (≥80%). {atCapacityCount} endereço(s) já atingiram a capacidade máxima.",
                         Count = addressesNearCapacity.Count,
                         ActionKey = (string?)null,
-                        ActionUrl = Url.Action("Coworkings", "Admin", new { capacityAlert = StringBooleanValue.True }),
+                        ActionUrl = Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { capacityAlert = StringBooleanValue.True }),
                         ActionText = "Ver Coworkings"
                     });
                 }
@@ -347,13 +348,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     alerts.Add(new
                     {
-                        Type = "warning",
+                        Type = BootstrapBadgeCss.Warning,
                         Icon = "bi-bell-fill",
                         Title = "Alterações de Parceiros Aguardando Análise",
                         Message = message,
                         Count = coworkingsWithRecentUpdates.Count,
                         ActionKey = (string?)null,
-                        ActionUrl = Url.Action("Coworkings", "Admin", new { approvalStatus = "UnderReview" }),
+                        ActionUrl = Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { approvalStatus = "UnderReview" }),
                         ActionText = "Ver Parceiros em Análise"
                     });
                 }
@@ -389,13 +390,13 @@ namespace KlyonHubPlatform.Api.Controllers
 
                     alerts.Add(new
                     {
-                        Type = "danger",
+                        Type = BootstrapBadgeCss.Danger,
                         Icon = "bi-cash-coin",
                         Title = "Comprovantes de Pagamento Aguardando Validação",
                         Message = message,
                         Count = count,
                         ActionKey = (string?)null,
-                        ActionUrl = Url.Action("Payments", "Admin", new { status = "AwaitingValidation" }),
+                        ActionUrl = Url.Action(ActionNames.Payments, ControllerNames.Admin, new { status = "AwaitingValidation" }),
                         ActionText = "Ver Pagamentos"
                     });
                 }
@@ -415,13 +416,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     alerts.Add(new
                     {
-                        Type = "warning",
+                        Type = BootstrapBadgeCss.Warning,
                         Icon = "bi-credit-card",
                         Title = "Preços no Cartão Aguardando Aprovação",
                         Message = $"{pendingCardPriceCount} solicitação(ões) de alteração de preços no cartão aguardando aprovação.",
                         Count = pendingCardPriceCount,
-                        ActionKey = "cardPricePending",
-                        ActionUrl = Url.Action("Coworkings", "Admin"),
+                        ActionKey = AdminAlertActionKeys.CardPricePending,
+                        ActionUrl = Url.Action(ActionNames.Coworkings, ControllerNames.Admin),
                         ActionText = "Ver solicitações"
                     });
                 }
@@ -597,7 +598,7 @@ namespace KlyonHubPlatform.Api.Controllers
                                           p.Status == PaymentStatus.Failed ? "Falhou" :
                                           p.Status == PaymentStatus.Cancelled ? "Cancelado" :
                                           p.Status == PaymentStatus.Refunded ? "Reembolsado" : p.Status.ToString(),
-                            createdAt = p.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            createdAt = p.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                         }).Cast<object>().ToList();
                         break;
 
@@ -615,7 +616,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             id = r.Id,
                             clientName = r.Client?.RazaoSocial ?? r.Client?.NomeFantasia ?? r.Client?.ContactName ?? "N/A",
                             coworkingName = r.CoworkingAddress?.Coworking?.Name ?? "N/A",
-                            reservationDate = r.ReservationDate.ToString("dd/MM/yyyy"),
+                            reservationDate = r.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly),
                             status = r.Status,
                             statusDisplay = r.Status == ReservationStatus.Confirmed ? "Confirmada" :
                                           r.Status == ReservationStatus.Pending ? "Pendente" :
@@ -663,7 +664,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         previousCardPrice1x = r.PreviousCardPrice1x,
                         previousCardPriceMonthly = r.PreviousCardPriceMonthly,
                         previousCardPrice12x = r.PreviousCardPrice12x,
-                        createdAt = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                        createdAt = r.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                     })
                     .ToListAsync(cancellationToken);
 
@@ -698,7 +699,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var detail = new
                 {
                     id = r.Id,
-                    coworkingName = addr.Coworking?.Name ?? "—",
+                    coworkingName = addr.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder,
                     coworkingId = addr.CoworkingId,
                     addressLabel = addr.Address + ", " + addr.Number + " — " + addr.City + "/" + addr.State,
                     requestedCardPrice1x = r.RequestedCardPrice1x,
@@ -707,7 +708,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     previousCardPrice1x = r.PreviousCardPrice1x,
                     previousCardPriceMonthly = r.PreviousCardPriceMonthly,
                     previousCardPrice12x = r.PreviousCardPrice12x,
-                    createdAt = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                    createdAt = r.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                 };
                 return Json(new { success = true, data = detail });
             }
@@ -2121,9 +2122,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     amount = payment.Amount,
                     status = statusText,
                     method = payment.Method.ToString(),
-                    dueDate = payment.DueDate.ToString("dd/MM/yyyy"),
-                    paidAt = payment.PaidAt?.ToString("dd/MM/yyyy HH:mm"),
-                    createdAt = payment.CreatedAt.ToString("dd/MM/yyyy HH:mm"),
+                    dueDate = payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly),
+                    paidAt = payment.PaidAt?.ToString(DateFormatConstants.DisplayDateAndTime),
+                    createdAt = payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime),
                     externalPaymentId = payment.ExternalPaymentId,
                     pixCode = payment.PixCode,
                     boletoCode = payment.BoletoCode,
@@ -2143,7 +2144,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         id = payment.Reservation.Id,
                         coworkingName = payment.Reservation.CoworkingAddress?.Coworking?.Name,
-                        reservationDate = payment.Reservation.ReservationDate.ToString("dd/MM/yyyy"),
+                        reservationDate = payment.Reservation.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly),
                         roomType = payment.Reservation.RoomType,
                         totalValue = payment.Reservation.TotalValue
                     } : null
@@ -2169,7 +2170,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     id = reservation.Id,
                     totalValue = reservation.TotalValue,
                     status = reservation.Status,
-                    reservationDate = reservation.ReservationDate.ToString("dd/MM/yyyy"),
+                    reservationDate = reservation.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly),
                     startTime = reservation.StartTime?.ToString(@"hh\:mm"),
                     endTime = reservation.EndTime?.ToString(@"hh\:mm"),
                     roomType = reservation.RoomType,
@@ -2177,14 +2178,14 @@ namespace KlyonHubPlatform.Api.Controllers
                         : reservation.RoomType == "Private" ? "Sala privativa"
                         : reservation.RoomType == "Auditorium" ? "Auditório"
                         : reservation.RoomType,
-                    clientConfirmedAt = reservation.ClientConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
-                    coworkingConfirmedAt = reservation.CoworkingConfirmedAt?.ToString("dd/MM/yyyy HH:mm"),
+                    clientConfirmedAt = reservation.ClientConfirmedAt?.ToString(DateFormatConstants.DisplayDateAndTime),
+                    coworkingConfirmedAt = reservation.CoworkingConfirmedAt?.ToString(DateFormatConstants.DisplayDateAndTime),
                     coworkingName = reservation.CoworkingAddress?.Coworking?.Name,
                     coworkingAddress = reservation.CoworkingAddress != null
                         ? $"{reservation.CoworkingAddress.Address}, {reservation.CoworkingAddress.Number}"
                         : null,
                     roomName = reservation.CoworkingRoom?.Name,
-                    createdAt = reservation.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                    createdAt = reservation.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                 };
 
                 return Json(new { success = true, data = reservationData });
@@ -2995,7 +2996,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     action = h.Action,
                     rejectionReason = h.RejectionReason,
                     actionBy = h.ActionByUser?.FullName ?? "Sistema",
-                    actionAt = h.ActionAt.ToString("dd/MM/yyyy HH:mm")
+                    actionAt = h.ActionAt.ToString(DateFormatConstants.DisplayDateAndTime)
                 }),
                 pagination = new
                 {
@@ -5370,7 +5371,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     isTransferred = c.IsTransferred,
                     transferredAt = c.TransferredAt,
                     createdAt = c.CreatedAt,
-                    coworkingName = c.Coworking?.Name ?? "—"
+                    coworkingName = c.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder
                 }).ToList<object>();
             }
 
@@ -5411,25 +5412,25 @@ CREATE TABLE IF NOT EXISTS Reservations (
             history = auditLogs.Select(a => new
             {
                 action = a.Action,
-                details = !string.IsNullOrEmpty(a.NewValues) ? a.NewValues : (a.OldValues ?? "—"),
+                details = !string.IsNullOrEmpty(a.NewValues) ? a.NewValues : (a.OldValues ?? DefaultDisplayStrings.EmptyPlaceholder),
                 createdAt = a.ActionDate,
-                user = a.UserId.HasValue && users.ContainsKey(a.UserId.Value) ? users[a.UserId.Value] ?? "—" : "Sistema"
+                user = a.UserId.HasValue && users.ContainsKey(a.UserId.Value) ? users[a.UserId.Value] ?? DefaultDisplayStrings.EmptyPlaceholder : "Sistema"
             }).ToList<object>();
 
             // Identificar o serviço
-            string serviceType = "—";
-            string serviceDetails = "—";
+            string serviceType = DefaultDisplayStrings.EmptyPlaceholder;
+            string serviceDetails = DefaultDisplayStrings.EmptyPlaceholder;
             if (fn.Payment?.Subscription?.Contract != null)
             {
                 serviceType = "Endereço Fiscal";
                 var contract = fn.Payment.Subscription.Contract;
-                serviceDetails = $"Contrato #{contract.ContractNumber} - {(contract.CoworkingAddress?.Location != null ? $"{contract.CoworkingAddress.Location.City}/{contract.CoworkingAddress.Location.State}" : "—")}";
+                serviceDetails = $"Contrato #{contract.ContractNumber} - {(contract.CoworkingAddress?.Location != null ? $"{contract.CoworkingAddress.Location.City}/{contract.CoworkingAddress.Location.State}" : DefaultDisplayStrings.EmptyPlaceholder)}";
             }
             else if (fn.Payment?.Reservation != null)
             {
                 serviceType = "Reserva de Sala";
                 var reservation = fn.Payment.Reservation;
-                serviceDetails = $"Reserva #{reservation.Id} - {(reservation.CoworkingAddress?.Location != null ? $"{reservation.CoworkingAddress.Location.City}/{reservation.CoworkingAddress.Location.State}" : "—")}";
+                serviceDetails = $"Reserva #{reservation.Id} - {(reservation.CoworkingAddress?.Location != null ? $"{reservation.CoworkingAddress.Location.City}/{reservation.CoworkingAddress.Location.State}" : DefaultDisplayStrings.EmptyPlaceholder)}";
             }
 
             // Calcular valores
@@ -5447,9 +5448,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 fiscalNote = new
                 {
                     id = fn.Id,
-                    number = fn.Number ?? "—",
-                    accessKey = fn.AccessKey ?? "—",
-                    verificationCode = fn.VerificationCode ?? "—",
+                    number = fn.Number ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    accessKey = fn.AccessKey ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    verificationCode = fn.VerificationCode ?? DefaultDisplayStrings.EmptyPlaceholder,
                     amount = fn.Amount,
                     issueDate = fn.IssueDate,
                     dueDate = fn.DueDate,
@@ -5468,20 +5469,20 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 client = fn.Client != null ? new
                 {
                     id = fn.Client.Id,
-                    razaoSocial = fn.Client.RazaoSocial ?? "—",
-                    nomeFantasia = fn.Client.NomeFantasia ?? "—",
-                    cnpj = fn.Client.CNPJ ?? "—",
-                    cpf = fn.Client.CPF ?? "—",
-                    contactName = fn.Client.ContactName ?? "—",
-                    contactEmail = fn.Client.ContactEmail ?? "—",
-                    contactPhone = fn.Client.ContactPhone ?? "—",
-                    userFullName = fn.Client.User?.FullName ?? "—"
+                    razaoSocial = fn.Client.RazaoSocial ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    nomeFantasia = fn.Client.NomeFantasia ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    cnpj = fn.Client.CNPJ ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    cpf = fn.Client.CPF ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    contactName = fn.Client.ContactName ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    contactEmail = fn.Client.ContactEmail ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    contactPhone = fn.Client.ContactPhone ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    userFullName = fn.Client.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder
                 } : null,
                 coworking = fn.Coworking != null ? new
                 {
                     id = fn.Coworking.Id,
-                    name = fn.Coworking.Name ?? "—",
-                    cnpj = fn.Coworking.CNPJ ?? "—"
+                    name = fn.Coworking.Name ?? DefaultDisplayStrings.EmptyPlaceholder,
+                    cnpj = fn.Coworking.CNPJ ?? DefaultDisplayStrings.EmptyPlaceholder
                 } : null,
                 payment = fn.Payment != null ? new
                 {
@@ -6643,7 +6644,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         serviceName = ps.Service.Name,
                         serviceDescription = ps.Service.Description,
                         percentage = ps.Percentage,
-                        createdAt = ps.CreatedAt.ToString("dd/MM/yyyy")
+                        createdAt = ps.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)
                     })
                     .ToListAsync();
 

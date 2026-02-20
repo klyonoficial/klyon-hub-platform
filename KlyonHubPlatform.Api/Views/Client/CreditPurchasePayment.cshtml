@@ -27,7 +27,7 @@
                             <strong>Plano:</strong> @purchase.CreditPlan.Name
                         </div>
                         <div class="col-md-6 text-end">
-                            <strong>Valor:</strong> <span class="text-primary fs-5">R$ @purchase.AmountPaid.ToString("N2")</span>
+                            <strong>Valor:</strong> <span class="text-primary fs-5">R$ @purchase.AmountPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </div>
                     </div>
                     <hr>
@@ -116,7 +116,7 @@
                             {
                                 <div class="alert alert-warning">
                                     <i class="bi bi-clock"></i> 
-                                    <strong>Válido até:</strong> @purchase.PixExpiresAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    <strong>Válido até:</strong> @purchase.PixExpiresAt.Value.ToLocalTime().ToString(DateFormatConstants.DisplayDateAndTime)
                                 </div>
                             }
 
@@ -177,7 +177,7 @@
                             {
                                 <div class="alert alert-warning">
                                     <i class="bi bi-calendar"></i> 
-                                    <strong>Vencimento:</strong> @purchase.BoletoExpiresAt.Value.ToLocalTime().ToString("dd/MM/yyyy")
+                                    <strong>Vencimento:</strong> @purchase.BoletoExpiresAt.Value.ToLocalTime().ToString(DateFormatConstants.DisplayDateOnly)
                                 </div>
                             }
 
@@ -240,7 +240,7 @@
                     <hr>
                     <div class="d-flex justify-content-between">
                         <span class="fs-5"><strong>Total a Pagar:</strong></span>
-                        <span class="fs-4 text-primary fw-bold">R$ @purchase.AmountPaid.ToString("N2")</span>
+                        <span class="fs-4 text-primary fw-bold">R$ @purchase.AmountPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                     </div>
                 </div>
             </div>

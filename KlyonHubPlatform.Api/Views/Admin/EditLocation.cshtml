@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-pencil"></i> Editar Localidade</h2>
-    <a href="@Url.Action("Locations", "Admin")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.Locations, ControllerNames.Admin)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -19,7 +19,7 @@
                 <h5>Informações da Localidade</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="@Url.Action("EditLocation", "Admin", new { id = Model.Id })">
+                <form method="post" action="@Url.Action(ActionNames.EditLocation, ControllerNames.Admin, new { id = Model.Id })">
                     <div class="mb-3">
                         <label for="city" class="form-label">Cidade <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="city" name="city" required maxlength="100" value="@Model.City">
@@ -56,7 +56,7 @@
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="@Url.Action("Locations", "Admin")" class="btn btn-secondary">Cancelar</a>
+                        <a href="@Url.Action(ActionNames.Locations, ControllerNames.Admin)" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Salvar Alterações
                         </button>
@@ -75,7 +75,7 @@
                     <strong>ID:</strong> @Model.Id
                 </p>
                 <p class="text-muted">
-                    <strong>Cadastrado em:</strong> @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                    <strong>Cadastrado em:</strong> @Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)
                 </p>
                 <p class="text-muted">
                     <strong>Status:</strong> Apenas localidades ativas aparecerão para os clientes na escolha de endereço fiscal.

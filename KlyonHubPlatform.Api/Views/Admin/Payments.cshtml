@@ -10,7 +10,7 @@
 
 <div class="card mb-3">
     <div class="card-body">
-        <form method="get" action="@Url.Action("Payments", "Admin")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.Payments, ControllerNames.Admin)" class="row g-3">
             <div class="col-md-4">
                 <input type="text" class="form-control" name="search" placeholder="Buscar por ID, contrato ou cliente..." value="@ViewBag.Search">
             </div>
@@ -32,7 +32,7 @@
                 </button>
             </div>
             <div class="col-md-3">
-                <a href="@Url.Action("Payments", "Admin")" class="btn btn-secondary w-100">
+                <a href="@Url.Action(ActionNames.Payments, ControllerNames.Admin)" class="btn btn-secondary w-100">
                     <i class="bi bi-x-circle"></i> Limpar Filtros
                 </a>
             </div>
@@ -89,7 +89,7 @@
                                     <strong>@payment.Subscription?.Contract?.ContractNumber</strong><br>
                                     <small class="text-muted">@payment.Subscription?.Contract?.CoworkingAddress?.Address</small>
                                 </td>
-                                <td><strong>R$ @payment.Amount.ToString("N2")</strong></td>
+                                <td><strong>R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                 <td>
                                     @switch (payment.Method)
                                     {
@@ -100,7 +100,7 @@
                                             <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
                                             @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
                                             {
-                                                <br><small class="text-muted">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString("N2")</small>
+                                                <br><small class="text-muted">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small>
                                             }
                                             break;
                                         case PaymentMethod.BankTransfer:
@@ -154,7 +154,7 @@
                                     }
                                 </td>
                                 <td>
-                                    @payment.DueDate.ToString("dd/MM/yyyy")
+                                    @payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
                                     @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
                                     {
                                         <br><span class="badge bg-cancelled">Vencido</span>
@@ -163,7 +163,7 @@
                                 <td>
                                     @if (payment.PaidAt.HasValue)
                                     {
-                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                        @payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)
                                     }
                                     else
                                     {
@@ -197,19 +197,19 @@
             @if (ViewBag.CurrentPage > 1)
             {
                 <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Payments", new { page = ViewBag.CurrentPage - 1, search = ViewBag.Search, status = ViewBag.Status })">Anterior</a>
+                    <a class="page-link" href="@Url.Action(ActionNames.Payments, ControllerNames.Admin, new { page = ViewBag.CurrentPage - 1, search = ViewBag.Search, status = ViewBag.Status })">Anterior</a>
                 </li>
             }
             @for (int i = 1; i <= ViewBag.TotalPages; i++)
             {
                 <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                    <a class="page-link" href="@Url.Action("Payments", new { page = i, search = ViewBag.Search, status = ViewBag.Status })">@i</a>
+                    <a class="page-link" href="@Url.Action(ActionNames.Payments, ControllerNames.Admin, new { page = i, search = ViewBag.Search, status = ViewBag.Status })">@i</a>
                 </li>
             }
             @if (ViewBag.CurrentPage < ViewBag.TotalPages)
             {
                 <li class="page-item">
-                    <a class="page-link" href="@Url.Action("Payments", new { page = ViewBag.CurrentPage + 1, search = ViewBag.Search, status = ViewBag.Status })">Próximo</a>
+                    <a class="page-link" href="@Url.Action(ActionNames.Payments, ControllerNames.Admin, new { page = ViewBag.CurrentPage + 1, search = ViewBag.Search, status = ViewBag.Status })">Próximo</a>
                 </li>
             }
         </ul>
@@ -244,14 +244,14 @@
                             <strong>Cliente:</strong> @clientNameModal<br>
                             <strong>Email:</strong> @(clientModal?.ContactEmail ?? clientModal?.User?.Email ?? "-")<br>
                             <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
-                            <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")
+                            <strong>Valor:</strong> R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                         </div>
                         <hr>
                         <div class="mb-3">
                             <label class="form-label"><strong>Comprovante Enviado:</strong></label>
                             <div class="border rounded p-3 text-center bg-light" style="min-height: 400px; max-height: 500px; overflow: auto; position: relative;">
                                 @{
-                                    var receiptUrl = Url.Action("ViewReceipt", "Admin", new { paymentId = payment.Id });
+                                    var receiptUrl = Url.Action(ActionNames.ViewReceipt, ControllerNames.Admin, new { paymentId = payment.Id });
                                     var fileExtension = System.IO.Path.GetExtension(payment.ReceiptFilePath ?? "").ToLowerInvariant();
                                     if (string.IsNullOrEmpty(fileExtension))
                                     {
@@ -293,7 +293,7 @@
                                 </button>
                             </div>
                         </div>
-                        <form id="rejectForm_@payment.Id" method="post" action="@Url.Action("RejectPayment", "Admin")">
+                        <form id="rejectForm_@payment.Id" method="post" action="@Url.Action(ActionNames.RejectPayment, ControllerNames.Admin)">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="paymentId" value="@payment.Id" />
                             <div class="mb-3">
@@ -318,7 +318,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        <form method="post" action="@Url.Action("RejectPayment", "Admin")" style="display: inline;" id="rejectFormSubmit_@payment.Id" class="confirm-required">
+                        <form method="post" action="@Url.Action(ActionNames.RejectPayment, ControllerNames.Admin)" style="display: inline;" id="rejectFormSubmit_@payment.Id" class="confirm-required">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="paymentId" value="@payment.Id" />
                             <input type="hidden" name="rejectionReason" id="rejectionReasonHidden_@payment.Id" />
@@ -326,7 +326,7 @@
                                 <i class="bi bi-x-circle"></i> Reprovar
                             </button>
                         </form>
-                        <form method="post" action="@Url.Action("ApprovePayment", "Admin")" style="display: inline;" class="confirm-required">
+                        <form method="post" action="@Url.Action(ActionNames.ApprovePayment, ControllerNames.Admin)" style="display: inline;" class="confirm-required">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="paymentId" value="@payment.Id" />
                             <button type="submit" class="btn btn-success" onclick="event.preventDefault(); handleApprovePayment(@payment.Id, this);">
@@ -365,7 +365,7 @@
                         <strong>Telefone:</strong> @(clientHistory?.ContactPhone ?? "-")<br>
                         <strong>CNPJ/CPF:</strong> @(clientHistory?.CNPJ ?? clientHistory?.CPF ?? "N/A")<br>
                         <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
-                        <strong>Valor:</strong> R$ @payment.Amount.ToString("N2")<br>
+                        <strong>Valor:</strong> R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)<br>
                         <strong>Status Atual:</strong> 
                         @switch (payment.Status)
                         {
@@ -442,7 +442,7 @@
             const contentDiv = document.getElementById('historyContent_' + paymentId);
             contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
             
-            fetch('@Url.Action("GetPaymentHistory", "Admin")?paymentId=' + paymentId + '&page=' + page + '&pageSize=10')
+            fetch('@Url.Action(ActionNames.GetPaymentHistory, ControllerNames.Admin)?paymentId=' + paymentId + '&page=' + page + '&pageSize=10')
                 .then(response => response.json())
                 .then(data => {
                     if (!data.items || data.items.length === 0) {

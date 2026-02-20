@@ -103,10 +103,10 @@
                 </p>
             </div>
             <div class="d-flex gap-2">
-                <a href="@Url.Action("ReportCredits", "Admin")" class="btn btn-outline-primary">
+                <a href="@Url.Action(ActionNames.ReportCredits, ControllerNames.Admin)" class="btn btn-outline-primary">
                     <i class="bi bi-wallet2"></i> Créditos por Cliente
                 </a>
-                <a href="@Url.Action("ReportCoworkingRevenue", "Admin")" class="btn btn-outline-primary">
+                <a href="@Url.Action(ActionNames.ReportCoworkingRevenue, ControllerNames.Admin)" class="btn btn-outline-primary">
                     <i class="bi bi-building"></i> Receita por Coworking
                 </a>
             </div>
@@ -123,7 +123,7 @@
                 </h5>
             </div>
             <div class="card-body p-4">
-                <form method="get" action="@Url.Action("Reports", "Admin")" id="filterForm">
+                <form method="get" action="@Url.Action(ActionNames.Reports, ControllerNames.Admin)" id="filterForm">
                     <input type="hidden" name="page" value="1" id="pageInput" />
                     <div class="row g-3 align-items-end">
                         <div class="col-md-2">
@@ -155,7 +155,7 @@
                             <button type="submit" class="btn btn-primary flex-grow-1">
                                 <i class="bi bi-search"></i> Filtrar
                             </button>
-                            <a href="@Url.Action("Reports", "Admin")" class="btn btn-secondary">
+                            <a href="@Url.Action(ActionNames.Reports, ControllerNames.Admin)" class="btn btn-secondary">
                                 <i class="bi bi-x-circle"></i> Limpar
                             </a>
                         </div>
@@ -179,7 +179,7 @@
                      onclick="filterTable('all', this)"
                      title="Clique para ver todos os pagamentos">
                     <h6>Total Faturado no Período</h6>
-                    <h2>R$ @totalReceived.ToString("N2")</h2>
+                    <h2>R$ @totalReceived.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
@@ -189,7 +189,7 @@
                      onclick="filterTable('commission', this)"
                      title="Clique para ver detalhes das comissões">
                     <h6>Total de Comissões</h6>
-                    <h2>R$ @totalCommissions.ToString("N2")</h2>
+                    <h2>R$ @totalCommissions.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
@@ -199,7 +199,7 @@
                      onclick="filterTable('transferred', this)"
                      title="Clique para ver valores repassados">
                     <h6>Total Repassado aos Coworkings</h6>
-                    <h2>R$ @totalTransferred.ToString("N2")</h2>
+                    <h2>R$ @totalTransferred.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
@@ -209,7 +209,7 @@
                      onclick="filterTable('balance', this)"
                      title="Clique para ver saldo do administrador">
                     <h6>Saldo Atual do Administrador</h6>
-                    <h2>R$ @totalCommissions.ToString("N2")</h2>
+                    <h2>R$ @totalCommissions.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
         </div>
@@ -221,7 +221,7 @@
                      onclick="filterTable('pending', this)"
                      title="Clique para ver créditos bloqueados">
                     <h6>Créditos Bloqueados (reservas não confirmadas)</h6>
-                    <h2>R$ @blockedCredits.ToString("N2")</h2>
+                    <h2>R$ @blockedCredits.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-6">
@@ -231,7 +231,7 @@
                      onclick="scrollToTable()"
                      title="Clique para ver detalhamento">
                     <h6>Período</h6>
-                    <h2 style="font-size: 1.5rem;">@startDate.ToString("dd/MM/yyyy") até @endDate.ToString("dd/MM/yyyy")</h2>
+                    <h2 style="font-size: 1.5rem;">@startDate.ToString(DateFormatConstants.DisplayDateOnly) até @endDate.ToString(DateFormatConstants.DisplayDateOnly)</h2>
                 </div>
             </div>
         </div>
@@ -290,14 +290,14 @@
                                         data-origin="@row.SaleOrigin"
                                         onclick="showPaymentDetails(this)"
                                         title="Clique para ver detalhes">
-                                        <td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@row.Date.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                         <td>
                                             <span class="badge bg-primary">
                                                 @row.ProductType
                                             </span>
                                         </td>
                                         <td class="text-end">
-                                            <strong>R$ @row.Amount.ToString("N2")</strong>
+                                            <strong>R$ @row.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td>
                                             @if (row.Method == "PIX") 
@@ -391,7 +391,7 @@
                                     @if (ViewBag.CurrentPage > 1)
                                     {
                                         <li class="page-item">
-                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                            <a class="page-link" href="@Url.Action(ActionNames.Reports, ControllerNames.Admin, new { 
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 
@@ -407,7 +407,7 @@
                                     @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                                     {
                                         <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                            <a class="page-link" href="@Url.Action(ActionNames.Reports, ControllerNames.Admin, new { 
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 
@@ -423,7 +423,7 @@
                                     @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                                     {
                                         <li class="page-item">
-                                            <a class="page-link" href="@Url.Action("Reports", "Admin", new { 
+                                            <a class="page-link" href="@Url.Action(ActionNames.Reports, ControllerNames.Admin, new { 
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 
                                                 product = product, 

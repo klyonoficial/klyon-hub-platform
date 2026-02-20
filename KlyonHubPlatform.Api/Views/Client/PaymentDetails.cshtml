@@ -84,7 +84,7 @@
                         </dd>
                         
                         <dt class="col-sm-4">Data da Reserva:</dt>
-                        <dd class="col-sm-8">@reservation.ReservationDate.ToString("dd/MM/yyyy")</dd>
+                        <dd class="col-sm-8">@reservation.ReservationDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
                         
                         @if (reservation.StartTime.HasValue && reservation.EndTime.HasValue)
                         {
@@ -101,27 +101,27 @@
                         @if (Model.Method == PaymentMethod.CreditCard && ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
                         {
                             <div>
-                                <h4 class="text-primary mb-0">R$ @ViewBag.FinalAmount.ToString("N2")</h4>
+                                <h4 class="text-primary mb-0">R$ @ViewBag.FinalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                                 <small class="text-muted">
-                                    Valor original: R$ @ViewBag.OriginalAmount.ToString("N2")
+                                    Valor original: R$ @ViewBag.OriginalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                     <br>
                                     <span class="text-warning">
-                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
+                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString(NumberFormatConstants.CurrencyTwoDecimals)%
                                     </span>
                                     @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                     {
                                         <br>
-                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></span>
+                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></span>
                                     }
                                 </small>
                             </div>
                         }
                         else
                         {
-                            <h4 class="text-primary mb-0">R$ @Model.Amount.ToString("N2")</h4>
+                            <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                             @if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                             {
-                                <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></small>
+                                <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
                             }
                         }
                     </dd>
@@ -175,7 +175,7 @@
                                     }
                                     @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                     {
-                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</span>
+                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                     }
                                     break;
                                 case PaymentMethod.BankTransfer:
@@ -241,7 +241,7 @@
 
                     <dt class="col-sm-4">Data de Vencimento:</dt>
                     <dd class="col-sm-8">
-                        @Model.DueDate.ToString("dd/MM/yyyy")
+                        @Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
                         @if (Model.DueDate < DateTime.UtcNow && isPending)
                         {
                             <span class="badge bg-cancelled ms-2">Vencido</span>
@@ -251,7 +251,7 @@
                     @if (Model.PaidAt.HasValue)
                     {
                         <dt class="col-sm-4">Data do Pagamento:</dt>
-                        <dd class="col-sm-8">@Model.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</dd>
+                        <dd class="col-sm-8">@Model.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</dd>
                     }
 
                     @if (!string.IsNullOrEmpty(Model.TransactionId))
@@ -296,7 +296,7 @@
                                 <i class="bi bi-info-circle"></i> 
                                 @if (Model.PixExpiresAt.HasValue)
                                 {
-                                    <text>Este código expira em: @Model.PixExpiresAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
+                                    <text>Este código expira em: @Model.PixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
                                 }
                                 else
                                 {
@@ -354,7 +354,7 @@
                                 <strong>Instruções:</strong>
                                 <ul class="mb-0 mt-2">
                                     <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
-                                    <li>O boleto vence em: <strong>@Model.DueDate.ToString("dd/MM/yyyy")</strong></li>
+                                    <li>O boleto vence em: <strong>@Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)</strong></li>
                                     <li>Após o pagamento, envie o comprovante para validação</li>
                                 </ul>
                             </div>
@@ -383,31 +383,31 @@
                             <strong>Valor:</strong> 
                             @if (ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
                             {
-                                <span class="text-primary">R$ @ViewBag.FinalAmount.ToString("N2")</span>
+                                <span class="text-primary">R$ @ViewBag.FinalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                 <br>
                                 <small class="text-muted">
-                                    Valor original: R$ @ViewBag.OriginalAmount.ToString("N2")
+                                    Valor original: R$ @ViewBag.OriginalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                     <br>
                                     <span class="text-warning">
-                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString("N2")%
+                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString(NumberFormatConstants.CurrencyTwoDecimals)%
                                     </span>
                                     @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                     {
                                         <br>
-                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString("N2")</strong></span>
+                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></span>
                                     }
                                 </small>
                             }
                             else
                             {
-                                <span class="text-primary">R$ @Model.Amount.ToString("N2")</span>
+                                <span class="text-primary">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                 @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                 {
-                                    <br><small class="text-muted"><i class="bi bi-credit-card-2-back"></i> @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString("N2")</small>
+                                    <br><small class="text-muted"><i class="bi bi-credit-card-2-back"></i> @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small>
                                 }
                             }
                             <br>
-                            <strong>Vencimento:</strong> @Model.DueDate.ToString("dd/MM/yyyy")
+                            <strong>Vencimento:</strong> @Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
                         </p>
                         
                         @if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
@@ -529,7 +529,7 @@
                     @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
                     {
                         var receiptUploadedAt = ViewBag.ReceiptUploadedAt as DateTime?;
-                        var receiptUploadedAtStr = receiptUploadedAt.HasValue ? receiptUploadedAt.Value.ToString("dd/MM/yyyy HH:mm") : "";
+                        var receiptUploadedAtStr = receiptUploadedAt.HasValue ? receiptUploadedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime) : "";
                         <button type="button" class="btn btn-outline-primary w-100 mb-2" onclick="viewReceipt(@Model.Id, '@receiptUploadedAtStr'); return false;">
                             <i class="bi bi-file-earmark-image"></i> Ver Comprovante Enviado
                         </button>
@@ -594,7 +594,7 @@
                                         {
                                             @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
                                             {
-                                                <button type="button" class="btn btn-sm btn-info me-2" onclick="viewReceipt(@Model.Id, '@history.ActionAt.ToString("dd/MM/yyyy HH:mm")')">
+                                                <button type="button" class="btn btn-sm btn-info me-2" onclick="viewReceipt(@Model.Id, '@history.ActionAt.ToString(DateFormatConstants.DisplayDateAndTime)')">
                                                     <i class="bi bi-upload"></i> Comprovante Enviado
                                                 </button>
                                             }
@@ -616,7 +616,7 @@
                                             <span class="badge bg-secondary me-2">@history.Action</span>
                                         }
                                     </h6>
-                                    <small>@history.ActionAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                    <small>@history.ActionAt.ToString(DateFormatConstants.DisplayDateAndTime)</small>
                                 </div>
                                 <p class="mb-1"><strong>Por:</strong> @(history.ActionByUser?.FullName ?? "Sistema")</p>
                                 @if (!string.IsNullOrEmpty(history.RejectionReason))
@@ -864,7 +864,7 @@
         creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
     }
 <!-- Modal Pagar com cartão (processar pagamento no Asaas) -->
-<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))">
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -876,7 +876,7 @@
             <div class="modal-body">
                 <p class="text-muted small mb-3">Se você escolheu um cartão cadastrado, nome e validade já foram preenchidos — informe o número do cartão e o CVV para concluir. O pagamento será enviado ao Asaas e processado na hora.</p>
                 <div class="alert alert-light border mb-3 py-2" id="payWithCardAmountSummary">
-                    <strong>Valor total:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString("N2")</span>
+                    <strong>Valor total:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                     <br class="d-none" id="payWithCardPerInstallmentBr">
                     <strong class="d-none" id="payWithCardPerInstallmentLabel">Valor por parcela:</strong> <span class="d-none" id="payWithCardPerInstallmentDisplay"></span>
                 </div>
@@ -925,11 +925,11 @@
                                 var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
                                 @if (i == 1)
                                 {
-                                    <option value="@i" selected>@i x R$ @parcelValue.ToString("N2")</option>
+                                    <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
                                 }
                                 else
                                 {
-                                    <option value="@i">@i x R$ @parcelValue.ToString("N2")</option>
+                                    <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
                                 }
                             }
                         </select>

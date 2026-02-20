@@ -8,7 +8,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
 	<h2><i class="bi bi-file-earmark-text"></i> Contrato @Model.ContractNumber</h2>
-	<a href="@(User.IsInRole("Administrator") ? Url.Action("Contracts", "Admin") : Url.Action("MyContracts", "Client"))" class="btn btn-secondary">
+	<a href="@(User.IsInRole("Administrator") ? Url.Action(ActionNames.Contracts, ControllerNames.Admin) : Url.Action(ActionNames.MyContracts, ControllerNames.Client))" class="btn btn-secondary">
 		<i class="bi bi-arrow-left"></i> Voltar
 	</a>
 </div>
@@ -92,12 +92,12 @@
 					}
 					<tr>
 						<th>Data de Início:</th>
-						<td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
+						<td>@Model.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
 					</tr>
 					<tr>
 						<th>Valor Mensal:</th>
 						<td>
-							<strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString("F2") : Model.MonthlyValue.ToString("F2"))</strong>
+							<strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString(NumberFormatConstants.TwoDecimals) : Model.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals))</strong>
 							@if (Model.SnapshotMonthlyValue > 0 && Model.SnapshotMonthlyValue != Model.MonthlyValue)
 							{
 								<br>
@@ -153,11 +153,11 @@
 						</p>
 						if (paymentAwaitingValidationId.HasValue)
 						{
-							<a href="@Url.Action("PaymentDetails", "Client", new { id = paymentAwaitingValidationId })" class="btn bg-pending-payment text-white">
+							<a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = paymentAwaitingValidationId })" class="btn bg-pending-payment text-white">
 								<i class="bi bi-eye me-1"></i> Ver Detalhes do Pagamento
 							</a>
 						}
-						<a href="@Url.Action("MyPayments", "Client")" class="btn btn-outline-primary ms-2">
+						<a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-outline-primary ms-2">
 							<i class="bi bi-credit-card me-1"></i> Ir para Pagamentos
 						</a>
 					}
@@ -169,7 +169,7 @@
 						<p class="text-muted mb-3">
 							Para ativar seu contrato, realize o pagamento através da página de pagamentos.
 						</p>
-						<a href="@Url.Action("MyPayments", "Client")" class="btn btn-primary">
+						<a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-primary">
 							<i class="bi bi-credit-card"></i> Ir para Pagamentos
 						</a>
 					}
@@ -206,7 +206,7 @@
 					<p><strong>Motivo informado:</strong></p>
 					<p class="text-muted">@Model.CancellationRequestReason</p>
 					<p class="text-muted small">
-						<i class="bi bi-calendar"></i> Solicitado em: @Model.CancellationRequestedAt?.ToString("dd/MM/yyyy HH:mm")
+						<i class="bi bi-calendar"></i> Solicitado em: @Model.CancellationRequestedAt?.ToString(DateFormatConstants.DisplayDateAndTime)
 					</p>
 				</div>
 			</div>
@@ -227,7 +227,7 @@
 							<li class="list-group-item d-flex justify-content-between align-items-center">
 								<div>
 									<span class="fw-bold">@declaration.DeclarationNumber</span><br>
-									<small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString("dd/MM/yyyy")</small>
+									<small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
 								</div>
 								<div class="d-flex align-items-center gap-2">
 									@if (declaration.IsValid)
@@ -238,7 +238,7 @@
 									{
 										<span class="badge bg-danger">Inválida</span>
 									}
-									<a href="@Url.Action("DownloadDeclaration", "Client", new { declarationId = declaration.Id })" class="btn btn-sm btn-primary">
+									<a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id })" class="btn btn-sm btn-primary">
 										<i class="bi bi-download"></i> Download
 									</a>
 								</div>
@@ -269,7 +269,7 @@
 								<span>@documentTypeText</span>
 								@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
 								{
-									<a href="@Url.Action("DownloadDocument", "Client", new { documentId = doc.Id })" class="btn btn-sm btn-primary">
+									<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })" class="btn btn-sm btn-primary">
 										<i class="bi bi-download"></i> Download
 									</a>
 								}
@@ -320,7 +320,7 @@
 											<div class="card-body">
 												<div class="d-flex justify-content-between align-items-start mb-2">
 													<h6 class="mb-0">@timelineItem.Title</h6>
-													<small class="text-muted">@timelineItem.Date.ToString("dd/MM/yyyy HH:mm")</small>
+													<small class="text-muted">@timelineItem.Date.ToString(DateFormatConstants.DisplayDateAndTime)</small>
 												</div>
 												<p class="mb-0 text-muted">@timelineItem.Description</p>
 											</div>
@@ -335,18 +335,18 @@
 						<nav aria-label="Paginação do histórico" class="mt-3">
 							<ul class="pagination justify-content-center mb-0">
 								<li class="page-item @(timelineCurrentPage <= 1 ? "disabled" : "")">
-									<a class="page-link" href="@(timelineCurrentPage <= 1 ? "#" : Url.Action("ContractDetails", "Client", new { id = Model.Id, timelinePage = timelineCurrentPage - 1, timelinePageSize = timelinePageSizeVal }))">
+									<a class="page-link" href="@(timelineCurrentPage <= 1 ? "#" : Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = Model.Id, timelinePage = timelineCurrentPage - 1, timelinePageSize = timelinePageSizeVal }))">
 										Anterior
 									</a>
 								</li>
 								@for (int p = 1; p <= timelineTotalPages; p++)
 								{
 									<li class="page-item @(p == timelineCurrentPage ? "active" : "")">
-										<a class="page-link" href="@Url.Action("ContractDetails", "Client", new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
+										<a class="page-link" href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
 									</li>
 								}
 								<li class="page-item @(timelineCurrentPage >= timelineTotalPages ? "disabled" : "")">
-									<a class="page-link" href="@(timelineCurrentPage >= timelineTotalPages ? "#" : Url.Action("ContractDetails", "Client", new { id = Model.Id, timelinePage = timelineCurrentPage + 1, timelinePageSize = timelinePageSizeVal }))">
+									<a class="page-link" href="@(timelineCurrentPage >= timelineTotalPages ? "#" : Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = Model.Id, timelinePage = timelineCurrentPage + 1, timelinePageSize = timelinePageSizeVal }))">
 										Próximo
 									</a>
 								</li>
@@ -393,7 +393,7 @@
 				</h5>
 				<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
 			</div>
-			<form method="post" action="@Url.Action("RequestContractCancellation", "Client")">
+			<form method="post" action="@Url.Action(ActionNames.RequestContractCancellation, ControllerNames.Client)">
 				@Html.AntiForgeryToken()
 				<input type="hidden" name="contractId" value="@Model.Id">
 				<div class="modal-body">

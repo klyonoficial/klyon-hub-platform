@@ -14,6 +14,8 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Requests;
+using KlyonHubPlatform.Api.Dtos;
 using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
 using ClientCredit = KlyonHubPlatform.Domain.Entities.ClientCredit;
 
@@ -36,6 +38,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISystemConfigurationService _systemConfig;
         private readonly IClientMenuService _clientMenuService;
         private readonly IServiceCatalogService _serviceCatalogService;
+        private readonly IClientDashboardService _clientDashboardService;
 
         public ClientController(
             IContractService contractService,
@@ -51,7 +54,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ILogger<ClientController> logger,
             ISystemConfigurationService systemConfig,
             IClientMenuService clientMenuService,
-            IServiceCatalogService serviceCatalogService)
+            IServiceCatalogService serviceCatalogService,
+            IClientDashboardService clientDashboardService)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -67,6 +71,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _systemConfig = systemConfig;
             _clientMenuService = clientMenuService;
             _serviceCatalogService = serviceCatalogService;
+            _clientDashboardService = clientDashboardService;
         }
 
         private async Task<long> GetMaxPhotoSizeBytesAsync()
@@ -86,7 +91,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var status = await _clientMenuService.GetRegistrationStatusAsync(userId);
                 if (!status.IsComplete)
                 {
-                    TempData[TempDataKeys.Info] = status.TempDataMessageKey == "CompleteRegistrationWithFields"
+                    TempData[TempDataKeys.Info] = status.TempDataMessageKey == ClientRegistrationMessageKeys.CompleteRegistrationWithFields
                         ? InfoMessages.CompleteRegistrationWithFields
                         : InfoMessages.CompleteRegistration;
                     return RedirectToAction(status.RedirectActionName ?? ActionNames.RegisterClient);
@@ -113,74 +118,13 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> DashboardDetails(CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var client = await _context.Clients
-                .Include(c => c.Contracts)
-                    .ThenInclude(ct => ct.CoworkingAddress)
-                .Include(c => c.Contracts)
-                    .ThenInclude(ct => ct.Subscription)
-                        .ThenInclude(s => s.Payments)
-                .FirstOrDefaultAsync(c => c.UserId == userId);
+            var result = await _clientDashboardService.GetDashboardDetailsAsync(userId, cancellationToken);
 
-            // Sistema de créditos removido - não buscamos mais créditos
-
-            // Buscar reservas do cliente
-            int reservationsCount = 0;
-            if (client != null)
-            {
-                try
-                {
-                    reservationsCount = await _context.Reservations
-                        .Where(r => r.ClientId == client.Id && r.Status == ReservationStatus.Confirmed)
-                        .CountAsync();
-                }
-                catch
-                {
-                    // Tabela Reservations pode não existir ainda
-                    reservationsCount = 0;
-                }
-            }
-
-            // Verificar pendências financeiras
-            bool hasFinancialPending = false;
-            if (client != null && client.Contracts != null)
-            {
-                var contractIds = client.Contracts.Select(c => c.Id).ToList();
-                var subscriptionIds = client.Contracts
-                    .Where(c => c.Subscription != null)
-                    .Select(c => c.Subscription!.Id)
-                    .ToList();
-
-                if (subscriptionIds.Any())
-                {
-                    hasFinancialPending = await _context.Payments
-                        .Where(p => subscriptionIds.Contains(p.SubscriptionId ?? 0) &&
-                                   (p.Status == PaymentStatus.Pending ||
-                                    p.Status == PaymentStatus.Processing ||
-                                    p.Status == PaymentStatus.AwaitingValidation))
-                        .AnyAsync();
-                }
-            }
-
-            // Verificar se há certificado próximo de vencer (30 dias)
-            bool hasCertificateExpiring = false;
-            if (client != null && client.Contracts != null)
-            {
-                var today = DateTime.UtcNow.Date;
-                var expiryThreshold = today.AddDays(30);
-                
-                hasCertificateExpiring = client.Contracts
-                    .Any(c => c.Status == ContractStatus.Active &&
-                             c.ExpiryDate.HasValue &&
-                             c.ExpiryDate.Value.Date >= today &&
-                             c.ExpiryDate.Value.Date <= expiryThreshold);
-            }
-
-            ViewBag.Client = client;
-            // ViewBag.AvailableCredits removido - sistema não usa mais créditos
-            ViewBag.ReservationsCount = reservationsCount;
-            ViewBag.HasPending = hasFinancialPending || hasCertificateExpiring;
-            ViewBag.HasFinancialPending = hasFinancialPending;
-            ViewBag.HasCertificateExpiring = hasCertificateExpiring;
+            ViewBag.Client = result.Client;
+            ViewBag.ReservationsCount = result.ReservationsCount;
+            ViewBag.HasPending = result.HasFinancialPending || result.HasCertificateExpiring;
+            ViewBag.HasFinancialPending = result.HasFinancialPending;
+            ViewBag.HasCertificateExpiring = result.HasCertificateExpiring;
             return View(ViewNames.Dashboard);
         }
 
@@ -264,9 +208,9 @@ namespace KlyonHubPlatform.Api.Controllers
             };
             foreach (var roleClaim in User.FindAll(ClaimTypes.Role))
                 claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
-            var claimsIdentity = new ClaimsIdentity(claims, "Cookies");
+            var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-            await HttpContext.SignInAsync("Cookies", claimsPrincipal);
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
             if (!string.IsNullOrEmpty(user.FullName))
                 HttpContext.Session.SetString("UserName", user.FullName);
         }
@@ -275,7 +219,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo, CancellationToken cancellationToken = default)
         {
-            var isAjaxRequest = Request.Headers["X-Requested-With"].ToString() == "XMLHttpRequest";
+            var isAjaxRequest = Request.Headers[HttpHeaderNames.XRequestedWith].ToString() == HttpHeaderNames.XRequestedWithValue;
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -1342,7 +1286,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId }) });
             }
 
-            var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
+            var isAjax = string.Equals(Request.Headers[HttpHeaderNames.XRequestedWith], HttpHeaderNames.XRequestedWithValue, StringComparison.OrdinalIgnoreCase);
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -1509,7 +1453,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         var history = new PaymentHistory
                         {
                             PaymentId = payment.Id,
-                            Action = "ContractCreated",
+                            Action = PaymentHistoryActions.ContractCreated,
                             ActionBy = userId, // ID do cliente que criou o contrato
                             ActionAt = DateTimeHelper.GetBrazilianTime()
                         };
@@ -1677,7 +1621,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Status: {statusPt}",
                     Description = $"Status do contrato alterado para {statusPt}",
                     Icon = "bi-arrow-repeat",
-                    Color = "info"
+                    Color = BootstrapBadgeCss.Info
                 });
             }
 
@@ -1690,7 +1634,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Pagamento de R$ {payment.Amount:N2}",
                     Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
                     Icon = "bi-cash-coin",
-                    Color = payment.Status == PaymentStatus.Paid ? "success" : "warning",
+                    Color = payment.Status == PaymentStatus.Paid ? BootstrapBadgeCss.Success : BootstrapBadgeCss.Warning,
                     Payment = payment
                 });
                 if (payment.PaidAt.HasValue)
@@ -1702,7 +1646,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         Title = "Pagamento Confirmado",
                         Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
                         Icon = "bi-check-circle",
-                        Color = "success",
+                        Color = BootstrapBadgeCss.Success,
                         Payment = payment
                     });
                 }
@@ -1711,37 +1655,37 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
                     {
-                        if (history.Action == "ContractCreated")
+                        if (history.Action == PaymentHistoryActions.ContractCreated)
                             continue;
 
                         string title, description, icon, color;
-                        if (history.Action == "Approved")
+                        if (history.Action == PaymentHistoryActions.Approved)
                         {
                             title = "Pagamento Aprovado";
                             description = $"Aprovado por {history.ActionByUser?.FullName ?? "Admin"}";
                             icon = "bi-check-circle";
                             color = "success";
                         }
-                        else if (history.Action == "Cancelled")
+                        else if (history.Action == PaymentHistoryActions.Cancelled)
                         {
                             title = "Pagamento Cancelado";
                             description = history.RejectionReason ?? "Cancelado";
                             icon = "bi-x-circle";
                             color = "secondary";
                         }
-                        else if (history.Action == "ReceiptUploaded")
+                        else if (history.Action == PaymentHistoryActions.ReceiptUploaded)
                         {
                             title = "Comprovante enviado";
                             description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
                             icon = "bi-file-earmark-arrow-up";
-                            color = "info";
+                            color = BootstrapBadgeCss.Info;
                         }
-                        else if (history.Action == "Rejected")
+                        else if (history.Action == PaymentHistoryActions.Rejected)
                         {
                             title = "Pagamento Reprovado";
                             description = $"Reprovado por {history.ActionByUser?.FullName ?? "Admin"}: {history.RejectionReason}";
                             icon = "bi-x-circle";
-                            color = "danger";
+                            color = BootstrapBadgeCss.Danger;
                         }
                         else
                             continue;
@@ -1769,7 +1713,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Title = $"Declaração {declaration.DeclarationNumber}",
                     Description = $"Versão {declaration.Version} gerada",
                     Icon = "bi-file-earmark-pdf",
-                    Color = "info",
+                    Color = BootstrapBadgeCss.Info,
                     Declaration = declaration
                 });
             }
@@ -2265,7 +2209,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // Data/hora de envio do comprovante (para exibir no modal "Comprovante Enviado")
             var receiptUploadedEntry = await _context.PaymentHistories
-                .Where(h => h.PaymentId == payment.Id && h.Action == "ReceiptUploaded")
+                .Where(h => h.PaymentId == payment.Id && h.Action == PaymentHistoryActions.ReceiptUploaded)
                 .OrderByDescending(h => h.ActionAt)
                 .FirstOrDefaultAsync();
             ViewBag.ReceiptUploadedAt = receiptUploadedEntry?.ActionAt;
@@ -2401,7 +2345,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentMethodUpdated;
 
                 // Requisição AJAX: retornar 200 para o JS atualizar as seções (card do cartão + botão "Pagar com cartão")
-                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                     return Ok();
 
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
@@ -2409,7 +2353,7 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("atualizar método de pagamento", ex.Message);
-                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                     return StatusCode(400, new { error = ex.Message });
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
@@ -2550,7 +2494,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var history = new PaymentHistory
                 {
                     PaymentId = paymentId,
-                    Action = "ReceiptUploaded",
+                    Action = PaymentHistoryActions.ReceiptUploaded,
                     ActionBy = userId,
                     ActionAt = DateTimeHelper.GetBrazilianTime()
                 };
@@ -2681,12 +2625,12 @@ namespace KlyonHubPlatform.Api.Controllers
             // Retornar inline para exibição no modal (como Admin/ViewReceipt)
             if (fileExtension != ".pdf")
             {
-                Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
-                Response.Headers.Append("Pragma", "no-cache");
-                Response.Headers.Append("Expires", "0");
+                Response.Headers.Append(HttpHeaderNames.CacheControl, "no-cache, no-store, must-revalidate");
+                Response.Headers.Append(HttpHeaderNames.Pragma, "no-cache");
+                Response.Headers.Append(HttpHeaderNames.Expires, "0");
                 return File(fileBytes, contentType);
             }
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            Response.Headers.Append(HttpHeaderNames.ContentDisposition, $"inline; filename=\"{fileName}\"");
             return File(fileBytes, contentType);
         }
 
@@ -3817,7 +3761,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (!string.IsNullOrWhiteSpace(status))
                 {
                     var s = status.Trim();
-                    if (s == "Confirmed" || s == "Completed" || s == "Cancelled")
+                    if (s == nameof(ReservationStatus.Confirmed) || s == nameof(ReservationStatus.Completed) || s == nameof(ReservationStatus.Cancelled))
                         if (Enum.TryParse<ReservationStatus>(s, true, out var resStatus))
                             query = query.Where(r => r.Status == resStatus);
                 }
@@ -3954,7 +3898,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         .ThenInclude(ca => ca.Location)
                 .Include(fn => fn.Payment)
                 .Where(fn => fn.ClientId == client.Id 
-                    && (fn.Type == "Intermediacao" || fn.Type == "Servico")
+                    && (fn.Type == FiscalNoteType.Intermediacao || fn.Type == FiscalNoteType.Servico)
                     && fn.Status == FiscalNoteStatus.Emitida) // Apenas notas aprovadas/emitidas
                 .AsQueryable();
 
@@ -4005,7 +3949,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var coworkings = await _context.FiscalNotes
                 .Include(fn => fn.Coworking)
                 .Where(fn => fn.ClientId == client.Id 
-                    && (fn.Type == "Intermediacao" || fn.Type == "Servico")
+                    && (fn.Type == FiscalNoteType.Intermediacao || fn.Type == FiscalNoteType.Servico)
                     && fn.Status == FiscalNoteStatus.Emitida
                     && fn.CoworkingId != null
                     && fn.Coworking != null)
@@ -4042,7 +3986,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var fn = await _context.FiscalNotes
                 .FirstOrDefaultAsync(f => f.Id == fiscalNoteId 
                     && f.ClientId == client.Id 
-                    && (f.Type == "Intermediacao" || f.Type == "Servico")
+                    && (f.Type == FiscalNoteType.Intermediacao || f.Type == FiscalNoteType.Servico)
                     && f.Status == FiscalNoteStatus.Emitida); // Apenas notas aprovadas/emitidas
 
             if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
@@ -4060,7 +4004,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var fileName = Path.GetFileName(fn.PdfUrl) ?? $"nota_fiscal_{fn.Id}.pdf";
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{fileName}\"");
+            Response.Headers.Append(HttpHeaderNames.ContentDisposition, $"inline; filename=\"{fileName}\"");
             return File(fileBytes, "application/pdf");
         }
 

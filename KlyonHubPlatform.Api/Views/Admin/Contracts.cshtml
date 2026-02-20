@@ -144,7 +144,7 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString("F2") : contract.MonthlyValue.ToString("F2"))</strong>
+                                    <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString(NumberFormatConstants.TwoDecimals) : contract.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals))</strong>
                                 </td>
                                 <td>
                                     @{
@@ -211,7 +211,7 @@
                                     }
                                     <span class="badge @statusBadgeClass"><i class="bi @statusIcon me-1"></i> @statusLabel</span>
                                 </td>
-                                <td>@contract.StartDate.ToString("dd/MM/yyyy")</td>
+                                <td>@contract.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
                                     <a href="@Url.Action("ContractDetails", "Client", new { id = contract.Id })" 
                                        class="btn btn-sm btn-info" title="Visualizar">

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
+using KlyonHubPlatform.Api.Constants;
 using System.Security.Claims;
 
 namespace KlyonHubPlatform.Api.ViewComponents
@@ -56,16 +57,16 @@ namespace KlyonHubPlatform.Api.ViewComponents
                 model.HasRoomRental = products.Contains("RoomRental");
 
                 // Compartilhar via ViewContext.ViewData para uso no _Layout (compartilhado)
-                ViewContext.ViewData["HasFiscalAddress"] = model.HasFiscalAddress;
-                ViewContext.ViewData["HasRoomRental"] = model.HasRoomRental;
+                ViewContext.ViewData[ViewDataKeys.HasFiscalAddress] = model.HasFiscalAddress;
+                ViewContext.ViewData[ViewDataKeys.HasRoomRental] = model.HasRoomRental;
 
                 return View(model);
             }
             catch
             {
                 // Se a tabela não existir ou houver erro, retorna valores padrão
-                ViewContext.ViewData["HasFiscalAddress"] = false;
-                ViewContext.ViewData["HasRoomRental"] = false;
+                ViewContext.ViewData[ViewDataKeys.HasFiscalAddress] = false;
+                ViewContext.ViewData[ViewDataKeys.HasRoomRental] = false;
                 return View(model);
             }
         }

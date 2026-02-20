@@ -1,4 +1,5 @@
 @model KlyonHubPlatform.Domain.Entities.Transfer
+@using KlyonHubPlatform.Api.Constants
 @{
     var relatedCommissions = ViewBag.RelatedCommissions as List<KlyonHubPlatform.Domain.Entities.Commission> ?? new List<KlyonHubPlatform.Domain.Entities.Commission>();
 }
@@ -9,17 +10,17 @@
             <dt class="col-sm-4">ID</dt>
             <dd class="col-sm-8"><strong>#@Model.Id</strong></dd>
             <dt class="col-sm-4">Parceiro</dt>
-            <dd class="col-sm-8"><strong>@(Model.Coworking?.Name ?? "—")</strong> @if (Model.Coworking?.CNPJ != null) { <br /><small class="text-muted">@Model.Coworking.CNPJ</small> }</dd>
+            <dd class="col-sm-8"><strong>@(Model.Coworking?.Name ?? DefaultDisplayStrings.EmptyPlaceholder)</strong> @if (Model.Coworking?.CNPJ != null) { <br /><small class="text-muted">@Model.Coworking.CNPJ</small> }</dd>
             <dt class="col-sm-4">Valor</dt>
-            <dd class="col-sm-8"><strong class="text-success">R$ @Model.Amount.ToString("N2")</strong></dd>
+            <dd class="col-sm-8"><strong class="text-success">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></dd>
         </dl>
     </div>
     <div class="col-md-6">
         <dl class="row mb-0">
             <dt class="col-sm-4">Data solicitação</dt>
-            <dd class="col-sm-8">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</dd>
+            <dd class="col-sm-8">@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</dd>
             <dt class="col-sm-4">Data agendada</dt>
-            <dd class="col-sm-8">@Model.ScheduledDate.ToString("dd/MM/yyyy")</dd>
+            <dd class="col-sm-8">@Model.ScheduledDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
             <dt class="col-sm-4">Status</dt>
             <dd class="col-sm-8"><span class="badge bg-info"><i class="bi bi-file-earmark-check"></i> Aguardando NF</span></dd>
         </dl>
@@ -44,13 +45,13 @@
                 @foreach (var c in relatedCommissions)
                 {
                     var client = c.Payment?.Subscription?.Contract?.Client ?? c.Payment?.Reservation?.Client;
-                    var name = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? "—";
+                    var name = client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder;
                     var cred = c.TotalPaymentAmount - c.Amount;
                     <tr>
                         <td><small>@name</small></td>
-                        <td><small>R$ @c.TotalPaymentAmount.ToString("N2")</small></td>
-                        <td><small>@c.Percentage.ToString("F1")%</small></td>
-                        <td><strong class="text-success">R$ @cred.ToString("N2")</strong></td>
+                        <td><small>R$ @c.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small></td>
+                        <td><small>@c.Percentage.ToString(NumberFormatConstants.OneDecimal)%</small></td>
+                        <td><strong class="text-success">R$ @cred.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                     </tr>
                 }
             </tbody>
@@ -59,7 +60,7 @@
 }
 
 <div class="mt-3 text-end">
-    <a href="@Url.Action("TransferDetails", "Admin", new { id = Model.Id })" class="btn btn-sm btn-outline-primary" target="_blank">
+    <a href="@Url.Action(ActionNames.TransferDetails, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-sm btn-outline-primary" target="_blank">
         <i class="bi bi-box-arrow-up-right"></i> Ver detalhes completos
     </a>
 </div>

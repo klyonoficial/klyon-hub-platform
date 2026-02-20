@@ -76,25 +76,25 @@
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                     <h6>Total Recebido dos Clientes</h6>
-                    <h2>R$ @totalPaid.ToString("N2")</h2>
+                    <h2>R$ @totalPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     <h6>Total Gasto em Reservas</h6>
-                    <h2>R$ @totalSpent.ToString("N2")</h2>
+                    <h2>R$ @totalSpent.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                     <h6>Total Repassado aos Coworkings</h6>
-                    <h2>R$ @totalSpent.ToString("N2")</h2>
+                    <h2>R$ @totalSpent.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="credits-kpi" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                     <h6>Saldo Atual (Disponível)</h6>
-                    <h2>R$ @totalCurrentBalance.ToString("N2")</h2>
+                    <h2>R$ @totalCurrentBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h2>
                 </div>
             </div>
         </div>
@@ -143,17 +143,17 @@
                                                 var clientBalance = c.TotalAmountPaid - clientSpent;
                                             }
                                             <span class="badge @(clientBalance >= 0 ? "bg-success" : "bg-danger") fs-6 px-3 py-2">
-                                                <i class="bi bi-wallet2"></i> R$ @clientBalance.ToString("N2")
+                                                <i class="bi bi-wallet2"></i> R$ @clientBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </span>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-success">R$ @c.TotalAmountPaid.ToString("N2")</strong>
+                                            <strong class="text-success">R$ @c.TotalAmountPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td class="text-end">
                                             @{
                                                 var totalClientSpent = c.SpendingByCoworking?.Sum(s => s.TotalValue) ?? 0m;
                                             }
-                                            <strong class="text-danger">R$ @totalClientSpent.ToString("N2")</strong>
+                                            <strong class="text-danger">R$ @totalClientSpent.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
                                         </td>
                                         <td>
                                             @if (c.SpendingByCoworking != null && c.SpendingByCoworking.Any())
@@ -164,7 +164,7 @@
                                                         <span class="badge bg-light text-dark">
                                                             <i class="bi bi-building"></i> @s.CoworkingName
                                                             <br>
-                                                            <small>R$ @s.TotalValue.ToString("F2")</small>
+                                                            <small>R$ @s.TotalValue.ToString(NumberFormatConstants.TwoDecimals)</small>
                                                         </span>
                                                     }
                                                 </div>
@@ -180,9 +180,9 @@
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="2"><strong>TOTAL</strong></td>
-                                    <td class="text-end"><strong>R$ @totalCurrentBalance.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>R$ @totalPaid.ToString("N2")</strong></td>
-                                    <td class="text-end"><strong>R$ @totalSpent.ToString("N2")</strong></td>
+                                    <td class="text-end"><strong>R$ @totalCurrentBalance.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                    <td class="text-end"><strong>R$ @totalPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                    <td class="text-end"><strong>R$ @totalSpent.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>

@@ -2,6 +2,7 @@ namespace KlyonHubPlatform.Api.Constants
 {
     /// <summary>
     /// Nomes dos controllers usados em RedirectToAction e Url.Action.
+    /// Parceiro é o alias de rota para Coworking (URL /Parceiro/*).
     /// </summary>
     public static class ControllerNames
     {
@@ -10,6 +11,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Auth = "Auth";
         public const string Admin = "Admin";
         public const string Coworking = "Coworking";
+        /// <summary>Alias de rota para Coworking (URL /Parceiro/*).</summary>
+        public const string Parceiro = "Parceiro";
     }
 
     /// <summary>
@@ -22,6 +25,13 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Marketplace = "Marketplace";
         public const string MarketplaceDetails = "MarketplaceDetails";
         public const string GetAvailabilityForMonth = "GetAvailabilityForMonth";
+        public const string FiscalAddress = "FiscalAddress";
+        public const string Rooms = "Rooms";
+        public const string Partner = "Partner";
+        public const string Privacy = "Privacy";
+        public const string CreateReservation = "CreateReservation";
+        public const string SubmitInterest = "SubmitInterest";
+        public const string GetAvailability = "GetAvailability";
 
         // Client
         public const string ChooseLocation = "ChooseLocation";
@@ -36,6 +46,12 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ContractDetails = "ContractDetails";
         public const string MyPayments = "MyPayments";
         public const string PaymentDetails = "PaymentDetails";
+        public const string UpdateProfile = "UpdateProfile";
+        public const string GetLogo = "GetLogo";
+        public const string CheckDocumentExists = "CheckDocumentExists";
+        public const string CreateContract = "CreateContract";
+        public const string GenerateDeclaration = "GenerateDeclaration";
+        public const string DownloadDeclaration = "DownloadDeclaration";
         public const string Declarations = "Declarations";
         public const string BuyCredits = "BuyCredits";
         public const string CheckoutCredits = "CheckoutCredits";
@@ -47,7 +63,12 @@ namespace KlyonHubPlatform.Api.Constants
         // Auth
         public const string Login = "Login";
         public const string Register = "Register";
+        public const string Logout = "Logout";
+        public const string ForgotPassword = "ForgotPassword";
+        public const string ResetPassword = "ResetPassword";
         public const string ChangePasswordRequired = "ChangePasswordRequired";
+        public const string VerifyEmail = "VerifyEmail";
+        public const string ResendVerification = "ResendVerification";
 
         // Admin
         public const string Contracts = "Contracts";
@@ -58,21 +79,74 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Coworkings = "Coworkings";
         public const string ViewCoworking = "ViewCoworking";
         public const string EditCoworking = "EditCoworking";
+        public const string ApproveCoworking = "ApproveCoworking";
+        public const string RejectCoworking = "RejectCoworking";
+        public const string CoworkingHistory = "CoworkingHistory";
+        public const string ToggleCoworkingStatus = "ToggleCoworkingStatus";
+        public const string GetCoworkingServicesJson = "GetCoworkingServicesJson";
+        public const string SavePartnerServiceJson = "SavePartnerServiceJson";
+        public const string DeletePartnerServiceJson = "DeletePartnerServiceJson";
+        public const string SavePartnerService = "SavePartnerService";
+        public const string DeletePartnerService = "DeletePartnerService";
         public const string Locations = "Locations";
         public const string EditLocation = "EditLocation";
         public const string ReportCoworkingRevenue = "ReportCoworkingRevenue";
         public const string SystemConfigurations = "SystemConfigurations";
         public const string EditSystemConfiguration = "EditSystemConfiguration";
         public const string Payments = "Payments";
+        public const string Transfers = "Transfers";
+        public const string TransferSchedule = "TransferSchedule";
+        public const string Reports = "Reports";
         public const string DatabaseManager = "DatabaseManager";
         public const string ServiceRemovalRequests = "ServiceRemovalRequests";
         public const string SefazConfiguration = "SefazConfiguration";
         public const string ImportedFiscalNotes = "ImportedFiscalNotes";
         public const string CommissionFiscalNotes = "CommissionFiscalNotes";
-        public const string Transfers = "Transfers";
         public const string QuickClientRegistration = "QuickClientRegistration";
         public const string QuickClientRegistrationSuccess = "QuickClientRegistrationSuccess";
         public const string InvoiceValidation = "InvoiceValidation";
+        public const string VerifyUserEmail = "VerifyUserEmail";
+        public const string ResetUserPassword = "ResetUserPassword";
+        public const string TransferDetails = "TransferDetails";
+        public const string ApproveTransfer = "ApproveTransfer";
+        public const string ViewReceipt = "ViewReceipt";
+        public const string GetPaymentHistory = "GetPaymentHistory";
+        public const string RejectInvoice = "RejectInvoice";
+        public const string ApproveInvoice = "ApproveInvoice";
+        public const string CreateLocation = "CreateLocation";
+        public const string ReservationFinancialDetail = "ReservationFinancialDetail";
+        public const string GetPendingCardPriceRequests = "GetPendingCardPriceRequests";
+        public const string GetCardPriceRequestDetail = "GetCardPriceRequestDetail";
+        public const string ApproveCardPriceChange = "ApproveCardPriceChange";
+        public const string RejectCardPriceChange = "RejectCardPriceChange";
+        public const string GetDashboardList = "GetDashboardList";
+        public const string ReportCoworkingProductDetail = "ReportCoworkingProductDetail";
+        public const string UpdateCoworking = "UpdateCoworking";
+        public const string ConfigureAsaasSandbox = "ConfigureAsaasSandbox";
+        public const string TestAsaasConnection = "TestAsaasConnection";
+        public const string TestAsaasCreatePayment = "TestAsaasCreatePayment";
+        public const string TestAsaasCreateCreditCardPayment = "TestAsaasCreateCreditCardPayment";
+        public const string UpdateStorageToOracle = "UpdateStorageToOracle";
+        public const string UpdateStorageToFTP = "UpdateStorageToFTP";
+        public const string UpdateStorageToAws = "UpdateStorageToAws";
+        public const string UpdateLocationCommission = "UpdateLocationCommission";
+        public const string DeleteLocation = "DeleteLocation";
+        public const string RejectServiceRemoval = "RejectServiceRemoval";
+        public const string ApproveServiceRemoval = "ApproveServiceRemoval";
+        public const string IssueCommissionFiscalNote = "IssueCommissionFiscalNote";
+        public const string CommissionFiscalNoteDetail = "CommissionFiscalNoteDetail";
+        public const string SearchClients = "SearchClients";
+        public const string ImportCommissionFiscalNote = "ImportCommissionFiscalNote";
+        public const string ReportCredits = "ReportCredits";
+        public const string SaveSefazConfiguration = "SaveSefazConfiguration";
+        public const string TransferDetailPartial = "TransferDetailPartial";
+        public const string ReportClientCreditStatement = "ReportClientCreditStatement";
+        public const string GetStatementMovementDetails = "GetStatementMovementDetails";
+        public const string ReportCoworkingRevenueDetail = "ReportCoworkingRevenueDetail";
+        public const string RunMigrations = "RunMigrations";
+        public const string ClearTestData = "ClearTestData";
+        public const string ClearDatabase = "ClearDatabase";
+        public const string ExecuteSql = "ExecuteSql";
 
         // Coworking
         public const string MyAddresses = "MyAddresses";
@@ -87,5 +161,59 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ServiceFiscalNotes = "ServiceFiscalNotes";
         public const string ListServiceFiscalNotes = "ListServiceFiscalNotes";
         public const string MonthlySettlements = "MonthlySettlements";
+        public const string DownloadFiscalNotePdf = "DownloadFiscalNotePdf";
+        public const string GetPhoto = "GetPhoto";
+        public const string DownloadDocument = "DownloadDocument";
+        public const string GetRoomPhoto = "GetRoomPhoto";
+        public const string AddRoom = "AddRoom";
+        public const string UpdateRoom = "UpdateRoom";
+        public const string DeleteRoom = "DeleteRoom";
+        public const string DismissStatusNotification = "DismissStatusNotification";
+        public const string RequestTransfer = "RequestTransfer";
+        public const string ApprovePayment = "ApprovePayment";
+        public const string RejectPayment = "RejectPayment";
+        public const string GetPartnerPhoto = "GetPartnerPhoto";
+        public const string DeletePartner = "DeletePartner";
+        public const string GetPendencyDetails = "GetPendencyDetails";
+        public const string RemoveService = "RemoveService";
+        public const string AddService = "AddService";
+        public const string UploadDocument = "UploadDocument";
+        public const string UploadPhotos = "UploadPhotos";
+        public const string AddPartner = "AddPartner";
+        public const string UpdatePartner = "UpdatePartner";
+        public const string SetMainPhoto = "SetMainPhoto";
+        public const string DeletePhoto = "DeletePhoto";
+        public const string DownloadContractDocument = "DownloadContractDocument";
+        public const string SettlementDetails = "SettlementDetails";
+        public const string UploadPartnerInvoice = "UploadPartnerInvoice";
+        public const string ConfirmReservationAttended = "ConfirmReservationAttended";
+        public const string UpdateReservationStatus = "UpdateReservationStatus";
+        public const string IssueServiceFiscalNote = "IssueServiceFiscalNote";
+        public const string ImportServiceFiscalNote = "ImportServiceFiscalNote";
+        public const string ServiceFiscalNoteDetail = "ServiceFiscalNoteDetail";
+        public const string RequestCapacityChange = "RequestCapacityChange";
+        // Parceiro (Coworking) - ações usadas na rota /Parceiro/*
+        public const string MyContract = "MyContract";
+        public const string RoomRevenueReport = "RoomRevenueReport";
+        public const string ResubmitForApproval = "ResubmitForApproval";
+        public const string SaveOperatingHours = "SaveOperatingHours";
+        public const string AddBlockedDate = "AddBlockedDate";
+        public const string DeleteBlockedDate = "DeleteBlockedDate";
+        public const string DownloadPaymentReceipt = "DownloadPaymentReceipt";
+        // Client - ações adicionais
+        public const string GenerateCreditPurchasePix = "GenerateCreditPurchasePix";
+        public const string CreateCreditCardPurchase = "CreateCreditCardPurchase";
+        public const string ProcessCreditCardPayment = "ProcessCreditCardPayment";
+        public const string RequestContractCancellation = "RequestContractCancellation";
+        public const string CreateReservations = "CreateReservations";
+        public const string UpdatePaymentMethod = "UpdatePaymentMethod";
+        public const string GeneratePixCode = "GeneratePixCode";
+        public const string SetDefaultCreditCard = "SetDefaultCreditCard";
+        public const string RemoveCreditCard = "RemoveCreditCard";
+        public const string ConfirmPayment = "ConfirmPayment";
+        public const string DownloadReceipt = "DownloadReceipt";
+        public const string AddCreditCard = "AddCreditCard";
+        public const string ProcessPaymentWithCard = "ProcessPaymentWithCard";
+        public const string GetPaymentStatus = "GetPaymentStatus";
     }
 }

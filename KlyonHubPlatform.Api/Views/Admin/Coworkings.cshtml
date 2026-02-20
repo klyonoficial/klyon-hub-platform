@@ -22,7 +22,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("Coworkings", "Admin")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="row g-3">
             @if (ViewBag.CapacityAlert == true)
             {
                 <input type="hidden" name="capacityAlert" value="true" />
@@ -61,7 +61,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -139,7 +139,7 @@
                                 <td>@((coworking.ContactEmail ?? coworking.User?.Email) ?? "-")</td>
                                 <td>@(coworking.ContactPhone ?? "-")</td>
                                 <td>
-                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#enderecos" 
+                                    <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = coworking.Id })#enderecos" 
                                        class="badge bg-@(isAtMaxCapacity ? "danger" : "info") text-decoration-none" 
                                        title="@(isAtMaxCapacity ? "Este coworking possui endereços com capacidade máxima - Clique para ver detalhes" : "Clique para ver os endereços deste coworking")">
                                         @(coworking.Addresses?.Count ?? 0) endereço(s)
@@ -159,7 +159,7 @@
                                     @if (count > 0)
                                     {
                                         <div class="d-flex align-items-center gap-2">
-                                            <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                            <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = coworking.Id })#servicos" 
                                                class="badge bg-@(hasPending ? "warning" : "success") text-decoration-none" 
                                                title="Clique para gerenciar serviços e percentagens">
                                                 <i class="bi bi-grid"></i> @count serviço(s)
@@ -174,7 +174,7 @@
                                     }
                                     else
                                     {
-                                        <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })#servicos" 
+                                        <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = coworking.Id })#servicos" 
                                            class="badge bg-secondary text-decoration-none" 
                                            title="Clique para adicionar serviços e definir percentagens">
                                             <i class="bi bi-plus-circle"></i> Adicionar
@@ -205,9 +205,9 @@
                                         @(coworking.IsPartner ? "Parceiro" : "Próprio")
                                     </span>
                                 </td>
-                                <td>@coworking.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                <td>@coworking.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</td>
                                 <td>
-                                    <a href="@Url.Action("ViewCoworking", "Admin", new { id = coworking.Id })" 
+                                    <a href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = coworking.Id })" 
                                        class="btn btn-sm btn-info" 
                                        title="Visualizar">
                                         <i class="bi bi-eye-fill"></i>
@@ -233,7 +233,7 @@
                                     </button>
                                     @if (coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview)
                                     {
-                                        <form method="post" action="@Url.Action("ApproveCoworking", "Admin")" class="d-inline position-relative">
+                                        <form method="post" action="@Url.Action(ActionNames.ApproveCoworking, ControllerNames.Admin)" class="d-inline position-relative">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@coworking.Id" />
                                             <input type="hidden" name="search" value="@ViewBag.Search" />
@@ -282,7 +282,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Coworkings", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
@@ -298,7 +298,7 @@
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("Coworkings", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
@@ -314,7 +314,7 @@
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("Coworkings", "Admin", new { 
+                                <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 
                                     isPartner = ViewBag.IsPartner, 
@@ -343,7 +343,7 @@
 <div class="modal fade" id="modalReprovarLista" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="@Url.Action("RejectCoworking", "Admin")" id="formReprovarLista">
+            <form method="post" action="@Url.Action(ActionNames.RejectCoworking, ControllerNames.Admin)" id="formReprovarLista">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" id="reprovarId" value="" />
                 <input type="hidden" name="search" value="@ViewBag.Search" />
@@ -453,7 +453,7 @@ function abrirReprovar(coworkingId) {
 }
 
 function editCoworking(coworkingId) {
-    window.location.href = '@Url.Action("EditCoworking", "Admin")?id=' + coworkingId;
+    window.location.href = '@Url.Action(ActionNames.EditCoworking, ControllerNames.Admin)?id=' + coworkingId;
 }
 
 function toggleStatus(coworkingId, coworkingName) {
@@ -472,7 +472,7 @@ function toggleStatus(coworkingId, coworkingName) {
         if (confirmed) {
             var form = document.createElement('form');
         form.method = 'POST';
-        form.action = '@Url.Action("ToggleCoworkingStatus", "Admin")?id=' + coworkingId + 
+        form.action = '@Url.Action(ActionNames.ToggleCoworkingStatus, ControllerNames.Admin)?id=' + coworkingId + 
                      '&search=' + encodeURIComponent(search) + 
                      '&status=' + encodeURIComponent(status) + 
                      '&isPartner=' + encodeURIComponent(isPartner) + 
@@ -527,7 +527,7 @@ function abrirModalPercentagem(coworkingId, coworkingName) {
 }
 
 function carregarServicosCoworking(coworkingId) {
-    fetch('@Url.Action("GetCoworkingServicesJson", "Admin")?coworkingId=' + coworkingId)
+    fetch('@Url.Action(ActionNames.GetCoworkingServicesJson, ControllerNames.Admin)?coworkingId=' + coworkingId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -678,7 +678,7 @@ function salvarPercentagem() {
 
     var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-    fetch('@Url.Action("SavePartnerServiceJson", "Admin")', {
+    fetch('@Url.Action(ActionNames.SavePartnerServiceJson, ControllerNames.Admin)', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -716,7 +716,7 @@ function removerPercentagem(id, serviceName) {
             var coworkingId = parseInt(document.getElementById('percentagemCoworkingId').value);
             var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-            fetch('@Url.Action("DeletePartnerServiceJson", "Admin")', {
+            fetch('@Url.Action(ActionNames.DeletePartnerServiceJson, ControllerNames.Admin)', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

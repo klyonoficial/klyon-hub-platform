@@ -1,9 +1,9 @@
 @{
     ViewData["Title"] = "Alugar Salas";
     Layout = "~/Views/Shared/_LandingLayout.cshtml";
-    var urlMarketplace = Url.Action("Marketplace", "Home");
-    var urlRegister = Url.Action("Register", "Auth");
-    var urlLogin = Url.Action("Login", "Auth");
+    var urlMarketplace = Url.Action(ActionNames.Marketplace, ControllerNames.Home);
+    var urlRegister = Url.Action(ActionNames.Register, ControllerNames.Auth);
+    var urlLogin = Url.Action(ActionNames.Login, ControllerNames.Auth);
 }
 
 <section class="lp-commercial-hero">

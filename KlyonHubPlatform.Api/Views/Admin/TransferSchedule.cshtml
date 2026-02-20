@@ -8,10 +8,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-calendar-event"></i> Programação de Repasses</h2>
     <div>
-        <a href="@Url.Action("Transfers", "Admin")" class="btn btn-outline-primary me-2">
+        <a href="@Url.Action(ActionNames.Transfers, ControllerNames.Admin)" class="btn btn-outline-primary me-2">
             <i class="bi bi-arrow-left-right"></i> Solicitações de Repasse
         </a>
-        <a href="@Url.Action("Dashboard", "Admin")" class="btn btn-secondary">
+        <a href="@Url.Action(ActionNames.Dashboard, ControllerNames.Admin)" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
@@ -26,7 +26,7 @@
         <div class="card bg-light">
             <div class="card-body">
                 <h6 class="card-title text-muted"><i class="bi bi-calendar-check"></i> Total agendado</h6>
-                <h3 class="mb-0 text-success">R$ @totalAmount.ToString("N2")</h3>
+                <h3 class="mb-0 text-success">R$ @totalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h3>
             </div>
         </div>
     </div>
@@ -46,9 +46,9 @@
                 var groupTotal = trans.Sum(t => t.Amount);
                 <div class="mb-4">
                     <h6 class="text-primary border-bottom pb-2">
-                        <i class="bi bi-building"></i> @(cow?.Name ?? "—")
+                        <i class="bi bi-building"></i> @(cow?.Name ?? DefaultDisplayStrings.EmptyPlaceholder)
                         @if (!string.IsNullOrEmpty(cow?.CNPJ)) { <small class="text-muted">@cow.CNPJ</small> }
-                        <span class="badge bg-success ms-2">R$ @groupTotal.ToString("N2")</span>
+                        <span class="badge bg-success ms-2">R$ @groupTotal.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                     </h6>
                     <div class="table-responsive">
                         <table class="table table-hover table-sm mb-0">
@@ -66,9 +66,9 @@
                                 {
                                     <tr class="clickable-schedule-row" data-id="@t.Id" style="cursor: pointer;">
                                         <td>#@t.Id</td>
-                                        <td>@t.ScheduledDate.ToString("dd/MM/yyyy")</td>
-                                        <td><strong class="text-success">R$ @t.Amount.ToString("N2")</strong></td>
-                                        <td>@t.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@t.ScheduledDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
+                                        <td><strong class="text-success">R$ @t.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                                        <td>@t.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-outline-primary btn-detail" data-id="@t.Id" onclick="event.stopPropagation(); openDetail(@t.Id);">
                                                 <i class="bi bi-eye"></i> Detalhes
@@ -116,7 +116,7 @@
         var body = document.getElementById('detailModalBody');
         body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 mb-0">Carregando...</p></div>';
         modal.show();
-        fetch('@Url.Action("TransferDetailPartial", "Admin")?id=' + id)
+        fetch('@Url.Action(ActionNames.TransferDetailPartial, ControllerNames.Admin)?id=' + id)
             .then(function(r) { return r.text(); })
             .then(function(html) {
                 body.innerHTML = html;

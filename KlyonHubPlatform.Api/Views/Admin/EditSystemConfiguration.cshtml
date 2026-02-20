@@ -112,10 +112,10 @@
                     <div class="card-body">
                         <small class="text-muted">
                             <strong>Informações:</strong><br>
-                            <i class="bi bi-calendar"></i> Criado em: @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")<br />
+                            <i class="bi bi-calendar"></i> Criado em: @Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)<br />
                             @if (Model.UpdatedAt.HasValue)
                             {
-                                <text><i class="bi bi-clock-history"></i> Última atualização: @Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")<br /></text>
+                                <text><i class="bi bi-clock-history"></i> Última atualização: @Model.UpdatedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)<br /></text>
                             }
                             @if (!string.IsNullOrEmpty(Model.UpdatedBy))
                             {

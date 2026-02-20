@@ -69,7 +69,7 @@
                 </small>
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-muted small">Página @Model.Search.Page de @Model.TotalPages</span>
-                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Marketplace", "Home")">
+                    <a class="btn btn-outline-secondary btn-sm" href="@Url.Action(ActionNames.Marketplace, ControllerNames.Home)">
                         <i class="bi bi-x-circle"></i> Limpar filtros
                     </a>
                 </div>
@@ -87,8 +87,8 @@
                         <div class="position-relative" style="height: 220px; overflow: hidden; background-color: #f2f2f2;">
                             @if (item.MainPhotoId.HasValue)
                             {
-                                <a href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
-                                    <img src="@Url.Action("GetPhoto", "Coworking", new { photoId = item.MainPhotoId.Value })"
+                                <a href="@Url.Action(ActionNames.MarketplaceDetails, ControllerNames.Home, new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                    <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = item.MainPhotoId.Value })"
                                          alt="Foto do coworking"
                                          class="w-100 h-100"
                                          style="object-fit: cover; cursor: pointer;"
@@ -137,7 +137,7 @@
                                                     <i class="bi bi-people"></i> Sala Compartilhada
                                                 </span>
                                                 <span class="badge bg-primary">
-                                                    R$ @item.SharedRoomPricePerHour.Value.ToString("F2")/hora
+                                                    R$ @item.SharedRoomPricePerHour.Value.ToString(NumberFormatConstants.TwoDecimals)/hora
                                                 </span>
                                             </div>
                                         }
@@ -148,7 +148,7 @@
                                                     <i class="bi bi-door-closed"></i> Sala Privativa
                                                 </span>
                                                 <span class="badge bg-primary">
-                                                    R$ @item.PrivateRoomPricePerHour.Value.ToString("F2")/hora
+                                                    R$ @item.PrivateRoomPricePerHour.Value.ToString(NumberFormatConstants.TwoDecimals)/hora
                                                 </span>
                                             </div>
                                         }
@@ -160,14 +160,14 @@
                                 @if (User.Identity?.IsAuthenticated == true && User.IsInRole("Client"))
                                 {
                                     <a class="btn btn-warning w-100"
-                                       href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                       href="@Url.Action(ActionNames.MarketplaceDetails, ControllerNames.Home, new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
                                         <i class="bi bi-calendar-check"></i> Reservar
                                     </a>
                                 }
                                 else
                                 {
                                     <a class="btn btn-warning w-100"
-                                       href="@Url.Action("MarketplaceDetails", "Home", new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
+                                       href="@Url.Action(ActionNames.MarketplaceDetails, ControllerNames.Home, new { id = item.CoworkingAddressId, returnUrl = Context.Request.Path + Context.Request.QueryString })">
                                         <i class="bi bi-person"></i> Tenho Interesse
                                     </a>
                                 }
@@ -185,7 +185,7 @@
                     @{
                         var prevDisabled = Model.Search.Page <= 1;
                         var nextDisabled = Model.Search.Page >= Model.TotalPages;
-                        string PageUrl(int p) => Url.Action("Marketplace", "Home", new
+                        string PageUrl(int p) => Url.Action(ActionNames.Marketplace, ControllerNames.Home, new
                         {
                             State = Model.Search.State,
                             City = Model.Search.City,

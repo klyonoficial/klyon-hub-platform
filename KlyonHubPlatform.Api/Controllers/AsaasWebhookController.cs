@@ -2,6 +2,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using System.Text.Json;
 
@@ -47,7 +48,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return BadRequest();
             }
 
-            var signature = Request.Headers["asaas-access-token"].FirstOrDefault();
+            var signature = Request.Headers[HttpHeaderNames.AsaasAccessToken].FirstOrDefault();
 
             try
             {

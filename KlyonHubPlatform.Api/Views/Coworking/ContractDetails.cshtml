@@ -8,7 +8,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-file-earmark-text"></i> Detalhes do Contrato @Model.ContractNumber</h2>
-    <a href="@Url.Action("ActiveContracts", "Coworking")" class="btn btn-secondary">
+    <a href="@Url.Action(ActionNames.ActiveContracts, ControllerNames.Coworking)" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -64,28 +64,28 @@
                     }
                     <tr>
                         <th>Data de Início:</th>
-                        <td>@Model.StartDate.ToString("dd/MM/yyyy")</td>
+                        <td>@Model.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
                     </tr>
                     @if (Model.ExpiryDate.HasValue)
                     {
                         <tr>
                             <th>Data de Expiração:</th>
-                            <td>@Model.ExpiryDate.Value.ToString("dd/MM/yyyy")</td>
+                            <td>@Model.ExpiryDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</td>
                         </tr>
                     }
                     <tr>
                         <th>Valor Mensal:</th>
-                        <td><strong class="text-success">R$ @Model.MonthlyValue.ToString("N2")</strong></td>
+                        <td><strong class="text-success">R$ @Model.MonthlyValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                     </tr>
                     <tr>
                         <th>Data de Criação:</th>
-                        <td>@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                     </tr>
                     @if (Model.UpdatedAt.HasValue)
                     {
                         <tr>
                             <th>Última Atualização:</th>
-                            <td>@Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@Model.UpdatedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</td>
                         </tr>
                     }
                 </table>
@@ -108,10 +108,10 @@
                         {
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <div class="flex-grow-1">
-                                    <a href="@Url.Action("DownloadDeclaration", "Coworking", new { id = declaration.Id })" class="text-decoration-none text-dark fw-bold">
+                                    <a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Coworking, new { id = declaration.Id })" class="text-decoration-none text-dark fw-bold">
                                         <i class="bi bi-download me-1"></i>@declaration.DeclarationNumber
                                     </a><br>
-                                    <small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                    <small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                                 </div>
                                 @if (declaration.IsValid)
                                 {
@@ -145,10 +145,10 @@
                                 _ => "Outro"
                             };
                             <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <a href="@Url.Action("DownloadContractDocument", "Coworking", new { id = doc.Id })" class="text-decoration-none text-dark">
+                                <a href="@Url.Action(ActionNames.DownloadContractDocument, ControllerNames.Coworking, new { id = doc.Id })" class="text-decoration-none text-dark">
                                     <i class="bi bi-download me-1"></i>@documentTypeText
                                 </a>
-                                <small class="text-muted">@doc.GeneratedAt.ToString("dd/MM/yyyy")</small>
+                                <small class="text-muted">@doc.GeneratedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </li>
                         }
                     </ul>
@@ -213,8 +213,8 @@
                                 @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.Payments)
                                 {
                                     <tr>
-                                        <td>@payment.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
-                                        <td><strong>R$ @payment.Amount.ToString("N2")</strong></td>
+                                        <td>@payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)</td>
+                                        <td><strong>R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
                                         <td>
                                             @switch (payment.Method)
                                             {
@@ -225,7 +225,7 @@
                                                     <span class="badge bg-info">Cartão</span>
                                                     @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
                                                     {
-                                                        <span class="text-muted ms-1">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString("N2")</span>
+                                                        <span class="text-muted ms-1">@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                                                     }
                                                     break;
                                                 case PaymentMethod.BankTransfer:
@@ -290,7 +290,7 @@
                                         <td>
                                             @if (payment.PaidAt.HasValue)
                                             {
-                                                <text>@payment.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</text>
+                                                <text>@payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
                                             }
                                             else
                                             {
@@ -398,7 +398,7 @@
                                             <div class="card-body">
                                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                                     <h6 class="mb-0">@timelineItem.Title</h6>
-                                                    <small class="text-muted">@timelineItem.Date.ToString("dd/MM/yyyy HH:mm")</small>
+                                                    <small class="text-muted">@timelineItem.Date.ToString(DateFormatConstants.DisplayDateAndTime)</small>
                                                 </div>
                                                 <p class="mb-0 text-muted">@timelineItem.Description</p>
                                             </div>
@@ -413,18 +413,18 @@
                         <nav aria-label="Paginação do histórico" class="mt-3">
                             <ul class="pagination justify-content-center mb-0">
                                 <li class="page-item @(timelineCurrentPage <= 1 ? "disabled" : "")">
-                                    <a class="page-link" href="@(timelineCurrentPage <= 1 ? "#" : Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = timelineCurrentPage - 1, timelinePageSize = timelinePageSizeVal }))">
+                                    <a class="page-link" href="@(timelineCurrentPage <= 1 ? "#" : Url.Action(ActionNames.ContractDetails, ControllerNames.Coworking, new { id = Model.Id, timelinePage = timelineCurrentPage - 1, timelinePageSize = timelinePageSizeVal }))">
                                         Anterior
                                     </a>
                                 </li>
                                 @for (int p = 1; p <= timelineTotalPages; p++)
                                 {
                                     <li class="page-item @(p == timelineCurrentPage ? "active" : "")">
-                                        <a class="page-link" href="@Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
+                                        <a class="page-link" href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Coworking, new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
                                     </li>
                                 }
                                 <li class="page-item @(timelineCurrentPage >= timelineTotalPages ? "disabled" : "")">
-                                    <a class="page-link" href="@(timelineCurrentPage >= timelineTotalPages ? "#" : Url.Action("ContractDetails", "Coworking", new { id = Model.Id, timelinePage = timelineCurrentPage + 1, timelinePageSize = timelinePageSizeVal }))">
+                                    <a class="page-link" href="@(timelineCurrentPage >= timelineTotalPages ? "#" : Url.Action(ActionNames.ContractDetails, ControllerNames.Coworking, new { id = Model.Id, timelinePage = timelineCurrentPage + 1, timelinePageSize = timelinePageSizeVal }))">
                                         Próximo
                                     </a>
                                 </li>

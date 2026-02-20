@@ -1,3 +1,4 @@
+using AutoMapper;
 using KlyonHubPlatform.Application.DTOs;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
@@ -11,6 +12,7 @@ namespace KlyonHubPlatform.Application.Services
     {
         private readonly IChatbotRepository _repository;
         private readonly IAIIntentionService _aiService;
+        private readonly IMapper _mapper;
 
         // Mensagens padrão do KlyonBoot
         private const string WELCOME_MESSAGE = "Olá! 😊 Sou o KlyonBoot, assistente oficial da plataforma Klyon Coworking. Como posso ajudar você hoje?";
@@ -18,10 +20,11 @@ namespace KlyonHubPlatform.Application.Services
         private const string NO_ANSWER_MESSAGE = "No momento não tenho essa informação. Posso te direcionar para o atendimento humano se quiser. 🤝";
         private const decimal MINIMUM_CONFIDENCE = 0.6m; // 60% de confiança mínima
 
-        public ChatbotService(IChatbotRepository repository, IAIIntentionService aiService)
+        public ChatbotService(IChatbotRepository repository, IAIIntentionService aiService, IMapper mapper)
         {
             _repository = repository;
             _aiService = aiService;
+            _mapper = mapper;
         }
 
         public async Task<ChatResponseDto> ProcessMessageAsync(ChatRequestDto request)
@@ -274,23 +277,8 @@ namespace KlyonHubPlatform.Application.Services
                 messages = new List<ChatMessage> { welcomeMessage };
             }
             
-            var dto = new ConversationDto
-            {
-                Id = conversation.Id,
-                SessionId = conversation.SessionId,
-                UserId = conversation.UserId,
-                StartedAt = conversation.StartedAt,
-                IsActive = conversation.IsActive,
-                Messages = messages.Select(m => new MessageDto
-                {
-                    Id = m.Id,
-                    MessageType = m.MessageType,
-                    Content = m.Content,
-                    WasAnswered = m.WasAnswered,
-                    SentAt = m.SentAt
-                }).ToList()
-            };
-            
+            var dto = _mapper.Map<ConversationDto>(conversation);
+            dto.Messages = _mapper.Map<List<MessageDto>>(messages);
             return dto;
         }
 
@@ -300,24 +288,7 @@ namespace KlyonHubPlatform.Application.Services
             if (conversation == null)
                 return null;
 
-            return new ConversationDto
-            {
-                Id = conversation.Id,
-                SessionId = conversation.SessionId,
-                UserId = conversation.UserId,
-                StartedAt = conversation.StartedAt,
-                EndedAt = conversation.EndedAt,
-                IsActive = conversation.IsActive,
-                WasResolved = conversation.WasResolved,
-                Messages = conversation.Messages.Select(m => new MessageDto
-                {
-                    Id = m.Id,
-                    MessageType = m.MessageType,
-                    Content = m.Content,
-                    WasAnswered = m.WasAnswered,
-                    SentAt = m.SentAt
-                }).ToList()
-            };
+            return _mapper.Map<ConversationDto>(conversation);
         }
 
         public async Task MarkConversationAsResolvedAsync(int conversationId, bool wasResolved)
@@ -344,14 +315,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task<IEnumerable<FaqItemDto>> SearchFaqAsync(string query)
         {
             var faqItems = await _repository.SearchFaqItemsAsync(query);
-            return faqItems.Select(f => new FaqItemDto
-            {
-                Id = f.Id,
-                Category = f.Category,
-                Question = f.Question,
-                Answer = f.Answer,
-                UsageCount = f.UsageCount
-            });
+            return _mapper.Map<IEnumerable<FaqItemDto>>(faqItems);
         }
 
         public async Task<Dictionary<string, object>> GetDashboardStatisticsAsync(DateTime? from = null, DateTime? to = null)
@@ -362,19 +326,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task<IEnumerable<UnansweredQuestionDto>> GetUnansweredQuestionsAsync(string? status = null, int? minFrequency = null)
         {
             var questions = await _repository.GetUnansweredQuestionsAsync(status, minFrequency);
-            return questions.Select(q => new UnansweredQuestionDto
-            {
-                Id = q.Id,
-                Question = q.Question,
-                DetectedIntention = q.DetectedIntention,
-                SuggestedCategory = q.SuggestedCategory,
-                Status = q.Status.ToString(),
-                Frequency = q.Frequency,
-                CreatedAt = q.CreatedAt,
-                ReviewedByName = q.Reviewer?.FullName,
-                ReviewedAt = q.ReviewedAt,
-                ReviewNotes = q.ReviewNotes
-            });
+            return _mapper.Map<IEnumerable<UnansweredQuestionDto>>(questions);
         }
 
         public async Task UpdateUnansweredQuestionStatusAsync(int questionId, string status, int reviewedBy, string? notes = null)
@@ -420,17 +372,7 @@ namespace KlyonHubPlatform.Application.Services
 
             botMessage = await _repository.CreateMessageAsync(botMessage);
 
-            return new ChatResponseDto
-            {
-                ConversationId = conversationId,
-                MessageId = botMessage.Id,
-                Response = responseText,
-                MessageType = "bot",
-                WasAnswered = wasAnswered,
-                UsedAI = usedAI,
-                ConfidenceScore = confidence,
-                SentAt = botMessage.SentAt
-            };
+            return _mapper.Map<ChatResponseDto>(botMessage);
         }
 
         #endregion

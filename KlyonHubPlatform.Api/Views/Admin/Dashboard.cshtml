@@ -1,4 +1,5 @@
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Api.Constants
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
     ViewData["Title"] = "Dashboard Administrativo";
@@ -12,7 +13,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-speedometer2"></i> Dashboard Administrativo</h2>
-    <small class="text-muted">Última atualização: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
+    <small class="text-muted">Última atualização: @DateTime.Now.ToString(DateFormatConstants.DisplayDateAndTime)</small>
 </div>
 
 @{
@@ -44,7 +45,7 @@
                 </details>
             }
             <div class="mt-3">
-                <a href="@Url.Action("DatabaseManager", "Admin")" class="btn btn-warning btn-lg">
+                <a href="@Url.Action(ActionNames.DatabaseManager, ControllerNames.Admin)" class="btn btn-warning btn-lg">
                     <i class="bi bi-database"></i> Executar Migrations Agora
                 </a>
             </div>
@@ -73,7 +74,7 @@
                         }
                     </h5>
                     <p class="mb-2">@alert.Message</p>
-                    @if (alert.ActionKey == "cardPricePending")
+                    @if (alert.ActionKey == AdminAlertActionKeys.CardPricePending)
                     {
                         <div class="mt-3">
                             <button type="button" class="btn btn-@alert.Type btn-sm" onclick="openCardPricePendingModal()">
@@ -155,15 +156,15 @@
                 <h6 class="card-title mb-3"><i class="bi bi-cash-coin"></i> Receitas</h6>
                 <div class="mb-2">
                     <small class="text-white-50 d-block">Receita Bruta</small>
-                    <h5 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString("N2"))</h5>
+                    <h5 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h5>
                 </div>
                 <div class="mb-2">
                     <small class="text-white-50 d-block">Receita Parceiro</small>
-                    <h5 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString("N2"))</h5>
+                    <h5 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h5>
                 </div>
                 <div>
                     <small class="text-white-50 d-block">Receita Líquida</small>
-                    <h4 class="mb-0">R$ @(((decimal)ViewBag.NetRevenue).ToString("N2"))</h4>
+                    <h4 class="mb-0">R$ @(((decimal)ViewBag.NetRevenue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h4>
                 </div>
             </div>
         </div>
@@ -184,7 +185,7 @@
         <div class="card border-warning">
             <div class="card-body">
                 <h6 class="card-title text-warning"><i class="bi bi-hourglass-split"></i> Pagamentos Pendentes</h6>
-                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('payments', 'Pending')" title="Clique para ver todos os pagamentos pendentes">R$ @(((decimal)ViewBag.PendingPayments).ToString("N2"))</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('payments', 'Pending')" title="Clique para ver todos os pagamentos pendentes">R$ @(((decimal)ViewBag.PendingPayments).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -192,7 +193,7 @@
         <div class="card border-info">
             <div class="card-body">
                 <h6 class="card-title text-info"><i class="bi bi-percent"></i> Comissões Pendentes</h6>
-                <h3 class="mb-0">R$ @(((decimal)ViewBag.TotalCommissions).ToString("N2"))</h3>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.TotalCommissions).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -200,7 +201,7 @@
         <div class="card border-success">
             <div class="card-body">
                 <h6 class="card-title text-success"><i class="bi bi-check-circle"></i> Comissões Concluídas</h6>
-                <h3 class="mb-0">R$ @(((decimal)ViewBag.CompletedCommissions).ToString("N2"))</h3>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.CompletedCommissions).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -208,7 +209,7 @@
         <div class="card border-primary">
             <div class="card-body">
                 <h6 class="card-title text-primary"><i class="bi bi-cash-stack"></i> Receita Bruta</h6>
-                <h3 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString("N2"))</h3>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.GrossRevenue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -216,7 +217,7 @@
         <div class="card border-secondary">
             <div class="card-body">
                 <h6 class="card-title text-secondary"><i class="bi bi-handshake"></i> Receita Parceiro</h6>
-                <h3 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString("N2"))</h3>
+                <h3 class="mb-0">R$ @(((decimal)ViewBag.PartnerRevenue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -255,7 +256,7 @@
                     <h3 class="mb-2">@servicesAwaitingPercentage</h3>
                     <small class="text-muted">@partnersWithoutPercentage parceiro(s) aguardando</small>
                     <div class="mt-3">
-                        <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-warning btn-sm w-100">
+                        <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-warning btn-sm w-100">
                             <i class="bi bi-percent"></i> Definir Percentagens
                         </a>
                     </div>
@@ -274,7 +275,7 @@
                     <h3 class="mb-2">@pendingRemovalRequests</h3>
                     <small class="text-muted">Aguardando aprovação</small>
                     <div class="mt-3">
-                        <a href="@Url.Action("ServiceRemovalRequests", "Admin")" class="btn btn-danger btn-sm w-100">
+                        <a href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin)" class="btn btn-danger btn-sm w-100">
                             <i class="bi bi-list-check"></i> Ver Solicitações
                         </a>
                     </div>
@@ -431,9 +432,9 @@
                                 @foreach (var payment in (List<KlyonHubPlatform.Domain.Entities.Payment>)ViewBag.RecentPayments)
                                 {
                                     <tr class="payment-row" data-index="@paymentIndex" style="@(paymentIndex >= 5 ? "display: none;" : "")">
-                                        <td>@(payment.CreatedAt.ToString("dd/MM/yyyy HH:mm"))</td>
+                                        <td>@(payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime))</td>
                                         <td>@(payment.Subscription?.Contract?.Client?.RazaoSocial ?? payment.Subscription?.Contract?.Client?.ContactName ?? "N/A")</td>
-                                        <td>R$ @(payment.Amount.ToString("N2"))</td>
+                                        <td>R$ @(payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</td>
                                         <td>
                                             @switch (payment.Status)
                                             {
@@ -519,37 +520,37 @@
             <div class="card-body collapse" id="quickActionsBody">
                 <div class="row">
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("Users", "Admin")" class="btn btn-outline-primary w-100">
+                        <a href="@Url.Action(ActionNames.Users, ControllerNames.Admin)" class="btn btn-outline-primary w-100">
                             <i class="bi bi-people"></i><br>Usuários
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("Coworkings", "Admin")" class="btn btn-outline-primary w-100">
+                        <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-outline-primary w-100">
                             <i class="bi bi-building"></i><br>Coworkings
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("Contracts", "Admin")" class="btn btn-outline-primary w-100">
+                        <a href="@Url.Action(ActionNames.Contracts, ControllerNames.Admin)" class="btn btn-outline-primary w-100">
                             <i class="bi bi-file-earmark-text"></i><br>Contratos de<br>Endereço Fiscal
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("Locations", "Admin")" class="btn btn-outline-primary w-100">
+                        <a href="@Url.Action(ActionNames.Locations, ControllerNames.Admin)" class="btn btn-outline-primary w-100">
                             <i class="bi bi-geo-alt"></i><br>Localidades
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("Reports", "Admin")" class="btn btn-outline-primary w-100">
+                        <a href="@Url.Action(ActionNames.Reports, ControllerNames.Admin)" class="btn btn-outline-primary w-100">
                             <i class="bi bi-graph-up"></i><br>Relatórios
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("CreateLocation", "Admin")" class="btn btn-outline-success w-100">
+                        <a href="@Url.Action(ActionNames.CreateLocation, ControllerNames.Admin)" class="btn btn-outline-success w-100">
                             <i class="bi bi-plus-circle"></i><br>Nova Localidade
                         </a>
                     </div>
                     <div class="col-md-2 mb-2">
-                        <a href="@Url.Action("DatabaseManager", "Admin")" class="btn btn-outline-warning w-100 position-relative">
+                        <a href="@Url.Action(ActionNames.DatabaseManager, ControllerNames.Admin)" class="btn btn-outline-warning w-100 position-relative">
                             <i class="bi bi-database"></i><br>Banco de Dados
                             @if (pendingMigrationsCount > 0)
                             {
@@ -1007,16 +1008,16 @@ if (productsCtx && productsByTypeData && productsByTypeData.length > 0) {
 
 // URLs base para ações (definidas uma vez)
 const baseUrls = {
-    viewUser: '@Url.Action("ViewUser", "Admin")',
-    viewCoworking: '@Url.Action("ViewCoworking", "Admin")',
-    contractDetails: '@Url.Action("ContractDetails", "Client")',
-    editLocation: '@Url.Action("EditLocation", "Admin")',
-    payments: '@Url.Action("Payments", "Admin")',
-    reservationDetail: '@Url.Action("ReservationFinancialDetail", "Admin")',
-    getPendingCardPriceRequests: '@Url.Action("GetPendingCardPriceRequests", "Admin")',
-    getCardPriceRequestDetail: '@Url.Action("GetCardPriceRequestDetail", "Admin")',
-    approveCardPriceChange: '@Url.Action("ApproveCardPriceChange", "Admin")',
-    rejectCardPriceChange: '@Url.Action("RejectCardPriceChange", "Admin")'
+    viewUser: '@Url.Action(ActionNames.ViewUser, ControllerNames.Admin)',
+    viewCoworking: '@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin)',
+    contractDetails: '@Url.Action(ActionNames.ContractDetails, ControllerNames.Client)',
+    editLocation: '@Url.Action(ActionNames.EditLocation, ControllerNames.Admin)',
+    payments: '@Url.Action(ActionNames.Payments, ControllerNames.Admin)',
+    reservationDetail: '@Url.Action(ActionNames.ReservationFinancialDetail, ControllerNames.Admin)',
+    getPendingCardPriceRequests: '@Url.Action(ActionNames.GetPendingCardPriceRequests, ControllerNames.Admin)',
+    getCardPriceRequestDetail: '@Url.Action(ActionNames.GetCardPriceRequestDetail, ControllerNames.Admin)',
+    approveCardPriceChange: '@Url.Action(ActionNames.ApproveCardPriceChange, ControllerNames.Admin)',
+    rejectCardPriceChange: '@Url.Action(ActionNames.RejectCardPriceChange, ControllerNames.Admin)'
 };
 
 // --- Preços no Cartão: modal lista + modal detalhe ---
@@ -1240,7 +1241,7 @@ async function showDashboardList(type, filter = null) {
     try {
         const page = (type === 'users') ? 1 : undefined;
         const pageSize = (type === 'users') ? 10 : undefined;
-        let url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}`;
+        let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}`;
         if (page != null) url += `&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
         const response = await fetch(url);
@@ -1263,7 +1264,7 @@ async function loadDashboardListContent(type, filter, page) {
     modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
     try {
         const pageSize = (type === 'users') ? 10 : undefined;
-        let url = `@Url.Action("GetDashboardList", "Admin")?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}&page=${page}`;
+        let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
         const response = await fetch(url);
         const result = await response.json();

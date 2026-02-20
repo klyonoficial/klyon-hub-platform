@@ -9,7 +9,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-cart-check"></i> Checkout - Comprar Créditos</h2>
-    <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-outline-secondary">
+    <a href="@Url.Action(ActionNames.BuyCredits, ControllerNames.Client)" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
@@ -47,7 +47,7 @@
                         <strong>Plano:</strong> @plan.Name
                     </div>
                     <div class="col-md-6 text-end">
-                        <strong>Valor:</strong> <span class="text-primary fs-5">R$ @plan.Price.ToString("N2")</span>
+                        <strong>Valor:</strong> <span class="text-primary fs-5">R$ @plan.Price.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                     </div>
                 </div>
                 <hr>
@@ -136,7 +136,7 @@
             </div>
         </div>
 
-        <div class="card" id="paymentMethodCard" data-credit-plan-id="@plan.Id" data-amount="@plan.Price.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
+        <div class="card" id="paymentMethodCard" data-credit-plan-id="@plan.Id" data-amount="@plan.Price.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="bi bi-credit-card"></i> Método de Pagamento</h5>
             </div>
@@ -186,7 +186,7 @@
                                 <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito</h5>
                             </div>
                             <div class="card-body">
-                                <p class="text-muted mb-3"><strong>Valor:</strong> R$ @plan.Price.ToString("N2")</p>
+                                <p class="text-muted mb-3"><strong>Valor:</strong> R$ @plan.Price.ToString(NumberFormatConstants.CurrencyTwoDecimals)</p>
                                 <div class="alert alert-info">
                                     <i class="bi bi-info-circle"></i> <strong>Instruções:</strong> Preencha os dados do cartão para processar o pagamento. O pagamento será processado automaticamente e os créditos creditados em sua conta.
                                 </div>
@@ -203,7 +203,7 @@
                 </div>
 
                 <div class="mt-3">
-                    <a href="@Url.Action("BuyCredits", "Client")" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Cancelar</a>
+                    <a href="@Url.Action(ActionNames.BuyCredits, ControllerNames.Client)" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Cancelar</a>
                 </div>
             </div>
         </div>
@@ -315,7 +315,7 @@
                 <hr>
                 <div class="d-flex justify-content-between">
                     <span class="fs-5"><strong>Total a Pagar:</strong></span>
-                    <span class="fs-4 text-primary fw-bold">R$ @plan.Price.ToString("N2")</span>
+                    <span class="fs-4 text-primary fw-bold">R$ @plan.Price.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                 </div>
             </div>
         </div>
@@ -433,7 +433,7 @@
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...';
                 try {
-                    var res = await fetch('@Url.Action("GenerateCreditPurchasePix", "Client")', {
+                    var res = await fetch('@Url.Action(ActionNames.GenerateCreditPurchasePix, ControllerNames.Client)', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ creditPlanId: planId })
@@ -514,7 +514,7 @@
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processando...';
                 try {
-                    var createRes = await fetch('@Url.Action("CreateCreditCardPurchase", "Client")', {
+                    var createRes = await fetch('@Url.Action(ActionNames.CreateCreditCardPurchase, ControllerNames.Client)', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ creditPlanId: planId })
@@ -544,7 +544,7 @@
                         country: 'BRA',
                         postalCode: document.getElementById('billingPostalCode').value
                     };
-                    var payRes = await fetch('@Url.Action("ProcessCreditCardPayment", "Client")', {
+                    var payRes = await fetch('@Url.Action(ActionNames.ProcessCreditCardPayment, ControllerNames.Client)', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -558,7 +558,7 @@
                     if (payData.success) {
                         showSuccessMessage(payData.message || 'Pagamento processado com sucesso!');
                         setTimeout(function() {
-                            window.location.href = '@Url.Action("BuyCredits", "Client")';
+                            window.location.href = '@Url.Action(ActionNames.BuyCredits, ControllerNames.Client)';
                         }, 2000);
                     } else {
                         showErrorMessage(payData.error || 'Falha no pagamento. Verifique os dados do cartão e tente novamente.', true);

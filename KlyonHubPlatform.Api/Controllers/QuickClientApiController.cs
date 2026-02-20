@@ -1,4 +1,5 @@
 using System.Threading;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using KlyonHubPlatform.Application.Interfaces;
@@ -11,6 +12,10 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Mappers;
+using KlyonHubPlatform.Api.Requests;
+using KlyonHubPlatform.Api.Responses;
+using KlyonHubPlatform.Api.Dtos;
 
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -30,6 +35,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IAuditService _auditService;
         private readonly IAppBaseUrlProvider _appBaseUrlProvider;
+        private readonly IMapper _mapper;
 
         public QuickClientApiController(
             ApplicationDbContext context,
@@ -39,7 +45,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IPaymentService paymentService,
             ISystemConfigurationService systemConfigurationService,
             IAuditService auditService,
-            IAppBaseUrlProvider appBaseUrlProvider)
+            IAppBaseUrlProvider appBaseUrlProvider,
+            IMapper mapper)
         {
             _context = context;
             _contractService = contractService;
@@ -49,6 +56,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _systemConfigurationService = systemConfigurationService;
             _auditService = auditService;
             _appBaseUrlProvider = appBaseUrlProvider;
+            _mapper = mapper;
         }
 
         /// <summary>
@@ -259,7 +267,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     assistedSaleAdminId: adminUserId > 0 ? adminUserId : null);
 
                 var newValues = System.Text.Json.JsonSerializer.Serialize(new { IsAssistedSale = true, AssistedSaleAdminId = adminUserId, Origin = "VendaAssistidaAPI" });
-                await _auditService.LogActionAsync(adminUserId > 0 ? adminUserId : null, "ContractCreated", "Contract", contract.Id, null, newValues,
+                await _auditService.LogActionAsync(adminUserId > 0 ? adminUserId : null, PaymentHistoryActions.ContractCreated, "Contract", contract.Id, null, newValues,
                     HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.FirstOrDefault());
 
                 // Buscar o pagamento criado para gerar o código PIX
@@ -285,17 +293,10 @@ namespace KlyonHubPlatform.Api.Controllers
                         catch (Exception pixEx)
                         {
                             // Se falhar ao gerar PIX, ainda retorna sucesso mas avisa
-                            return Ok(new QuickClientRegistrationResponse
-                            {
-                                Success = true,
-                                Message = $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}. Porém, o código PIX não pôde ser gerado: {pixEx.Message}",
-                                ContractId = contract.Id,
-                                ContractNumber = contract.ContractNumber,
-                                ClientId = client.Id,
-                                PaymentId = payment?.Id,
-                                UserId = user.Id,
-                                IsNewUser = isNewUser
-                            });
+                            return Ok(QuickClientRegistrationMapper.ToResponse(
+                                true,
+                                $"Cliente cadastrado e contrato criado com sucesso! Contrato #{contract.ContractNumber}. Porém, o código PIX não pôde ser gerado: {pixEx.Message}",
+                                contract, client, user, payment, null, isNewUser));
                         }
                     }
                 }
@@ -339,26 +340,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     responseMessage += $" {emailWarning}";
                 }
 
-                return Ok(new QuickClientRegistrationResponse
-                {
-                    Success = true,
-                    Message = responseMessage,
-                    ContractId = contract.Id,
-                    ContractNumber = contract.ContractNumber,
-                    ClientId = client.Id,
-                    PaymentId = payment?.Id,
-                    PixCode = pixCode,
-                    UserId = user.Id,
-                    IsNewUser = isNewUser
-                });
+                return Ok(QuickClientRegistrationMapper.ToResponse(
+                    true, responseMessage, contract, client, user, payment, pixCode, isNewUser));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new QuickClientRegistrationResponse
-                {
-                    Success = false,
-                    Message = $"Erro ao cadastrar cliente: {ex.Message}"
-                });
+                return StatusCode(500, QuickClientRegistrationMapper.ToError(false, $"Erro ao cadastrar cliente: {ex.Message}"));
             }
         }
 
@@ -371,25 +358,15 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
+                var ids = availableAddresses.Select(addr => addr.Id).ToList();
                 var addressesWithLocation = await _context.CoworkingAddresses
                     .Include(a => a.Coworking)
                     .Include(a => a.Location)
-                    .Where(a => availableAddresses.Select(addr => addr.Id).Contains(a.Id))
-                    .Select(a => new AvailableAddressDto
-                    {
-                        Id = a.Id,
-                        CoworkingName = a.Coworking.Name,
-                        Address = a.Address,
-                        Number = a.Number,
-                        City = a.Location != null ? a.Location.City : a.City,
-                        State = a.Location != null ? a.Location.State : a.State,
-                        BasePrice = a.BasePrice,
-                        Vacancies = a.MaxContracts - a.CurrentContracts,
-                        DisplayText = $"{a.Coworking.Name} - {a.Address}, {a.Number} ({(a.Location != null ? a.Location.City : a.City)}/{(a.Location != null ? a.Location.State : a.State)}) - R$ {a.BasePrice:F2}"
-                    })
-                    .ToListAsync();
+                    .Where(a => ids.Contains(a.Id))
+                    .ToListAsync(cancellationToken);
 
-                return Ok(addressesWithLocation);
+                var dtos = _mapper.Map<List<AvailableAddressDto>>(addressesWithLocation);
+                return Ok(dtos);
             }
             catch (Exception ex)
             {

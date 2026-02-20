@@ -12,16 +12,16 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-receipt-cutoff"></i> Emitir NF de Serviço</h2>
     <div>
-        <a href="@Url.Action("ListServiceFiscalNotes", "Coworking")" class="btn btn-outline-info me-2">
+        <a href="@Url.Action(ActionNames.ListServiceFiscalNotes, ControllerNames.Coworking)" class="btn btn-outline-info me-2">
             <i class="bi bi-list-ul"></i> Ver Notas Emitidas
         </a>
         @if (!ViewBag.HasSefazConfiguration)
         {
-            <a href="@Url.Action("SefazConfiguration", "Coworking")" class="btn btn-outline-primary me-2">
+            <a href="@Url.Action(ActionNames.SefazConfiguration, ControllerNames.Coworking)" class="btn btn-outline-primary me-2">
                 <i class="bi bi-gear"></i> Configurações SEFAZ
             </a>
         }
-        <a href="@Url.Action("Dashboard", "Coworking")" class="btn btn-secondary">
+        <a href="@Url.Action(ActionNames.Dashboard, ControllerNames.Coworking)" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
     </div>
@@ -30,7 +30,7 @@
 <!-- Filtros -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="@Url.Action("ServiceFiscalNotes", "Coworking")" class="row g-3">
+        <form method="get" action="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking)" class="row g-3">
             <div class="col-md-2">
                 <label for="serviceType" class="form-label">Tipo de serviço</label>
                 <select class="form-select" id="serviceType" name="serviceType">
@@ -51,7 +51,7 @@
                 <button type="submit" class="btn btn-primary" name="page" value="1">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
-                <a href="@Url.Action("ServiceFiscalNotes", "Coworking")" class="btn btn-secondary">
+                <a href="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking)" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Limpar
                 </a>
             </div>
@@ -74,7 +74,7 @@
         <div class="card text-white bg-success">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-cash-coin"></i> Valor Total para Emitir</h6>
-                <h2 class="mb-0">R$ @((ViewBag.TotalAmount ?? 0m).ToString("N2"))</h2>
+                <h2 class="mb-0">R$ @((ViewBag.TotalAmount ?? 0m).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h2>
                 <small class="text-white-50">Valor total (com percentagem)</small>
             </div>
         </div>
@@ -154,13 +154,13 @@
                                     }
                                 </td>
                                 <td>
-                                    <strong>R$ @payment.Amount.ToString("N2")</strong>
-                                    <input type="hidden" class="net-amount" value="@payment.Amount.ToString("F2")" />
+                                    <strong>R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
+                                    <input type="hidden" class="net-amount" value="@payment.Amount.ToString(NumberFormatConstants.TwoDecimals)" />
                                 </td>
                                 <td>
                                     @if (payment.PaidAt.HasValue)
                                     {
-                                        @payment.PaidAt.Value.ToString("dd/MM/yyyy")<br>
+                                        @payment.PaidAt.Value.ToString(DateFormatConstants.DisplayDateOnly)<br>
                                         <small class="text-muted">@payment.PaidAt.Value.ToString("HH:mm")</small>
                                     }
                                     else
@@ -169,15 +169,15 @@
                                     }
                                 </td>
                                 <td onclick="event.stopPropagation();">
-                                    <form method="post" action="@Url.Action("IssueServiceFiscalNote", "Coworking")" style="display: inline;" class="confirm-required d-inline">
+                                    <form method="post" action="@Url.Action(ActionNames.IssueServiceFiscalNote, ControllerNames.Coworking)" style="display: inline;" class="confirm-required d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="paymentId" value="@payment.Id" />
-                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @payment.Amount.ToString("N2")?');">
+                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Tem certeza que deseja emitir a NF de serviço no valor de R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)?');">
                                             <i class="bi bi-file-earmark-check"></i> Emitir NF
                                         </button>
                                     </form>
                                     <button type="button" class="btn btn-sm btn-outline-secondary ms-1" data-bs-toggle="modal" data-bs-target="#importNfModal" 
-                                            data-payment-id="@payment.Id" data-net-amount="@payment.Amount.ToString("F2")" data-client-name="@(client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? "—")">
+                                            data-payment-id="@payment.Id" data-net-amount="@payment.Amount.ToString(NumberFormatConstants.TwoDecimals)" data-client-name="@(client?.RazaoSocial ?? client?.NomeFantasia ?? client?.User?.FullName ?? DefaultDisplayStrings.EmptyPlaceholder)">
                                         <i class="bi bi-upload"></i> Importar NF
                                     </button>
                                 </td>
@@ -195,7 +195,7 @@
                         @if (ViewBag.CurrentPage > 1)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
+                                <a class="page-link" href="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking, new { page = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
                                     Anterior
                                 </a>
                             </li>
@@ -204,14 +204,14 @@
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
                             <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = i, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">@i</a>
+                                <a class="page-link" href="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking, new { page = i, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">@i</a>
                             </li>
                         }
 
                         @if (ViewBag.CurrentPage < ViewBag.TotalPages)
                         {
                             <li class="page-item">
-                                <a class="page-link" href="@Url.Action("ServiceFiscalNotes", "Coworking", new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
+                                <a class="page-link" href="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking, new { page = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">
                                     Próximo
                                 </a>
                             </li>
@@ -255,7 +255,7 @@
 <div class="modal fade" id="importNfModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="@Url.Action("ImportServiceFiscalNote", "Coworking")" enctype="multipart/form-data">
+            <form method="post" action="@Url.Action(ActionNames.ImportServiceFiscalNote, ControllerNames.Coworking)" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="paymentId" id="importNfPaymentId" value="" />
                 <div class="modal-header">
@@ -357,7 +357,7 @@
                 loading.classList.remove('d-none');
                 var bsModal = new bootstrap.Modal(modal);
                 bsModal.show();
-                fetch('@Url.Action("ServiceFiscalNoteDetail", "Coworking")?id=' + encodeURIComponent(id))
+                fetch('@Url.Action(ActionNames.ServiceFiscalNoteDetail, ControllerNames.Coworking)?id=' + encodeURIComponent(id))
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         loading.classList.add('d-none');

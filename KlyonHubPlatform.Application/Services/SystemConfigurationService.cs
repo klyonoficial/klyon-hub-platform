@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,7 +43,7 @@ namespace KlyonHubPlatform.Application.Services
             return config?.Value;
         }
 
-        public async Task<SystemConfiguration> CreateOrUpdateAsync(string key, string value, string? description = null, string category = "General", bool isEncrypted = false, bool isSensitive = false, string? updatedBy = null, CancellationToken cancellationToken = default)
+        public async Task<SystemConfiguration> CreateOrUpdateAsync(string key, string value, string? description = null, string category = SystemConfigurationCategoryKeys.General, bool isEncrypted = false, bool isSensitive = false, string? updatedBy = null, CancellationToken cancellationToken = default)
         {
             var existing = await GetByKeyAsync(key, cancellationToken);
 

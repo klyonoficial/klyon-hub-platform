@@ -37,7 +37,7 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
         {
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
+            ViewData[ViewDataKeys.EnableCoworkingMenus] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 
@@ -52,7 +52,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.ChooseLocation, ControllerNames.Client);
             }
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
+            ViewData[ViewDataKeys.EnableCoworkingMenus] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 
@@ -67,7 +67,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return RedirectToAction(ActionNames.Index);
             }
-            ViewData["EnableCoworkingMenus"] = true;
+            ViewData[ViewDataKeys.EnableCoworkingMenus] = true;
             return View();
         }
 
@@ -82,7 +82,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.Dashboard, ControllerNames.Coworking);
             }
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
-            ViewData["EnableCoworkingMenus"] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
+            ViewData[ViewDataKeys.EnableCoworkingMenus] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
             return View();
         }
 

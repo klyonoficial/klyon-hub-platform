@@ -35,21 +35,21 @@
                         <p><strong>Quantidade de Vendas:</strong> @Model.CommissionCount</p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Valor Bruto:</strong> R$ @Model.TotalGrossAmount.ToString("N2")</p>
-                        <p><strong>Comissão Plataforma:</strong> <span class="text-danger">- R$ @Model.TotalPlatformCommission.ToString("N2")</span></p>
-                        <p><strong>Valor Líquido:</strong> <span class="text-success fw-bold">R$ @Model.TotalAmount.ToString("N2")</span></p>
+                        <p><strong>Valor Bruto:</strong> R$ @Model.TotalGrossAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</p>
+                        <p><strong>Comissão Plataforma:</strong> <span class="text-danger">- R$ @Model.TotalPlatformCommission.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></p>
+                        <p><strong>Valor Líquido:</strong> <span class="text-success fw-bold">R$ @Model.TotalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></p>
                     </div>
                 </div>
 
                 @if (Model.ScheduledTransferDate.HasValue)
                 {
                     <hr />
-                    <p><strong>Data Prevista do Repasse:</strong> @Model.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</p>
+                    <p><strong>Data Prevista do Repasse:</strong> @Model.ScheduledTransferDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</p>
                 }
 
                 @if (Model.TransferredAt.HasValue)
                 {
-                    <p><strong>Data da Transferência:</strong> @Model.TransferredAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                    <p><strong>Data da Transferência:</strong> @Model.TransferredAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</p>
                     @if (!string.IsNullOrEmpty(Model.ExternalTransferId))
                     {
                         <p><strong>ID da Transferência:</strong> @Model.ExternalTransferId</p>
@@ -85,16 +85,16 @@
                             {
                                 <p><strong>Número:</strong> @invoice.InvoiceNumber</p>
                             }
-                            <p><strong>Valor:</strong> R$ @invoice.InvoiceAmount.ToString("N2")</p>
+                            <p><strong>Valor:</strong> R$ @invoice.InvoiceAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</p>
                         </div>
                         <div class="col-md-6">
                             @if (invoice.SubmittedAt.HasValue)
                             {
-                                <p><strong>Enviada em:</strong> @invoice.SubmittedAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                                <p><strong>Enviada em:</strong> @invoice.SubmittedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</p>
                             }
                             @if (invoice.ValidatedAt.HasValue)
                             {
-                                <p><strong>Validada em:</strong> @invoice.ValidatedAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+                                <p><strong>Validada em:</strong> @invoice.ValidatedAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</p>
                             }
                         </div>
                     </div>
@@ -152,9 +152,9 @@
                                 @foreach (var sc in Model.SettlementCommissions)
                                 {
                                     <tr>
-                                        <td>@sc.CreatedAt.ToString("dd/MM/yyyy")</td>
-                                        <td>R$ @sc.Commission?.TotalPaymentAmount.ToString("N2")</td>
-                                        <td class="text-success">R$ @sc.Amount.ToString("N2")</td>
+                                        <td>@sc.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</td>
+                                        <td>R$ @sc.Commission?.TotalPaymentAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</td>
+                                        <td class="text-success">R$ @sc.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -177,7 +177,7 @@
                         <div class="timeline-marker bg-success"></div>
                         <div class="timeline-content">
                             <strong>Criado</strong>
-                            <br><small class="text-muted">@Model.CreatedAt.ToString("dd/MM/yyyy")</small>
+                            <br><small class="text-muted">@Model.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
                         </div>
                     </div>
 
@@ -187,7 +187,7 @@
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
                                 <strong>Fechado</strong>
-                                <br><small class="text-muted">@Model.ClosedAt.Value.ToString("dd/MM/yyyy")</small>
+                                <br><small class="text-muted">@Model.ClosedAt.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </div>
                         </div>
                     }
@@ -198,7 +198,7 @@
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
                                 <strong>NF Enviada</strong>
-                                <br><small class="text-muted">@invoice.SubmittedAt.Value.ToString("dd/MM/yyyy")</small>
+                                <br><small class="text-muted">@invoice.SubmittedAt.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </div>
                         </div>
                     }
@@ -209,7 +209,7 @@
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
                                 <strong>NF Aprovada</strong>
-                                <br><small class="text-muted">@Model.ApprovedAt.Value.ToString("dd/MM/yyyy")</small>
+                                <br><small class="text-muted">@Model.ApprovedAt.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </div>
                         </div>
                     }
@@ -220,7 +220,7 @@
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
                                 <strong>Transferido</strong>
-                                <br><small class="text-muted">@Model.TransferredAt.Value.ToString("dd/MM/yyyy")</small>
+                                <br><small class="text-muted">@Model.TransferredAt.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </div>
                         </div>
                     }
@@ -230,7 +230,7 @@
                             <div class="timeline-marker bg-secondary"></div>
                             <div class="timeline-content">
                                 <strong>Transferência</strong>
-                                <br><small class="text-muted">Previsto: @Model.ScheduledTransferDate.Value.ToString("dd/MM/yyyy")</small>
+                                <br><small class="text-muted">Previsto: @Model.ScheduledTransferDate.Value.ToString(DateFormatConstants.DisplayDateOnly)</small>
                             </div>
                         </div>
                     }

@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 
 namespace KlyonHubPlatform.Domain.Entities
@@ -9,7 +10,7 @@ namespace KlyonHubPlatform.Domain.Entities
     {
         public int Id { get; set; }
         /// <summary>Tipo: Intermediacao (plataforma) ou Servico (parceiro)</summary>
-        public string Type { get; set; } = "Intermediacao"; // "Intermediacao" ou "Servico"
+        public string Type { get; set; } = FiscalNoteType.Default;
         
         // Relacionamentos
         /// <summary>ID da reserva (se for NF de intermediação de reserva)</summary>
