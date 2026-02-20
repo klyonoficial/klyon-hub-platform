@@ -49,8 +49,8 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAdminApprovalService _adminApprovalService;
         private readonly IAdminCoworkingService _adminCoworkingService;
         private readonly IAdminDataService _adminDataService;
+        private readonly IAdminDbService _adminDbService;
         private readonly StorageServiceFactory _storageFactory;
-        private readonly ApplicationDbContext _context;
         public AdminController(
             IUserService userService,
             IReportService reportService,
@@ -74,8 +74,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAdminApprovalService adminApprovalService,
             IAdminCoworkingService adminCoworkingService,
             IAdminDataService adminDataService,
-            StorageServiceFactory storageFactory,
-            ApplicationDbContext context)
+            IAdminDbService adminDbService,
+            StorageServiceFactory storageFactory)
         {
             _userService = userService;
             _reportService = reportService;
@@ -100,8 +100,8 @@ namespace KlyonHubPlatform.Api.Controllers
             _adminApprovalService = adminApprovalService;
             _adminCoworkingService = adminCoworkingService;
             _adminDataService = adminDataService;
+            _adminDbService = adminDbService;
             _storageFactory = storageFactory;
-            _context = context;
         }
         private IActionResult ApplyAdminResult(AdminCommandResult result, bool isAjax = false, string? exceptionMessage = null)
         {
@@ -1008,18 +1008,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (paymentId.HasValue)
             {
-                var payment = await _context.Payments
-                    .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.CoworkingAddress)
-                                .ThenInclude(a => a.Location)
-                    .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                            .ThenInclude(c => c.Client)
-                    .Include(p => p.Reservation)
-                        .ThenInclude(r => r.CoworkingAddress)
-                            .ThenInclude(a => a.Coworking)
-                    .FirstOrDefaultAsync(p => p.Id == paymentId.Value);
+                var payment = await _adminDbService.GetPaymentForStatementAsync(paymentId.Value, cancellationToken);
                 if (payment == null)
                     return Json(new { success = false, message = JsonMessage.PagamentoNaoEncontrado });
                 string statusText = payment.Status.ToDisplayString();
@@ -1061,12 +1050,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             else if (reservationId.HasValue)
             {
-                var reservation = await _context.Reservations
-                    .Include(r => r.Client)
-                    .Include(r => r.CoworkingAddress)
-                        .ThenInclude(a => a.Coworking)
-                    .Include(r => r.CoworkingRoom)
-                    .FirstOrDefaultAsync(r => r.Id == reservationId.Value);
+                var reservation = await _adminDbService.GetReservationForStatementAsync(reservationId.Value, cancellationToken);
                 if (reservation == null)
                     return Json(new { success = false, message = JsonMessage.ReservaNaoEncontrada });
                 var reservationData = new
@@ -1121,48 +1105,11 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ReservationFinancialDetail(int id, CancellationToken cancellationToken = default)
         {
-            var reservation = await _context.Reservations
-                .Include(r => r.Client)
-                    .ThenInclude(c => c.User)
-                .Include(r => r.CoworkingAddress)
-                    .ThenInclude(a => a.Coworking)
-                .FirstOrDefaultAsync(r => r.Id == id);
+            var (reservation, commission, transfer, auditLogs) = await _adminDbService.GetReservationFinancialDetailAsync(id, cancellationToken);
             if (reservation == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ReservationNotFoundAdmin;
                 return RedirectToAction(ActionNames.ReportCoworkingRevenue);
-            }
-            ReservationCommission? commission = null;
-            try
-            {
-                commission = await _context.ReservationCommissions
-                    .FirstOrDefaultAsync(rc => rc.ReservationId == id);
-            }
-            catch (Exception)
-            {
-                commission = null;
-            }
-            Transfer? transfer = null;
-            try
-            {
-                transfer = await _context.Transfers
-                    .FirstOrDefaultAsync(t => t.ReservationId == id);
-            }
-            catch (Exception)
-            {
-                transfer = null;
-            }
-            List<AuditLog> auditLogs = new List<AuditLog>();
-            try
-            {
-                auditLogs = await _context.AuditLogs
-                    .Where(a => a.EntityType == "Reservation" && a.EntityId == id)
-                    .OrderByDescending(a => a.ActionDate)
-                    .ToListAsync();
-            }
-            catch (Exception)
-            {
-                auditLogs = new List<AuditLog>();
             }
             ViewBag.Reservation = reservation;
             ViewBag.Commission = commission;
@@ -1278,60 +1225,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var storageProvider = await _context.SystemConfigurations
-                    .FirstOrDefaultAsync(c => c.Key == Provider);
-                if (storageProvider != null)
-                {
-                    storageProvider.Value = FtpDefaults.ProviderName;
-                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                }
-                else
-                {
-                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
-                    {
-                        Key = Provider,
-                        Value = FtpDefaults.ProviderName,
-                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                        Category = "Storage",
-                        IsSensitive = false,
-                        IsEncrypted = false,
-                        CreatedAt = DateTimeHelper.GetBrazilianTime()
-                    });
-                }
-                var ftpConfigs = new (FtpConfigKey Key, string Value)[]
-                {
-                    (FtpConfigKey.Host, "187.110.161.110"),
-                    (FtpConfigKey.Port, FtpDefaults.PortString),
-                    (FtpConfigKey.Username, "gestorhub"),
-                    (FtpConfigKey.Password, "F@z3rd@rC3rt0"),
-                    (FtpConfigKey.UsePassiveMode, FtpDefaults.UsePassive),
-                    (FtpConfigKey.UseSSL, FtpDefaults.UseSsl)
-                };
-                foreach (var (key, value) in ftpConfigs)
-                {
-                    var configKey = key.ToConfigKey();
-                    var existing = await _context.SystemConfigurations
-                        .FirstOrDefaultAsync(c => c.Key == configKey);
-                    if (existing != null)
-                    {
-                        existing.Value = value;
-                        existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                    }
-                    else
-                    {
-                        _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
-                        {
-                            Key = configKey,
-                            Value = value,
-                            Description = key.GetDescription(),
-                            Category = "Storage",
-                            IsSensitive = key == FtpConfigKey.Password,
-                            IsEncrypted = false,
-                            CreatedAt = DateTimeHelper.GetBrazilianTime()
-                        });
-                    }
-                }
-                await _context.SaveChangesAsync();
+                await _adminDbService.UpdateStorageToFtpAsync(cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.FtpSettingsUpdated;
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
@@ -1347,27 +1241,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var storageProvider = await _context.SystemConfigurations
-                    .FirstOrDefaultAsync(c => c.Key == Provider);
-                if (storageProvider != null)
-                {
-                    storageProvider.Value = OracleStorageDefaults.ProviderName;
-                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                }
-                else
-                {
-                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
-                    {
-                        Key = Provider,
-                        Value = OracleStorageDefaults.ProviderName,
-                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                        Category = "Storage",
-                        IsSensitive = false,
-                        IsEncrypted = false,
-                        CreatedAt = DateTimeHelper.GetBrazilianTime()
-                    });
-                }
-                await _context.SaveChangesAsync();
+                await _adminDbService.UpdateStorageToOracleAsync(cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.OracleSettingsUpdated;
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
@@ -1383,27 +1257,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var storageProvider = await _context.SystemConfigurations
-                    .FirstOrDefaultAsync(c => c.Key == Provider);
-                if (storageProvider != null)
-                {
-                    storageProvider.Value = "AWS";
-                    storageProvider.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                }
-                else
-                {
-                    _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
-                    {
-                        Key = Provider,
-                        Value = "AWS",
-                        Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                        Category = "Storage",
-                        IsSensitive = false,
-                        IsEncrypted = false,
-                        CreatedAt = DateTimeHelper.GetBrazilianTime()
-                    });
-                }
-                await _context.SaveChangesAsync();
+                await _adminDbService.UpdateStorageToAwsAsync(cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = "Provedor de armazenamento alterado para AWS S3.";
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
@@ -1499,42 +1353,15 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var configs = new Dictionary<string, string>
+                var apiKeyKey = AsaasConfigKey.ApiKey.ToConfigKey();
+                var useSandboxKey = AsaasConfigKey.UseSandbox.ToConfigKey();
+                var configs = new[]
                 {
-                    { AsaasConfigKey.ApiKey.ToConfigKey(), "" },
-                    { AsaasConfigKey.UseSandbox.ToConfigKey(), StringBooleanValue.True }
+                    (apiKeyKey, "", "API Key do Asaas (obtida no painel Asaas > Integrações)", true),
+                    (useSandboxKey, StringBooleanValue.True, "Usar ambiente sandbox do Asaas (true/false)", false)
                 };
-                foreach (var config in configs)
-                {
-                    var existing = await _context.SystemConfigurations
-                        .FirstOrDefaultAsync(c => c.Key == config.Key);
-                    if (existing != null)
-                    {
-                        existing.Value = config.Value;
-                        existing.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        existing.UpdatedBy = User.Identity?.Name;
-                    }
-                    else
-                    {
-                        _context.SystemConfigurations.Add(new Domain.Entities.SystemConfiguration
-                        {
-                            Key = config.Key,
-                            Value = config.Value,
-                            Description = config.Key switch
-                            {
-                                _ when config.Key == AsaasConfigKey.ApiKey.ToConfigKey() => "API Key do Asaas (obtida no painel Asaas > Integrações)",
-                                _ when config.Key == AsaasConfigKey.UseSandbox.ToConfigKey() => "Usar ambiente sandbox do Asaas (true/false)",
-                                _ => ""
-                            },
-                            Category = "Payment",
-                            IsSensitive = config.Key == AsaasConfigKey.ApiKey.ToConfigKey(),
-                            IsEncrypted = false,
-                            CreatedAt = DateTimeHelper.GetBrazilianTime()
-                        });
-                    }
-                }
-                await _context.SaveChangesAsync();
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.AsaasSandboxPrepared(AsaasConfigKey.ApiKey.ToConfigKey());
+                await _adminDbService.UpdateOrAddSystemConfigurationsAsync(configs, "Payment", User.Identity?.Name, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.AsaasSandboxPrepared(apiKeyKey);
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
             catch (Exception ex)
@@ -1651,40 +1478,8 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> Payments(string? search = null, string? status = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
-            var query = _context.Payments
-                .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.Client)
-                            .ThenInclude(cl => cl.User)
-                .Include(p => p.Subscription)
-                    .ThenInclude(s => s.Contract)
-                        .ThenInclude(c => c.CoworkingAddress)
-                .AsQueryable();
-            if (!string.IsNullOrEmpty(search))
-            {
-                query = query.Where(p =>
-                    p.ExternalPaymentId.Contains(search) ||
-                    (p.TransactionId != null && p.TransactionId.Contains(search)) ||
-                    p.Subscription.Contract.ContractNumber.Contains(search) ||
-                    (p.Subscription.Contract.Client.RazaoSocial != null && p.Subscription.Contract.Client.RazaoSocial.Contains(search)) ||
-                    (p.Subscription.Contract.Client.NomeFantasia != null && p.Subscription.Contract.Client.NomeFantasia.Contains(search)) ||
-                    (p.Subscription.Contract.Client.ContactName != null && p.Subscription.Contract.Client.ContactName.Contains(search)) ||
-                    (p.Subscription.Contract.Client.User != null && p.Subscription.Contract.Client.User.FullName.Contains(search)));
-            }
-            if (!string.IsNullOrEmpty(status))
-            {
-                if (Enum.TryParse<PaymentStatus>(status, out var paymentStatus))
-                {
-                    query = query.Where(p => p.Status == paymentStatus);
-                }
-            }
-            query = query.OrderByDescending(p => p.CreatedAt);
-            var totalItems = await query.CountAsync();
+            var (payments, totalItems) = await _adminDbService.GetPaymentsPagedAsync(search, status, page, pageSize, cancellationToken);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            var payments = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
             ViewBag.Search = search;
             ViewBag.Status = status;
             ViewBag.CurrentPage = page;
@@ -1699,10 +1494,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var payment = await _context.Payments
-                    .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+                var payment = await _adminDbService.GetPaymentForApproveAsync(paymentId, cancellationToken);
                 if (payment == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.PaymentNotFound;
@@ -1727,42 +1519,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.Payments);
             }
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var strategy = _context.Database.CreateExecutionStrategy();
             try
             {
-                await strategy.ExecuteAsync(async () =>
-                {
-                    var payment = await _context.Payments
-                        .Include(p => p.Subscription)
-                            .ThenInclude(s => s.Contract)
-                        .FirstOrDefaultAsync(p => p.Id == paymentId);
-                    if (payment == null)
-                        throw new InvalidOperationException("Pagamento não encontrado.");
-                    await using var transaction = await _context.Database.BeginTransactionAsync();
-                    try
-                    {
-                        var history = new PaymentHistory
-                        {
-                            PaymentId = paymentId,
-                            Action = "Rejected",
-                            RejectionReason = rejectionReason,
-                            ActionBy = userId,
-                            ActionAt = DateTimeHelper.GetBrazilianTime()
-                        };
-                        _context.PaymentHistories.Add(history);
-                        payment.Status = PaymentStatus.Pending;
-                        payment.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                        payment.ReceiptFilePath = null;
-                        _context.Payments.Update(payment);
-                        await _context.SaveChangesAsync();
-                        await transaction.CommitAsync();
-                    }
-                    catch
-                    {
-                        await transaction.RollbackAsync();
-                        throw;
-                    }
-                });
+                await _adminDbService.RejectPaymentAsync(paymentId, userId, rejectionReason, cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentRejected;
             }
             catch (InvalidOperationException ex) when (ex.Message == "Pagamento não encontrado.")
@@ -1779,16 +1538,8 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> GetPaymentHistory(int paymentId, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
-            var query = _context.PaymentHistories
-                .Include(h => h.ActionByUser)
-                .Where(h => h.PaymentId == paymentId)
-                .OrderByDescending(h => h.ActionAt);
-            var totalItems = await query.CountAsync();
+            var (history, totalItems) = await _adminDbService.GetPaymentHistoryPagedAsync(paymentId, page, pageSize, cancellationToken);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            var history = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
             return Json(new
             {
                 items = _mapper.Map<List<PaymentHistoryItemDto>>(history),
@@ -1844,9 +1595,9 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var pending = await _context.Database.GetPendingMigrationsAsync();
+                var pending = await _adminDbService.GetPendingMigrationsAsync(cancellationToken);
                 ViewBag.PendingMigrations = pending.ToList();
-                ViewBag.AppliedMigrations = await _context.Database.GetAppliedMigrationsAsync();
+                ViewBag.AppliedMigrations = await _adminDbService.GetAppliedMigrationsAsync(cancellationToken);
             }
             catch
             {

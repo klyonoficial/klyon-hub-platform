@@ -5,7 +5,7 @@ namespace KlyonHubPlatform.Application.DTOs.AppHome
     public class MarketplaceDetailsResult
     {
         public CoworkingAddress? Address { get; set; }
-        public Coworking? Coworking { get; set; }
+        public KlyonHubPlatform.Domain.Entities.Coworking? Coworking { get; set; }
         public List<int> PhotoIds { get; set; } = new();
         public int? MainPhotoId { get; set; }
         public string? ReturnUrl { get; set; }

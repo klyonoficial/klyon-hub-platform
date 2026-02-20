@@ -29,6 +29,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Contract?> GetContractByIdAsync(int contractId, CancellationToken cancellationToken = default);
         Task<Contract?> GetContractByIdAndClientIdAsync(int contractId, int clientId, CancellationToken cancellationToken = default);
         Task<Contract?> GetExistingContractForAddressAsync(int clientId, int coworkingAddressId, CancellationToken cancellationToken = default);
+        Task<Contract?> GetExistingContractInLocationAsync(int clientId, int locationId, CancellationToken cancellationToken = default);
         Task UpdateContractAsync(Contract contract, CancellationToken cancellationToken = default);
 
         Task<Subscription?> GetSubscriptionByContractIdAsync(int contractId, CancellationToken cancellationToken = default);

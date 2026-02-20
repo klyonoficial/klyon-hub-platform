@@ -1,0 +1,72 @@
+using KlyonHubPlatform.Domain.Entities;
+using System.Data.Common;
+
+namespace KlyonHubPlatform.Application.Interfaces
+{
+    /// <summary>
+    /// Serviço de acesso ao banco para ações administrativas. Concentra todo uso de DbContext que antes existia no AdminController.
+    /// </summary>
+    public interface IAdminDbService
+    {
+        Task<Payment?> GetPaymentForStatementAsync(int paymentId, CancellationToken cancellationToken = default);
+        Task<Reservation?> GetReservationForStatementAsync(int reservationId, CancellationToken cancellationToken = default);
+        Task<(Reservation? Reservation, ReservationCommission? Commission, Transfer? Transfer, List<AuditLog> AuditLogs)> GetReservationFinancialDetailAsync(int reservationId, CancellationToken cancellationToken = default);
+
+        Task UpdateStorageToFtpAsync(CancellationToken cancellationToken = default);
+        Task UpdateStorageToOracleAsync(CancellationToken cancellationToken = default);
+        Task UpdateStorageToAwsAsync(CancellationToken cancellationToken = default);
+
+        Task<bool> CreateAddressDeclarationsTableIfNotExistsAsync(CancellationToken cancellationToken = default);
+
+        Task<(List<Payment> Items, int TotalCount)> GetPaymentsPagedAsync(string? search, string? status, int page, int pageSize, CancellationToken cancellationToken = default);
+        Task<Payment?> GetPaymentForApproveAsync(int paymentId, CancellationToken cancellationToken = default);
+        Task RejectPaymentAsync(int paymentId, int userId, string rejectionReason, CancellationToken cancellationToken = default);
+        Task<(List<PaymentHistory> Items, int TotalCount)> GetPaymentHistoryPagedAsync(int paymentId, int page, int pageSize, CancellationToken cancellationToken = default);
+
+        Task<IEnumerable<string>> GetPendingMigrationsAsync(CancellationToken cancellationToken = default);
+        Task<IEnumerable<string>> GetAppliedMigrationsAsync(CancellationToken cancellationToken = default);
+        Task<(bool Success, string Message)> RunMigrationsAsync(CancellationToken cancellationToken = default);
+        Task ExecuteSqlRawAsync(string sql, CancellationToken cancellationToken = default);
+
+        /// <summary>Executa uma ação com a conexão do banco (abre/fecha se necessário).</summary>
+        Task RunWithConnectionAsync(Func<DbConnection, Task> action, CancellationToken cancellationToken = default);
+        /// <summary>Executa uma ação com a conexão do banco e retorna resultado.</summary>
+        Task<T> RunWithConnectionAsync<T>(Func<DbConnection, Task<T>> action, CancellationToken cancellationToken = default);
+
+        Task<Coworking?> FindCoworkingAsync(int id, CancellationToken cancellationToken = default);
+        Task<Service?> FindServiceAsync(int id, CancellationToken cancellationToken = default);
+        Task<List<string>> GetCoworkingServiceNamesExcludingFiscalAsync(CancellationToken cancellationToken = default);
+
+        Task<(bool Success, string? ErrorMessage)> SavePartnerServiceAsync(int id, int coworkingId, int serviceId, decimal percentage, CancellationToken cancellationToken = default);
+        Task<(bool Success, string? ErrorMessage)> DeletePartnerServiceAsync(int id, int coworkingId, CancellationToken cancellationToken = default);
+        Task<(List<PartnerService> Items, int TotalCount)> GetPartnerServicesRemovalRequestsPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+        Task<PartnerService?> GetPartnerServiceForRemovalAsync(int partnerServiceId, CancellationToken cancellationToken = default);
+        Task RemovePartnerServiceAsync(PartnerService partnerService, CancellationToken cancellationToken = default);
+        Task UpdatePartnerServiceRemovalRejectedAsync(PartnerService partnerService, int userId, string rejectionReason, CancellationToken cancellationToken = default);
+        Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+        Task<SefazConfiguration?> GetSefazConfigurationAsync(string state, CancellationToken cancellationToken = default);
+        Task<List<FiscalNoteScriptExecution>> GetLastFiscalNoteExecutionsAsync(int take, CancellationToken cancellationToken = default);
+        Task SaveSefazConfigurationAsync(SefazConfiguration config, CancellationToken cancellationToken = default);
+
+        Task<bool> InitializeCreditPlansAsync(CancellationToken cancellationToken = default);
+
+        Task AddRoomConfigurationColumnsAsync(CancellationToken cancellationToken = default);
+        Task AddReservationColumnsAsync(CancellationToken cancellationToken = default);
+
+        Task<(bool Success, string Message)> ClearAndSeedDatabaseAsync(CancellationToken cancellationToken = default);
+
+        Task<(bool IsQuery, string Result)> ExecuteSqlForAdminAsync(string sqlQuery, CancellationToken cancellationToken = default);
+        Task<string> GetVerifyCoworkingOperatingHoursResultAsync(CancellationToken cancellationToken = default);
+
+        Task<List<string>> AddTransfersIndexAndFkAsync(CancellationToken cancellationToken = default);
+        Task<List<string>> FixCreditPurchaseColumnsAsync(CancellationToken cancellationToken = default);
+        Task<bool> CreateInterestsTableIfNotExistsAsync(CancellationToken cancellationToken = default);
+        Task<bool> CreateCoworkingProductsTableIfNotExistsAsync(CancellationToken cancellationToken = default);
+        Task<bool> CreateCoworkingOperatingHoursTableIfNotExistsAsync(CancellationToken cancellationToken = default);
+        Task<bool> CreateCreditPlansTableIfNotExistsAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>Atualiza ou adiciona configurações de sistema (ex.: Asaas sandbox).</summary>
+        Task UpdateOrAddSystemConfigurationsAsync(IEnumerable<(string Key, string Value, string Description, bool IsSensitive)> configs, string category, string? updatedBy, CancellationToken cancellationToken = default);
+    }
+}
