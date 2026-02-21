@@ -56,6 +56,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Location?> GetLocationByIdAsync(int locationId, CancellationToken cancellationToken = default);
         Task<CoworkingAddress?> GetCoworkingAddressWithDetailsAsync(int addressId, CancellationToken cancellationToken = default);
         Task<CoworkingAddress?> GetCoworkingAddressByIdAsync(int addressId, CancellationToken cancellationToken = default);
+        Task<AddressDeclaration?> GetAddressDeclarationByIdAsync(int declarationId, CancellationToken cancellationToken = default);
         Task<List<AddressDeclaration>> GetAddressDeclarationsByContractIdAsync(int contractId, CancellationToken cancellationToken = default);
         Task<List<AddressDeclaration>> GetAddressDeclarationsByContractIdsWithContractAsync(IEnumerable<int> contractIds, CancellationToken cancellationToken = default);
         Task<List<int>> GetContractIdsWithPaidPaymentsAsync(IEnumerable<int> contractIds, CancellationToken cancellationToken = default);
@@ -66,5 +67,6 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task AddCreditCardAsync(CreditCard creditCard, CancellationToken cancellationToken = default);
         Task RemoveCreditCardAsync(int cardId, int clientId, CancellationToken cancellationToken = default);
         Task SetDefaultCreditCardAsync(int clientId, int cardId, CancellationToken cancellationToken = default);
+        Task ClearDefaultCreditCardsAsync(int clientId, CancellationToken cancellationToken = default);
     }
 }

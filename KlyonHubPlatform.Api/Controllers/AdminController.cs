@@ -103,6 +103,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _adminDbService = adminDbService;
             _storageFactory = storageFactory;
         }
+
         private IActionResult ApplyAdminResult(AdminCommandResult result, bool isAjax = false, string? exceptionMessage = null)
         {
             if (exceptionMessage != null)
@@ -1276,7 +1277,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var tableExists = false;
                 try
                 {
-                    var connection = _context.Database.GetDbConnection();
+                    var connection = _adminDbService.GetContext().Database.GetDbConnection();
                     var wasOpen = connection.State == System.Data.ConnectionState.Open;
                     if (!wasOpen)
                     {
@@ -1327,7 +1328,7 @@ namespace KlyonHubPlatform.Api.Controllers
                             INDEX `IX_AddressDeclarations_ContractId_Version` (`ContractId`, `Version`),
                             INDEX `IX_AddressDeclarations_DeclarationNumber` (`DeclarationNumber`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-                    await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(createTableSql);
                     TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableAddressDeclarationsCreated;
                 }
                 else
@@ -1610,53 +1611,23 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RunMigrations(CancellationToken cancellationToken = default)
         {
-            try
+            var (success, message) = await _adminDbService.RunMigrationsAsync(cancellationToken);
+            if (!success)
             {
-                try
-                {
-                    await _context.Database.ExecuteSqlRawAsync("SELECT 1 FROM CreditPlans LIMIT 1");
-                    var pendingCheck = await _context.Database.GetPendingMigrationsAsync();
-                    if (pendingCheck.Contains("20260124000542_AddCoworkingSefazConfiguration"))
-                    {
-                        await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124000542_AddCoworkingSefazConfiguration', '8.0.0')");
-                    }
-                }
-                catch
-                {
-                }
-                var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
-                var list = pendingMigrations.ToList();
-                if (list.Count == 0)
+                if (message == "NoPendingMigrations")
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.NoPendingMigrations;
                     return RedirectToAction(ActionNames.DatabaseManager);
                 }
-                await _context.Database.MigrateAsync();
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.MigrationsExecuted(string.Join(", ", list));
-            }
-            catch (Exception ex)
-            {
-                var msg = ex.Message;
-                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
-                if (msg.Contains("already exists") || msg.Contains("Table") && msg.Contains("exists"))
+                if (message == "MigrationMarkedAsApplied")
                 {
-                    var pending = await _context.Database.GetPendingMigrationsAsync();
-                    var pendingList = pending.ToList();
-                    if (msg.Contains("creditplans", StringComparison.OrdinalIgnoreCase) || msg.Contains("CreditPlans"))
-                    {
-                        try
-                        {
-                            await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124000542_AddCoworkingSefazConfiguration', '8.0.0')");
-                            TempData[TempDataKeys.Info] = InfoMessages.MigrationMarkedAsApplied;
-                            return RedirectToAction(ActionNames.DatabaseManager);
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    TempData[TempDataKeys.Info] = InfoMessages.MigrationMarkedAsApplied;
+                    return RedirectToAction(ActionNames.DatabaseManager);
                 }
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorExecutingMigrations(msg);
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorExecutingMigrations(message);
+                return RedirectToAction(ActionNames.DatabaseManager);
             }
+            TempData[SuccessMessage.TempDataKey] = SuccessMessage.MigrationsExecuted(message);
             return RedirectToAction(ActionNames.DatabaseManager);
         }
         [HttpPost]
@@ -1665,67 +1636,8 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
-                var wasOpen = connection.State == System.Data.ConnectionState.Open;
-                if (!wasOpen) await connection.OpenAsync();
-                var sb = new System.Text.StringBuilder();
-                try
-                {
-                    await using (var cmd = connection.CreateCommand())
-                    {
-                        cmd.CommandText = @"
-                            SELECT COUNT(*) FROM information_schema.tables 
-                            WHERE table_schema = DATABASE() AND table_name = 'CoworkingOperatingHours'";
-                        var exists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
-                        sb.AppendLine(exists ? "[OK] Tabela CoworkingOperatingHours existe." : "[FALTA] Tabela CoworkingOperatingHours NÃO existe. Use 'Criar tabela' abaixo.");
-                        sb.AppendLine();
-                        if (!exists)
-                        {
-                            TempData[TempDataKeys.VerifyOperatingHoursResult] = sb.ToString();
-                            return RedirectToAction(ActionNames.DatabaseManager);
-                        }
-                    }
-                    await using (var cmd = connection.CreateCommand())
-                    {
-                        cmd.CommandText = "SELECT COUNT(*) FROM CoworkingOperatingHours";
-                        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
-                        sb.AppendLine($"Total de registros: {count}");
-                        sb.AppendLine();
-                    }
-                    await using (var cmd = connection.CreateCommand())
-                    {
-                        cmd.CommandText = @"
-                            SELECT Id, CoworkingId, DayOfWeek, OpeningTime, ClosingTime, IsActive, CreatedAt 
-                            FROM CoworkingOperatingHours 
-                            ORDER BY CoworkingId, DayOfWeek 
-                            LIMIT 20";
-                        await using var reader = await cmd.ExecuteReaderAsync();
-                        if (!reader.HasRows)
-                        {
-                            sb.AppendLine("(Nenhum registro ainda. Os horários são gravados ao salvar em Parceiro > Meu Perfil > Horários de Funcionamento.)");
-                        }
-                        else
-                        {
-                            sb.AppendLine("Amostra (Id | CoworkingId | DayOfWeek | OpeningTime | ClosingTime | IsActive | CreatedAt):");
-                            while (await reader.ReadAsync())
-                            {
-                                var id = reader.GetInt32(0);
-                                var cid = reader.GetInt32(1);
-                                var day = reader.GetString(2);
-                                var op = reader.IsDBNull(3) ? "NULL" : reader.GetFieldValue<TimeSpan>(3).ToString(@"hh\:mm");
-                                var cl = reader.IsDBNull(4) ? "NULL" : reader.GetFieldValue<TimeSpan>(4).ToString(@"hh\:mm");
-                                var act = reader.GetBoolean(5);
-                                var ca = reader.GetDateTime(6).ToString("yyyy-MM-dd HH:mm");
-                                sb.AppendLine($"  {id} | {cid} | {day} | {op} | {cl} | {act} | {ca}");
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    if (!wasOpen) await connection.CloseAsync();
-                }
-                TempData[TempDataKeys.VerifyOperatingHoursResult] = sb.ToString();
+                var result = await _adminDbService.GetVerifyCoworkingOperatingHoursResultAsync(cancellationToken);
+                TempData[TempDataKeys.VerifyOperatingHoursResult] = result;
             }
             catch (Exception ex)
             {
@@ -1741,46 +1653,15 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
-                var wasOpen = connection.State == System.Data.ConnectionState.Open;
-                if (!wasOpen) await connection.OpenAsync();
-                var tableExists = false;
-                try
-                {
-                    await using var checkCmd = connection.CreateCommand();
-                    checkCmd.CommandText = @"
-                        SELECT COUNT(*) FROM information_schema.tables 
-                        WHERE table_schema = DATABASE() AND table_name = 'CoworkingOperatingHours'";
-                    tableExists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                }
-                catch { tableExists = false; }
-                finally { if (!wasOpen) await connection.CloseAsync(); }
-                if (tableExists)
-                {
+                var created = await _adminDbService.CreateCoworkingOperatingHoursTableIfNotExistsAsync(cancellationToken);
+                if (created)
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableCoworkingOperatingHoursCreated;
+                else
                     TempData[TempDataKeys.Info] = InfoMessages.TableCoworkingOperatingHoursAlreadyExists;
-                    return RedirectToAction(ActionNames.DatabaseManager);
-                }
-                var createSql = @"
-                    CREATE TABLE IF NOT EXISTS CoworkingOperatingHours (
-                        Id INT AUTO_INCREMENT PRIMARY KEY,
-                        CoworkingId INT NOT NULL,
-                        DayOfWeek VARCHAR(20) NOT NULL CHARACTER SET utf8mb4,
-                        OpeningTime TIME(6) NULL,
-                        ClosingTime TIME(6) NULL,
-                        IsActive TINYINT(1) NOT NULL,
-                        CreatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UpdatedAt DATETIME(6) NULL,
-                        CONSTRAINT FK_CoworkingOperatingHours_Coworkings_CoworkingId 
-                            FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
-                        UNIQUE KEY IX_CoworkingOperatingHours_CoworkingId_DayOfWeek (CoworkingId, DayOfWeek)
-                    ) CHARACTER SET utf8mb4";
-                await _context.Database.ExecuteSqlRawAsync(createSql);
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableCoworkingOperatingHoursCreated;
             }
             catch (Exception ex)
             {
-                var msg = ex.Message;
-                if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
+                var msg = ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : "");
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorCreatingCoworkingOperatingHours(msg);
             }
             return RedirectToAction(ActionNames.DatabaseManager);
@@ -1791,7 +1672,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 var wasOpen = connection.State == System.Data.ConnectionState.Open;
                 if (!wasOpen) await connection.OpenAsync();
                 var columnExists = false;
@@ -1811,7 +1692,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.DatabaseManager);
                 }
                 const string alterSql = @"ALTER TABLE Documents ADD COLUMN D4SignDocumentUuid VARCHAR(64) NULL CHARACTER SET utf8mb4;";
-                await _context.Database.ExecuteSqlRawAsync(alterSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(alterSql);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ColumnD4SignDocumentUuidCreated;
             }
             catch (Exception ex)
@@ -1828,7 +1709,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
                 var tablesToClear = new[]
                 {
                     "PaymentHistories",
@@ -1843,7 +1724,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 };
                 var clearedTables = new List<string>();
                 var errors = new List<string>();
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 var wasOpen = connection.State == System.Data.ConnectionState.Open;
                 if (!wasOpen) await connection.OpenAsync();
                 try
@@ -1878,7 +1759,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 finally
                 {
-                    await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
                     if (!wasOpen) await connection.CloseAsync();
                 }
                 if (errors.Any())
@@ -1914,7 +1795,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 var wasOpen = connection.State == System.Data.ConnectionState.Open;
                 if (!wasOpen) await connection.OpenAsync();
                 var columnExists = false;
@@ -1934,7 +1815,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.DatabaseManager);
                 }
                 const string alterSql = @"ALTER TABLE Users ADD COLUMN MustChangePassword tinyint(1) NOT NULL DEFAULT 0;";
-                await _context.Database.ExecuteSqlRawAsync(alterSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(alterSql);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ColumnMustChangePasswordCreated;
             }
             catch (Exception ex)
@@ -1979,7 +1860,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 try
                 {
-                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(sql);
                     created.Add(name);
                 }
                 catch (Exception ex)
@@ -2017,13 +1898,13 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 try
                 {
-                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(sql);
                     added.Add($"{table}.{column}");
                 }
                 catch (Exception ex) when (ex.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true) { }
             }
-            try { await _context.Database.ExecuteSqlRawAsync("CREATE INDEX IX_Transfers_ReservationId ON Transfers (ReservationId)"); added.Add("IX_Transfers_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
-            try { await _context.Database.ExecuteSqlRawAsync("ALTER TABLE Transfers ADD CONSTRAINT FK_Transfers_Reservations_ReservationId FOREIGN KEY (ReservationId) REFERENCES Reservations(Id) ON DELETE SET NULL"); added.Add("FK_Transfers_Reservations_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
+            try { await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("CREATE INDEX IX_Transfers_ReservationId ON Transfers (ReservationId)"); added.Add("IX_Transfers_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
+            try { await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("ALTER TABLE Transfers ADD CONSTRAINT FK_Transfers_Reservations_ReservationId FOREIGN KEY (ReservationId) REFERENCES Reservations(Id) ON DELETE SET NULL"); added.Add("FK_Transfers_Reservations_ReservationId"); } catch (Exception ex) when (ex.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) == true) { }
             if (added.Count > 0)
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ColumnsIndexFkAdded(string.Join(", ", added));
             else
@@ -2050,7 +1931,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 try
                 {
-                    await _context.Database.ExecuteSqlRawAsync(sql);
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(sql);
                     added.Add($"{table}.{column}");
                 }
                 catch (Exception ex) when (ex.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true || ex.InnerException?.Message?.Contains("Duplicate column name", StringComparison.OrdinalIgnoreCase) == true) { }
@@ -2067,7 +1948,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 bool tableExists = false;
                 try
@@ -2111,7 +1992,7 @@ CREATE TABLE IF NOT EXISTS Interests (
     FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE,
     FOREIGN KEY (ContactedByUserId) REFERENCES Users(Id) ON DELETE SET NULL
 );";
-                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(createTableSql);
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableInterestsCreated;
             }
@@ -2132,7 +2013,7 @@ CREATE TABLE IF NOT EXISTS Interests (
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 bool tableExists = false;
                 try
@@ -2167,7 +2048,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
     FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
     UNIQUE KEY UK_CoworkingProduct (CoworkingId, ProductType)
 );";
-                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(createTableSql);
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableCoworkingProductsCreated;
             }
@@ -2189,7 +2070,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             try
             {
                 HttpContext.Items["SkipAudit"] = true;
-                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
                 var tablesToClear = new[]
                 {
                     "AuditLogs",
@@ -2232,16 +2113,16 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 };
                 var clearedTables = new List<string>();
                 var errors = new List<string>();
-                var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com");
+                var adminUser = await _adminDbService.GetContext().Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com");
                 var adminUserRolePairs = new List<(int UserId, int RoleId)>();
                 if (adminUser != null)
                 {
-                    var adminRoles = await _context.UserRoles
+                    var adminRoles = await _adminDbService.GetContext().UserRoles
                         .Where(ur => ur.UserId == adminUser.Id)
                         .ToListAsync();
                     adminUserRolePairs = adminRoles.Select(ur => (ur.UserId, ur.RoleId)).ToList();
                 }
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 foreach (var tableName in tablesToClear)
                 {
@@ -2295,7 +2176,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     try
                     {
 #pragma warning disable EF1002
-                        await _context.Database.ExecuteSqlRawAsync(
+                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(
                             $"DELETE FROM UserRoles WHERE NOT ({roleConditions});");
 #pragma warning restore EF1002
                     }
@@ -2306,7 +2187,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     try
                     {
 #pragma warning disable EF1002
-                        await _context.Database.ExecuteSqlRawAsync(
+                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(
                             $"DELETE FROM Users WHERE Id != {adminUser.Id};");
 #pragma warning restore EF1002
                     }
@@ -2319,8 +2200,8 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 {
                     try
                     {
-                        await _context.Database.ExecuteSqlRawAsync("DELETE FROM UserRoles;");
-                        await _context.Database.ExecuteSqlRawAsync("DELETE FROM Users;");
+                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("DELETE FROM UserRoles;");
+                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("DELETE FROM Users;");
                     }
                     catch (Exception ex)
                     {
@@ -2363,8 +2244,8 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 {
                     if (!wasConnectionOpen) await connection.CloseAsync();
                 }
-                await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
-                var seedService = new Application.Services.SeedService(_context);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+                var seedService = new Application.Services.SeedService(_adminDbService.GetContext());
                 await seedService.SeedInitialDataAsync();
                 var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas. " +
                     $"Dados essenciais preservados: Users (admin), UserRoles (admin), SefazConfigurations, __EFMigrationsHistory. " +
@@ -2379,7 +2260,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             {
                 try
                 {
-                    await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
+                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
                 }
                 catch { }
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorClearingDatabase(ex.Message);
@@ -2418,7 +2299,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             }
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 using var command = connection.CreateCommand();
                 command.CommandText = sqlQuery;
@@ -2490,7 +2371,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 bool tableExists = false;
                 try
@@ -2526,7 +2407,7 @@ CREATE TABLE IF NOT EXISTS CoworkingRatings (
     FOREIGN KEY (CoworkingId) REFERENCES Coworkings(Id) ON DELETE CASCADE,
     FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE SET NULL
 );";
-                await _context.Database.ExecuteSqlRawAsync(createTableSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(createTableSql);
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.TableCoworkingRatingsCreated;
             }
@@ -2547,7 +2428,7 @@ CREATE TABLE IF NOT EXISTS CoworkingRatings (
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 var createTablesSql = @"
 CREATE TABLE IF NOT EXISTS ClientCredits (
@@ -2607,7 +2488,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
     FOREIGN KEY (ClientId) REFERENCES Clients(Id) ON DELETE CASCADE,
     FOREIGN KEY (CoworkingAddressId) REFERENCES CoworkingAddresses(Id) ON DELETE CASCADE
 );";
-                await _context.Database.ExecuteSqlRawAsync(createTablesSql);
+                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(createTablesSql);
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CreditTablesCreated;
             }
@@ -2628,7 +2509,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var existingPlans = await _context.CreditPlans.AnyAsync();
+                var existingPlans = await _adminDbService.GetContext().CreditPlans.AnyAsync();
                 if (existingPlans)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.CreditPlansAlreadyInitialized;
@@ -2667,8 +2548,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         IsActive = true
                     }
                 };
-                _context.CreditPlans.AddRange(plans);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().CreditPlans.AddRange(plans);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CreditPlansInitialized;
             }
             catch (Exception ex)
@@ -2682,7 +2563,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 var columns = new[]
                 {
@@ -2735,7 +2616,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var connection = _context.Database.GetDbConnection();
+                var connection = _adminDbService.GetContext().Database.GetDbConnection();
                 await connection.OpenAsync();
                 var columns = new[]
                 {
@@ -2791,19 +2672,19 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidPercentageFormat;
                     return RedirectToAction(ActionNames.ViewCoworking, new { id = CoworkingId });
                 }
-                var coworking = await _context.Coworkings.FindAsync(CoworkingId);
+                var coworking = await _adminDbService.GetContext().Coworkings.FindAsync(CoworkingId);
                 if (coworking == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.CoworkingNotFound;
                     return RedirectToAction(ActionNames.Coworkings);
                 }
-                var service = await _context.Services.FindAsync(ServiceId);
+                var service = await _adminDbService.GetContext().Services.FindAsync(ServiceId);
                 if (service == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ServiceNotFound;
                     return RedirectToAction(ActionNames.ViewCoworking, new { id = CoworkingId });
                 }
-                var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
@@ -2818,7 +2699,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 if (Id > 0)
                 {
-                    var existing = await _context.PartnerServices.FindAsync(Id);
+                    var existing = await _adminDbService.GetContext().PartnerServices.FindAsync(Id);
                     if (existing == null || existing.CoworkingId != CoworkingId)
                     {
                         TempData[ErrorMessages.TempDataKey] = ErrorMessages.PartnerServiceNotFound;
@@ -2830,7 +2711,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 else
                 {
-                    var existing = await _context.PartnerServices
+                    var existing = await _adminDbService.GetContext().PartnerServices
                         .FirstOrDefaultAsync(ps => ps.CoworkingId == CoworkingId && ps.ServiceId == ServiceId);
                     if (existing != null)
                     {
@@ -2844,9 +2725,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         Percentage = percentage,
                         CreatedAt = DateTimeHelper.GetBrazilianTime()
                     };
-                    _context.PartnerServices.Add(partnerService);
+                    _adminDbService.GetContext().PartnerServices.Add(partnerService);
                 }
-                await _context.SaveChangesAsync();
+                await _adminDbService.GetContext().SaveChangesAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ServiceSaved;
             }
             catch (Exception ex)
@@ -2861,14 +2742,14 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var partnerService = await _context.PartnerServices.FindAsync(id);
+                var partnerService = await _adminDbService.GetContext().PartnerServices.FindAsync(id);
                 if (partnerService == null || partnerService.CoworkingId != coworkingId)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.PartnerServiceNotFound;
                     return RedirectToAction(ActionNames.ViewCoworking, new { id = coworkingId });
                 }
-                _context.PartnerServices.Remove(partnerService);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().PartnerServices.Remove(partnerService);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ServiceRemoved;
             }
             catch (Exception ex)
@@ -2881,7 +2762,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public async Task<IActionResult> ServiceRemovalRequests(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
-            var query = _context.PartnerServices
+            var query = _adminDbService.GetContext().PartnerServices
                 .Include(ps => ps.Coworking)
                     .ThenInclude(c => c.User)
                 .Include(ps => ps.Service)
@@ -2907,7 +2788,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var partnerService = await _context.PartnerServices
+                var partnerService = await _adminDbService.GetContext().PartnerServices
                     .Include(ps => ps.Service)
                     .Include(ps => ps.Coworking)
                     .FirstOrDefaultAsync(ps => ps.Id == partnerServiceId);
@@ -2923,8 +2804,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 var serviceName = partnerService.Service.Name;
                 var coworkingName = partnerService.Coworking.Name;
-                _context.PartnerServices.Remove(partnerService);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().PartnerServices.Remove(partnerService);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 await _auditService.LogActionAsync(userId, "ServiceRemovalApproved", "PartnerService", partnerServiceId,
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}",
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Approved\",\"Removed\":true}}");
@@ -2943,7 +2824,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var partnerService = await _context.PartnerServices
+                var partnerService = await _adminDbService.GetContext().PartnerServices
                     .Include(ps => ps.Service)
                     .Include(ps => ps.Coworking)
                     .FirstOrDefaultAsync(ps => ps.Id == partnerServiceId);
@@ -2969,7 +2850,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 partnerService.RemovalReviewedBy = userId;
                 partnerService.RemovalRejectionReason = rejectionReason.Trim();
                 partnerService.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                await _context.SaveChangesAsync();
+                await _adminDbService.GetContext().SaveChangesAsync();
                 await _auditService.LogActionAsync(userId, "ServiceRemovalRejected", "PartnerService", partnerServiceId,
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Pending\"}}",
                     $"{{\"ServiceName\":\"{serviceName}\",\"Status\":\"Rejected\",\"Reason\":\"{rejectionReason}\"}}");
@@ -2992,7 +2873,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             };
             ViewBag.SupportedStates = new List<string> { "ES" };
             var selectedState = state ?? "ES";
-            var config = await _context.SefazConfigurations
+            var config = await _adminDbService.GetContext().SefazConfigurations
                 .Where(c => c.State == selectedState)
                 .OrderByDescending(c => c.CreatedAt)
                 .FirstOrDefaultAsync();
@@ -3010,7 +2891,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             ViewBag.SelectedState = selectedState;
             ViewBag.IsStateSupported = _sefazService.IsStateSupported(selectedState);
-            var lastExecutions = await _context.FiscalNoteScriptExecutions
+            var lastExecutions = await _adminDbService.GetContext().FiscalNoteScriptExecutions
                 .OrderByDescending(e => e.ExecutedAt)
                 .Take(10)
                 .ToListAsync();
@@ -3033,7 +2914,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 if (config.Id > 0)
                 {
-                    var existing = await _context.SefazConfigurations.FindAsync(config.Id);
+                    var existing = await _adminDbService.GetContext().SefazConfigurations.FindAsync(config.Id);
                     if (existing != null)
                     {
                         existing.State = config.State;
@@ -3065,9 +2946,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 else
                 {
                     config.CreatedAt = DateTimeHelper.GetBrazilianTime();
-                    _context.SefazConfigurations.Add(config);
+                    _adminDbService.GetContext().SefazConfigurations.Add(config);
                 }
-                await _context.SaveChangesAsync();
+                await _adminDbService.GetContext().SaveChangesAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.SefazEsConfigSaved;
             }
             catch (Exception ex)
@@ -3090,26 +2971,26 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 int unsupportedStates = 0;
                 var errorMessages = new List<string>();
                 var unsupportedStateMessages = new List<string>();
-                await using var transaction = await _context.Database.BeginTransactionAsync();
+                await using var transaction = await _adminDbService.GetContext().Database.BeginTransactionAsync();
                 try
                 {
                     if (noteType == "Intermediacao")
                     {
-                        var reservations = await _context.Reservations
+                        var reservations = await _adminDbService.GetContext().Reservations
                             .Include(r => r.Client)
                             .Include(r => r.CoworkingAddress)
                                 .ThenInclude(a => a.Coworking)
                             .Where(r => r.Status == ReservationStatus.Completed &&
                                        r.ReservationDate >= startDate &&
                                        r.ReservationDate <= endDate &&
-                                       !_context.FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
+                                       !_adminDbService.GetContext().FiscalNotes.Any(fn => fn.ReservationId == r.Id && fn.Type == "Intermediacao"))
                             .ToListAsync();
                         foreach (var reservation in reservations)
                         {
                             try
                             {
                                 var idempotencyKey = $"INTERMEDIACAO-R-{reservation.Id}";
-                                if (await _context.FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
+                                if (await _adminDbService.GetContext().FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
                                     continue;
                                 var coworkingState = reservation.CoworkingAddress?.State?.Trim().ToUpper();
                                 if (string.IsNullOrWhiteSpace(coworkingState))
@@ -3131,10 +3012,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     errorMessages.Add($"Reserva #{reservation.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
                                     continue;
                                 }
-                                var partnerService = await _context.PartnerServices
+                                var partnerService = await _adminDbService.GetContext().PartnerServices
                                     .Include(ps => ps.Service)
                                     .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress!.CoworkingId && ps.Service!.Name.Contains("Reservar Sala"))
-                                    ?? await _context.PartnerServices
+                                    ?? await _adminDbService.GetContext().PartnerServices
                                         .Include(ps => ps.Service)
                                         .FirstOrDefaultAsync(ps => ps.CoworkingId == reservation.CoworkingAddress!.CoworkingId);
                                 if (partnerService == null)
@@ -3144,7 +3025,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     continue;
                                 }
                                 var commissionAmount = Math.Round(reservation.TotalValue * (partnerService.Percentage / 100m), 2, MidpointRounding.AwayFromZero);
-                                var payment = await _context.Payments
+                                var payment = await _adminDbService.GetContext().Payments
                                     .FirstOrDefaultAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Paid);
                                 var fiscalNote = new FiscalNote
                                 {
@@ -3161,7 +3042,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     Status = FiscalNoteStatus.Pendente,
                                     CreatedAt = executedAt
                                 };
-                                _context.FiscalNotes.Add(fiscalNote);
+                                _adminDbService.GetContext().FiscalNotes.Add(fiscalNote);
                                 notesCreated++;
                             }
                             catch (DbUpdateException ex) when (IsDuplicateIdempotencyKeyException(ex))
@@ -3173,21 +3054,21 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                 errorMessages.Add($"Reserva #{reservation.Id}: {ex.Message}");
                             }
                         }
-                        var contracts = await _context.Contracts
+                        var contracts = await _adminDbService.GetContext().Contracts
                             .Include(c => c.Client)
                             .Include(c => c.CoworkingAddress)
                                 .ThenInclude(a => a.Coworking)
                             .Where(c => c.Status == ContractStatus.Active &&
                                        c.StartDate >= startDate &&
                                        c.StartDate <= endDate &&
-                                       !_context.FiscalNotes.Any(fn => fn.ContractId == c.Id && fn.Type == "Intermediacao"))
+                                       !_adminDbService.GetContext().FiscalNotes.Any(fn => fn.ContractId == c.Id && fn.Type == "Intermediacao"))
                             .ToListAsync();
                         foreach (var contract in contracts)
                         {
                             try
                             {
                                 var idempotencyKey = $"INTERMEDIACAO-C-{contract.Id}";
-                                if (await _context.FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
+                                if (await _adminDbService.GetContext().FiscalNotes.AnyAsync(fn => fn.IdempotencyKey == idempotencyKey))
                                     continue;
                                 var coworkingState = contract.CoworkingAddress?.State?.Trim().ToUpper();
                                 if (string.IsNullOrWhiteSpace(coworkingState))
@@ -3209,10 +3090,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     errorMessages.Add($"Contrato #{contract.Id}: Configuração SEFAZ não encontrada para o estado {coworkingState}. Configure na tela de parametrização.");
                                     continue;
                                 }
-                                var partnerService = await _context.PartnerServices
+                                var partnerService = await _adminDbService.GetContext().PartnerServices
                                     .Include(ps => ps.Service)
                                     .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress!.CoworkingId && ps.Service!.Name.Contains("Endereço Fiscal"))
-                                    ?? await _context.PartnerServices
+                                    ?? await _adminDbService.GetContext().PartnerServices
                                         .Include(ps => ps.Service)
                                         .FirstOrDefaultAsync(ps => ps.CoworkingId == contract.CoworkingAddress!.CoworkingId);
                                 if (partnerService == null)
@@ -3236,7 +3117,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                     Status = FiscalNoteStatus.Pendente,
                                     CreatedAt = executedAt
                                 };
-                                _context.FiscalNotes.Add(fiscalNote);
+                                _adminDbService.GetContext().FiscalNotes.Add(fiscalNote);
                                 notesCreated++;
                             }
                             catch (DbUpdateException ex) when (IsDuplicateIdempotencyKeyException(ex))
@@ -3255,8 +3136,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         await transaction.RollbackAsync();
                         return RedirectToAction(ActionNames.SefazConfiguration);
                     }
-                    await _context.SaveChangesAsync();
-                    var pendingNotes = await _context.FiscalNotes
+                    await _adminDbService.GetContext().SaveChangesAsync();
+                    var pendingNotes = await _adminDbService.GetContext().FiscalNotes
                         .Include(fn => fn.Coworking)
                             .ThenInclude(c => c.Addresses)
                         .Where(fn => fn.Status == FiscalNoteStatus.Pendente && fn.Type == "Intermediacao")
@@ -3270,14 +3151,14 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             string? coworkingState = null;
                             if (note.ReservationId.HasValue)
                             {
-                                var reservation = await _context.Reservations
+                                var reservation = await _adminDbService.GetContext().Reservations
                                     .Include(r => r.CoworkingAddress)
                                     .FirstOrDefaultAsync(r => r.Id == note.ReservationId);
                                 coworkingState = reservation?.CoworkingAddress?.State?.Trim().ToUpper();
                             }
                             else if (note.ContractId.HasValue)
                             {
-                                var contract = await _context.Contracts
+                                var contract = await _adminDbService.GetContext().Contracts
                                     .Include(c => c.CoworkingAddress)
                                     .FirstOrDefaultAsync(c => c.Id == note.ContractId);
                                 coworkingState = contract?.CoworkingAddress?.State?.Trim().ToUpper();
@@ -3296,7 +3177,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                                 continue;
                             }
                             var emittedNote = await _sefazService.IssueIntermediationNoteAsync(note, config);
-                            _context.FiscalNotes.Update(emittedNote);
+                            _adminDbService.GetContext().FiscalNotes.Update(emittedNote);
                             emittedCount++;
                         }
                         catch (NotSupportedException ex)
@@ -3306,7 +3187,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             note.Status = FiscalNoteStatus.Erro;
                             note.ErrorMessage = ex.Message;
                             note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                            _context.FiscalNotes.Update(note);
+                            _adminDbService.GetContext().FiscalNotes.Update(note);
                         }
                         catch (Exception ex)
                         {
@@ -3315,10 +3196,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                             note.Status = FiscalNoteStatus.Erro;
                             note.ErrorMessage = ex.Message;
                             note.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                            _context.FiscalNotes.Update(note);
+                            _adminDbService.GetContext().FiscalNotes.Update(note);
                         }
                     }
-                    await _context.SaveChangesAsync();
+                    await _adminDbService.GetContext().SaveChangesAsync();
                     var log = new FiscalNoteScriptExecution
                     {
                         ExecutedAt = executedAt,
@@ -3333,8 +3214,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         UnsupportedStatesCount = unsupportedStates,
                         ErrorDetails = errorMessages.Count > 0 ? string.Join("; ", errorMessages.Take(20)) : null
                     };
-                    _context.FiscalNoteScriptExecutions.Add(log);
-                    await _context.SaveChangesAsync();
+                    _adminDbService.GetContext().FiscalNoteScriptExecutions.Add(log);
+                    await _adminDbService.GetContext().SaveChangesAsync();
                     await transaction.CommitAsync();
                     var message = $"Script executado com sucesso! {notesCreated} nota(s) fiscal(is) criada(s), {emittedCount} emitida(s) na SEFAZ.";
                     if (unsupportedStates > 0)
@@ -3367,7 +3248,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
-            var query = _context.FiscalNotes
+            var query = _adminDbService.GetContext().FiscalNotes
                 .Include(fn => fn.Client)
                     .ThenInclude(c => c.User)
                 .Include(fn => fn.Coworking)
@@ -3413,7 +3294,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             pageSize = FixedPageSize;
             try
             {
-                var query = _context.FiscalNotes
+                var query = _adminDbService.GetContext().FiscalNotes
                     .Include(fn => fn.Payment)
                     .Include(fn => fn.Client).ThenInclude(c => c.User)
                     .Include(fn => fn.Coworking)
@@ -3436,13 +3317,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 ViewBag.TotalPages = totalPages;
                 ViewBag.TotalItems = totalItems;
                 ViewBag.PageSize = pageSize;
-                ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+                ViewBag.Coworkings = await _adminDbService.GetContext().Coworkings.OrderBy(c => c.Name).ToListAsync();
                 return View(list);
             }
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("carregar notas fiscais importadas", ex.Message);
-                ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+                ViewBag.Coworkings = await _adminDbService.GetContext().Coworkings.OrderBy(c => c.Name).ToListAsync();
                 return View(new List<KlyonHubPlatform.Domain.Entities.FiscalNote>());
             }
         }
@@ -3450,7 +3331,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApproveImportedFiscalNote(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
-            var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
+            var fn = await _adminDbService.GetContext().FiscalNotes.FindAsync(fiscalNoteId);
             if (fn == null || fn.Type != "Servico" || fn.Status != FiscalNoteStatus.Importada)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ImportedInvoiceNotFoundOrProcessed;
@@ -3458,7 +3339,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             fn.Status = FiscalNoteStatus.Emitida;
             fn.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _adminDbService.GetContext().SaveChangesAsync();
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.ImportedInvoiceApproved;
             return RedirectToAction(ActionNames.ImportedFiscalNotes);
         }
@@ -3471,7 +3352,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.InformRejectionReason;
                 return RedirectToAction(ActionNames.ImportedFiscalNotes);
             }
-            var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
+            var fn = await _adminDbService.GetContext().FiscalNotes.FindAsync(fiscalNoteId);
             if (fn == null || fn.Type != "Servico" || fn.Status != FiscalNoteStatus.Importada)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ImportedInvoiceNotFoundOrProcessed;
@@ -3480,14 +3361,14 @@ CREATE TABLE IF NOT EXISTS Reservations (
             fn.Status = FiscalNoteStatus.Rejeitada;
             fn.ErrorMessage = rejectionReason;
             fn.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _adminDbService.GetContext().SaveChangesAsync();
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.ImportedInvoiceRejected;
             return RedirectToAction(ActionNames.ImportedFiscalNotes);
         }
         [HttpGet]
         public async Task<IActionResult> DownloadFiscalNotePdf(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
-            var fn = await _context.FiscalNotes.FindAsync(fiscalNoteId);
+            var fn = await _adminDbService.GetContext().FiscalNotes.FindAsync(fiscalNoteId);
             if (fn == null || string.IsNullOrEmpty(fn.PdfUrl))
             {
                 return NotFound();
@@ -3506,7 +3387,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> GetFiscalNoteDetails(int fiscalNoteId, CancellationToken cancellationToken = default)
         {
-            var fn = await _context.FiscalNotes
+            var fn = await _adminDbService.GetContext().FiscalNotes
                 .Include(f => f.Payment)
                     .ThenInclude(p => p!.Subscription)
                         .ThenInclude(s => s!.Contract)
@@ -3528,7 +3409,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             var paymentCommissions = new List<Commission>();
             if (fn.PaymentId.HasValue)
             {
-                paymentCommissions = await _context.Commissions
+                paymentCommissions = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Coworking)
                     .Where(c => c.PaymentId == fn.PaymentId.Value)
                     .ToListAsync();
@@ -3538,19 +3419,19 @@ CREATE TABLE IF NOT EXISTS Reservations (
             var coworkingTransfers = new List<Transfer>();
             if (fn.CoworkingId.HasValue)
             {
-                coworkingTransfers = await _context.Transfers
+                coworkingTransfers = await _adminDbService.GetContext().Transfers
                     .Where(t => t.CoworkingId == fn.CoworkingId.Value)
                     .OrderByDescending(t => t.CreatedAt)
                     .ToListAsync();
                 transfers = _mapper.Map<List<TransferListItemDto>>(coworkingTransfers);
             }
             var history = new List<object>();
-            var auditLogs = await _context.AuditLogs
+            var auditLogs = await _adminDbService.GetContext().AuditLogs
                 .Where(a => a.EntityType == "FiscalNote" && a.EntityId == fiscalNoteId)
                 .OrderByDescending(a => a.ActionDate)
                 .ToListAsync();
             var userIds = auditLogs.Where(a => a.UserId.HasValue).Select(a => a.UserId.Value).Distinct().ToList();
-            var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
+            var users = await _adminDbService.GetContext().Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
             history = auditLogs.Select(a => new
             {
                 action = a.Action,
@@ -3675,7 +3556,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public async Task<IActionResult> SearchClients(string term = "", int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
-            var query = _context.Clients
+            var query = _adminDbService.GetContext().Clients
                 .Include(c => c.User)
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(term))
@@ -3711,7 +3592,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             pageSize = FixedPageSize;
             if (page < 1) page = 1;
-            var query = _context.Commissions
+            var query = _adminDbService.GetContext().Commissions
                 .Include(c => c.Payment)
                     .ThenInclude(p => p.Subscription)
                         .ThenInclude(s => s.Contract)
@@ -3729,7 +3610,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .ThenInclude(p => p.Reservation)
                         .ThenInclude(r => r.Client)
                 .Include(c => c.Coworking)
-                .Where(c => !_context.FiscalNotes.Any(fn =>
+                .Where(c => !_adminDbService.GetContext().FiscalNotes.Any(fn =>
                     (fn.PaymentId == c.PaymentId && fn.Type == "Intermediacao") ||
                     (fn.CommissionAmount == c.Amount && fn.CoworkingId == c.CoworkingId && fn.Type == "Intermediacao")
                 ))
@@ -3760,10 +3641,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
-            ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
+            ViewBag.Coworkings = await _adminDbService.GetContext().Coworkings.OrderBy(c => c.Name).ToListAsync();
             if (clientId.HasValue)
             {
-                var selectedClient = await _context.Clients
+                var selectedClient = await _adminDbService.GetContext().Clients
                     .Include(c => c.User)
                     .FirstOrDefaultAsync(c => c.Id == clientId.Value);
                 ViewBag.SelectedClient = selectedClient;
@@ -3773,7 +3654,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> CommissionFiscalNoteDetail(int id, CancellationToken cancellationToken = default)
         {
-            var commission = await _context.Commissions
+            var commission = await _adminDbService.GetContext().Commissions
                 .Include(c => c.Payment)
                     .ThenInclude(p => p.Subscription)
                         .ThenInclude(s => s.Contract)
@@ -3878,7 +3759,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var commission = await _context.Commissions
+                var commission = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Subscription)
                             .ThenInclude(s => s.Contract)
@@ -3902,7 +3783,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.CommissionNotFound;
                     return RedirectToAction(ActionNames.CommissionFiscalNotes);
                 }
-                var existingNote = await _context.FiscalNotes
+                var existingNote = await _adminDbService.GetContext().FiscalNotes
                     .FirstOrDefaultAsync(fn =>
                         (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
                         (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao" && fn.Status == FiscalNoteStatus.Emitida)
@@ -3946,19 +3827,19 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     Status = FiscalNoteStatus.Pendente,
                     CreatedAt = DateTime.UtcNow
                 };
-                _context.FiscalNotes.Add(fiscalNote);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().FiscalNotes.Add(fiscalNote);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 try
                 {
                     var emittedNote = await _sefazService.IssueIntermediationNoteAsync(fiscalNote, sefazConfig);
-                    _context.FiscalNotes.Update(emittedNote);
-                    await _context.SaveChangesAsync();
+                    _adminDbService.GetContext().FiscalNotes.Update(emittedNote);
+                    await _adminDbService.GetContext().SaveChangesAsync();
                     TempData[SuccessMessage.TempDataKey] = SuccessMessage.CommissionInvoiceEmitted(emittedNote.AccessKey);
                 }
                 catch (Exception ex)
                 {
-                    _context.FiscalNotes.Update(fiscalNote);
-                    await _context.SaveChangesAsync();
+                    _adminDbService.GetContext().FiscalNotes.Update(fiscalNote);
+                    await _adminDbService.GetContext().SaveChangesAsync();
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("emitir NF", ex.Message);
                 }
                 return RedirectToAction(ActionNames.CommissionFiscalNotes);
@@ -3975,7 +3856,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var commission = await _context.Commissions
+                var commission = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Subscription)
                             .ThenInclude(s => s.Contract)
@@ -3997,7 +3878,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.CommissionNotFound;
                     return RedirectToAction(ActionNames.CommissionFiscalNotes);
                 }
-                var existingNote = await _context.FiscalNotes
+                var existingNote = await _adminDbService.GetContext().FiscalNotes
                     .FirstOrDefaultAsync(fn =>
                         (fn.PaymentId == commission.PaymentId && fn.Type == "Intermediacao") ||
                         (fn.CommissionAmount == commission.Amount && fn.CoworkingId == commission.CoworkingId && fn.Type == "Intermediacao")
@@ -4045,8 +3926,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     var xmlContent = System.Text.Encoding.UTF8.GetString(xmlBytes);
                     fiscalNote.XmlContent = xmlContent;
                 }
-                _context.FiscalNotes.Add(fiscalNote);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().FiscalNotes.Add(fiscalNote);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CommissionInvoiceImported;
                 return RedirectToAction(ActionNames.CommissionFiscalNotes);
             }
@@ -4066,7 +3947,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             DateTime? dateTo = null)
         {
             pageSize = FixedPageSize;
-            var query = _context.Transfers
+            var query = _adminDbService.GetContext().Transfers
                 .Include(t => t.Coworking)
                 .AsQueryable();
             if (coworkingId.HasValue)
@@ -4097,8 +3978,8 @@ CREATE TABLE IF NOT EXISTS Reservations (
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
-            ViewBag.Coworkings = await _context.Coworkings.OrderBy(c => c.Name).ToListAsync();
-            ViewBag.PendingCount = await _context.Transfers.CountAsync(t => t.Status == TransferStatus.Pending);
+            ViewBag.Coworkings = await _adminDbService.GetContext().Coworkings.OrderBy(c => c.Name).ToListAsync();
+            ViewBag.PendingCount = await _adminDbService.GetContext().Transfers.CountAsync(t => t.Status == TransferStatus.Pending);
             return View(transfers);
         }
         [HttpPost]
@@ -4107,7 +3988,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var transfer = await _context.Transfers.FindAsync(transferId);
+                var transfer = await _adminDbService.GetContext().Transfers.FindAsync(transferId);
                 if (transfer == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.PayoutRequestNotFound;
@@ -4136,7 +4017,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> TransferDetails(int id, CancellationToken cancellationToken = default)
         {
-            var transfer = await _context.Transfers
+            var transfer = await _adminDbService.GetContext().Transfers
                 .Include(t => t.Coworking)
                 .Include(t => t.Reservation)
                     .ThenInclude(r => r.Client)
@@ -4165,7 +4046,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             if (commissionIds.Count > 0)
             {
-                relatedCommissions = await _context.Commissions
+                relatedCommissions = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Subscription)
                             .ThenInclude(s => s.Contract)
@@ -4186,7 +4067,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             {
                 var transferDateStart = transfer.CreatedAt.AddHours(-1);
                 var transferDateEnd = transfer.CreatedAt.AddHours(1);
-                relatedCommissions = await _context.Commissions
+                relatedCommissions = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Subscription)
                             .ThenInclude(s => s.Contract)
@@ -4209,7 +4090,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             if (relatedCommissions.Count == 0 && transfer.ReservationId.HasValue)
             {
-                var reservationPayment = await _context.Payments
+                var reservationPayment = await _adminDbService.GetContext().Payments
                     .Include(p => p.Reservation)
                         .ThenInclude(r => r.Client)
                             .ThenInclude(c => c.User)
@@ -4218,7 +4099,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     .FirstOrDefaultAsync(p => p.ReservationId == transfer.ReservationId);
                 if (reservationPayment != null)
                 {
-                    var commission = await _context.Commissions
+                    var commission = await _adminDbService.GetContext().Commissions
                         .Include(c => c.Payment)
                             .ThenInclude(p => p.Reservation)
                                 .ThenInclude(r => r.Client)
@@ -4239,7 +4120,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> TransferSchedule(CancellationToken cancellationToken = default)
         {
-            var list = await _context.Transfers
+            var list = await _adminDbService.GetContext().Transfers
                 .Include(t => t.Coworking)
                 .Where(t => t.Status == TransferStatus.AwaitingInvoice)
                 .OrderBy(t => t.ScheduledDate)
@@ -4261,7 +4142,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> TransferDetailPartial(int id, CancellationToken cancellationToken = default)
         {
-            var transfer = await _context.Transfers
+            var transfer = await _adminDbService.GetContext().Transfers
                 .Include(t => t.Coworking)
                 .FirstOrDefaultAsync(t => t.Id == id);
             if (transfer == null)
@@ -4282,7 +4163,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             var relatedCommissions = new List<Commission>();
             if (commissionIds.Count > 0)
             {
-                relatedCommissions = await _context.Commissions
+                relatedCommissions = await _adminDbService.GetContext().Commissions
                     .Include(c => c.Payment)
                         .ThenInclude(p => p.Subscription)
                             .ThenInclude(s => s.Contract)
@@ -4303,13 +4184,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
         public async Task<IActionResult> QuickClientRegistration(CancellationToken cancellationToken = default)
         {
             var availableAddresses = await _coworkingService.GetAvailableAddressesAsync();
-            var addressesWithLocation = await _context.CoworkingAddresses
+            var addressesWithLocation = await _adminDbService.GetContext().CoworkingAddresses
                 .Include(a => a.Coworking)
                 .Include(a => a.Location)
                 .Where(a => availableAddresses.Select(addr => addr.Id).Contains(a.Id))
                 .ToListAsync();
             ViewBag.AvailableAddresses = addressesWithLocation;
-            ViewBag.Locations = await _context.Locations.Where(l => l.IsActive).ToListAsync();
+            ViewBag.Locations = await _adminDbService.GetContext().Locations.Where(l => l.IsActive).ToListAsync();
             return View();
         }
         [HttpPost]
@@ -4409,7 +4290,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> QuickClientRegistrationSuccess(int paymentId, CancellationToken cancellationToken = default)
         {
-            var payment = await _context.Payments
+            var payment = await _adminDbService.GetContext().Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s.Contract)
                         .ThenInclude(c => c.Client)
@@ -4443,13 +4324,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
         {
             try
             {
-                var coworking = await _context.Coworkings.FindAsync(coworkingId);
+                var coworking = await _adminDbService.GetContext().Coworkings.FindAsync(coworkingId);
                 if (coworking == null)
                     return Json(new { success = false, message = JsonMessage.CoworkingNaoEncontrado });
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
-                var inactiveServices = _context.Services.Where(ps => !ps.IsActive).Select(x => x.Name).ToList();
-                var partnerServicesQuery = _context.PartnerServices
+                var inactiveServices = _adminDbService.GetContext().Services.Where(ps => !ps.IsActive).Select(x => x.Name).ToList();
+                var partnerServicesQuery = _adminDbService.GetContext().PartnerServices
                     .Include(ps => ps.Service)
                     .Where(ps => ps.CoworkingId == coworkingId && ps.Service != null && ps.Service.IsActive);
                 if (!showCoworkingMenus)
@@ -4466,7 +4347,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         createdAt = ps.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)
                     })
                     .ToListAsync();
-                IQueryable<Service> servicesQuery = _context.Services.Where(s => s.IsActive && s.Category == CategoryService.Partner);
+                IQueryable<Service> servicesQuery = _adminDbService.GetContext().Services.Where(s => s.IsActive && s.Category == CategoryService.Partner);
                 if (!showCoworkingMenus)
                     servicesQuery = servicesQuery.Where(s => !inactiveServices.Contains(s.Name));
                 var existingServiceIds = partnerServices.Select(ps => ps.serviceId).ToList();
@@ -4501,13 +4382,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
             {
                 if (request == null)
                     return Json(new { success = false, message = JsonMessage.DadosInvalidos });
-                var coworking = await _context.Coworkings.FindAsync(request.CoworkingId);
+                var coworking = await _adminDbService.GetContext().Coworkings.FindAsync(request.CoworkingId);
                 if (coworking == null)
                     return Json(new { success = false, message = JsonMessage.CoworkingNaoEncontrado });
-                var service = await _context.Services.FindAsync(request.ServiceId);
+                var service = await _adminDbService.GetContext().Services.FindAsync(request.ServiceId);
                 if (service == null)
                     return Json(new { success = false, message = JsonMessage.ServicoNaoEncontrado });
-                var coworkingServiceNames = _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
@@ -4516,7 +4397,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     return Json(new { success = false, message = JsonMessage.PercentagemEntreZeroECem });
                 if (request.Id > 0)
                 {
-                    var existing = await _context.PartnerServices.FindAsync(request.Id);
+                    var existing = await _adminDbService.GetContext().PartnerServices.FindAsync(request.Id);
                     if (existing == null || existing.CoworkingId != request.CoworkingId)
                         return Json(new { success = false, message = JsonMessage.ServicoParceiroNaoEncontrado });
                     existing.ServiceId = request.ServiceId;
@@ -4525,7 +4406,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 else
                 {
-                    var existing = await _context.PartnerServices
+                    var existing = await _adminDbService.GetContext().PartnerServices
                         .FirstOrDefaultAsync(ps => ps.CoworkingId == request.CoworkingId && ps.ServiceId == request.ServiceId);
                     if (existing != null)
                         return Json(new { success = false, message = JsonMessage.ServicoJaCadastradoParaParceiro });
@@ -4536,9 +4417,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
                         Percentage = request.Percentage,
                         CreatedAt = DateTimeHelper.GetBrazilianTime()
                     };
-                    _context.PartnerServices.Add(partnerService);
+                    _adminDbService.GetContext().PartnerServices.Add(partnerService);
                 }
-                await _context.SaveChangesAsync();
+                await _adminDbService.GetContext().SaveChangesAsync();
                 return Json(new { success = true, message = JsonMessage.ServicoSalvoComSucesso });
             }
             catch (Exception ex)
@@ -4554,11 +4435,11 @@ CREATE TABLE IF NOT EXISTS Reservations (
             {
                 if (request == null)
                     return Json(new { success = false, message = JsonMessage.DadosInvalidos });
-                var partnerService = await _context.PartnerServices.FindAsync(request.Id);
+                var partnerService = await _adminDbService.GetContext().PartnerServices.FindAsync(request.Id);
                 if (partnerService == null)
                     return Json(new { success = false, message = JsonMessage.ServicoParceiroNaoEncontrado });
-                _context.PartnerServices.Remove(partnerService);
-                await _context.SaveChangesAsync();
+                _adminDbService.GetContext().PartnerServices.Remove(partnerService);
+                await _adminDbService.GetContext().SaveChangesAsync();
                 return Json(new { success = true, message = JsonMessage.ServicoRemovidoComSucesso });
             }
             catch (Exception ex)
@@ -4571,7 +4452,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
         [HttpGet]
         public async Task<IActionResult> InvoiceValidation(CancellationToken cancellationToken = default)
         {
-            var settlements = await _context.MonthlySettlements
+            var settlements = await _adminDbService.GetContext().MonthlySettlements
                 .Include(s => s.Coworking)
                 .Include(s => s.PartnerInvoices)
                 .OrderByDescending(s => s.ReferenceYear)

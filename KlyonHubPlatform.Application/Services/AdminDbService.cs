@@ -922,5 +922,12 @@ CREATE TABLE IF NOT EXISTS CreditPlans (
             }
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task ExecuteWithContextAsync(Func<ApplicationDbContext, Task> action, CancellationToken cancellationToken = default)
+        {
+            await action(_context);
+        }
+
+        public ApplicationDbContext GetContext() => _context;
     }
 }

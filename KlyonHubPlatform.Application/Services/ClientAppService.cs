@@ -392,6 +392,13 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.CoworkingAddresses.FirstOrDefaultAsync(a => a.Id == addressId, cancellationToken);
         }
 
+        public async Task<AddressDeclaration?> GetAddressDeclarationByIdAsync(int declarationId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AddressDeclarations
+                .Include(d => d.Contract)
+                .FirstOrDefaultAsync(d => d.Id == declarationId, cancellationToken);
+        }
+
         public async Task<List<AddressDeclaration>> GetAddressDeclarationsByContractIdAsync(int contractId, CancellationToken cancellationToken = default)
         {
             return await _context.AddressDeclarations
@@ -482,6 +489,17 @@ namespace KlyonHubPlatform.Application.Services
                 card.IsDefault = true;
                 await _context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        public async Task ClearDefaultCreditCardsAsync(int clientId, CancellationToken cancellationToken = default)
+        {
+            var defaultCards = await _context.CreditCards
+                .Where(c => c.ClientId == clientId && c.IsDefault)
+                .ToListAsync(cancellationToken);
+            foreach (var c in defaultCards)
+                c.IsDefault = false;
+            if (defaultCards.Count > 0)
+                await _context.SaveChangesAsync(cancellationToken);
         }
     }
 }

@@ -1,13 +1,21 @@
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Infra.Data.Context;
 
 namespace KlyonHubPlatform.Application.Interfaces
 {
     /// <summary>
     /// Serviço de aplicação para operações do Coworking que usam o DbContext.
     /// Centraliza todas as consultas e escritas que o CoworkingController fazia diretamente no ApplicationDbContext.
+    /// Para operações ainda não migradas para métodos específicos, o controller pode usar DbContext.
     /// </summary>
     public interface ICoworkingAppService
     {
+        /// <summary>
+        /// Expõe o DbContext para operações que ainda não possuem método dedicado no serviço.
+        /// Preferir usar os métodos específicos da interface quando existirem.
+        /// </summary>
+        ApplicationDbContext DbContext { get; }
+
         // Dashboard / Alerts
         Task<List<CoworkingDocument>> GetRejectedCoworkingDocumentsAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<int> GetPendingCoworkingDocumentsCountAsync(int coworkingId, CancellationToken cancellationToken = default);

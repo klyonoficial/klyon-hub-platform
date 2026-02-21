@@ -16,6 +16,8 @@ namespace KlyonHubPlatform.Application.Services
             _context = context;
         }
 
+        public ApplicationDbContext DbContext => _context;
+
         public async Task<List<CoworkingDocument>> GetRejectedCoworkingDocumentsAsync(int coworkingId, CancellationToken cancellationToken = default)
         {
             return await _context.CoworkingDocuments

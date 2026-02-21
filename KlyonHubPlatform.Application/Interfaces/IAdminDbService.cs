@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Domain.Entities;
 using System.Data.Common;
+using KlyonHubPlatform.Infra.Data.Context;
 
 namespace KlyonHubPlatform.Application.Interfaces
 {
@@ -68,5 +69,11 @@ namespace KlyonHubPlatform.Application.Interfaces
 
         /// <summary>Atualiza ou adiciona configurações de sistema (ex.: Asaas sandbox).</summary>
         Task UpdateOrAddSystemConfigurationsAsync(IEnumerable<(string Key, string Value, string Description, bool IsSensitive)> configs, string category, string? updatedBy, CancellationToken cancellationToken = default);
+
+        /// <summary>Executa uma ação com o DbContext. Use apenas para fluxos complexos que ainda não foram extraídos para métodos específicos.</summary>
+        Task ExecuteWithContextAsync(Func<ApplicationDbContext, Task> action, CancellationToken cancellationToken = default);
+
+        /// <summary>Retorna o DbContext do escopo atual. Preferir métodos específicos ou ExecuteWithContextAsync quando possível.</summary>
+        ApplicationDbContext GetContext();
     }
 }

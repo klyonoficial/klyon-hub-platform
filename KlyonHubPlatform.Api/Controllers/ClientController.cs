@@ -1545,11 +1545,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             if (payment.Method == PaymentMethod.CreditCard && client != null)
             {
-                var creditCards = await _context.CreditCards
-                    .Where(c => c.ClientId == client.Id && c.IsActive)
-                    .OrderByDescending(c => c.IsDefault)
-                    .ThenByDescending(c => c.CreatedAt)
-                    .ToListAsync();
+                var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(client.Id, cancellationToken);
                 ViewBag.CreditCards = creditCards;
             }
             string? creditCardPlanLabel = null;
@@ -1588,26 +1584,15 @@ namespace KlyonHubPlatform.Api.Controllers
             int.TryParse(Request.Query["historyPage"], out historyPage);
             if (historyPage < 1) historyPage = 1;
             int historyPageSize = 5;
-            var totalHistoryItems = await _context.PaymentHistories
-                .Where(h => h.PaymentId == payment.Id)
-                .CountAsync();
+            var totalHistoryItems = await _clientAppService.GetPaymentHistoryCountAsync(payment.Id, cancellationToken);
             var totalHistoryPages = (int)Math.Ceiling(totalHistoryItems / (double)historyPageSize);
             if (historyPage > totalHistoryPages && totalHistoryPages > 0) historyPage = totalHistoryPages;
-            var paymentHistory = await _context.PaymentHistories
-                .Include(h => h.ActionByUser)
-                .Where(h => h.PaymentId == payment.Id)
-                .OrderByDescending(h => h.ActionAt)
-                .Skip((historyPage - 1) * historyPageSize)
-                .Take(historyPageSize)
-                .ToListAsync();
+            var (paymentHistory, _) = await _clientAppService.GetPaymentHistoriesByPaymentIdAsync(payment.Id, historyPage, historyPageSize, cancellationToken);
             ViewBag.PaymentHistory = paymentHistory;
             ViewBag.HistoryCurrentPage = historyPage;
             ViewBag.HistoryTotalPages = totalHistoryPages;
             ViewBag.HistoryTotalItems = totalHistoryItems;
-            var receiptUploadedEntry = await _context.PaymentHistories
-                .Where(h => h.PaymentId == payment.Id && h.Action == PaymentHistoryActions.ReceiptUploaded)
-                .OrderByDescending(h => h.ActionAt)
-                .FirstOrDefaultAsync();
+            var receiptUploadedEntry = await _clientAppService.GetReceiptUploadedEntryAsync(payment.Id, cancellationToken);
             ViewBag.ReceiptUploadedAt = receiptUploadedEntry?.ActionAt;
             if (payment.Status == PaymentStatus.Cancelled && payment.Subscription?.Contract != null && !string.IsNullOrEmpty(payment.Subscription.Contract.CancellationReason))
             {
@@ -1634,9 +1619,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 bool isAuthorized = false;
                 if (payment.SubscriptionId.HasValue)
                 {
-                    var subscription = await _context.Subscriptions
-                        .Include(s => s.Contract)
-                        .FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value);
+                    var subscription = await _clientAppService.GetSubscriptionWithContractAsync(payment.SubscriptionId.Value, cancellationToken);
                     if (subscription?.Contract?.ClientId == client.Id)
                     {
                         isAuthorized = true;
@@ -1644,8 +1627,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (payment.ReservationId.HasValue)
                 {
-                    var reservation = await _context.Reservations
-                        .FirstOrDefaultAsync(r => r.Id == payment.ReservationId.Value);
+                    var reservation = await _clientAppService.GetReservationByIdAsync(payment.ReservationId.Value, cancellationToken);
                     if (reservation?.ClientId == client.Id)
                     {
                         isAuthorized = true;
@@ -1834,8 +1816,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     ActionBy = userId,
                     ActionAt = DateTimeHelper.GetBrazilianTime()
                 };
-                _context.PaymentHistories.Add(history);
-                await _context.SaveChangesAsync();
+                await _clientAppService.AddPaymentHistoryAsync(history, cancellationToken);
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
             catch (Exception ex)
@@ -1858,8 +1839,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return RedirectToAction(ActionNames.RegisterClient);
             }
-            var contract = await _context.Contracts
-                .FirstOrDefaultAsync(c => c.Id == payment.Subscription.ContractId);
+            var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
             if (contract == null || contract.ClientId != client.Id)
             {
                 if (!User.IsInRole(Administrator) && !User.IsInRole(RoleNames.CoworkingPartner))
@@ -1903,12 +1883,8 @@ namespace KlyonHubPlatform.Api.Controllers
             bool isAuthorized = false;
             if (payment.SubscriptionId.HasValue)
             {
-                var subscription = await _context.Subscriptions.FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value);
-                if (subscription != null)
-                {
-                    var contract = await _context.Contracts.FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                    if (contract != null && contract.ClientId == client.Id) isAuthorized = true;
-                }
+                var subscription = await _clientAppService.GetSubscriptionWithContractAsync(payment.SubscriptionId.Value, cancellationToken);
+                if (subscription?.Contract != null && subscription.Contract.ClientId == client.Id) isAuthorized = true;
             }
             else if (payment.ReservationId.HasValue)
             {
@@ -1980,13 +1956,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var setAsDefault = StringBooleanValue.IsTrue(isDefault);
                 if (setAsDefault)
                 {
-                    var defaultCards = await _context.CreditCards
-                        .Where(c => c.ClientId == client.Id && c.IsDefault)
-                        .ToListAsync();
-                    foreach (var card in defaultCards)
-                    {
-                        card.IsDefault = false;
-                    }
+                    await _clientAppService.ClearDefaultCreditCardsAsync(client.Id, cancellationToken);
                 }
                 var creditCard = new CreditCard
                 {
@@ -1999,8 +1969,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     IsDefault = setAsDefault,
                     IsActive = true
                 };
-                _context.CreditCards.Add(creditCard);
-                await _context.SaveChangesAsync();
+                await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardAdded;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
@@ -2012,7 +1981,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RemoveCreditCard(int paymentId, int cardId)
+        public async Task<IActionResult> RemoveCreditCard(int paymentId, int cardId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
@@ -2021,20 +1990,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
-            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == client.Id);
+            var card = await _clientAppService.GetCreditCardByIdAndClientIdAsync(cardId, client.Id, cancellationToken);
             if (card == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
-            _context.CreditCards.Remove(card);
-            await _context.SaveChangesAsync();
+            await _clientAppService.RemoveCreditCardAsync(cardId, client.Id, cancellationToken);
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardRemoved;
             return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SetDefaultCreditCard(int paymentId, int cardId)
+        public async Task<IActionResult> SetDefaultCreditCard(int paymentId, int cardId, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
@@ -2043,19 +2011,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
-            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == client.Id);
+            var card = await _clientAppService.GetCreditCardByIdAndClientIdAsync(cardId, client.Id, cancellationToken);
             if (card == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
-            var defaultCards = await _context.CreditCards
-                .Where(c => c.ClientId == client.Id && c.IsDefault)
-                .ToListAsync();
-            foreach (var c in defaultCards)
-                c.IsDefault = false;
-            card.IsDefault = true;
-            await _context.SaveChangesAsync();
+            await _clientAppService.SetDefaultCreditCardAsync(client.Id, cardId, cancellationToken);
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardSetAsDefault;
             return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
         }
@@ -2074,10 +2036,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, error = ErrorJson.ClientNotFound });
                 }
-                var payment = await _context.Payments
-                    .Include(p => p.Subscription)
-                        .ThenInclude(s => s.Contract)
-                    .FirstOrDefaultAsync(p => p.Id == request.PaymentId);
+                var payment = await _clientAppService.GetPaymentWithSubscriptionAndContractAsync(request.PaymentId, cancellationToken);
                 if (payment == null)
                 {
                     return Json(new { success = false, error = ErrorJson.PaymentNotFound });
@@ -2171,26 +2130,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFoundCompleteRegistration;
                 return RedirectToAction(ActionNames.RegisterClient);
             }
-            var allContracts = await _context.Contracts
-                .Include(c => c.CoworkingAddress)
-                    .ThenInclude(a => a.Coworking)
-                .Include(c => c.CoworkingAddress)
-                    .ThenInclude(a => a.Location)
-                .Where(c => c.ClientId == client.Id && c.Status == ContractStatus.Active)
-                .OrderByDescending(c => c.StartDate)
-                .ToListAsync();
-            var allDeclarations = await _context.AddressDeclarations
-                .Include(d => d.Contract)
-                .Where(d => allContracts.Select(c => c.Id).Contains(d.ContractId))
-                .ToListAsync();
+            var allContracts = await _clientAppService.GetActiveContractsWithAddressAndLocationAsync(client.Id, cancellationToken);
+            var contractIds = allContracts.Select(c => c.Id).ToList();
+            var allDeclarations = await _clientAppService.GetAddressDeclarationsByContractIdsWithContractAsync(contractIds, cancellationToken);
             var contractsDict = allContracts.ToDictionary(c => c.Id, c => c);
-            var contractsWithPaidPayments = await _context.Payments
-                .Include(p => p.Subscription)
-                .Where(p => allContracts.Select(c => c.Id).Contains(p.Subscription.ContractId) 
-                    && p.Status == PaymentStatus.Paid)
-                .Select(p => p.Subscription.ContractId)
-                .Distinct()
-                .ToListAsync();
+            var contractsWithPaidPayments = await _clientAppService.GetContractIdsWithPaidPaymentsAsync(contractIds, cancellationToken);
             ViewBag.ContractsWithPaidPayments = contractsWithPaidPayments;
             var filteredDeclarations = allDeclarations.AsQueryable();
             if (!string.IsNullOrEmpty(search))
@@ -2278,8 +2222,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
                     return RedirectToAction(ActionNames.Declarations);
                 }
-                var contract = await _context.Contracts
-                    .FirstOrDefaultAsync(c => c.Id == contractId && c.ClientId == client.Id);
+                var contract = await _clientAppService.GetContractByIdAndClientIdAsync(contractId, client.Id, cancellationToken);
                 if (contract == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ContractNotFoundOrNotYours;
@@ -2306,9 +2249,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Forbid();
                 }
-                var declaration = await _context.AddressDeclarations
-                    .Include(d => d.Contract)
-                    .FirstOrDefaultAsync(d => d.Id == declarationId);
+                var declaration = await _clientAppService.GetAddressDeclarationByIdAsync(declarationId, cancellationToken);
                 if (declaration == null || declaration.Contract.ClientId != client.Id)
                 {
                     return Forbid();
