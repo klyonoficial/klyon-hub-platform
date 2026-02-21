@@ -1,0 +1,133 @@
+@* Widget flutuante de chat - Endereço Fiscal (estilo Live Chat / Chatbox) *@
+<link rel="stylesheet" href="~/css/fiscal-address-chat-widget.css" asp-append-version="true" />
+
+<button type="button" id="fiscal-chat-toggle" aria-label="Abrir chat de endereço fiscal" title="Endereço fiscal - Tire suas dúvidas">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M4.804 21.644A6.707 6.707 0 0 1 2 18H1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1a6.707 6.707 0 0 1 2.804-3.644l1.392-1.392A6.707 6.707 0 0 1 8 8.5V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1.5a6.707 6.707 0 0 1 2.804 3.644l1.392 1.392A6.707 6.707 0 0 1 23 13v4a1 1 0 0 1-1 1h-1a6.707 6.707 0 0 1-2.804 3.644l-1.392 1.392A6.707 6.707 0 0 1 16 19.5V21a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1.5a6.707 6.707 0 0 1-2.804-3.644l-1.392-1.392z"/>
+    </svg>
+</button>
+
+<div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal">
+    <div class="fiscal-chat-header">
+        <div class="fiscal-chat-header-avatar" aria-hidden="true">📍</div>
+        <div class="fiscal-chat-header-text">
+            <div class="fiscal-chat-header-title">Endereço Fiscal</div>
+            <div class="fiscal-chat-header-sub">Klyon Coworking · Shopping Moxuara</div>
+        </div>
+        <div class="fiscal-chat-header-actions">
+            <button type="button" id="fiscal-chat-minimize" aria-label="Minimizar chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+            </button>
+            <button type="button" id="fiscal-chat-close" aria-label="Fechar chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+    <div class="fiscal-chat-messages" id="fiscal-chat-messages">
+        @* Mensagens inseridas via JS *@
+    </div>
+    <div class="fiscal-chat-input-wrap">
+        <textarea id="fiscal-chat-input" rows="1" placeholder="Digite sua mensagem..." maxlength="1000" aria-label="Mensagem"></textarea>
+        <button type="button" class="fiscal-chat-send" id="fiscal-chat-send" aria-label="Enviar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    var API_BASE = '/api/fiscal-address-chat';
+    var toggle = document.getElementById('fiscal-chat-toggle');
+    var windowEl = document.getElementById('fiscal-chat-window');
+    var messagesEl = document.getElementById('fiscal-chat-messages');
+    var inputEl = document.getElementById('fiscal-chat-input');
+    var sendBtn = document.getElementById('fiscal-chat-send');
+    var closeBtn = document.getElementById('fiscal-chat-close');
+    var minBtn = document.getElementById('fiscal-chat-minimize');
+    var initialLoaded = false;
+
+    function openWindow() {
+        windowEl.classList.add('is-open');
+        if (!initialLoaded) loadInitialMessage();
+        inputEl.focus();
+    }
+    function closeWindow() {
+        windowEl.classList.remove('is-open');
+    }
+    toggle.addEventListener('click', function() {
+        if (windowEl.classList.contains('is-open')) closeWindow();
+        else openWindow();
+    });
+    closeBtn.addEventListener('click', closeWindow);
+    minBtn.addEventListener('click', closeWindow);
+
+    function appendMessage(text, isUser) {
+        var div = document.createElement('div');
+        div.className = 'fiscal-chat-msg ' + (isUser ? 'user' : 'bot');
+        div.textContent = text;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function showTyping() {
+        var div = document.createElement('div');
+        div.className = 'fiscal-chat-msg typing';
+        div.id = 'fiscal-chat-typing';
+        div.innerHTML = '<div class="fiscal-chat-typing-dots"><span></span><span></span><span></span></div>';
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function hideTyping() {
+        var el = document.getElementById('fiscal-chat-typing');
+        if (el) el.remove();
+    }
+
+    function loadInitialMessage() {
+        initialLoaded = true;
+        fetch(API_BASE + '/initial')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data && data.message) appendMessage(data.message, false);
+            })
+            .catch(function() {
+                appendMessage('Olá! Posso ajudar com informações sobre endereço fiscal. Como posso ajudar?', false);
+            });
+    }
+
+    function sendMessage() {
+        var text = (inputEl.value || '').trim();
+        if (!text) return;
+        inputEl.value = '';
+        appendMessage(text, true);
+        sendBtn.disabled = true;
+        showTyping();
+
+        fetch(API_BASE + '/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                hideTyping();
+                var reply = (data && data.reply) ? data.reply : 'Não foi possível obter resposta. Tente novamente ou fale com nosso atendimento.';
+                appendMessage(reply, false);
+            })
+            .catch(function() {
+                hideTyping();
+                appendMessage('Erro de conexão. Tente novamente ou entre em contato com o atendimento.', false);
+            })
+            .finally(function() {
+                sendBtn.disabled = false;
+                inputEl.focus();
+            });
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+})();
+</script>
