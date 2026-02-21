@@ -200,6 +200,9 @@ else
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-building"></i> Endereços</h5>
                     <h2 class="display-4">@(ViewBag.TotalAddresses ?? 0)</h2>
+                    <a href="@Url.Action(ActionNames.MyAddresses, ControllerNames.Parceiro)" class="btn btn-light btn-sm mt-2 w-100">
+                        <i class="bi bi-arrow-right"></i> Ver Todos
+                    </a>
                 </div>
             </div>
         </div>

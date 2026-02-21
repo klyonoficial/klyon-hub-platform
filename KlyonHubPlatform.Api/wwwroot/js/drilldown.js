@@ -8,12 +8,17 @@
             this.init();
         }
         init() {
-            document.addEventListener('DOMContentLoaded', () => {
+            const run = () => {
                 this.container = document.querySelector('.main-content');
                 if (!this.container) return;
                 this.setupDrilldownCards();
                 this.setupBackButton();
-            });
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', run);
+            } else {
+                run();
+            }
         }
         setupDrilldownCards() {
             const cards = document.querySelectorAll('[data-drilldown]');

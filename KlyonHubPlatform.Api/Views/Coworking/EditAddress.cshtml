@@ -303,11 +303,18 @@
                 </div>
             }
 
-            <!-- Status: checkbox DEVE vir antes do hidden para o model binder usar "true" quando marcado -->
+            <!-- Status: checkbox DEVE vir antes do hidden para o model binder usar "true" quando marcado. Não exibir quando capacidade estiver em análise. -->
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Status</label>
-                    @if (hasActiveContracts)
+                    @if (capacityStatusWarning)
+                    {
+                        <div class="form-control-plaintext text-muted">
+                            <small>O status (disponível/indisponível) poderá ser alterado após a aprovação da capacidade fiscal.</small>
+                        </div>
+                        <input type="hidden" name="IsAvailable" value="@(Model.IsAvailable ? "true" : "false")">
+                    }
+                    else if (hasActiveContracts)
                     {
                         <div class="form-control-plaintext">
                             <span class="badge bg-@(Model.IsAvailable ? "success" : "danger")">
