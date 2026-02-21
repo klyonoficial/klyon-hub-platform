@@ -1259,8 +1259,8 @@ async function showDashboardList(type, filter = null) {
     modal.show();
     
     try {
-        const page = (type === DashboardListType.Users) ? 1 : undefined;
-        const pageSize = (type === DashboardListType.Users) ? 10 : undefined;
+        const page = (type === DashboardListType.Users || type === DashboardListType.Locations) ? 1 : undefined;
+        const pageSize = (type === DashboardListType.Users || type === DashboardListType.Locations) ? 10 : undefined;
         let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}`;
         if (page != null) url += `&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
@@ -1283,7 +1283,7 @@ async function loadDashboardListContent(type, filter, page) {
     const modalBody = document.getElementById('dashboardListModalBody');
     modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
     try {
-        const pageSize = (type === DashboardListType.Users) ? 10 : undefined;
+        const pageSize = (type === DashboardListType.Users || type === DashboardListType.Locations) ? 10 : undefined;
         let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
         const response = await fetch(url);
@@ -1366,8 +1366,9 @@ function buildDashboardListHtml(type, filter, result) {
             });
             
             html += '</tbody></table></div>';
-            // Paginação para usuários (10 por página)
-            if (type === 'users' && result.totalCount != null && result.pageSize != null) {
+            // Paginação para usuários e localidades (10 por página)
+            const hasPagination = (type === DashboardListType.Users || type === DashboardListType.Locations) && result.totalCount != null && result.pageSize != null;
+            if (hasPagination) {
                 const totalCount = result.totalCount;
                 const currentPage = result.page || 1;
                 const pageSize = result.pageSize;
@@ -1378,15 +1379,15 @@ function buildDashboardListHtml(type, filter, result) {
                 html += `<span class="text-muted small">Mostrando ${from}-${to} de ${totalCount}</span>`;
                 html += '<nav><ul class="pagination pagination-sm mb-0">';
                 const filterArg = (filter && filter !== 'null') ? `'${String(filter).replace(/'/g, "\\'")}'` : 'null';
-                html += `<li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${currentPage - 1}); return false;"><i class="bi bi-chevron-left"></i> Anterior</a></li>`;
+                html += `<li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('${type}', ${filterArg}, ${currentPage - 1}); return false;"><i class="bi bi-chevron-left"></i> Anterior</a></li>`;
                 const maxVisible = 5;
                 let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
                 let endPage = Math.min(totalPages, startPage + maxVisible - 1);
                 if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
                 for (let p = startPage; p <= endPage; p++) {
-                    html += `<li class="page-item ${p === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${p}); return false;">${p}</a></li>`;
+                    html += `<li class="page-item ${p === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('${type}', ${filterArg}, ${p}); return false;">${p}</a></li>`;
                 }
-                html += `<li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('users', ${filterArg}, ${currentPage + 1}); return false;">Próximo <i class="bi bi-chevron-right"></i></a></li>`;
+                html += `<li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadDashboardListContent('${type}', ${filterArg}, ${currentPage + 1}); return false;">Próximo <i class="bi bi-chevron-right"></i></a></li>`;
                 html += '</ul></nav>';
                 html += `<a href="${result.viewAllUrl || '#'}" class="btn btn-primary btn-sm">Ver Todos</a>`;
                 html += '</div>';

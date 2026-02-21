@@ -59,7 +59,11 @@ namespace KlyonHubPlatform.Application.Services
                     data = _mapper.Map<List<ContractDashboardItemDto>>(contracts).Cast<object>().ToList();
                     break;
                 case AdminDashboardListType.Locations:
-                    var locations = await _context.Locations.AsNoTracking().OrderBy(l => l.State).ThenBy(l => l.City).Take(50).ToListAsync(cancellationToken);
+                    var locationsQuery = _context.Locations.AsNoTracking().OrderBy(l => l.State).ThenBy(l => l.City);
+                    totalCount = await locationsQuery.CountAsync(cancellationToken);
+                    pageSize = Math.Clamp(pageSize, 1, 100);
+                    page = Math.Max(1, page);
+                    var locations = await locationsQuery.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<LocationDashboardItemDto>>(locations).Cast<object>().ToList();
                     break;
                 case AdminDashboardListType.Payments:

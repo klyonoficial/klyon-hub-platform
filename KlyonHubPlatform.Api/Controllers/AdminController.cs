@@ -146,7 +146,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (result == null)
                     return Json(new { success = false, message = JsonMessage.TipoInvalido });
                 var viewAllUrl = GetDashboardViewAllUrl(type, filter);
-                return Json(new { success = true, data = result.Data, viewAllUrl, totalCount = result.TotalCount, page = type.ToLower() == "users" ? page : (int?)null, pageSize = type.ToLower() == "users" ? pageSize : (int?)null });
+                return Json(new { success = true, data = result.Data, viewAllUrl, totalCount = result.TotalCount, page = (type.ToLower() == "users" || type.ToLower() == "locations") ? page : (int?)null, pageSize = (type.ToLower() == "users" || type.ToLower() == "locations") ? pageSize : (int?)null });
             }
             catch (Exception ex)
             {

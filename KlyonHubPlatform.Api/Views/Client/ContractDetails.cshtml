@@ -303,11 +303,12 @@
 					var timelineCurrentPage = ViewBag.TimelineCurrentPage as int? ?? 1;
 					var timelineTotalPages = ViewBag.TimelineTotalPages as int? ?? 1;
 					var timelinePageSizeVal = ViewBag.TimelinePageSize as int? ?? 5;
+					var timelineList = ViewBag.Timeline as List<object>;
 				}
-				@if (ViewBag.Timeline != null && ((List<object>)ViewBag.Timeline).Any())
+				@if (timelineList != null && timelineList.Any())
 				{
 					<div class="timeline">
-						@foreach (var item in (List<object>)ViewBag.Timeline)
+						@foreach (var item in timelineList)
 						{
 							var timelineItem = (dynamic)item;
 							<div class="timeline-item mb-4">
@@ -320,7 +321,7 @@
 											<div class="card-body">
 												<div class="d-flex justify-content-between align-items-start mb-2">
 													<h6 class="mb-0">@timelineItem.Title</h6>
-													<small class="text-muted">@timelineItem.Date.ToString(DateFormatConstants.DisplayDateAndTime)</small>
+													<small class="text-muted">@(timelineItem.Date != null ? ((DateTime)timelineItem.Date).ToString(DateFormatConstants.DisplayDateAndTime) : "")</small>
 												</div>
 												<p class="mb-0 text-muted">@timelineItem.Description</p>
 											</div>

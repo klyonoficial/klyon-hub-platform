@@ -1170,6 +1170,8 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> ContractDetails(int id, int timelinePage = 1, int timelinePageSize = 5, CancellationToken cancellationToken = default)
         {
+            try
+            {
             var contract = await _contractService.GetByIdAsync(id);
             if (contract == null)
             {
@@ -1342,6 +1344,13 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TimelineTotalPages = timelineTotalPages;
             ViewBag.TimelinePageSize = timelinePageSize;
             return View(contract);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao carregar detalhes do contrato. ContractId: {ContractId}", id);
+                TempData[ErrorMessages.TempDataKey] = $"Não foi possível carregar os detalhes do contrato. Tente novamente ou acesse Meus Contratos. (Erro: {ex.Message})";
+                return RedirectToAction(ActionNames.MyContracts);
+            }
         }
         [HttpGet]
         public async Task<IActionResult> MyContracts(string? search = null, string? status = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
