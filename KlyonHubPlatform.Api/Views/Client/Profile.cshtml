@@ -36,29 +36,33 @@
                 <div class="col-md-12">
                     <label class="form-label"><i class="bi bi-image"></i> Logomarca</label>
                     <div class="d-flex align-items-center gap-3">
-                        @if (!string.IsNullOrEmpty(Model.LogoPath))
-                        {
-                            <div class="border rounded p-2" style="max-width: 200px; max-height: 200px; background-color: #f8f9fa;">
-                                <img src="@Url.Action(ActionNames.GetLogo, ControllerNames.Client, new { clientId = Model.Id })" 
+                        <div id="logoPreviewContainer" class="border rounded p-2" style="max-width: 200px; max-height: 200px; min-width: 200px; min-height: 150px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                            @if (!string.IsNullOrEmpty(Model.LogoPath))
+                            {
+                                <img id="logoCurrentImage" src="@Url.Action(ActionNames.GetLogo, ControllerNames.Client, new { clientId = Model.Id })" 
                                      alt="Logo" 
                                      class="img-fluid" 
                                      style="max-width: 100%; max-height: 200px; object-fit: contain;">
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="border rounded p-3 text-center" style="width: 200px; height: 150px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
-                                <div class="text-muted">
+                            }
+                            else
+                            {
+                                <div id="logoPlaceholder" class="text-muted text-center">
                                     <i class="bi bi-image" style="font-size: 3rem;"></i>
                                     <div class="small mt-2">Nenhuma logo</div>
                                 </div>
-                            </div>
-                        }
+                            }
+                        </div>
                         <div class="flex-grow-1">
                             <input type="file" class="form-control" id="Logo" name="Logo" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp">
-                            <small class="form-text text-muted">
+                            <small class="form-text text-muted d-block mt-1">
                                 Formatos aceitos: JPG, PNG, GIF, WEBP. Tamanho máximo: @(ViewBag.MaxPhotoSizeMB ?? 5)MB.
                             </small>
+                            <small id="logoPreviewHint" class="form-text text-primary d-none mt-1 d-block">
+                                <i class="bi bi-info-circle"></i> Prévia acima. A alteração será salva ao clicar em &quot;Salvar Alterações&quot;.
+                            </small>
+                            <button type="button" id="logoClearPreviewBtn" class="btn btn-outline-secondary btn-sm mt-1 d-none" title="Desfazer e manter a logo atual">
+                                <i class="bi bi-arrow-counterclockwise"></i> Desfazer prévia
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -207,6 +211,38 @@
 @section Scripts {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Prévia da logomarca ao escolher arquivo (salva apenas ao clicar em Salvar Alterações)
+    var logoPreviewContainer = document.getElementById('logoPreviewContainer');
+    var logoInput = document.getElementById('Logo');
+    var logoPreviewHint = document.getElementById('logoPreviewHint');
+    var initialLogoHtml = logoPreviewContainer ? logoPreviewContainer.innerHTML : '';
+    var logoClearPreviewBtn = document.getElementById('logoClearPreviewBtn');
+    function restoreLogoPreview() {
+        logoPreviewContainer.innerHTML = initialLogoHtml;
+        if (logoPreviewHint) logoPreviewHint.classList.add('d-none');
+        if (logoClearPreviewBtn) logoClearPreviewBtn.classList.add('d-none');
+        if (logoInput) logoInput.value = '';
+    }
+    if (logoInput && logoPreviewContainer) {
+        logoInput.addEventListener('change', function() {
+            var file = this.files && this.files[0];
+            if (file && file.type.indexOf('image/') === 0) {
+                var reader = new FileReader();
+                reader.onload = function() {
+                    logoPreviewContainer.innerHTML = '<img src="' + reader.result + '" alt="Prévia" class="img-fluid" style="max-width:100%;max-height:200px;object-fit:contain;">';
+                    if (logoPreviewHint) logoPreviewHint.classList.remove('d-none');
+                    if (logoClearPreviewBtn) logoClearPreviewBtn.classList.remove('d-none');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                restoreLogoPreview();
+            }
+        });
+    }
+    if (logoClearPreviewBtn) {
+        logoClearPreviewBtn.addEventListener('click', restoreLogoPreview);
+    }
+
     // CPF é obrigatório apenas quando CNPJ não está preenchido (pessoa física)
     var cnpjInput = document.getElementById('CNPJ');
     var cpfInput = document.getElementById('CPF');
@@ -269,6 +305,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!data) return;
             if (data.success === true) {
                 if (typeof showToast === 'function') showToast(data.message || 'Perfil atualizado com sucesso!', 'success');
+                if (logoPreviewHint) logoPreviewHint.classList.add('d-none');
+                if (logoClearPreviewBtn) logoClearPreviewBtn.classList.add('d-none');
+                if (logoInput) logoInput.value = '';
                 if (data.contactName) {
                     var userNameLink = document.getElementById('userNameLink');
                     if (userNameLink) userNameLink.textContent = data.contactName;

@@ -354,6 +354,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         if (isAjaxRequest) return Json(new { success = false, error = err });
                         return RedirectToAction(ActionNames.Profile);
                     }
+                    var oldLogoPath = existingClient.LogoPath;
                     try
                     {
                         var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
@@ -365,6 +366,10 @@ namespace KlyonHubPlatform.Api.Controllers
                         var folder = $"clients/{existingClient.Id}";
                         var filePath = await storageService.SaveFileAsync(fileBytes, fileName, folder);
                         existingClient.LogoPath = filePath;
+                        if (!string.IsNullOrEmpty(oldLogoPath))
+                        {
+                            try { await storageService.DeleteFileAsync(oldLogoPath); } catch { /* ignora falha ao excluir logo antiga */ }
+                        }
                     }
                     catch (Exception ex)
                     {
