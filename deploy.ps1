@@ -192,6 +192,7 @@ WantedBy=multi-user.target
 server {
     listen 80;
     server_name _;
+    client_max_body_size 10m;
     location / {
         proxy_pass http://127.0.0.1:$PortBlue;
         proxy_http_version 1.1;
@@ -213,6 +214,14 @@ server {
         Invoke-Ssh "sudo mv /tmp/klyon-app-nginx.conf $NginxConfig && sudo ln -sf $NginxConfig /etc/nginx/sites-enabled/ 2>/dev/null; sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null; sudo nginx -t && sudo systemctl reload nginx" | Out-Null
         Write-Host "  Config Nginx criada e ativada." -ForegroundColor Gray
     }
+    else {
+        # Garantir limite de upload 10MB (permite fotos ate 5MB) em configs existentes
+        $hasLimit = Invoke-Ssh "grep -q 'client_max_body_size' $NginxConfig 2>/dev/null && echo 1"
+        if ($hasLimit -notmatch "1") {
+            Invoke-Ssh "echo '    client_max_body_size 10m;' > /tmp/nginx_body_size_line.txt && sudo sed -i '/server_name _;/r /tmp/nginx_body_size_line.txt' $NginxConfig && sudo nginx -t && sudo systemctl reload nginx"
+            if ($LASTEXITCODE -eq 0) { Write-Host "  Nginx: client_max_body_size 10m adicionado (uploads ate 5MB)." -ForegroundColor Gray }
+        }
+    }
 
     # 6. Parar klyon-app antigo e iniciar blue
     Invoke-Ssh "sudo systemctl stop klyon-app 2>/dev/null || true; sudo systemctl disable klyon-app 2>/dev/null || true" | Out-Null
@@ -233,6 +242,15 @@ scp -i $SshKey -o StrictHostKeyChecking=no -r ".\publish\*" "${VmUser}@${VmIp}:$
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERRO: Falha no upload." -ForegroundColor Red
     exit $LASTEXITCODE
+}
+
+# 2.5 Garantir Nginx permite upload ate 10MB (fotos ate 5MB) - roda em todo deploy
+$hasLimit = Invoke-Ssh "grep -q 'client_max_body_size' $NginxConfig 2>/dev/null && echo 1"
+if ($null -eq $hasLimit) { $hasLimit = "" }
+if ($hasLimit -notmatch "1") {
+    Write-Host "  Nginx: adicionando client_max_body_size 10m..." -ForegroundColor Gray
+    Invoke-Ssh "echo '    client_max_body_size 10m;' > /tmp/nginx_body_size_line.txt && sudo sed -i '/server_name _;/r /tmp/nginx_body_size_line.txt' $NginxConfig && sudo nginx -t && sudo systemctl reload nginx"
+    if ($LASTEXITCODE -eq 0) { Write-Host "  Nginx: client_max_body_size 10m aplicado." -ForegroundColor Green }
 }
 
 # 3. Detectar qual instancia esta ativa (Nginx aponta para qual porta? Evitar null do SSH)
