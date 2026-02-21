@@ -2691,6 +2691,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = "Foto não encontrada.";
                     return RedirectToAction(ActionNames.Profile);
                 }
+                if (photo.IsMain)
+                {
+                    var nextPhoto = await _coworkingAppService.DbContext.CoworkingPhotos
+                        .Where(p => p.CoworkingId == coworkingEntity.Id && p.Id != photoId)
+                        .OrderBy(p => p.Id)
+                        .FirstOrDefaultAsync();
+                    if (nextPhoto != null)
+                    {
+                        nextPhoto.IsMain = true;
+                    }
+                }
                 try
                 {
                     var storageService = await _storageFactory.GetStorageServiceAsync();

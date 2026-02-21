@@ -1449,6 +1449,8 @@ namespace KlyonHubPlatform.Api.Controllers
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
             if (client == null)
             {
+                if (User.IsInRole(Administrator))
+                    return RedirectToAction(ActionNames.Payments, ControllerNames.Admin);
                 return RedirectToAction(ActionNames.RegisterClient);
             }
             var payments = await _paymentService.GetPaymentsByClientIdAsync(client.Id);
@@ -1474,25 +1476,24 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
-            if (client == null)
+            if (client == null && !User.IsInRole(Administrator))
             {
                 return RedirectToAction(ActionNames.RegisterClient);
             }
             bool isAuthorized = false;
-            if (payment.SubscriptionId.HasValue && payment.Subscription != null)
+            if (client != null)
             {
-                var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
-                if (contract != null && contract.ClientId == client.Id)
+                if (payment.SubscriptionId.HasValue && payment.Subscription != null)
                 {
-                    isAuthorized = true;
+                    var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
+                    if (contract != null && contract.ClientId == client.Id)
+                        isAuthorized = true;
                 }
-            }
-            else if (payment.ReservationId.HasValue)
-            {
-                var reservation = await _clientAppService.GetReservationByIdAsync(payment.ReservationId.Value, cancellationToken);
-                if (reservation != null && reservation.ClientId == client.Id)
+                else if (payment.ReservationId.HasValue)
                 {
-                    isAuthorized = true;
+                    var reservation = await _clientAppService.GetReservationByIdAsync(payment.ReservationId.Value, cancellationToken);
+                    if (reservation != null && reservation.ClientId == client.Id)
+                        isAuthorized = true;
                 }
             }
             if (!isAuthorized && !User.IsInRole(Administrator))

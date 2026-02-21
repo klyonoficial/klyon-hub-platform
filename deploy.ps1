@@ -21,7 +21,7 @@ $AppNew      = "/home/ubuntu/app_new"
 $NginxConfig = "/etc/nginx/sites-available/klyon-app"
 $PortBlue    = 5000
 $PortGreen   = 5001
-# Opcional: se klyon-app.service nao existir na VM, use esta connection string nos units
+# Opcional: connection string para o setup. Se vazio, o script usa KlyonHubPlatform.Api\appsettings.Production.json local.
 $DeployConnectionString = ""
 
 function Invoke-Ssh {
@@ -52,9 +52,17 @@ Write-Host "`n[0] Ajustando permissoes da chave SSH..." -ForegroundColor Cyan
 icacls $SshKey /inheritance:r | Out-Null
 icacls $SshKey /grant:r "$($env:USERNAME):(R)" | Out-Null
 
-# --- Verificar se Blue-Green ja esta configurado ---
-$blueGreenReady = Invoke-Ssh "test -f /etc/systemd/system/klyon-app-blue.service && echo 1"
-$blueGreenReady = ($blueGreenReady -match "1")
+# --- Verificar se Blue-Green ja esta configurado (evitar null se SSH falhar) ---
+$blueGreenOut = Invoke-Ssh "test -f /etc/systemd/system/klyon-app-blue.service && echo 1"
+$blueGreenReady = ($null -ne $blueGreenOut -and $blueGreenOut -match "1")
+# Apos reboot o SSH pode falhar ou demorar; se as pastas app_blue e app_green ja tem a app, considerar configurado
+if (-not $blueGreenReady) {
+    $bothHaveApp = Invoke-Ssh "test -f $AppBlue/KlyonHubPlatform.Api.dll -a -f $AppGreen/KlyonHubPlatform.Api.dll && echo 1"
+    if ($null -ne $bothHaveApp -and $bothHaveApp -match "1") {
+        $blueGreenReady = $true
+        Write-Host "`n[Setup] Blue-Green detectado pelas pastas (units podem nao ter respondido). Pulando setup." -ForegroundColor Cyan
+    }
+}
 
 if (-not $blueGreenReady) {
     Write-Host "`n[Setup] Blue-Green nao configurado. Executando setup na VM..." -ForegroundColor Cyan
@@ -77,15 +85,43 @@ if (-not $blueGreenReady) {
             } catch { }
         }
     }
+    # Fallback: ler de app_blue ou app_green na VM (apos deploy anterior)
+    if (-not $connStr) {
+        foreach ($appPath in @($AppBlue, $AppGreen)) {
+            $jsonContent = Invoke-Ssh "cat ${appPath}/appsettings.Production.json 2>/dev/null || true"
+            if ($jsonContent) {
+                try {
+                    $json = $jsonContent | ConvertFrom-Json
+                    if ($json.ConnectionStrings.DefaultConnection) {
+                        $connStr = $json.ConnectionStrings.DefaultConnection
+                        break
+                    }
+                } catch { }
+            }
+        }
+    }
+    # Fallback: ler do appsettings.Production.json local (sua maquina)
+    if (-not $connStr) {
+        $localAppSettings = Join-Path $PSScriptRoot "KlyonHubPlatform.Api\appsettings.Production.json"
+        if (Test-Path $localAppSettings) {
+            try {
+                $json = Get-Content $localAppSettings -Raw | ConvertFrom-Json
+                if ($json.ConnectionStrings.DefaultConnection) {
+                    $connStr = $json.ConnectionStrings.DefaultConnection
+                }
+            } catch { }
+        }
+    }
     if (-not $connStr -and $DeployConnectionString) {
         $connStr = $DeployConnectionString
     }
     if (-not $connStr) {
         Write-Host "ERRO: Nao foi possivel obter connection string." -ForegroundColor Red
+        Write-Host "  O script ja tentou: VM (klyon-app.service, app_blue/app_green) e KlyonHubPlatform.Api\appsettings.Production.json local." -ForegroundColor Gray
         Write-Host "  Opcoes:" -ForegroundColor Yellow
-        Write-Host "  1) Crie /etc/systemd/system/klyon-app.service na VM com Environment=ConnectionStrings__DefaultConnection=..." -ForegroundColor Yellow
-        Write-Host "  2) Coloque appsettings.Production.json em /home/ubuntu/app na VM com a connection string" -ForegroundColor Yellow
-        Write-Host "  3) Defina a variavel `$DeployConnectionString no inicio do deploy.ps1" -ForegroundColor Yellow
+        Write-Host "  1) Coloque a connection string em KlyonHubPlatform.Api\appsettings.Production.json (ConnectionStrings:DefaultConnection) na sua maquina" -ForegroundColor Yellow
+        Write-Host "  2) Na VM: appsettings.Production.json em /home/ubuntu/app ou em app_blue/app_green" -ForegroundColor Yellow
+        Write-Host "  3) Defina `$DeployConnectionString no inicio do deploy.ps1" -ForegroundColor Yellow
         exit 1
     }
 
@@ -199,8 +235,9 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# 3. Detectar qual instancia esta ativa (Nginx aponta para qual porta?)
+# 3. Detectar qual instancia esta ativa (Nginx aponta para qual porta? Evitar null do SSH)
 $proxyLine = Invoke-Ssh "grep proxy_pass $NginxConfig 2>/dev/null || true"
+if ($null -eq $proxyLine) { $proxyLine = "" }
 $activeBlue = ($proxyLine -match "5000")
 if ($activeBlue) {
     $activePort = $PortBlue
@@ -230,14 +267,15 @@ Write-Host "`n[5] Iniciando servico inativo ($inactiveService)..." -ForegroundCo
 Invoke-Ssh "sudo systemctl start $inactiveService" | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "ERRO: Falha ao iniciar $inactiveService." -ForegroundColor Red; exit 1 }
 
-# 6. Health check na porta inativa
+# 6. Health check na porta inativa (tratar retorno nulo do SSH para evitar erro ao chamar .Trim())
 Write-Host "`n[6] Aguardando aplicacao ficar pronta (porta $inactivePort)..." -ForegroundColor Cyan
 $maxAttempts = 30
 $attempt = 0
 $ready = $false
 do {
     Start-Sleep -Seconds 2
-    $httpCode = (Invoke-Ssh "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${inactivePort}/ 2>/dev/null").Trim()
+    $curlOut = Invoke-Ssh "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${inactivePort}/ 2>/dev/null"
+    $httpCode = if ($null -ne $curlOut) { $curlOut.ToString().Trim() } else { "" }
     if ($httpCode -match "200|302") {
         $ready = $true
         break

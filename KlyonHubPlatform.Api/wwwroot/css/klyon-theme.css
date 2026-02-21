@@ -447,6 +447,28 @@ select[readonly]:focus {
     transform: scale(1.01);
 }
 
+/* Pagination - Klyon Style (padrão em todo o sistema) */
+.pagination .page-link {
+    color: var(--klyon-primary);
+    border-color: rgba(5, 19, 35, 0.2);
+    background-color: #fff;
+}
+.pagination .page-link:hover {
+    color: var(--klyon-primary);
+    background-color: rgba(5, 19, 35, 0.06);
+    border-color: var(--klyon-accent);
+}
+.pagination .page-item.active .page-link {
+    background-color: var(--klyon-primary);
+    border-color: var(--klyon-primary);
+    color: var(--klyon-text);
+}
+.pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    background-color: #fff;
+    border-color: #dee2e6;
+}
+
 /* Forms - Klyon Style */
 .form-control:focus {
     border-color: var(--klyon-accent);

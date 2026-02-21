@@ -157,7 +157,7 @@
 								<i class="bi bi-eye me-1"></i> Ver Detalhes do Pagamento
 							</a>
 						}
-						<a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-outline-primary ms-2">
+						<a href="@(User.IsInRole("Administrator") ? Url.Action(ActionNames.Payments, ControllerNames.Admin) : Url.Action(ActionNames.MyPayments, ControllerNames.Client))" class="btn btn-outline-primary ms-2">
 							<i class="bi bi-credit-card me-1"></i> Ir para Pagamentos
 						</a>
 					}
@@ -169,7 +169,7 @@
 						<p class="text-muted mb-3">
 							Para ativar seu contrato, realize o pagamento através da página de pagamentos.
 						</p>
-						<a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-primary">
+						<a href="@(User.IsInRole("Administrator") ? Url.Action(ActionNames.Payments, ControllerNames.Admin) : Url.Action(ActionNames.MyPayments, ControllerNames.Client))" class="btn btn-primary">
 							<i class="bi bi-credit-card"></i> Ir para Pagamentos
 						</a>
 					}
