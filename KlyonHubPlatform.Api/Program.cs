@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 using KlyonHubPlatform.Application.Options;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.DataProtection;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -66,6 +67,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         }));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is required");
+var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"];
+if (!string.IsNullOrEmpty(dataProtectionKeyPath))
+{
+    var keyDir = new DirectoryInfo(dataProtectionKeyPath);
+    if (keyDir.Exists)
+    {
+        builder.Services.AddDataProtection()
+            .SetApplicationName("KlyonHubPlatform")
+            .PersistKeysToFileSystem(keyDir);
+    }
+}
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(AuthConstants.CookieScheme, options =>
     {

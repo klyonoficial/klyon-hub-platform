@@ -188,8 +188,8 @@
         <div class="row flex-grow-1">
             @if (User.Identity?.IsAuthenticated == true)
             {
-                <div class="col-md-2 sidebar p-3">
-                    <nav class="nav flex-column">
+                <div class="col-md-2 sidebar p-3 d-flex flex-column">
+                    <nav class="nav flex-column flex-grow-1">
                         @if (User.IsInRole("Administrator"))
                         {
                             <a class="nav-link" href="@Url.Action(ActionNames.Dashboard, ControllerNames.Admin)">
@@ -450,6 +450,12 @@
                             </div>
                         }
                     </nav>
+                    @if (User.IsInRole("Administrator"))
+                    {
+                        <div class="sidebar-deploy-footer mt-auto pt-2 small text-white border-top border-secondary text-center">
+                            @await Component.InvokeAsync("LastDeploy")
+                        </div>
+                    }
                 </div>
                 <div class="col-md-10 main-content p-4">
                     @RenderBody()

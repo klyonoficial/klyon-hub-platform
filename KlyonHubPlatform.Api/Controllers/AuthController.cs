@@ -11,10 +11,13 @@ namespace KlyonHubPlatform.Api.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
-        public AuthController(IAuthService authService, IEmailService emailService)
+        private readonly IConfiguration _configuration;
+
+        public AuthController(IAuthService authService, IEmailService emailService, IConfiguration configuration)
         {
             _authService = authService;
             _emailService = emailService;
+            _configuration = configuration;
         }
         [HttpGet]
         public IActionResult Login(string? returnUrl = null)
@@ -32,7 +35,7 @@ namespace KlyonHubPlatform.Api.Controllers
             return View();
         }
         [HttpPost]
-        public async Task<IActionResult> Login(string email, string password, string? returnUrl = null, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Login(string email, string password, string? returnUrl = null, bool rememberMe = false, CancellationToken cancellationToken = default)
         {
             if (User.Identity?.IsAuthenticated == true)
             {
@@ -65,7 +68,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
+            var rememberMeDays = _configuration.GetValue("Auth:RememberMeExpirationDays", 14);
+            var authProperties = new AuthenticationProperties
+            {
+                IsPersistent = rememberMe,
+                ExpiresUtc = rememberMe ? DateTimeOffset.UtcNow.AddDays(rememberMeDays) : null
+            };
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal, authProperties);
             HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
             HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email);
             HttpContext.Session.SetString(SessionKeys.UserName, user.FullName);

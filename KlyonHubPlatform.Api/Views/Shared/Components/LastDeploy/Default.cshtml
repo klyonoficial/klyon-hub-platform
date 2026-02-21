@@ -1,0 +1,5 @@
+@model string?
+@if (!string.IsNullOrEmpty(Model))
+{
+    <span title="Data e hora do último deploy">Último deploy: @Model</span>
+}

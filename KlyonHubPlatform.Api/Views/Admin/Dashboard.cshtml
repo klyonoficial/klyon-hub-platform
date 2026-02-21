@@ -10,6 +10,10 @@
 }
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    /* Container com altura fixa evita que o Chart.js redimensione os gráficos de forma instável */
+    .dashboard-chart-container { position: relative; height: 280px; width: 100%; }
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-speedometer2"></i> Dashboard Administrativo</h2>
@@ -293,7 +297,9 @@
                 <h5><i class="bi bi-graph-up"></i> Receita Mensal - Bruta vs Líquida (Últimos 6 Meses)</h5>
             </div>
             <div class="card-body">
-                <canvas id="revenueBreakdownChart" height="100"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="revenueBreakdownChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -303,7 +309,9 @@
                 <h5><i class="bi bi-building"></i> Top 5 Coworkings por Receita</h5>
             </div>
             <div class="card-body">
-                <canvas id="topCoworkingsChart"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="topCoworkingsChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -318,7 +326,9 @@
                 <small class="text-muted">Últimos 6 meses</small>
             </div>
             <div class="card-body collapse" id="monthlyContractsBody">
-                <canvas id="monthlyContractsChart"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="monthlyContractsChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -329,7 +339,9 @@
                 <small class="text-muted">Últimos 6 meses</small>
             </div>
             <div class="card-body collapse" id="monthlyClientsBody">
-                <canvas id="monthlyClientsChart"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="monthlyClientsChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -343,7 +355,9 @@
                 <h5 class="mb-0"><i class="bi bi-credit-card"></i> Pagamentos por Método <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
             <div class="card-body collapse" id="paymentsByMethodBody">
-                <canvas id="paymentsByMethodChart"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="paymentsByMethodChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -357,7 +371,9 @@
                 <h5 class="mb-0"><i class="bi bi-trophy"></i> Top 5 Localidades por Receita <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
             <div class="card-body collapse" id="topLocationsBody">
-                <canvas id="topLocationsChart"></canvas>
+                <div class="dashboard-chart-container">
+                    <canvas id="topLocationsChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -373,7 +389,9 @@
                     <h5><i class="bi bi-box-seam"></i> Produtos Oferecidos pelos Coworkings</h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="productsChart"></canvas>
+                    <div class="dashboard-chart-container">
+                        <canvas id="productsChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -390,7 +408,9 @@
                     <h5><i class="bi bi-calendar-check"></i> Reservas por Status</h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="reservationsByStatusChart"></canvas>
+                    <div class="dashboard-chart-container">
+                        <canvas id="reservationsByStatusChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>

@@ -89,9 +89,9 @@ if (-not $blueGreenReady) {
         exit 1
     }
 
-    # 2. Criar pastas
-    Write-Host "  Criando pastas app_blue e app_green..." -ForegroundColor Gray
-    Invoke-Ssh "mkdir -p $AppBlue $AppGreen $AppBlue/wwwroot/documents $AppGreen/wwwroot/documents" | Out-Null
+    # 2. Criar pastas (incluindo pasta compartilhada para chaves Data Protection - mantem sessao no switch)
+    Write-Host "  Criando pastas app_blue, app_green e app_shared (Data Protection)..." -ForegroundColor Gray
+    Invoke-Ssh "mkdir -p $AppBlue $AppGreen $AppBlue/wwwroot/documents $AppGreen/wwwroot/documents /home/ubuntu/app_shared/dataprotection_keys" | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Host "ERRO: Falha ao criar pastas." -ForegroundColor Red; exit 1 }
 
     # 3. Se app existir, copiar para blue e green
@@ -192,7 +192,7 @@ dotnet publish "KlyonHubPlatform.Api\KlyonHubPlatform.Api.csproj" -c Release -o 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n[2] Criando app_new e enviando arquivos para a VM..." -ForegroundColor Cyan
-Invoke-Ssh "rm -rf $AppNew 2>/dev/null; mkdir -p $AppNew $AppNew/wwwroot/documents" | Out-Null
+Invoke-Ssh "rm -rf $AppNew 2>/dev/null; mkdir -p $AppNew $AppNew/wwwroot/documents /home/ubuntu/app_shared/dataprotection_keys" | Out-Null
 scp -i $SshKey -o StrictHostKeyChecking=no -r ".\publish\*" "${VmUser}@${VmIp}:${AppNew}/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERRO: Falha no upload." -ForegroundColor Red
@@ -221,6 +221,9 @@ Write-Host "`n[3] Instancia ativa: porta $activePort. Deploy na inativa (porta $
 Write-Host "`n[4] Copiando novos arquivos para pasta inativa..." -ForegroundColor Cyan
 Invoke-Ssh "rm -rf ${inactiveApp}/* ${inactiveApp}/.[!.]* 2>/dev/null; cp -r $AppNew/. $inactiveApp/; rm -rf $AppNew" | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "ERRO: Falha ao copiar arquivos." -ForegroundColor Red; exit 1 }
+
+$deployDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
+Invoke-Ssh "echo '${deployDate} UTC' > ${inactiveApp}/deploy-date.txt" | Out-Null
 
 # 5. Iniciar servico inativo
 Write-Host "`n[5] Iniciando servico inativo ($inactiveService)..." -ForegroundColor Cyan
