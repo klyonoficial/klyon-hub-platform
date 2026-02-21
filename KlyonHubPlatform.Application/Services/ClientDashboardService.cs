@@ -53,6 +53,7 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
             bool hasFinancialPending = false;
+            int? firstPendingPaymentId = null;
             if (client?.Contracts != null)
             {
                 var subscriptionIds = client.Contracts
@@ -61,13 +62,18 @@ namespace KlyonHubPlatform.Application.Services
                     .ToList();
                 if (subscriptionIds.Any())
                 {
-                    hasFinancialPending = await _context.Payments
+                    var pendingPayments = await _context.Payments
                         .AsNoTracking()
                         .Where(p => subscriptionIds.Contains(p.SubscriptionId ?? 0) &&
                                    (p.Status == PaymentStatus.Pending ||
                                     p.Status == PaymentStatus.Processing ||
                                     p.Status == PaymentStatus.AwaitingValidation))
-                        .AnyAsync(cancellationToken);
+                        .OrderBy(p => p.DueDate)
+                        .Select(p => p.Id)
+                        .Take(1)
+                        .ToListAsync(cancellationToken);
+                    hasFinancialPending = pendingPayments.Any();
+                    firstPendingPaymentId = pendingPayments.Any() ? pendingPayments.First() : null;
                 }
             }
             bool hasCertificateExpiring = false;
@@ -86,7 +92,8 @@ namespace KlyonHubPlatform.Application.Services
                 reservationsCount,
                 hasFinancialPending,
                 hasCertificateExpiring,
-                subscriptionIdsAwaitingValidation);
+                subscriptionIdsAwaitingValidation,
+                firstPendingPaymentId);
         }
     }
 }

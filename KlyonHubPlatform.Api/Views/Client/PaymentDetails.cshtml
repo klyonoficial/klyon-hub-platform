@@ -1306,10 +1306,13 @@
         document.getElementById('payCardCvv')?.addEventListener('input', function(e) {
             e.target.value = e.target.value.replace(/\D/g, '');
         });
-        document.getElementById('payWithCardSubmitBtn')?.addEventListener('click', async function() {
+        // Delegação de evento: o modal pode ser substituído ao trocar método de pagamento, e o botão clonado perde o listener
+        document.body.addEventListener('click', async function payWithCardHandler(e) {
+            var btn = e.target.closest('#payWithCardSubmitBtn');
+            if (!btn) return;
+            e.preventDefault();
             var form = document.getElementById('payWithCardForm');
             var errEl = document.getElementById('payWithCardError');
-            var btn = document.getElementById('payWithCardSubmitBtn');
             if (!form || !errEl || !btn) return;
             errEl.classList.add('d-none');
             errEl.textContent = '';
@@ -1317,12 +1320,19 @@
                 form.reportValidity();
                 return;
             }
-            var number = (document.getElementById('payCardNumber').value || '').replace(/\s/g, '');
-            var holderName = (document.getElementById('payCardHolderName').value || '').trim();
-            var expMonth = document.getElementById('payCardExpiryMonth').value;
-            var expYear = document.getElementById('payCardExpiryYear').value;
-            var securityCode = (document.getElementById('payCardCvv').value || '').trim();
-            var installments = parseInt(document.getElementById('payCardInstallments').value, 10) || 1;
+            var numEl = document.getElementById('payCardNumber');
+            var nameEl = document.getElementById('payCardHolderName');
+            var monthEl = document.getElementById('payCardExpiryMonth');
+            var yearEl = document.getElementById('payCardExpiryYear');
+            var cvvEl = document.getElementById('payCardCvv');
+            var instEl = document.getElementById('payCardInstallments');
+            if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl || !instEl) return;
+            var number = (numEl.value || '').replace(/\s/g, '');
+            var holderName = (nameEl.value || '').trim();
+            var expMonth = monthEl.value;
+            var expYear = yearEl.value;
+            var securityCode = (cvvEl.value || '').trim();
+            var installments = parseInt(instEl.value, 10) || 1;
             // Validação alinhada ao backend e ao teste Admin (campos obrigatórios e formato)
             if (number.length < 13 || number.length > 19) {
                 errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
@@ -1366,7 +1376,10 @@
                 errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 return;
             }
-            var paymentId = parseInt(document.getElementById('payWithCardPaymentId').value, 10);
+            var paymentIdEl = document.getElementById('payWithCardPaymentId');
+            if (!paymentIdEl) return;
+            var paymentId = parseInt(paymentIdEl.value, 10);
+            if (isNaN(paymentId) || paymentId <= 0) return;
             var year = expYear.length === 2 ? '20' + expYear : expYear;
             var payload = {
                 paymentId: paymentId,

@@ -25,9 +25,24 @@
                 pendingMessages.Add("Certificado próximo de vencer (30 dias)");
             }
             var tooltipText = string.Join(" e ", pendingMessages);
-            <span class="badge bg-warning text-dark ms-2" title="@tooltipText" data-bs-toggle="tooltip" data-bs-placement="top">
-                <i class="bi bi-exclamation-triangle-fill"></i> Atenção! @tooltipText
-            </span>
+            var firstPendingPaymentId = ViewBag.FirstPendingPaymentId as int?;
+            var paymentDetailsUrl = ViewBag.HasFinancialPending == true
+                ? (firstPendingPaymentId.HasValue
+                    ? Url.Action("PaymentDetails", "Client", new { id = firstPendingPaymentId.Value })
+                    : Url.Action("MyPayments", "Client"))
+                : null;
+            if (paymentDetailsUrl != null)
+            {
+                <a href="@paymentDetailsUrl" class="badge bg-warning text-dark ms-2 text-decoration-none" title="Clique para ir aos detalhes do pagamento" data-bs-toggle="tooltip" data-bs-placement="top">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Atenção! @tooltipText
+                </a>
+            }
+            else
+            {
+                <span class="badge bg-warning text-dark ms-2" title="@tooltipText" data-bs-toggle="tooltip" data-bs-placement="top">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Atenção! @tooltipText
+                </span>
+            }
         }
     </h2>
 </div>

@@ -114,6 +114,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.HasPending = result.HasFinancialPending || result.HasCertificateExpiring;
             ViewBag.HasFinancialPending = result.HasFinancialPending;
             ViewBag.HasCertificateExpiring = result.HasCertificateExpiring;
+            ViewBag.FirstPendingPaymentId = result.FirstPendingPaymentId;
             ViewBag.SubscriptionIdsWithPaymentAwaitingValidation = result.SubscriptionIdsWithPaymentAwaitingValidation;
             return View(ViewNames.Dashboard);
         }
