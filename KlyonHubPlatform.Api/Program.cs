@@ -61,6 +61,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             mySqlOptions.EnableRetryOnFailure();
             mySqlOptions.EnableStringComparisonTranslations();
+            mySqlOptions.CommandTimeout(120); // evita "Command Timeout expired" em consultas pesadas (ex.: DashboardDetails)
         }));
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is required");

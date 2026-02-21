@@ -1317,10 +1317,56 @@
                 form.reportValidity();
                 return;
             }
-            var paymentId = parseInt(document.getElementById('payWithCardPaymentId').value, 10);
             var number = (document.getElementById('payCardNumber').value || '').replace(/\s/g, '');
+            var holderName = (document.getElementById('payCardHolderName').value || '').trim();
             var expMonth = document.getElementById('payCardExpiryMonth').value;
             var expYear = document.getElementById('payCardExpiryYear').value;
+            var securityCode = (document.getElementById('payCardCvv').value || '').trim();
+            var installments = parseInt(document.getElementById('payCardInstallments').value, 10) || 1;
+            // Validação alinhada ao backend e ao teste Admin (campos obrigatórios e formato)
+            if (number.length < 13 || number.length > 19) {
+                errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (!holderName) {
+                errEl.textContent = 'Nome no cartão é obrigatório.';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (holderName.length < 2) {
+                errEl.textContent = 'Nome do portador inválido. Informe o nome como está no cartão (mínimo 2 caracteres).';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (!/[a-zA-Z\u00C0-\u024F]/.test(holderName)) {
+                errEl.textContent = 'Nome do portador inválido. O nome deve conter pelo menos uma letra (como no cartão).';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (!expMonth || !expYear) {
+                errEl.textContent = 'Data de validade inválida. Selecione mês e ano.';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (securityCode.length < 3 || securityCode.length > 4) {
+                errEl.textContent = 'CVV inválido. Informe 3 ou 4 dígitos do verso do cartão.';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            if (installments < 1 || installments > 12) {
+                errEl.textContent = 'Selecione entre 1 e 12 parcelas.';
+                errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            var paymentId = parseInt(document.getElementById('payWithCardPaymentId').value, 10);
             var year = expYear.length === 2 ? '20' + expYear : expYear;
             var payload = {
                 paymentId: paymentId,
@@ -1328,10 +1374,10 @@
                     number: number,
                     expirationMonth: expMonth,
                     expirationYear: year,
-                    securityCode: document.getElementById('payCardCvv').value,
-                    holderName: document.getElementById('payCardHolderName').value.trim()
+                    securityCode: securityCode,
+                    holderName: holderName
                 },
-                installments: parseInt(document.getElementById('payCardInstallments').value, 10) || 1
+                installments: installments
             };
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
@@ -1339,9 +1385,20 @@
                 var response = await fetch('@Url.Action("ProcessPaymentWithCard", "Client")', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify(payload)
                 });
-                var result = await response.json();
+                var text = await response.text();
+                var result = null;
+                try { result = text ? JSON.parse(text) : null; } catch (_) { }
+                if (!result) {
+                    errEl.textContent = response.ok ? 'Resposta inválida do servidor. Tente novamente.' : ('Erro ' + response.status + (text && text.length < 200 ? ': ' + text : '. Verifique os dados e tente novamente.'));
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
+                    return;
+                }
                 if (result.success) {
                     if (typeof showToast === 'function') showToast(result.message || 'Pagamento processado!', 'success');
                     var modal = bootstrap.Modal.getInstance(document.getElementById('payWithCardModal'));
@@ -1350,12 +1407,14 @@
                 } else {
                     errEl.textContent = result.error || 'Erro ao processar pagamento.';
                     errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
                 }
             } catch (e) {
-                errEl.textContent = 'Erro de conexão. Tente novamente.';
+                errEl.textContent = 'Erro de conexão: ' + (e.message || 'Tente novamente.');
                 errEl.classList.remove('d-none');
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
             }

@@ -132,9 +132,12 @@ else
                             </tr>
                         </thead>
                         <tbody>
+                            @{
+                                var subscriptionIdsAwaitingValidation = ViewBag.SubscriptionIdsWithPaymentAwaitingValidation as System.Collections.Generic.IReadOnlySet<int> ?? new HashSet<int>();
+                            }
                             @foreach (var contract in contractsForTable)
                             {
-                                var hasPaymentAwaitingValidation = contract.Subscription?.Payments?.Any(p => p.Status == PaymentStatus.AwaitingValidation) == true;
+                                var hasPaymentAwaitingValidation = contract.Subscription != null && subscriptionIdsAwaitingValidation.Contains(contract.Subscription.Id);
                                 <tr>
                                     <td>@contract.ContractNumber</td>
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>

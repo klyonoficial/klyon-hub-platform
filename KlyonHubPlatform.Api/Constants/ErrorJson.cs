@@ -15,6 +15,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ExpirationDateInvalid = "Data de validade inválida (mês e ano).";
         public const string SecurityCodeInvalid = "Código de segurança (CVV) inválido.";
         public const string CardHolderNameRequired = "Nome no cartão é obrigatório.";
+        public const string CardHolderNameInvalid = "Nome do portador inválido. Informe o nome como está no cartão (mínimo 2 caracteres, com pelo menos uma letra).";
         public const string PaymentDeclinedTryAnotherCard = "Pagamento recusado. Verifique os dados do cartão ou tente outro cartão.";
         public const string PaymentDeclinedVerifyData = "Pagamento recusado. Verifique os dados do cartão e tente novamente.";
         public const string ErrorProcessingPayment = "Erro ao processar pagamento. Tente novamente ou use outra forma de pagamento.";

@@ -4,7 +4,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         KlyonHubPlatform.Domain.Entities.Client? Client,
         int ReservationsCount,
         bool HasFinancialPending,
-        bool HasCertificateExpiring);
+        bool HasCertificateExpiring,
+        System.Collections.Generic.IReadOnlySet<int>? SubscriptionIdsWithPaymentAwaitingValidation);
     public interface IClientDashboardService
     {
         Task<ClientDashboardDetailsResult> GetDashboardDetailsAsync(int userId, CancellationToken cancellationToken = default);

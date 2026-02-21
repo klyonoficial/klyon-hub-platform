@@ -114,6 +114,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.HasPending = result.HasFinancialPending || result.HasCertificateExpiring;
             ViewBag.HasFinancialPending = result.HasFinancialPending;
             ViewBag.HasCertificateExpiring = result.HasCertificateExpiring;
+            ViewBag.SubscriptionIdsWithPaymentAwaitingValidation = result.SubscriptionIdsWithPaymentAwaitingValidation;
             return View(ViewNames.Dashboard);
         }
         [HttpGet]
@@ -2085,6 +2086,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (string.IsNullOrEmpty(holderName))
                 {
                     return Json(new { success = false, error = ErrorJson.CardHolderNameRequired });
+                }
+                if (holderName.Length < 2)
+                {
+                    return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
+                }
+                if (!holderName.Any(char.IsLetter))
+                {
+                    return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
                 }
                 var card = new Application.DTOs.PagBank.PagBankCard
                 {
