@@ -178,5 +178,94 @@
     </script>
 
     @await RenderSectionAsync("Scripts", required: false)
+
+    @* Widget de chat flutuante - Endereço Fiscal (em todas as páginas do layout landing) *@
+    <style>
+        #fiscal-chat-toggle { position: fixed; bottom: 28px; right: 28px; width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #1a4d7a 0%, #0a1f3a 100%); color: #fff; border: none; box-shadow: 0 6px 24px rgba(0,0,0,0.45); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; z-index: 99999; transition: transform 0.2s, box-shadow 0.2s; }
+        #fiscal-chat-toggle:hover { transform: scale(1.05); box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
+        #fiscal-chat-toggle svg { width: 28px; height: 28px; }
+        #fiscal-chat-window { position: fixed; bottom: 96px; right: 28px; width: 380px; max-width: calc(100vw - 56px); height: 520px; max-height: calc(100vh - 140px); background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); display: none; flex-direction: column; z-index: 99999; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #fiscal-chat-window.is-open { display: flex; }
+        .fiscal-chat-header { background: linear-gradient(135deg, #1a4d7a 0%, #0a1f3a 100%); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .fiscal-chat-header-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .fiscal-chat-header-text { flex: 1; }
+        .fiscal-chat-header-title { font-weight: 600; font-size: 1rem; }
+        .fiscal-chat-header-sub { font-size: 0.8rem; opacity: 0.9; }
+        .fiscal-chat-header-actions { display: flex; gap: 4px; }
+        .fiscal-chat-header-actions button { background: transparent; border: none; color: rgba(255,255,255,0.9); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .fiscal-chat-header-actions button:hover { background: rgba(255,255,255,0.15); }
+        .fiscal-chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #f8f9fa; }
+        .fiscal-chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
+        .fiscal-chat-msg.bot { align-self: flex-start; background: #e9ecef; color: #212529; border-bottom-left-radius: 4px; }
+        .fiscal-chat-msg.user { align-self: flex-end; background: #1a4d7a; color: #fff; border-bottom-right-radius: 4px; }
+        .fiscal-chat-msg.typing { align-self: flex-start; background: #e9ecef; padding: 12px 18px; }
+        .fiscal-chat-typing-dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #6c757d; margin: 0 2px; animation: fiscal-chat-bounce 1.4s ease-in-out infinite both; }
+        .fiscal-chat-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .fiscal-chat-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @@keyframes fiscal-chat-bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }
+        .fiscal-chat-input-wrap { padding: 12px 16px; background: #fff; border-top: 1px solid #e9ecef; flex-shrink: 0; display: flex; gap: 8px; align-items: flex-end; }
+        .fiscal-chat-input-wrap textarea { flex: 1; border: 1px solid #dee2e6; border-radius: 20px; padding: 10px 16px; font-size: 0.9rem; resize: none; min-height: 42px; max-height: 100px; font-family: inherit; }
+        .fiscal-chat-input-wrap textarea:focus { outline: none; border-color: #1a4d7a; }
+        .fiscal-chat-send { width: 42px; height: 42px; border-radius: 50%; background: #1a4d7a; color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
+        .fiscal-chat-send:hover { background: #0a1f3a; }
+        .fiscal-chat-send:disabled { opacity: 0.6; cursor: not-allowed; }
+    </style>
+    <button type="button" id="fiscal-chat-toggle" aria-label="Abrir chat de endereço fiscal" title="Endereço fiscal - Tire suas dúvidas">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.804 21.644A6.707 6.707 0 0 1 2 18H1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1a6.707 6.707 0 0 1 2.804-3.644l1.392-1.392A6.707 6.707 0 0 1 8 8.5V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1.5a6.707 6.707 0 0 1 2.804 3.644l1.392 1.392A6.707 6.707 0 0 1 23 13v4a1 1 0 0 1-1 1h-1a6.707 6.707 0 0 1-2.804 3.644l-1.392 1.392A6.707 6.707 0 0 1 16 19.5V21a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1.5a6.707 6.707 0 0 1-2.804-3.644l-1.392-1.392z"/></svg>
+    </button>
+    <div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal">
+        <div class="fiscal-chat-header">
+            <div class="fiscal-chat-header-avatar" aria-hidden="true">📍</div>
+            <div class="fiscal-chat-header-text">
+                <div class="fiscal-chat-header-title">Endereço Fiscal</div>
+                <div class="fiscal-chat-header-sub">Klyon Coworking · Shopping Moxuara</div>
+            </div>
+            <div class="fiscal-chat-header-actions">
+                <button type="button" id="fiscal-chat-minimize" aria-label="Minimizar"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg></button>
+                <button type="button" id="fiscal-chat-close" aria-label="Fechar"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+        </div>
+        <div class="fiscal-chat-messages" id="fiscal-chat-messages"></div>
+        <div class="fiscal-chat-input-wrap">
+            <textarea id="fiscal-chat-input" rows="1" placeholder="Digite sua mensagem..." maxlength="1000" aria-label="Mensagem"></textarea>
+            <button type="button" class="fiscal-chat-send" id="fiscal-chat-send" aria-label="Enviar"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+        </div>
+    </div>
+    <script>
+    (function(){
+        var API_BASE = '/api/fiscal-address-chat';
+        var toggle = document.getElementById('fiscal-chat-toggle');
+        var windowEl = document.getElementById('fiscal-chat-window');
+        var messagesEl = document.getElementById('fiscal-chat-messages');
+        var inputEl = document.getElementById('fiscal-chat-input');
+        var sendBtn = document.getElementById('fiscal-chat-send');
+        var closeBtn = document.getElementById('fiscal-chat-close');
+        var minBtn = document.getElementById('fiscal-chat-minimize');
+        var initialLoaded = false;
+        function openWindow(){ windowEl.classList.add('is-open'); if(!initialLoaded){ initialLoaded=true; fetch(API_BASE+'/initial').then(function(r){return r.json();}).then(function(d){ if(d&&d.message){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent=d.message; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; } }).catch(function(){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent='Olá! Como posso ajudar com endereço fiscal? Envie sua pergunta.'; messagesEl.appendChild(div); }); } inputEl.focus(); }
+        function closeWindow(){ windowEl.classList.remove('is-open'); }
+        if(toggle){ toggle.addEventListener('click',function(){ if(windowEl.classList.contains('is-open')) closeWindow(); else openWindow(); }); }
+        if(closeBtn) closeBtn.addEventListener('click', closeWindow);
+        if(minBtn) minBtn.addEventListener('click', closeWindow);
+        function appendMessage(text, isUser){ var div=document.createElement('div'); div.className='fiscal-chat-msg '+(isUser?'user':'bot'); div.textContent=text; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; }
+        function showTyping(){ var div=document.createElement('div'); div.className='fiscal-chat-msg typing'; div.id='fiscal-chat-typing'; div.innerHTML='<div class="fiscal-chat-typing-dots"><span></span><span></span><span></span></div>'; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; }
+        function hideTyping(){ var el=document.getElementById('fiscal-chat-typing'); if(el) el.remove(); }
+        function sendMessage(){
+            var text=(inputEl.value||'').trim();
+            if(!text) return;
+            inputEl.value='';
+            appendMessage(text, true);
+            sendBtn.disabled=true;
+            showTyping();
+            fetch(API_BASE+'/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message:text}) })
+                .then(function(r){ return r.json(); })
+                .then(function(d){ hideTyping(); appendMessage((d&&d.reply)?d.reply:'Não foi possível obter resposta. Tente novamente.', false); })
+                .catch(function(){ hideTyping(); appendMessage('Erro de conexão. Tente novamente ou fale com o atendimento.', false); })
+                .finally(function(){ sendBtn.disabled=false; inputEl.focus(); });
+        }
+        if(sendBtn) sendBtn.addEventListener('click', sendMessage);
+        if(inputEl) inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
+    })();
+    </script>
 </body>
 </html>

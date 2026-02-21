@@ -977,6 +977,9 @@
     
     @await RenderSectionAsync("Scripts", required: false)
     
+    @* Widget de chat - Endereço Fiscal (flutuante, estilo Live Chat) *@
+    @await Html.PartialAsync("_FiscalAddressChatWidget")
+    
     <!-- KlyonBoot Chat Widget - Temporariamente desabilitado -->
     @* <script src="~/js/klyonboot.js" asp-append-version="true"></script> *@
     @* <script>

@@ -14,6 +14,7 @@ using System.Globalization;
 using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Domain.Core.Constants;
 using Microsoft.Extensions.Options;
+using KlyonHubPlatform.Application.Options;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.HttpOverrides;
 var builder = WebApplication.CreateBuilder(args);
@@ -125,6 +126,8 @@ builder.Services.AddScoped<IReservationTransferService, ReservationTransferServi
 builder.Services.AddScoped<IChatbotRepository, ChatbotRepository>();
 builder.Services.AddScoped<IChatbotService, ChatbotService>();
 builder.Services.AddScoped<IAIIntentionService, AIIntentionService>();
+builder.Services.Configure<FiscalAddressChatOptions>(builder.Configuration.GetSection(FiscalAddressChatOptions.SectionName));
+builder.Services.AddScoped<IFiscalAddressChatService, FiscalAddressChatService>();
 builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
 builder.Services.AddHttpClient<IAsaasService, AsaasService>();
 builder.Services.AddHttpClient<IAsaasInvoiceService, AsaasInvoiceService>();
