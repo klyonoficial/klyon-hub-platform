@@ -9,7 +9,9 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
+using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Api.Constants;
+using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Api.Requests;
 using KlyonHubPlatform.Api.Dtos;
 using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
@@ -34,6 +36,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IClientMenuService _clientMenuService;
         private readonly IServiceCatalogService _serviceCatalogService;
         private readonly IClientDashboardService _clientDashboardService;
+        private readonly ApplicationDbContext _context;
         public ClientController(
             IContractService contractService,
             ICoworkingService coworkingService,
@@ -49,7 +52,8 @@ namespace KlyonHubPlatform.Api.Controllers
             ISystemConfigurationService systemConfig,
             IClientMenuService clientMenuService,
             IServiceCatalogService serviceCatalogService,
-            IClientDashboardService clientDashboardService)
+            IClientDashboardService clientDashboardService,
+            ApplicationDbContext context)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -66,6 +70,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _clientMenuService = clientMenuService;
             _serviceCatalogService = serviceCatalogService;
             _clientDashboardService = clientDashboardService;
+            _context = context;
         }
         private async Task<long> GetMaxPhotoSizeBytesAsync()
         {
@@ -1559,7 +1564,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (address.CardPrice12x.HasValue && Math.Abs(amount - address.CardPrice12x.Value) <= tolerance)
                     creditCardPlanLabel = $"12x de R$ {address.CardPrice12x.Value:N2}";
                 else if (address.CardPriceMonthly.HasValue && Math.Abs(amount - address.CardPriceMonthly.Value) <= tolerance)
-                    creditCardPlanLabel = "Mensal";
+                    creditCardPlanLabel = CreditPlanPeriods.Mensal;
             }
             ViewBag.CreditCardPlanLabel = creditCardPlanLabel;
             decimal originalAmount = payment.Amount;
@@ -1758,7 +1763,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ConfirmPayment(int paymentId, IFormFile? receiptFile)
+        public async Task<IActionResult> ConfirmPayment(int paymentId, IFormFile? receiptFile, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1925,7 +1930,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddCreditCard(int paymentId, string cardNumber, string cardHolderName, 
-            string expiryMonth, string expiryYear, string cvv, string? isDefault)
+            string expiryMonth, string expiryYear, string cvv, string? isDefault, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2921,7 +2926,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpGet]
         public async Task<IActionResult> FiscalNotes(int page = 1, int pageSize = 10, string? status = null, string? type = null, 
-            string? search = null, int? coworkingId = null, DateTime? startDate = null, DateTime? endDate = null)
+            string? search = null, int? coworkingId = null, DateTime? startDate = null, DateTime? endDate = null, CancellationToken cancellationToken = default)
         {
             pageSize = 10;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");

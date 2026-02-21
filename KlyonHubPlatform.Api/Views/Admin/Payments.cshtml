@@ -1,5 +1,6 @@
 @model List<KlyonHubPlatform.Domain.Entities.Payment>
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
 @{
     ViewData["Title"] = "Gerenciar Pagamentos";
 }
@@ -453,15 +454,15 @@
                             html += '<div class="list-group-item">';
                             html += '<div class="d-flex w-100 justify-content-between">';
                             html += '<h6 class="mb-1">';
-                            if (item.action === 'Approved') {
+                            if (item.action === '@PaymentHistoryActions.Approved') {
                                 html += '<span class="badge bg-success me-2"><i class="bi bi-check-circle"></i> Aprovado</span>';
-                            } else if (item.action === 'Rejected') {
+                            } else if (item.action === '@PaymentHistoryActions.Rejected') {
                                 html += '<span class="badge bg-danger me-2"><i class="bi bi-x-circle"></i> Reprovado</span>';
-                            } else if (item.action === 'ReceiptUploaded') {
+                            } else if (item.action === '@PaymentHistoryActions.ReceiptUploaded') {
                                 html += '<span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>';
-                            } else if (item.action === 'ContractCreated') {
+                            } else if (item.action === '@PaymentHistoryActions.ContractCreated') {
                                 html += '<span class="badge bg-primary me-2"><i class="bi bi-file-earmark-text"></i> Contrato Criado</span>';
-                            } else if (item.action === 'Cancelled') {
+                            } else if (item.action === '@PaymentHistoryActions.Cancelled') {
                                 html += '<span class="badge bg-cancelled me-2"><i class="bi bi-x-circle"></i> Cancelado</span>';
                             } else {
                                 html += '<span class="badge bg-secondary me-2">' + item.action + '</span>';

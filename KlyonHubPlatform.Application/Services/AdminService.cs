@@ -359,7 +359,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var coworkingServiceNames = await _context.Services
                     .AsNoTracking()
-                    .Where(x => !x.Code.Contains("FISCAL_ADDRESS"))
+                    .Where(x => !x.Code.Contains(ServiceCodes.FiscalAddressCodePrefix))
                     .Select(x => x.Name)
                     .ToListAsync(cancellationToken);
                 query = query.Where(s => !coworkingServiceNames.Contains(s.Name));
@@ -377,7 +377,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var coworkingServiceNames = await _context.Services
                     .AsNoTracking()
-                    .Where(x => !x.Code.Contains("FISCAL_ADDRESS"))
+                    .Where(x => !x.Code.Contains(ServiceCodes.FiscalAddressCodePrefix))
                     .Select(x => x.Name)
                     .ToListAsync(cancellationToken);
                 partnerServicesQuery = partnerServicesQuery.Where(ps => ps.Service != null && !coworkingServiceNames.Contains(ps.Service.Name));

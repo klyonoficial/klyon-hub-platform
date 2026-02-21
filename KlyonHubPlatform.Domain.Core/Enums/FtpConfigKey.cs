@@ -46,6 +46,10 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         public const string ProviderName = "FTP";
         public const int Port = 21;
         public const string PortString = "21";
+        /// <summary>Usuário FTP padrão (valor inicial em seed/config). Troque em produção.</summary>
+        public const string Username = "gestorhub";
+        /// <summary>Senha FTP padrão (valor inicial em seed/config). Troque em produção.</summary>
+        public const string Password = "F@z3rd@rC3rt0";
         public const string UsePassive = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.True;
         public const string UseSsl = KlyonHubPlatform.Domain.Core.Constants.StringBooleanValue.False;
         public const string RootPath = "/";

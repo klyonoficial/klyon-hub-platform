@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -586,7 +587,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task<List<string>> GetServiceNamesExceptFiscalAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Services
-                .Where(x => !x.Code.Contains("FISCAL_ADDRESS"))
+                .Where(x => !x.Code.Contains(ServiceCodes.FiscalAddressCodePrefix))
                 .Select(x => x.Name)
                 .ToListAsync(cancellationToken);
         }

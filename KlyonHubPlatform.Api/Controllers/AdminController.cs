@@ -22,6 +22,7 @@ using KlyonHubPlatform.Api.Dtos.Admin;
 using KlyonHubPlatform.Api.Extensions;
 using KlyonHubPlatform.Api.Requests;
 using KlyonHubPlatform.Application.Commands;
+using KlyonHubPlatform.Application.Constants;
 namespace KlyonHubPlatform.Api.Controllers
 {
     [Authorize(Roles = Administrator)]
@@ -1150,13 +1151,13 @@ namespace KlyonHubPlatform.Api.Controllers
             var oracleNamespaceKey = OracleStorageConfigKey.Namespace.ToConfigKey();
             if (await _systemConfigurationService.GetByKeyAsync(oracleNamespaceKey) == null)
             {
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Namespace.ToConfigKey(), "", OracleStorageConfigKey.Namespace.GetDescription(), "Storage", false, false, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Region.ToConfigKey(), OracleStorageDefaults.Region, OracleStorageConfigKey.Region.GetDescription(), "Storage", false, false, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.BucketName.ToConfigKey(), "", OracleStorageConfigKey.BucketName.GetDescription(), "Storage", false, false, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.AccessKeyId.ToConfigKey(), "", OracleStorageConfigKey.AccessKeyId.GetDescription(), "Storage", false, true, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.SecretAccessKey.ToConfigKey(), "", OracleStorageConfigKey.SecretAccessKey.GetDescription(), "Storage", false, true, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.ContractsFolder.ToConfigKey(), OracleStorageDefaults.ContractsFolder, OracleStorageConfigKey.ContractsFolder.GetDescription(), "Storage", false, false, User.Identity?.Name);
-                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.PhotosFolder.ToConfigKey(), OracleStorageDefaults.PhotosFolder, OracleStorageConfigKey.PhotosFolder.GetDescription(), "Storage", false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Namespace.ToConfigKey(), "", OracleStorageConfigKey.Namespace.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.Region.ToConfigKey(), OracleStorageDefaults.Region, OracleStorageConfigKey.Region.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.BucketName.ToConfigKey(), "", OracleStorageConfigKey.BucketName.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.AccessKeyId.ToConfigKey(), "", OracleStorageConfigKey.AccessKeyId.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, true, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.SecretAccessKey.ToConfigKey(), "", OracleStorageConfigKey.SecretAccessKey.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, true, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.ContractsFolder.ToConfigKey(), OracleStorageDefaults.ContractsFolder, OracleStorageConfigKey.ContractsFolder.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, false, User.Identity?.Name);
+                await _systemConfigurationService.CreateOrUpdateAsync(OracleStorageConfigKey.PhotosFolder.ToConfigKey(), OracleStorageDefaults.PhotosFolder, OracleStorageConfigKey.PhotosFolder.GetDescription(), SystemConfigurationCategoryKeys.Storage, false, false, User.Identity?.Name);
             }
             else
             {
@@ -1175,7 +1176,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var configurations = await _systemConfigurationService.GetAllAsync();
             var groupedByCategory = configurations.GroupBy(c => c.Category).ToList();
-            var currentProvider = await _systemConfigurationService.GetValueAsync(Provider) ?? "AWS";
+            var currentProvider = await _systemConfigurationService.GetValueAsync(Provider) ?? StorageProviderNames.Aws;
             var d4Token = await _systemConfigurationService.GetValueAsync(TokenAPI);
             var d4Safe = await _systemConfigurationService.GetValueAsync(SafeUuid);
             ViewBag.D4SignConfigured = !string.IsNullOrWhiteSpace(d4Token) && !string.IsNullOrWhiteSpace(d4Safe);
@@ -1614,12 +1615,12 @@ namespace KlyonHubPlatform.Api.Controllers
             var (success, message) = await _adminDbService.RunMigrationsAsync(cancellationToken);
             if (!success)
             {
-                if (message == "NoPendingMigrations")
+                if (message == AdminResultCodes.NoPendingMigrations)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.NoPendingMigrations;
                     return RedirectToAction(ActionNames.DatabaseManager);
                 }
-                if (message == "MigrationMarkedAsApplied")
+                if (message == AdminResultCodes.MigrationMarkedAsApplied)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.MigrationMarkedAsApplied;
                     return RedirectToAction(ActionNames.DatabaseManager);
@@ -1918,14 +1919,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var added = new List<string>();
             var alters = new[]
             {
-                ("CreditPurchases", "PaymentMethod", "ALTER TABLE CreditPurchases ADD COLUMN PaymentMethod varchar(50) NULL"),
-                ("CreditPurchases", "ExternalPaymentId", "ALTER TABLE CreditPurchases ADD COLUMN ExternalPaymentId varchar(255) NULL"),
-                ("CreditPurchases", "PixCode", "ALTER TABLE CreditPurchases ADD COLUMN PixCode varchar(500) NULL"),
-                ("CreditPurchases", "PixExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN PixExpiresAt datetime(6) NULL"),
-                ("CreditPurchases", "BoletoCode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoCode varchar(100) NULL"),
-                ("CreditPurchases", "BoletoBarcode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoBarcode varchar(100) NULL"),
-                ("CreditPurchases", "BoletoExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN BoletoExpiresAt datetime(6) NULL"),
-                ("CreditPurchases", "TransactionId", "ALTER TABLE CreditPurchases ADD COLUMN TransactionId varchar(255) NULL")
+                (MigrationTableConstants.CreditPurchases, MigrationTableConstants.PaymentMethod, $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN {MigrationTableConstants.PaymentMethod} varchar(50) NULL"),
+                (MigrationTableConstants.CreditPurchases, "ExternalPaymentId", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN ExternalPaymentId varchar(255) NULL"),
+                (MigrationTableConstants.CreditPurchases, "PixCode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN PixCode varchar(500) NULL"),
+                (MigrationTableConstants.CreditPurchases, "PixExpiresAt", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN PixExpiresAt datetime(6) NULL"),
+                (MigrationTableConstants.CreditPurchases, "BoletoCode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoCode varchar(100) NULL"),
+                (MigrationTableConstants.CreditPurchases, "BoletoBarcode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoBarcode varchar(100) NULL"),
+                (MigrationTableConstants.CreditPurchases, "BoletoExpiresAt", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoExpiresAt datetime(6) NULL"),
+                (MigrationTableConstants.CreditPurchases, "TransactionId", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN TransactionId varchar(255) NULL")
             };
             foreach (var (table, column, sql) in alters)
             {
@@ -2100,7 +2101,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                     "PlatformCreditBalances",
                     "Coworkings",
                     "Clients",
-                    "CreditPurchases",
+                    MigrationTableConstants.CreditPurchases,
                     "ClientCredits",
                     "CreditPlans",
                     "CreditCards",
@@ -2519,31 +2520,31 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 {
                     new Domain.Entities.CreditPlan
                     {
-                        Name = "Básico",
+                        Name = CreditPlanNames.Basico,
                         Price = 300m,
                         Credits = 300,
                         BonusCredits = 0,
-                        Period = "Mensal",
+                        Period = CreditPlanPeriods.Mensal,
                         ValidityMonths = 6,
                         IsActive = true
                     },
                     new Domain.Entities.CreditPlan
                     {
-                        Name = "Profissional",
+                        Name = CreditPlanNames.Profissional,
                         Price = 500m,
                         Credits = 520,
                         BonusCredits = 20,
-                        Period = "Mensal",
+                        Period = CreditPlanPeriods.Mensal,
                         ValidityMonths = 6,
                         IsActive = true
                     },
                     new Domain.Entities.CreditPlan
                     {
-                        Name = "Business",
+                        Name = CreditPlanNames.Business,
                         Price = 1000m,
                         Credits = 1080,
                         BonusCredits = 80,
-                        Period = "Mensal",
+                        Period = CreditPlanPeriods.Mensal,
                         ValidityMonths = 6,
                         IsActive = true
                     }
@@ -2684,7 +2685,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ServiceNotFound;
                     return RedirectToAction(ActionNames.ViewCoworking, new { id = CoworkingId });
                 }
-                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains(FiscalAddressCodePrefix)).Select(x => x.Name).ToList();
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))
@@ -4388,7 +4389,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 var service = await _adminDbService.GetContext().Services.FindAsync(request.ServiceId);
                 if (service == null)
                     return Json(new { success = false, message = JsonMessage.ServicoNaoEncontrado });
-                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                var coworkingServiceNames = _adminDbService.GetContext().Services.Where(x => !x.Code.Contains(FiscalAddressCodePrefix)).Select(x => x.Name).ToList();
                 var enableCoworkingMenus = await _systemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (!showCoworkingMenus && coworkingServiceNames.Contains(service.Name))

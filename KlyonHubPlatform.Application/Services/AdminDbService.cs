@@ -1,4 +1,5 @@
 using System.Data.Common;
+using KlyonHubPlatform.Application.Constants;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -87,20 +88,20 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task UpdateStorageToFtpAsync(CancellationToken cancellationToken = default)
         {
-            var storageProvider = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == Provider, cancellationToken);
+            var storageProvider = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == StorageConfigKeys.Provider, cancellationToken);
             if (storageProvider != null)
             {
-                storageProvider.Value = ProviderName;
+                storageProvider.Value = FtpDefaults.ProviderName;
                 storageProvider.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
                 _context.SystemConfigurations.Add(new SystemConfiguration
                 {
-                    Key = Provider,
-                    Value = ProviderName,
+                    Key = StorageConfigKeys.Provider,
+                    Value = FtpDefaults.ProviderName,
                     Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                    Category = "Storage",
+                    Category = SystemConfigurationCategoryKeys.Storage,
                     IsSensitive = false,
                     IsEncrypted = false,
                     CreatedAt = DateTime.UtcNow
@@ -110,8 +111,8 @@ namespace KlyonHubPlatform.Application.Services
             {
                 (FtpConfigKey.Host, "187.110.161.110"),
                 (FtpConfigKey.Port, FtpDefaults.PortString),
-                (FtpConfigKey.Username, "gestorhub"),
-                (FtpConfigKey.Password, "F@z3rd@rC3rt0"),
+                (FtpConfigKey.Username, FtpDefaults.Username),
+                (FtpConfigKey.Password, FtpDefaults.Password),
                 (FtpConfigKey.UsePassiveMode, FtpDefaults.UsePassive),
                 (FtpConfigKey.UseSSL, FtpDefaults.UseSsl)
             };
@@ -131,7 +132,7 @@ namespace KlyonHubPlatform.Application.Services
                         Key = configKey,
                         Value = value,
                         Description = key.GetDescription(),
-                        Category = "Storage",
+                        Category = SystemConfigurationCategoryKeys.Storage,
                         IsSensitive = key == FtpConfigKey.Password,
                         IsEncrypted = false,
                         CreatedAt = DateTime.UtcNow
@@ -156,7 +157,7 @@ namespace KlyonHubPlatform.Application.Services
                     Key = StorageConfigKeys.Provider,
                     Value = OracleStorageDefaults.ProviderName,
                     Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                    Category = "Storage",
+                    Category = SystemConfigurationCategoryKeys.Storage,
                     IsSensitive = false,
                     IsEncrypted = false,
                     CreatedAt = DateTime.UtcNow
@@ -170,17 +171,17 @@ namespace KlyonHubPlatform.Application.Services
             var storageProvider = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == StorageConfigKeys.Provider, cancellationToken);
             if (storageProvider != null)
             {
-                storageProvider.Value = "AWS";
+                storageProvider.Value = StorageProviderNames.Aws;
                 storageProvider.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
                 _context.SystemConfigurations.Add(new SystemConfiguration
                 {
-                    Key = Provider,
-                    Value = "AWS",
+                    Key = StorageConfigKeys.Provider,
+                    Value = StorageProviderNames.Aws,
                     Description = "Provedor de armazenamento: Oracle, FTP ou AWS",
-                    Category = "Storage",
+                    Category = SystemConfigurationCategoryKeys.Storage,
                     IsSensitive = false,
                     IsEncrypted = false,
                     CreatedAt = DateTime.UtcNow
@@ -285,7 +286,7 @@ namespace KlyonHubPlatform.Application.Services
                     _context.PaymentHistories.Add(new PaymentHistory
                     {
                         PaymentId = paymentId,
-                        Action = "Rejected",
+                        Action = PaymentHistoryActions.Rejected,
                         RejectionReason = rejectionReason,
                         ActionBy = userId,
                         ActionAt = DateTime.UtcNow
@@ -338,7 +339,7 @@ namespace KlyonHubPlatform.Application.Services
                 catch { }
                 var pendingMigrations = (await _context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
                 if (pendingMigrations.Count == 0)
-                    return (false, "NoPendingMigrations");
+                    return (false, AdminResultCodes.NoPendingMigrations);
                 await _context.Database.MigrateAsync(cancellationToken);
                 return (true, string.Join(", ", pendingMigrations));
             }
@@ -351,7 +352,7 @@ namespace KlyonHubPlatform.Application.Services
                     try
                     {
                         await _context.Database.ExecuteSqlRawAsync("INSERT IGNORE INTO `__EFMigrationsHistory` (MigrationId, ProductVersion) VALUES ('20260124000542_AddCoworkingSefazConfiguration', '8.0.0')", cancellationToken);
-                        return (false, "MigrationMarkedAsApplied");
+                        return (false, AdminResultCodes.MigrationMarkedAsApplied);
                     }
                     catch { }
                 }
@@ -399,14 +400,14 @@ namespace KlyonHubPlatform.Application.Services
             => await _context.Services.FindAsync(new object[] { id }, cancellationToken);
 
         public async Task<List<string>> GetCoworkingServiceNamesExcludingFiscalAsync(CancellationToken cancellationToken = default)
-            => await _context.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToListAsync(cancellationToken);
+            => await _context.Services.Where(x => !x.Code.Contains(ServiceCodes.FiscalAddressCodePrefix)).Select(x => x.Name).ToListAsync(cancellationToken);
 
         public async Task<(bool Success, string? ErrorMessage)> SavePartnerServiceAsync(int id, int coworkingId, int serviceId, decimal percentage, CancellationToken cancellationToken = default)
         {
             if (id > 0)
             {
                 var existing = await _context.PartnerServices.FindAsync(new object[] { id }, cancellationToken);
-                if (existing == null || existing.CoworkingId != coworkingId) return (false, "PartnerServiceNotFound");
+                if (existing == null || existing.CoworkingId != coworkingId) return (false, AdminResultCodes.PartnerServiceNotFound);
                 existing.ServiceId = serviceId;
                 existing.Percentage = percentage;
                 existing.UpdatedAt = DateTime.UtcNow;
@@ -414,7 +415,7 @@ namespace KlyonHubPlatform.Application.Services
             else
             {
                 var exists = await _context.PartnerServices.AnyAsync(ps => ps.CoworkingId == coworkingId && ps.ServiceId == serviceId, cancellationToken);
-                if (exists) return (false, "ServiceAlreadyRegisteredForPartner");
+                if (exists) return (false, AdminResultCodes.ServiceAlreadyRegisteredForPartner);
                 _context.PartnerServices.Add(new PartnerService
                 {
                     CoworkingId = coworkingId,
@@ -430,7 +431,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task<(bool Success, string? ErrorMessage)> DeletePartnerServiceAsync(int id, int coworkingId, CancellationToken cancellationToken = default)
         {
             var partnerService = await _context.PartnerServices.FindAsync(new object[] { id }, cancellationToken);
-            if (partnerService == null || partnerService.CoworkingId != coworkingId) return (false, "PartnerServiceNotFound");
+            if (partnerService == null || partnerService.CoworkingId != coworkingId) return (false, AdminResultCodes.PartnerServiceNotFound);
             _context.PartnerServices.Remove(partnerService);
             await _context.SaveChangesAsync(cancellationToken);
             return (true, null);
@@ -533,9 +534,9 @@ namespace KlyonHubPlatform.Application.Services
             if (existingPlans) return false;
             var plans = new List<CreditPlan>
             {
-                new CreditPlan { Name = "Básico", Price = 300m, Credits = 300, BonusCredits = 0, Period = "Mensal", ValidityMonths = 6, IsActive = true },
-                new CreditPlan { Name = "Profissional", Price = 500m, Credits = 520, BonusCredits = 20, Period = "Mensal", ValidityMonths = 6, IsActive = true },
-                new CreditPlan { Name = "Business", Price = 1000m, Credits = 1080, BonusCredits = 80, Period = "Mensal", ValidityMonths = 6, IsActive = true }
+                new CreditPlan { Name = CreditPlanNames.Basico, Price = 300m, Credits = 300, BonusCredits = 0, Period = CreditPlanPeriods.Mensal, ValidityMonths = 6, IsActive = true },
+                new CreditPlan { Name = CreditPlanNames.Profissional, Price = 500m, Credits = 520, BonusCredits = 20, Period = CreditPlanPeriods.Mensal, ValidityMonths = 6, IsActive = true },
+                new CreditPlan { Name = CreditPlanNames.Business, Price = 1000m, Credits = 1080, BonusCredits = 80, Period = CreditPlanPeriods.Mensal, ValidityMonths = 6, IsActive = true }
             };
             _context.CreditPlans.AddRange(plans);
             await _context.SaveChangesAsync(cancellationToken);
@@ -595,7 +596,7 @@ namespace KlyonHubPlatform.Application.Services
             try
             {
                 await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;", cancellationToken);
-                var tablesToClear = new[] { "AuditLogs", "PaymentHistories", "FiscalNoteScriptExecutions", "FiscalNotes", "ReservationCommissions", "Commissions", "Transfers", "Reservations", "Payments", "Subscriptions", "Contracts", "AddressDeclarations", "CapacityChangeRequests", "CoworkingRoomPhotos", "CoworkingRooms", "CoworkingPhotos", "CoworkingDocuments", "CoworkingOperatingHours", "BlockedDates", "CoworkingPartners", "CoworkingSefazConfigurations", "CoworkingAddresses", "PartnerServices", "LocationCommissions", "PlatformCreditBalances", "Coworkings", "Clients", "CreditPurchases", "ClientCredits", "CreditPlans", "CreditCards", "Documents", "Interests", "CoworkingProducts", "CoworkingRatings", "Translations", "Services" };
+                var tablesToClear = new[] { "AuditLogs", "PaymentHistories", "FiscalNoteScriptExecutions", "FiscalNotes", "ReservationCommissions", "Commissions", "Transfers", "Reservations", "Payments", "Subscriptions", "Contracts", "AddressDeclarations", "CapacityChangeRequests", "CoworkingRoomPhotos", "CoworkingRooms", "CoworkingPhotos", "CoworkingDocuments", "CoworkingOperatingHours", "BlockedDates", "CoworkingPartners", "CoworkingSefazConfigurations", "CoworkingAddresses", "PartnerServices", "LocationCommissions", "PlatformCreditBalances", "Coworkings", "Clients", MigrationTableConstants.CreditPurchases, "ClientCredits", "CreditPlans", "CreditCards", "Documents", "Interests", "CoworkingProducts", "CoworkingRatings", "Translations", "Services" };
                 var clearedTables = new List<string>();
                 var errors = new List<string>();
                 var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com", cancellationToken);
@@ -799,7 +800,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task<List<string>> FixCreditPurchaseColumnsAsync(CancellationToken cancellationToken = default)
         {
             var added = new List<string>();
-            var alters = new[] { ("CreditPurchases", "PaymentMethod", "ALTER TABLE CreditPurchases ADD COLUMN PaymentMethod varchar(50) NULL"), ("CreditPurchases", "ExternalPaymentId", "ALTER TABLE CreditPurchases ADD COLUMN ExternalPaymentId varchar(255) NULL"), ("CreditPurchases", "PixCode", "ALTER TABLE CreditPurchases ADD COLUMN PixCode varchar(500) NULL"), ("CreditPurchases", "PixExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN PixExpiresAt datetime(6) NULL"), ("CreditPurchases", "BoletoCode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoCode varchar(100) NULL"), ("CreditPurchases", "BoletoBarcode", "ALTER TABLE CreditPurchases ADD COLUMN BoletoBarcode varchar(100) NULL"), ("CreditPurchases", "BoletoExpiresAt", "ALTER TABLE CreditPurchases ADD COLUMN BoletoExpiresAt datetime(6) NULL"), ("CreditPurchases", "TransactionId", "ALTER TABLE CreditPurchases ADD COLUMN TransactionId varchar(255) NULL") };
+            var alters = new[] { (MigrationTableConstants.CreditPurchases, MigrationTableConstants.PaymentMethod, $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN {MigrationTableConstants.PaymentMethod} varchar(50) NULL"), (MigrationTableConstants.CreditPurchases, "ExternalPaymentId", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN ExternalPaymentId varchar(255) NULL"), (MigrationTableConstants.CreditPurchases, "PixCode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN PixCode varchar(500) NULL"), (MigrationTableConstants.CreditPurchases, "PixExpiresAt", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN PixExpiresAt datetime(6) NULL"), (MigrationTableConstants.CreditPurchases, "BoletoCode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoCode varchar(100) NULL"), (MigrationTableConstants.CreditPurchases, "BoletoBarcode", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoBarcode varchar(100) NULL"), (MigrationTableConstants.CreditPurchases, "BoletoExpiresAt", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN BoletoExpiresAt datetime(6) NULL"), (MigrationTableConstants.CreditPurchases, "TransactionId", $"ALTER TABLE {MigrationTableConstants.CreditPurchases} ADD COLUMN TransactionId varchar(255) NULL") };
             foreach (var (_, column, sql) in alters)
             {
                 try

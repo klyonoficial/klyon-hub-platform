@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using KlyonHubPlatform.Api.ViewModels;
 using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.AppHome;

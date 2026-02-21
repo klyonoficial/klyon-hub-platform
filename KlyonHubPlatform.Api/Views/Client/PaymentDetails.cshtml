@@ -1,5 +1,6 @@
 @model KlyonHubPlatform.Domain.Entities.Payment
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
 @{
     ViewData["Title"] = "Detalhes do Pagamento";
     var contract = Model.Subscription?.Contract;
@@ -582,15 +583,15 @@
                             <div class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
                                     <h6 class="mb-1">
-                                        @if (history.Action == "Approved")
+                                        @if (history.Action == PaymentHistoryActions.Approved)
                                         {
                                             <span class="badge bg-success me-2"><i class="bi bi-check-circle"></i> Aprovado</span>
                                         }
-                                        else if (history.Action == "Rejected")
+                                        else if (history.Action == PaymentHistoryActions.Rejected)
                                         {
                                             <span class="badge bg-danger me-2"><i class="bi bi-x-circle"></i> Reprovado</span>
                                         }
-                                        else if (history.Action == "ReceiptUploaded")
+                                        else if (history.Action == PaymentHistoryActions.ReceiptUploaded)
                                         {
                                             @if (!string.IsNullOrEmpty(Model.ReceiptFilePath))
                                             {
@@ -603,11 +604,11 @@
                                                 <span class="badge bg-info me-2"><i class="bi bi-upload"></i> Comprovante Enviado</span>
                                             }
                                         }
-                                        else if (history.Action == "ContractCreated")
+                                        else if (history.Action == PaymentHistoryActions.ContractCreated)
                                         {
                                             <span class="badge bg-primary me-2"><i class="bi bi-file-earmark-text"></i> Contrato Criado</span>
                                         }
-                                        else if (history.Action == "Cancelled")
+                                        else if (history.Action == PaymentHistoryActions.Cancelled)
                                         {
                                             <span class="badge bg-cancelled me-2"><i class="bi bi-x-circle"></i> Cancelado</span>
                                         }

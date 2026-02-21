@@ -844,7 +844,10 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao salvar: {ex.Message}";
-                var address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, coworkingEntity?.Id ?? 0);
+                var userIdCatch = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var coworkingCatch = await _coworkingService.GetByUserIdAsync(userIdCatch);
+                var coworkingEntityCatch = coworkingCatch.FirstOrDefault();
+                var address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, coworkingEntityCatch?.Id ?? 0);
                 return address != null ? View(address) : RedirectToAction(ActionNames.MyAddresses);
             }
         }
@@ -883,11 +886,12 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditMaxContracts(int id, int maxContracts, string? justification, CancellationToken cancellationToken = default)
         {
+            Coworking? coworkingEntity = null;
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
                 var coworking = await _coworkingService.GetByUserIdAsync(userId);
-                var coworkingEntity = coworking.FirstOrDefault();
+                coworkingEntity = coworking.FirstOrDefault();
                 if (coworkingEntity == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
@@ -953,6 +957,8 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao processar solicitação: {ex.Message}";
+                if (coworkingEntity == null)
+                    return RedirectToAction(ActionNames.MyAddresses);
                 var existingAddress = await _coworkingAppService.GetExistingAddressWithLocationAsync(id, coworkingEntity.Id);
                 ViewBag.Address = existingAddress;
                 return View(existingAddress!);
@@ -3241,7 +3247,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
             var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
-            var coworkingServiceNames = _coworkingAppService.DbContext.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+            var coworkingServiceNames = _coworkingAppService.DbContext.Services.Where(x => !x.Code.Contains(FiscalAddressCodePrefix)).Select(x => x.Name).ToList();
             var allServicesQuery = _coworkingAppService.DbContext.Services
                 .Where(s => s.IsActive && s.Code != FiscalAddressContracting);
             if (!showCoworkingMenus)
@@ -3304,7 +3310,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
-                var coworkingServiceNames = _coworkingAppService.DbContext.Services.Where(x => !x.Code.Contains("FISCAL_ADDRESS")).Select(x => x.Name).ToList();
+                var coworkingServiceNames = _coworkingAppService.DbContext.Services.Where(x => !x.Code.Contains(FiscalAddressCodePrefix)).Select(x => x.Name).ToList();
                 var service = await _coworkingAppService.DbContext.Services
                     .FirstOrDefaultAsync(s => s.Id == serviceId && s.IsActive);
                 if (service == null)

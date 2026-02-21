@@ -31,7 +31,7 @@ namespace KlyonHubPlatform.Application.Services
                     return _oracleStorageService;
                 if (key == FtpDefaults.ProviderName.ToUpperInvariant())
                     return _ftpStorageService;
-                if (key == "AWS" || key == "S3")
+                if (key == StorageProviderNames.Aws || key == StorageProviderNames.S3)
                     return _awsStorageService;
                 return _oracleStorageService;
             }
