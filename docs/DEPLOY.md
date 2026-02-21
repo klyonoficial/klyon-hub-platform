@@ -245,7 +245,7 @@ dotnet ef database update --project KlyonHubPlatform.Infra.Data --startup-projec
 
 #### 7. Publicar a aplicação no seu computador
 
-**Opção rápida (script):** na raiz do repositório há `deploy.bat` e `deploy.ps1`. Duplo clique em **deploy.bat** (ou execute `.\deploy.ps1` no PowerShell) para: publicar, enviar os arquivos para a VM, apagar a pasta `publish` local e reiniciar o serviço `klyon-app` na VM. Exige a chave em `ssh\ssh-key-2026-02-04.key` e o IP da VM em `deploy.ps1` (variável `$VmIp`).
+**Opção rápida (script):** na raiz do repositório há `deploy.bat` e `deploy.ps1`. Duplo clique em **deploy.bat** (ou execute `.\deploy.ps1` no PowerShell). O script usa **deploy Blue-Green (zero downtime)**: na primeira execução configura na VM as pastas `app_blue`/`app_green`, os serviços systemd e o Nginx; em toda execução envia a nova versão para a instância inativa, aguarda ficar pronta e só então troca o tráfego. Exige a chave em `ssh\ssh-key-2026-02-04.key`, o IP da VM em `deploy.ps1` (variável `$VmIp`) e, na VM, o usuário `ubuntu` com **sudo sem senha** para os comandos usados pelo script (veja seção "Deploy Blue-Green" abaixo).
 
 **Manual:** na raiz do repositório (Windows):
 
@@ -268,6 +268,34 @@ Crie `appsettings.Production.json` na pasta `publish` (ou edite depois na VM) co
   }
 }
 ```
+
+---
+
+#### 7.1 Deploy Blue-Green (zero downtime)
+
+O `deploy.ps1` implementa deploy **blue-green**: a aplicação permanece no ar até a nova versão estar pronta; só então o Nginx passa a apontar para a nova instância.
+
+**O que o script faz:**
+- **Primeira execução (setup):** Cria na VM as pastas `app_blue` (porta 5000) e `app_green` (porta 5001), os units systemd `klyon-app-blue` e `klyon-app-green`, e a config do Nginx (se ainda não existir). Se existir `/home/ubuntu/app`, copia o conteúdo para blue e green. Para obter a connection string do banco, o script lê o unit `klyon-app.service` existente; se não houver, é possível definir a variável `$DeployConnectionString` no topo do `deploy.ps1`.
+- **Toda execução (deploy):** Publica localmente, envia os arquivos para `app_new` na VM, identifica qual instância está ativa (blue ou green), copia `app_new` para a pasta inativa, inicia o serviço inativo, aguarda o health check (HTTP 200/302), altera o `proxy_pass` do Nginx para a nova porta e recarrega o Nginx, e por fim para o serviço antigo.
+
+**Requisito na VM: sudo sem senha**
+
+Para o script executar todos os passos via SSH sem pedir senha, o usuário `ubuntu` precisa de permissão para os comandos usados pelo deploy. Na VM (uma vez):
+
+```bash
+echo 'ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/tee, /usr/bin/sed, /usr/sbin/nginx, /bin/mv, /bin/rm, /bin/cp' | sudo tee /etc/sudoers.d/klyon-deploy
+sudo chmod 440 /etc/sudoers.d/klyon-deploy
+```
+
+Se preferir liberar sudo completo para o usuário (menos seguro):
+
+```bash
+echo 'ubuntu ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/klyon-deploy
+sudo chmod 440 /etc/sudoers.d/klyon-deploy
+```
+
+**Nota:** Durante o switch, duas instâncias .NET ficam ativas por alguns segundos. Em VM com 1 GB de RAM pode haver pico de uso; em VMs maiores (ex.: A1.Flex 6 GB) costuma ser tranquilo.
 
 ---
 
