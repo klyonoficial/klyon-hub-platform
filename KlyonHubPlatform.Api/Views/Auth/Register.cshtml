@@ -43,18 +43,10 @@
                         </div>
                         <div class="mb-3">
                             <label for="role" class="form-label">Tipo de Conta</label>
-                            @if (initialRole == "CoworkingPartner")
-                            {
-                                <input type="hidden" name="role" value="CoworkingPartner" />
-                                <div class="form-control bg-light">Coworking Parceiro</div>
-                            }
-                            else
-                            {
-                                <select class="form-select" id="role" name="role">
-                                    <option value="Client">Cliente (Empresa/Profissional)</option>
-                                    <option value="CoworkingPartner">Coworking Parceiro</option>
-                                </select>
-                            }
+                            <select class="form-select" id="role" name="role">
+                                <option value="Client">Cliente (Empresa/Profissional)</option>
+                                <option value="CoworkingPartner">Coworking Parceiro</option>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <div class="form-check">

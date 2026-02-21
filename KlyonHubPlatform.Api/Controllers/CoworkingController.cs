@@ -2575,7 +2575,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     var message = ex.InnerException?.Message ?? ex.Message;
                     if (message.Contains("InvalidRequest", StringComparison.OrdinalIgnoreCase) || message.Contains("AWSSDK", StringComparison.OrdinalIgnoreCase))
                         message = "Falha ao salvar as fotos no armazenamento (Oracle Cloud). Verifique em Admin > Configurações do Sistema > Armazenamento: namespace, região, bucket e credenciais Oracle.OS.";
-                    return new JsonResult(new { success = false, error = $"Erro ao fazer upload das fotos: {message}" }) { StatusCode = 500 };
+                    else if (message.Contains("body too large", StringComparison.OrdinalIgnoreCase) || message.Contains("Payload too large", StringComparison.OrdinalIgnoreCase) || message.Contains("413", StringComparison.OrdinalIgnoreCase))
+                        message = "O arquivo ultrapassou o limite permitido. O tamanho máximo por foto é 5MB.";
+                    else
+                        message = $"Erro ao fazer upload das fotos: {message}";
+                    return new JsonResult(new { success = false, error = message }) { StatusCode = 500 };
                 }
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao fazer upload das fotos: {ex.Message}";
                 return RedirectToAction(ActionNames.Profile);

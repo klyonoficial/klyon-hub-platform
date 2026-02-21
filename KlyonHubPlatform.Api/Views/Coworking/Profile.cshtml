@@ -1614,19 +1614,27 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                             showToast('Fotos enviadas com sucesso!', 'success');
                         } else {
                             // Erro: tentar ler mensagem do corpo JSON
+                            var errStatus = response.status;
+                            var sizeLimitMsg = 'O arquivo ultrapassou o limite permitido. O tamanho máximo por foto é ' + maxPhotoMb + 'MB.';
                             response.json().then(function(data) {
                                 var msg = data.error || 'Erro ao enviar fotos. Por favor, tente novamente.';
-                                // Limite de fotos: exibir como atenção e evitar duplicata se o cliente já mostrou
                                 var isLimitMessage = msg.indexOf('limite máximo') !== -1 && msg.indexOf('fotos') !== -1;
+                                var isSizeMessage = msg.indexOf('muito grande') !== -1 || msg.indexOf('tamanho máximo') !== -1;
                                 if (isLimitMessage) {
                                     if (window._lastLimitPhotosToast && (Date.now() - window._lastLimitPhotosToast) < 2500) return;
                                     window._lastLimitPhotosToast = Date.now();
+                                    showToast(msg, 'warning');
+                                } else if (isSizeMessage) {
                                     showToast(msg, 'warning');
                                 } else {
                                     showToast(msg, 'error');
                                 }
                             }).catch(function() {
-                                showToast('Erro ao enviar fotos. Por favor, tente novamente.', 'error');
+                                if (errStatus === 413) {
+                                    showToast(sizeLimitMsg, 'error');
+                                } else {
+                                    showToast('Erro ao enviar fotos. Por favor, tente novamente.', 'error');
+                                }
                             });
                         }
                     })
