@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Gerenciar Coworkings";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Gerenciar Coworkings";
+    Layout = LayoutPaths.Layout;
 }
 @using KlyonHubPlatform.Domain.Core.Enums
 
@@ -36,7 +36,7 @@
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
-                    <option value="active" selected="@(ViewBag.Status == "active")">Ativos</option>
+                    <option value="@StatusFilterValues.Active" selected="@(ViewBag.Status == StatusFilterValues.Active)">Ativos</option>
                     <option value="inactive" selected="@(ViewBag.Status == "inactive")">Inativos</option>
                 </select>
             </div>
@@ -297,7 +297,7 @@
 
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 

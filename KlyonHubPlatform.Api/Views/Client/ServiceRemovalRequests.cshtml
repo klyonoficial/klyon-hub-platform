@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Solicitações de Remoção";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Solicitações de Remoção";
+    Layout = LayoutPaths.Layout;
 }
 
 @using KlyonHubPlatform.Domain.Core.Enums
@@ -36,11 +36,11 @@ else
                         {
                             <tr>
                                 <td>
-                                    <strong>@(ps.Coworking?.Name ?? "N/A")</strong><br>
+                                    <strong>@(ps.Coworking?.Name ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                                     <small class="text-muted">@(ps.Coworking?.User?.Email ?? "-")</small>
                                 </td>
                                 <td>
-                                    <strong>@(ps.Service?.Name ?? "N/A")</strong><br>
+                                    <strong>@(ps.Service?.Name ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                                     <small class="text-muted">@(ps.Service?.Description ?? "-")</small>
                                 </td>
                                 <td>
@@ -60,7 +60,7 @@ else
                                             RemovalRequestStatus.Pending => "Pendente",
                                             RemovalRequestStatus.Approved => "Aprovada",
                                             RemovalRequestStatus.Rejected => "Rejeitada",
-                                            _ => "N/A"
+                                            _ => DefaultDisplayStrings.NotAvailable
                                         };
                                     }
                                     <span class="badge bg-@statusClass">@statusText</span>
@@ -97,7 +97,7 @@ else
 
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Client, new { page = i, pageSize = ViewBag.PageSize })">@i</a>
                             </li>
                         }

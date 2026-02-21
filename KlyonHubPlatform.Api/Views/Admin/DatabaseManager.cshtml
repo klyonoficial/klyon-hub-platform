@@ -2,8 +2,8 @@
 @using System.Collections.Generic
 @using System
 @{
-    ViewData["Title"] = "Gerenciador de Banco de Dados";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Gerenciador de Banco de Dados";
+    Layout = LayoutPaths.Layout;
     var pendingMigrations = ViewBag.PendingMigrations as List<string> ?? new List<string>();
 }
 

@@ -1,8 +1,8 @@
 @model List<KlyonHubPlatform.Domain.Entities.Interest>
 @using KlyonHubPlatform.Api.Dtos.Coworking
 @{
-    ViewData["Title"] = "Reservas";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Reservas";
+    Layout = LayoutPaths.Layout;
     var reservations = (ViewBag.Reservations as List<ReservationOrInterestItemDto>) ?? new List<ReservationOrInterestItemDto>();
 }
 
@@ -27,10 +27,10 @@
                     <optgroup label="Reservas Confirmadas">
                         <option value="Confirmed" selected="@(ViewBag.Status == "Confirmed")">Confirmada</option>
                         <option value="Completed" selected="@(ViewBag.Status == "Completed")">Concluída</option>
-                        <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelada</option>
+                        <option value="@ReservationStatusFilterValues.Cancelled" selected="@(ViewBag.Status == ReservationStatusFilterValues.Cancelled)">Cancelada</option>
                     </optgroup>
                     <optgroup label="Interesses">
-                        <option value="Pending" selected="@(ViewBag.Status == "Pending")">Pendente</option>
+                        <option value="@ReservationStatusFilterValues.Pending" selected="@(ViewBag.Status == ReservationStatusFilterValues.Pending)">Pendente</option>
                         <option value="Contacted" selected="@(ViewBag.Status == "Contacted")">Contatado</option>
                         <option value="Converted" selected="@(ViewBag.Status == "Converted")">Convertido</option>
                         <option value="Rejected" selected="@(ViewBag.Status == "Rejected")">Rejeitado</option>
@@ -209,16 +209,16 @@
                                         }
                                         @switch (itemStatus)
                                         {
-                                            case "Confirmed":
+                                            case "@(ReservationStatusFilterValues.Confirmed)":
                                                 <span class="badge bg-success">Confirmada</span>
                                                 break;
-                                            case "Cancelled":
+                                            case "@(ReservationStatusFilterValues.Cancelled)":
                                                 <span class="badge bg-danger">Cancelada</span>
                                                 break;
-                                            case "Completed":
+                                            case "@(ReservationStatusFilterValues.Completed)":
                                                 <span class="badge bg-info">Concluída</span>
                                                 break;
-                                            case "Pending":
+                                            case "@(ReservationStatusFilterValues.Pending)":
                                                 <span class="badge bg-warning">Pendente</span>
                                                 break;
                                             case "Contacted":
@@ -287,10 +287,10 @@
                                                         <div class="mb-3">
                                                             <label class="form-label">Status</label>
                                                             <select class="form-select" name="status" required>
-                                                                <option value="Pending" selected="@(ViewBag.Status as string == "Pending")">Pendente</option>
+                                                                <option value="@ReservationStatusFilterValues.Pending" selected="@(ViewBag.Status as string == ReservationStatusFilterValues.Pending)">Pendente</option>
                                                                 <option value="Contacted" selected="@(ViewBag.Status as string == "Contacted")">Contatado</option>
                                                                 <option value="Converted" selected="@(ViewBag.Status as string == "Converted")">Convertido</option>
-                                                                <option value="Rejected" selected="@(ViewBag.Status as string == "Rejected")">Rejeitado</option>
+                                                                <option value="@InterestStatus.Rejected" selected="@(ViewBag.Status as string == nameof(InterestStatus.Rejected))">Rejeitado</option>
                                                             </select>
                                                         </div>
                                                         <div class="mb-3">
@@ -347,7 +347,7 @@
                         {
                             if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
                             {
-                                <li class="page-item @(p == currentPage ? "active" : "")">
+                                <li class="page-item @(p == currentPage ? CssClasses.Active : "")">
                                     <a class="page-link" href="@PageUrl(p)">@p</a>
                                 </li>
                             }

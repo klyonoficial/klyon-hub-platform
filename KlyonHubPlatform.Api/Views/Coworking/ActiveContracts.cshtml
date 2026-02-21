@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Contratos de Endereço Fiscal Ativos";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Contratos de Endereço Fiscal Ativos";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Contract>
@@ -26,11 +26,11 @@
                     <label for="status" class="form-label">Status</label>
                     <select class="form-select" id="status" name="status">
                         <option value="" selected="@(string.IsNullOrEmpty(ViewBag.Status as string))">Todos</option>
-                        <option value="Active" selected="@(ViewBag.Status as string == "Active")">Ativo</option>
+                        <option value="@ContractStatusFilterValues.Active" selected="@(ViewBag.Status as string == ContractStatusFilterValues.Active)">Ativo</option>
                         <option value="Suspended" selected="@(ViewBag.Status as string == "Suspended")">Suspenso</option>
                         <option value="PendingPayment" selected="@(ViewBag.Status as string == "PendingPayment")">Aguardando Pagamento</option>
                         <option value="PendingCancellation" selected="@(ViewBag.Status as string == "PendingCancellation")">Cancelamento Pendente</option>
-                        <option value="Cancelled" selected="@(ViewBag.Status as string == "Cancelled")">Cancelado</option>
+                        <option value="@ContractStatusFilterValues.Cancelled" selected="@(ViewBag.Status as string == ContractStatusFilterValues.Cancelled)">Cancelado</option>
                         <option value="Expired" selected="@(ViewBag.Status as string == "Expired")">Expirado</option>
                     </select>
                 </div>
@@ -110,12 +110,12 @@
                             var addressDisplay = !string.IsNullOrEmpty(contract.SnapshotAddress)
                                 ? contract.SnapshotAddress
                                 : (contract.CoworkingAddress != null
-                                    ? $"{contract.CoworkingAddress.Address ?? "N/A"}, {contract.CoworkingAddress.Number ?? ""}" + (!string.IsNullOrEmpty(contract.CoworkingAddress.Complement) ? $" - {contract.CoworkingAddress.Complement}" : "")
-                                    : "N/A");
+                                    ? $"{contract.CoworkingAddress.Address ?? DefaultDisplayStrings.NotAvailable}, {contract.CoworkingAddress.Number ?? ""}" + (!string.IsNullOrEmpty(contract.CoworkingAddress.Complement) ? $" - {contract.CoworkingAddress.Complement}" : "")
+                                    : DefaultDisplayStrings.NotAvailable);
                             var valueDisplay = contract.SnapshotMonthlyValue > 0
                                 ? contract.SnapshotMonthlyValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                 : (contract.Subscription?.MonthlyAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals) ?? contract.MonthlyValue.ToString(NumberFormatConstants.CurrencyTwoDecimals));
-                            var locationDisplay = $"{contract.CoworkingAddress?.Location?.City ?? "N/A"}/{contract.CoworkingAddress?.Location?.State ?? ""}";
+                            var locationDisplay = $"{contract.CoworkingAddress?.Location?.City ?? DefaultDisplayStrings.NotAvailable}/{contract.CoworkingAddress?.Location?.State ?? ""}";
                             string statusLabel;
                             string statusBadgeClass;
                             string statusIcon;
@@ -193,7 +193,7 @@
                             <tr class="contract-row cursor-pointer" role="button" tabindex="0"
                                 data-contract-id="@contract.Id"
                                 data-contract-number="@(contract.ContractNumber ?? contract.Id.ToString())"
-                                data-client-name="@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? "N/A")"
+                                data-client-name="@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? DefaultDisplayStrings.NotAvailable)"
                                 data-client-doc="@(contract.Client?.CNPJ ?? contract.Client?.CPF ?? "")"
                                 data-address="@addressDisplay"
                                 data-location="@locationDisplay"
@@ -206,7 +206,7 @@
                                 data-details-url="@Url.Action(ActionNames.ContractDetails, ControllerNames.Coworking, new { id = contract.Id })">
                                 <td><strong>@(contract.ContractNumber ?? contract.Id.ToString())</strong></td>
                                 <td>
-                                    <strong>@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? "N/A")</strong><br>
+                                    <strong>@(contract.Client?.RazaoSocial ?? contract.Client?.ContactName ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                                     <small class="text-muted">@(contract.Client?.CNPJ ?? contract.Client?.CPF ?? "")</small>
                                 </td>
                                 <td>
@@ -216,7 +216,7 @@
                                     }
                                     else
                                     {
-                                        <span>@(contract.CoworkingAddress?.Address ?? "N/A"), @(contract.CoworkingAddress?.Number ?? "")</span>
+                                        <span>@(contract.CoworkingAddress?.Address ?? DefaultDisplayStrings.NotAvailable), @(contract.CoworkingAddress?.Number ?? "")</span>
                                         @if (!string.IsNullOrEmpty(contract.CoworkingAddress?.Complement))
                                         {
                                             <br><small class="text-muted">@contract.CoworkingAddress.Complement</small>
@@ -258,7 +258,7 @@
                     <ul class="pagination justify-content-center">
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.ActiveContracts, ControllerNames.Coworking, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 

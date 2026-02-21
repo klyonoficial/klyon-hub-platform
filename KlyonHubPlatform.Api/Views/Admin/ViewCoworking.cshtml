@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Visualizar Coworking";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Visualizar Coworking";
+    Layout = LayoutPaths.Layout;
 }
 
 @model KlyonHubPlatform.Domain.Entities.Coworking
@@ -348,7 +348,7 @@
                                                 <input type="hidden" name="coworkingId" value="@Model.Id" />
                                                 <select name="status" class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="this.form.submit()">
                                                     @if (addrStatus == AddressStatus.PendingApproval) { <option value="PendingApproval" selected>Pendente aprovação</option> } else { <option value="PendingApproval">Pendente aprovação</option> }
-                                                    @if (addrStatus == AddressStatus.Active) { <option value="Active" selected>Ativo</option> } else { <option value="Active">Ativo</option> }
+                                                    @if (addrStatus == AddressStatus.Active) { <option value="@ContractStatusFilterValues.Active" selected>Ativo</option> } else { <option value="@ContractStatusFilterValues.Active">Ativo</option> }
                                                     @if (addrStatus == AddressStatus.Suspended) { <option value="Suspended" selected>Suspenso</option> } else { <option value="Suspended">Suspenso</option> }
                                                     @if (addrStatus == AddressStatus.Removed) { <option value="Removed" selected>Removido</option> } else { <option value="Removed">Removido</option> }
                                                 </select>
@@ -523,7 +523,7 @@
 
                             @for (int i = Math.Max(1, documentsPage - 2); i <= Math.Min(documentsTotalPages, documentsPage + 2); i++)
                             {
-                                <li class="page-item @(i == documentsPage ? "active" : "")">
+                                <li class="page-item @(i == documentsPage ? CssClasses.Active : "")">
                                     <a class="page-link" href="@Url.Action(ActionNames.ViewCoworking, ControllerNames.Admin, new { id = Model.Id, page = i, pageSize = documentsPageSize })#documentos">
                                         @i
                                     </a>

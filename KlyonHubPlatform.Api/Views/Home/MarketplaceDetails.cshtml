@@ -1,7 +1,7 @@
 @model KlyonHubPlatform.Api.ViewModels.MarketplaceDetailsVm
 @{
-    ViewData["Title"] = Model.Coworking.Name + " - " + Model.Address.City;
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = Model.Coworking.Name + " - " + Model.Address.City;
+    Layout = LayoutPaths.Layout;
 
     var isClientLogged = ViewBag.IsClientLogged ?? false;
     var isAvailable = Model.Address.IsAvailable && Model.Address.CurrentContracts < Model.Address.MaxContracts;
@@ -1028,7 +1028,7 @@
                     <div class="carousel-inner h-100">
                         @for (int i = 0; i < Model.PhotoIds.Count; i++)
                         {
-                            <div class="carousel-item h-100 @(i == 0 ? "active" : "")">
+                            <div class="carousel-item h-100 @(i == 0 ? CssClasses.Active : "")">
                                 <div class="d-flex align-items-center justify-content-center h-100">
                                     <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = Model.PhotoIds[i] })"
                                          class="d-block"

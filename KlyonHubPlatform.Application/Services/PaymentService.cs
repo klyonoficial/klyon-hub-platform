@@ -68,7 +68,7 @@ namespace KlyonHubPlatform.Application.Services
             var activeContract = await _context.Contracts
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == activeContractId);
-            var activeContractNumber = activeContract?.ContractNumber ?? "N/A";
+            var activeContractNumber = activeContract?.ContractNumber ?? DefaultDisplayStrings.NotAvailable;
             var cancellationReasonContract = "Cliente já possui um endereço fiscal ativo. Outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
             var rejectionReasonPayment = "Cancelado pois outro contrato " + activeContractNumber + " foi aprovado o pagamento e ativado.";
             var others = await _context.Contracts

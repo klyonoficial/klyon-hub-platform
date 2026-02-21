@@ -1,8 +1,8 @@
 @model KlyonHubPlatform.Domain.Entities.Payment
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Validar Pagamento";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Validar Pagamento";
+    Layout = LayoutPaths.Layout;
     var contract = Model.Subscription?.Contract;
     var client = contract?.Client;
 }
@@ -24,13 +24,13 @@
                 <dl class="row">
                     <dt class="col-sm-4">Cliente:</dt>
                     <dd class="col-sm-8">
-                        <strong>@(client?.RazaoSocial ?? client?.ContactName ?? "N/A")</strong><br>
+                        <strong>@(client?.RazaoSocial ?? client?.ContactName ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                         <small class="text-muted">@(client?.CNPJ ?? client?.CPF ?? "")</small>
                     </dd>
 
                     <dt class="col-sm-4">Endereço:</dt>
                     <dd class="col-sm-8">
-                        @(contract?.CoworkingAddress?.Address ?? "N/A"), @(contract?.CoworkingAddress?.Number ?? "")<br>
+                        @(contract?.CoworkingAddress?.Address ?? DefaultDisplayStrings.NotAvailable), @(contract?.CoworkingAddress?.Number ?? "")<br>
                         @if (!string.IsNullOrEmpty(contract?.CoworkingAddress?.Complement))
                         {
                             <text>@contract.CoworkingAddress.Complement<br></text>

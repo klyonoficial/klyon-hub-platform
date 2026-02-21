@@ -2,8 +2,8 @@
 @using KlyonHubPlatform.Api.Constants
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
-    ViewData["Title"] = "Dashboard Administrativo";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Dashboard Administrativo";
+    Layout = LayoutPaths.Layout;
     // Verificar se os menus de coworking estão habilitados
     var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
     var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
@@ -105,10 +105,10 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-people"></i> Total de Usuários</h6>
-                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('users')" title="Clique para ver todos os usuários">@ViewBag.TotalUsers</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Users')" title="Clique para ver todos os usuários">@ViewBag.TotalUsers</h2>
                         <small class="text-white-50">
-                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'inactive')" title="Clique para ver usuários inativos">@ViewBag.InactiveUsers inativos</span> | 
-                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'unverified')" title="Clique para ver usuários não verificados">@ViewBag.UnverifiedUsers não verificados</span>
+                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Users', '@UserFilterValues.Inactive')" title="Clique para ver usuários inativos">@ViewBag.InactiveUsers inativos</span> | 
+                            <span class="clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Users', '@UserFilterValues.Unverified')" title="Clique para ver usuários não verificados">@ViewBag.UnverifiedUsers não verificados</span>
                         </small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -124,7 +124,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-building"></i> Coworkings</h6>
-                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('coworkings')" title="Clique para ver todos os coworkings">@ViewBag.TotalCoworkings</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Coworkings')" title="Clique para ver todos os coworkings">@ViewBag.TotalCoworkings</h2>
                         <small class="text-white-50">Parceiros cadastrados</small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -140,7 +140,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="card-title mb-1"><i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal Ativos</h6>
-                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('contracts', 'Active')" title="Clique para ver todos os contratos ativos">@ViewBag.ActiveContracts</h2>
+                        <h2 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Contracts', '@ContractStatusFilterValues.Active')" title="Clique para ver todos os contratos ativos">@ViewBag.ActiveContracts</h2>
                         <small class="text-white-50">Em andamento</small>
                     </div>
                     <div class="display-1 opacity-25">
@@ -177,7 +177,7 @@
         <div class="card border-primary">
             <div class="card-body">
                 <h6 class="card-title text-primary"><i class="bi bi-geo-alt"></i> Localidades</h6>
-                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('locations')" title="Clique para ver todas as localidades">@ViewBag.TotalLocations</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Locations')" title="Clique para ver todas as localidades">@ViewBag.TotalLocations</h3>
             </div>
         </div>
     </div>
@@ -185,7 +185,7 @@
         <div class="card border-warning">
             <div class="card-body">
                 <h6 class="card-title text-warning"><i class="bi bi-hourglass-split"></i> Pagamentos Pendentes</h6>
-                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('payments', 'Pending')" title="Clique para ver todos os pagamentos pendentes">R$ @(((decimal)ViewBag.PendingPayments).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Payments', '@PaymentStatusFilterValues.Pending')" title="Clique para ver todos os pagamentos pendentes">R$ @(((decimal)ViewBag.PendingPayments).ToString(NumberFormatConstants.CurrencyTwoDecimals))</h3>
             </div>
         </div>
     </div>
@@ -225,7 +225,7 @@
         <div class="card border-danger">
             <div class="card-body">
                 <h6 class="card-title text-danger"><i class="bi bi-exclamation-triangle"></i> Usuários Inativos</h6>
-                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('users', 'inactive')" title="Clique para ver todos os usuários inativos">@ViewBag.InactiveUsers</h3>
+                <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Users', '@UserFilterValues.Inactive')" title="Clique para ver todos os usuários inativos">@ViewBag.InactiveUsers</h3>
             </div>
         </div>
     </div>
@@ -235,7 +235,7 @@
             <div class="card border-info">
                 <div class="card-body">
                     <h6 class="card-title text-info"><i class="bi bi-calendar-check"></i> Total de Reservas</h6>
-                    <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('reservations')" title="Clique para ver todas as reservas">@(ViewBag.TotalReservations ?? 0)</h3>
+                    <h3 class="mb-0 clickable-number" style="cursor: pointer;" onclick="showDashboardList('@AdminDashboardListType.Reservations')" title="Clique para ver todas as reservas">@(ViewBag.TotalReservations ?? 0)</h3>
                 </div>
             </div>
         </div>
@@ -433,7 +433,7 @@
                                 {
                                     <tr class="payment-row" data-index="@paymentIndex" style="@(paymentIndex >= 5 ? "display: none;" : "")">
                                         <td>@(payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime))</td>
-                                        <td>@(payment.Subscription?.Contract?.Client?.RazaoSocial ?? payment.Subscription?.Contract?.Client?.ContactName ?? "N/A")</td>
+                                        <td>@(payment.Subscription?.Contract?.Client?.RazaoSocial ?? payment.Subscription?.Contract?.Client?.ContactName ?? DefaultDisplayStrings.NotAvailable)</td>
                                         <td>R$ @(payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</td>
                                         <td>
                                             @switch (payment.Status)
@@ -483,7 +483,7 @@
                                 </li>
                                 @for (var i = 1; i <= totalPages; i++)
                                 {
-                                    <li class="page-item @(i == 1 ? "active" : "")" data-page="@i">
+                                    <li class="page-item @(i == 1 ? CssClasses.Active : "")" data-page="@i">
                                         <a class="page-link" href="#" onclick="changePaymentPage(@i); return false;">@i</a>
                                     </li>
                                 }
@@ -568,6 +568,13 @@
 </div>
 
 <script>
+// Constantes do dashboard (espelho do backend para comparações no JS)
+const DashboardListType = { Users: '@AdminDashboardListType.Users', Coworkings: '@AdminDashboardListType.Coworkings', Contracts: '@AdminDashboardListType.Contracts', Locations: '@AdminDashboardListType.Locations', Payments: '@AdminDashboardListType.Payments', Reservations: '@AdminDashboardListType.Reservations' };
+const ContractStatusActive = '@ContractStatusFilterValues.Active';
+const PaymentStatusPending = '@PaymentStatusFilterValues.Pending';
+const UserFilterInactive = '@UserFilterValues.Inactive';
+const UserFilterUnverified = '@UserFilterValues.Unverified';
+
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 // 1. Gráfico de Receita Bruta vs Líquida (substituindo o gráfico simples de receita)
@@ -1239,12 +1246,12 @@ async function showDashboardList(type, filter = null) {
     
     // Definir título do modal
     const titles = {
-        'users': filter === 'inactive' ? 'Usuários Inativos' : filter === 'unverified' ? 'Usuários Não Verificados' : 'Todos os Usuários',
-        'coworkings': 'Todos os Coworkings',
-        'contracts': filter === 'Active' ? 'Contratos Ativos' : 'Todos os Contratos',
-        'locations': 'Todas as Localidades',
-        'payments': filter === 'Pending' ? 'Pagamentos Pendentes' : 'Todos os Pagamentos',
-        'reservations': 'Todas as Reservas'
+        [DashboardListType.Users]: filter === UserFilterInactive ? 'Usuários Inativos' : filter === UserFilterUnverified ? 'Usuários Não Verificados' : 'Todos os Usuários',
+        [DashboardListType.Coworkings]: 'Todos os Coworkings',
+        [DashboardListType.Contracts]: filter === ContractStatusActive ? 'Contratos Ativos' : 'Todos os Contratos',
+        [DashboardListType.Locations]: 'Todas as Localidades',
+        [DashboardListType.Payments]: filter === PaymentStatusPending ? 'Pagamentos Pendentes' : 'Todos os Pagamentos',
+        [DashboardListType.Reservations]: 'Todas as Reservas'
     };
     
     modalTitle.innerHTML = `<i class="bi bi-list-ul"></i> ${titles[type] || 'Lista'}`;
@@ -1252,8 +1259,8 @@ async function showDashboardList(type, filter = null) {
     modal.show();
     
     try {
-        const page = (type === 'users') ? 1 : undefined;
-        const pageSize = (type === 'users') ? 10 : undefined;
+        const page = (type === DashboardListType.Users) ? 1 : undefined;
+        const pageSize = (type === DashboardListType.Users) ? 10 : undefined;
         let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}`;
         if (page != null) url += `&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
@@ -1276,7 +1283,7 @@ async function loadDashboardListContent(type, filter, page) {
     const modalBody = document.getElementById('dashboardListModalBody');
     modalBody.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
     try {
-        const pageSize = (type === 'users') ? 10 : undefined;
+        const pageSize = (type === DashboardListType.Users) ? 10 : undefined;
         let url = `@Url.Action(ActionNames.GetDashboardList, ControllerNames.Admin)?type=${type}${filter ? '&filter=' + encodeURIComponent(filter) : ''}&page=${page}`;
         if (pageSize != null) url += `&pageSize=${pageSize}`;
         const response = await fetch(url);
@@ -1297,17 +1304,17 @@ function buildDashboardListHtml(type, filter, result) {
         html = '<div class="table-responsive"><table class="table table-hover"><thead class="table-light"><tr>';
         
             // Cabeçalhos dinâmicos baseados no tipo
-            if (type === 'users') {
+            if (type === DashboardListType.Users) {
                 html += '<th>Nome</th><th>Email</th><th>Status</th><th>Verificado</th><th>Ações</th>';
-            } else if (type === 'coworkings') {
+            } else if (type === DashboardListType.Coworkings) {
                 html += '<th>Nome</th><th>CNPJ</th><th>Status</th><th>Aprovação</th><th>Ações</th>';
-            } else if (type === 'contracts') {
+            } else if (type === DashboardListType.Contracts) {
                 html += '<th>Número</th><th>Cliente</th><th>Localidade</th><th>Status</th><th>Ações</th>';
-            } else if (type === 'locations') {
+            } else if (type === DashboardListType.Locations) {
                 html += '<th>Cidade</th><th>Estado</th><th>Região</th><th>Status</th><th>Ações</th>';
-            } else if (type === 'payments') {
+            } else if (type === DashboardListType.Payments) {
                 html += '<th>ID</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Data</th><th>Ações</th>';
-            } else if (type === 'reservations') {
+            } else if (type === DashboardListType.Reservations) {
                 html += '<th>ID</th><th>Cliente</th><th>Coworking</th><th>Data</th><th>Status</th><th>Ações</th>';
             }
             
@@ -1316,38 +1323,38 @@ function buildDashboardListHtml(type, filter, result) {
             var b = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Success: 'success', Danger: 'danger', Warning: 'warning', Secondary: 'secondary' };
             result.data.forEach(item => {
                 html += '<tr>';
-                if (type === 'users') {
+                if (type === DashboardListType.Users) {
                     html += `<td>${item.fullName || 'N/A'}</td>`;
                     html += `<td>${item.email || 'N/A'}</td>`;
                     html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
                     html += `<td><span class="badge bg-${item.emailVerified ? b.Success : b.Warning}">${item.emailVerified ? 'Sim' : 'Não'}</span></td>`;
                     html += `<td><a href="${baseUrls.viewUser}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
-                } else if (type === 'coworkings') {
+                } else if (type === DashboardListType.Coworkings) {
                     html += `<td>${item.name || 'N/A'}</td>`;
                     html += `<td>${item.cnpj || 'N/A'}</td>`;
                     html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativo' : 'Inativo'}</span></td>`;
                     html += `<td><span class="badge bg-${item.approvalStatus === 'Approved' ? b.Success : item.approvalStatus === 'UnderReview' ? b.Warning : b.Danger}">${item.approvalStatusDisplay || item.approvalStatus}</span></td>`;
                     html += `<td><a href="${baseUrls.viewCoworking}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
-                } else if (type === 'contracts') {
+                } else if (type === DashboardListType.Contracts) {
                     html += `<td>${item.contractNumber || 'N/A'}</td>`;
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>${item.location || 'N/A'}</td>`;
-                    html += `<td><span class="badge bg-${item.status === 'Active' ? b.Success : item.status === 'PendingPayment' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><span class="badge bg-${item.status === ContractStatusActive ? b.Success : item.status === 'PendingPayment' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
                     html += `<td><a href="${baseUrls.contractDetails}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
-                } else if (type === 'locations') {
+                } else if (type === DashboardListType.Locations) {
                     html += `<td>${item.city || 'N/A'}</td>`;
                     html += `<td>${item.state || 'N/A'}</td>`;
                     html += `<td>${item.region || 'N/A'}</td>`;
                     html += `<td><span class="badge bg-${item.isActive ? b.Success : b.Danger}">${item.isActive ? 'Ativa' : 'Inativa'}</span></td>`;
                     html += `<td><a href="${baseUrls.editLocation}?id=${item.id}" class="btn btn-sm btn-primary"><i class="bi bi-pencil"></i> Editar</a></td>`;
-                } else if (type === 'payments') {
+                } else if (type === DashboardListType.Payments) {
                     html += `<td>#${item.id || 'N/A'}</td>`;
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>R$ ${(item.amount || 0).toFixed(2).replace('.', ',')}</td>`;
-                    html += `<td><span class="badge bg-${item.status === 'Paid' ? b.Success : item.status === 'Pending' ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
+                    html += `<td><span class="badge bg-${item.status === 'Paid' ? b.Success : item.status === PaymentStatusPending ? b.Warning : b.Secondary}">${item.statusDisplay || item.status}</span></td>`;
                     html += `<td>${item.createdAt || 'N/A'}</td>`;
                     html += `<td><a href="${baseUrls.payments}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a></td>`;
-                } else if (type === 'reservations') {
+                } else if (type === DashboardListType.Reservations) {
                     html += `<td>#${item.id || 'N/A'}</td>`;
                     html += `<td>${item.clientName || 'N/A'}</td>`;
                     html += `<td>${item.coworkingName || 'N/A'}</td>`;

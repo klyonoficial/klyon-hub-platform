@@ -1,8 +1,8 @@
 @model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
 @using KlyonHubPlatform.Api.Constants
 @{
-    ViewData["Title"] = "NF Importadas – Validação";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "NF Importadas – Validação";
+    Layout = LayoutPaths.Layout;
     var list = Model ?? new List<KlyonHubPlatform.Domain.Entities.FiscalNote>();
     var currentPage = (int)(ViewBag.CurrentPage ?? 1);
     var totalPages = (int)(ViewBag.TotalPages ?? 1);
@@ -137,7 +137,7 @@
                         }
                         @for (var i = 1; i <= totalPages; i++)
                         {
-                            <li class="page-item @(i == currentPage ? "active" : "")"><a class="page-link" href="@Url.Action("ImportedFiscalNotes", new { page = i, pageSize, coworkingId })">@i</a></li>
+                            <li class="page-item @(i == currentPage ? CssClasses.Active : "")"><a class="page-link" href="@Url.Action("ImportedFiscalNotes", new { page = i, pageSize, coworkingId })">@i</a></li>
                         }
                         @if (currentPage < totalPages)
                         {

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Meus Ganhos";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Meus Ganhos";
+    Layout = LayoutPaths.Layout;
     var transferMap = ViewBag.CommissionTransferMap as Dictionary<int, KlyonHubPlatform.Domain.Entities.Transfer?>;
     var transferIdsAllNfEmitida = ViewBag.TransferIdsAllNfEmitida as System.Collections.Generic.HashSet<int> ?? new System.Collections.Generic.HashSet<int>();
 }

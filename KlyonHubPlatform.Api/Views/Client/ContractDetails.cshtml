@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-	ViewData["Title"] = "Detalhes do Contrato";
-	Layout = "~/Views/Shared/_Layout.cshtml";
+	ViewData[ViewDataKeys.Title] = "Detalhes do Contrato";
+	Layout = LayoutPaths.Layout;
 }
 
 @model KlyonHubPlatform.Domain.Entities.Contract
@@ -341,7 +341,7 @@
 								</li>
 								@for (int p = 1; p <= timelineTotalPages; p++)
 								{
-									<li class="page-item @(p == timelineCurrentPage ? "active" : "")">
+									<li class="page-item @(p == timelineCurrentPage ? CssClasses.Active : "")">
 										<a class="page-link" href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = Model.Id, timelinePage = p, timelinePageSize = timelinePageSizeVal })">@p</a>
 									</li>
 								}

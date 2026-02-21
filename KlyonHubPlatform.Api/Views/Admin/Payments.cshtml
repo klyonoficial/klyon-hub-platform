@@ -2,7 +2,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Domain.Core.Constants
 @{
-    ViewData["Title"] = "Gerenciar Pagamentos";
+    ViewData[ViewDataKeys.Title] = "Gerenciar Pagamentos";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -18,13 +18,13 @@
             <div class="col-md-3">
                 <select class="form-select" name="status">
                     <option value="">Todos os status</option>
-                    <option value="Pending" selected="@(ViewBag.Status == "Pending")">Aguardando Pagamento</option>
-                    <option value="Processing" selected="@(ViewBag.Status == "Processing")">Processando</option>
-                    <option value="AwaitingValidation" selected="@(ViewBag.Status == "AwaitingValidation")">Aguardando Validação</option>
-                    <option value="Paid" selected="@(ViewBag.Status == "Paid")">Pago</option>
-                    <option value="Failed" selected="@(ViewBag.Status == "Failed")">Falhou</option>
-                    <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelado</option>
-                    <option value="Refunded" selected="@(ViewBag.Status == "Refunded")">Estornado</option>
+                    <option value="@PaymentStatusFilterValues.Pending" selected="@(ViewBag.Status == PaymentStatusFilterValues.Pending)">Aguardando Pagamento</option>
+                    <option value="@PaymentStatusFilterValues.Processing" selected="@(ViewBag.Status == PaymentStatusFilterValues.Processing)">Processando</option>
+                    <option value="@PaymentStatusFilterValues.AwaitingValidation" selected="@(ViewBag.Status == PaymentStatusFilterValues.AwaitingValidation)">Aguardando Validação</option>
+                    <option value="@PaymentStatusFilterValues.Paid" selected="@(ViewBag.Status == PaymentStatusFilterValues.Paid)">Pago</option>
+                    <option value="@PaymentStatusFilterValues.Failed" selected="@(ViewBag.Status == PaymentStatusFilterValues.Failed)">Falhou</option>
+                    <option value="@PaymentStatusFilterValues.Cancelled" selected="@(ViewBag.Status == PaymentStatusFilterValues.Cancelled)">Cancelado</option>
+                    <option value="@PaymentStatusFilterValues.Refunded" selected="@(ViewBag.Status == PaymentStatusFilterValues.Refunded)">Estornado</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -81,7 +81,7 @@
                                             ?? client?.ContactName 
                                             ?? client?.User?.FullName 
                                             ?? (!string.IsNullOrEmpty(client?.ContactEmail) ? client.ContactEmail.Split('@')[0] : null)
-                                            ?? "N/A";
+                                            ?? DefaultDisplayStrings.NotAvailable;
                                     }
                                     <strong>@clientName</strong><br>
                                     <small class="text-muted">@(client?.ContactEmail ?? client?.User?.Email ?? "-")</small>
@@ -203,7 +203,7 @@
             }
             @for (int i = 1; i <= ViewBag.TotalPages; i++)
             {
-                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                     <a class="page-link" href="@Url.Action(ActionNames.Payments, ControllerNames.Admin, new { page = i, search = ViewBag.Search, status = ViewBag.Status })">@i</a>
                 </li>
             }
@@ -240,7 +240,7 @@
                                     ?? clientModal?.ContactName 
                                     ?? clientModal?.User?.FullName 
                                     ?? (!string.IsNullOrEmpty(clientModal?.ContactEmail) ? clientModal.ContactEmail.Split('@')[0] : null)
-                                    ?? "N/A";
+                                    ?? DefaultDisplayStrings.NotAvailable;
                             }
                             <strong>Cliente:</strong> @clientNameModal<br>
                             <strong>Email:</strong> @(clientModal?.ContactEmail ?? clientModal?.User?.Email ?? "-")<br>
@@ -359,12 +359,12 @@
                                 ?? clientHistory?.ContactName 
                                 ?? clientHistory?.User?.FullName 
                                 ?? (!string.IsNullOrEmpty(clientHistory?.ContactEmail) ? clientHistory.ContactEmail.Split('@')[0] : null)
-                                ?? "N/A";
+                                ?? DefaultDisplayStrings.NotAvailable;
                         }
                         <strong>Cliente:</strong> @clientNameHistory<br>
                         <strong>Email:</strong> @(clientHistory?.ContactEmail ?? clientHistory?.User?.Email ?? "-")<br>
                         <strong>Telefone:</strong> @(clientHistory?.ContactPhone ?? "-")<br>
-                        <strong>CNPJ/CPF:</strong> @(clientHistory?.CNPJ ?? clientHistory?.CPF ?? "N/A")<br>
+                        <strong>CNPJ/CPF:</strong> @(clientHistory?.CNPJ ?? clientHistory?.CPF ?? DefaultDisplayStrings.NotAvailable)<br>
                         <strong>Contrato:</strong> @payment.Subscription?.Contract?.ContractNumber<br>
                         <strong>Valor:</strong> R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)<br>
                         <strong>Status Atual:</strong> 

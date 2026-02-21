@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Contrato de Endereço Fiscal";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Contrato de Endereço Fiscal";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Contract>
@@ -28,10 +28,10 @@
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
-                    <option value="Active" selected="@(ViewBag.Status == "Active")">Ativos</option>
+                    <option value="@ContractStatusFilterValues.Active" selected="@(ViewBag.Status == ContractStatusFilterValues.Active)">Ativos</option>
                     <option value="Suspended" selected="@(ViewBag.Status == "Suspended")">Suspensos</option>
                     <option value="PendingPayment" selected="@(ViewBag.Status == "PendingPayment")">Aguardando Pagamento</option>
-                    <option value="Cancelled" selected="@(ViewBag.Status == "Cancelled")">Cancelados</option>
+                    <option value="@ContractStatusFilterValues.Cancelled" selected="@(ViewBag.Status == ContractStatusFilterValues.Cancelled)">Cancelados</option>
                     <option value="Expired" selected="@(ViewBag.Status == "Expired")">Expirados</option>
                     <option value="PendingCancellation" selected="@(ViewBag.Status == "PendingCancellation")">Cancelamento Pendente</option>
                 </select>
@@ -144,7 +144,7 @@
                                         {
                                             statusClass = contract.Status switch
                                             {
-                                                ContractStatus.Active => "active",
+                                                ContractStatus.Active => CssClasses.Active,
                                                 ContractStatus.Suspended => "suspended",
                                                 ContractStatus.PendingCancellation => "pending-cancellation",
                                                 ContractStatus.Cancelled => "cancelled",
@@ -200,7 +200,7 @@
 
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client, new { 
                                     search = ViewBag.Search, 
                                     status = ViewBag.Status, 

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Cadastro Rápido de Cliente com Endereço Fiscal";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Cadastro Rápido de Cliente com Endereço Fiscal";
+    Layout = LayoutPaths.Layout;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -131,8 +131,8 @@
                             {
                                 foreach (var addr in (List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>)ViewBag.AvailableAddresses)
                                 {
-                                    var locationLabel = addr.Location != null ? $"{addr.Location.City}/{addr.Location.State}" : "N/A";
-                                    var coworkingName = addr.Coworking?.Name ?? "N/A";
+                                    var locationLabel = addr.Location != null ? $"{addr.Location.City}/{addr.Location.State}" : DefaultDisplayStrings.NotAvailable;
+                                    var coworkingName = addr.Coworking?.Name ?? DefaultDisplayStrings.NotAvailable;
                                     var vacancies = addr.MaxContracts - addr.CurrentContracts;
                                     <option value="@addr.Id" 
                                             data-location="@locationLabel" 

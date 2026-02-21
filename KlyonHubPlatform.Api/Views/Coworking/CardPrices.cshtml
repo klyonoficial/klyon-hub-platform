@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Preços de Venda no Cartão";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Preços de Venda no Cartão";
+    Layout = LayoutPaths.Layout;
     var pendingRequest = Model?.CardPriceChangeRequests?.FirstOrDefault(r => r.Status == CapacityApprovalStatus.Pending);
     var hasPendingRequest = pendingRequest != null;
 }

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Pagamento - Comprar Créditos";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Pagamento - Comprar Créditos";
+    Layout = LayoutPaths.Layout;
     
     var purchase = ViewBag.Purchase as KlyonHubPlatform.Domain.Entities.CreditPurchase;
     var client = ViewBag.Client as KlyonHubPlatform.Domain.Entities.Client;

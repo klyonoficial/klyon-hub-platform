@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model List<ClientCreditsReportDto>
 @{
-    ViewData["Title"] = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
+    Layout = LayoutPaths.Layout;
     
     var totalPaid = Model?.Sum(c => c.TotalAmountPaid) ?? 0m;
     var totalSpent = Model?.Sum(c => c.SpendingByCoworking.Sum(s => s.TotalValue)) ?? 0m;

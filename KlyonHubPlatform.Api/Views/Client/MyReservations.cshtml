@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Minhas Reservas";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Minhas Reservas";
+    Layout = LayoutPaths.Layout;
     var sortBy = ViewBag.SortBy as string ?? "date_asc";
     var statusFilter = ViewBag.Status as string;
     var dateFrom = ViewBag.DateFrom as DateTime?;
@@ -47,7 +47,7 @@ else
                         <option value="">Todos</option>
                         @if (statusFilter == "Confirmed") { <option value="Confirmed" selected>Confirmadas</option> } else { <option value="Confirmed">Confirmadas</option> }
                         @if (statusFilter == "Completed") { <option value="Completed" selected>Concluídas</option> } else { <option value="Completed">Concluídas</option> }
-                        @if (statusFilter == "Cancelled") { <option value="Cancelled" selected>Canceladas</option> } else { <option value="Cancelled">Canceladas</option> }
+                        @if (statusFilter == ReservationStatusFilterValues.Cancelled) { <option value="@ReservationStatusFilterValues.Cancelled" selected>Canceladas</option> } else { <option value="@ReservationStatusFilterValues.Cancelled">Canceladas</option> }
                     </select>
                 </div>
                 <div class="col-md-6 col-lg-2">
@@ -268,7 +268,7 @@ else
 
                 @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                 {
-                    <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                    <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                         <a class="page-link" href="@Url.Action("MyReservations", "Client", new { 
                             sortBy = ViewBag.SortBy, 
                             status = ViewBag.Status, 

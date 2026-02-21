@@ -1,6 +1,7 @@
 using KlyonHubPlatform.Application.Interfaces;
 using Amazon.S3;
 using Amazon.S3.Model;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using Microsoft.Extensions.Configuration;
 namespace KlyonHubPlatform.Application.Services
@@ -183,7 +184,7 @@ namespace KlyonHubPlatform.Application.Services
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             return extension switch
             {
-                ".pdf" => "application/pdf",
+                FileExtensions.Pdf => "application/pdf",
                 ".jpg" => "image/jpeg",
                 ".jpeg" => "image/jpeg",
                 ".png" => "image/png",

@@ -127,7 +127,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             if (!string.IsNullOrEmpty(status))
             {
-                bool isActive = status == "active";
+                bool isActive = status == StatusFilterValues.Active;
                 query = query.Where(u => u.IsActive == isActive);
             }
             if (!string.IsNullOrEmpty(emailVerified))
@@ -169,7 +169,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             if (!string.IsNullOrEmpty(status))
             {
-                bool isActive = status == "active";
+                bool isActive = status == StatusFilterValues.Active;
                 query = query.Where(c => c.IsActive == isActive);
             }
             if (!string.IsNullOrEmpty(isPartner))

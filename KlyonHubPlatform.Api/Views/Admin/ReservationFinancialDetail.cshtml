@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Domain.Entities
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
+    Layout = LayoutPaths.Layout;
     
     var reservation = ViewBag.Reservation as Reservation;
     var commission = ViewBag.Commission as ReservationCommission;
@@ -143,7 +143,7 @@
                     <div class="card-body p-0">
                         <div class="info-row">
                             <div class="info-label">Nome/Razão Social</div>
-                            <div class="info-value">@(reservation?.Client?.RazaoSocial ?? reservation?.Client?.NomeFantasia ?? reservation?.Client?.ContactName ?? reservation?.Client?.User?.FullName ?? "N/A")</div>
+                            <div class="info-value">@(reservation?.Client?.RazaoSocial ?? reservation?.Client?.NomeFantasia ?? reservation?.Client?.ContactName ?? reservation?.Client?.User?.FullName ?? DefaultDisplayStrings.NotAvailable)</div>
                         </div>
                         @if (!string.IsNullOrEmpty(reservation?.Client?.CNPJ))
                         {
@@ -189,7 +189,7 @@
                     <div class="card-body p-0">
                         <div class="info-row">
                             <div class="info-label">Nome</div>
-                            <div class="info-value">@(reservation?.CoworkingAddress?.Coworking?.Name ?? "N/A")</div>
+                            <div class="info-value">@(reservation?.CoworkingAddress?.Coworking?.Name ?? DefaultDisplayStrings.NotAvailable)</div>
                         </div>
                         @if (reservation?.CoworkingAddress != null)
                         {

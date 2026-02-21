@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model ClientCreditStatementDto
 @{
-    ViewData["Title"] = "Extrato Financeiro do Cliente (Ledger)";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Extrato Financeiro do Cliente (Ledger)";
+    Layout = LayoutPaths.Layout;
     var dateFrom = Model?.DateFrom;
     var dateTo = Model?.DateTo;
     

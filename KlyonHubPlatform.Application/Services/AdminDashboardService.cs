@@ -38,37 +38,37 @@ namespace KlyonHubPlatform.Application.Services
             int? totalCount = null;
             switch (type.ToLower())
             {
-                case "users":
+                case AdminDashboardListType.Users:
                     var usersQuery = _context.Users.AsNoTracking().AsQueryable();
-                    if (filter == "inactive") usersQuery = usersQuery.Where(u => !u.IsActive);
-                    else if (filter == "unverified") usersQuery = usersQuery.Where(u => !u.EmailVerified);
+                    if (filter == UserFilterValues.Inactive) usersQuery = usersQuery.Where(u => !u.IsActive);
+                    else if (filter == UserFilterValues.Unverified) usersQuery = usersQuery.Where(u => !u.EmailVerified);
                     totalCount = await usersQuery.CountAsync(cancellationToken);
                     pageSize = Math.Clamp(pageSize, 1, 100);
                     page = Math.Max(1, page);
                     var users = await usersQuery.OrderByDescending(u => u.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<UserDashboardItemDto>>(users).Cast<object>().ToList();
                     break;
-                case "coworkings":
+                case AdminDashboardListType.Coworkings:
                     var coworkings = await _context.Coworkings.AsNoTracking().OrderByDescending(c => c.CreatedAt).Take(50).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<CoworkingDashboardItemDto>>(coworkings).Cast<object>().ToList();
                     break;
-                case "contracts":
+                case AdminDashboardListType.Contracts:
                     var contractsQuery = _context.Contracts.AsNoTracking().Include(c => c.Client).Include(c => c.CoworkingAddress).ThenInclude(a => a!.Location).AsQueryable();
-                    if (filter == "Active") contractsQuery = contractsQuery.Where(c => c.Status == ContractStatus.Active);
+                    if (filter == ContractStatusFilterValues.Active) contractsQuery = contractsQuery.Where(c => c.Status == ContractStatus.Active);
                     var contracts = await contractsQuery.OrderByDescending(c => c.CreatedAt).Take(50).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<ContractDashboardItemDto>>(contracts).Cast<object>().ToList();
                     break;
-                case "locations":
+                case AdminDashboardListType.Locations:
                     var locations = await _context.Locations.AsNoTracking().OrderBy(l => l.State).ThenBy(l => l.City).Take(50).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<LocationDashboardItemDto>>(locations).Cast<object>().ToList();
                     break;
-                case "payments":
+                case AdminDashboardListType.Payments:
                     var paymentsQuery = _context.Payments.AsNoTracking().Include(p => p.Subscription!).ThenInclude(s => s.Contract!).ThenInclude(c => c!.Client).AsQueryable();
-                    if (filter == "Pending") paymentsQuery = paymentsQuery.Where(p => p.Status == PaymentStatus.Pending);
+                    if (filter == PaymentStatusFilterValues.Pending) paymentsQuery = paymentsQuery.Where(p => p.Status == PaymentStatus.Pending);
                     var payments = await paymentsQuery.OrderByDescending(p => p.CreatedAt).Take(50).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<PaymentDashboardItemDto>>(payments).Cast<object>().ToList();
                     break;
-                case "reservations":
+                case AdminDashboardListType.Reservations:
                     var reservations = await _context.Reservations.AsNoTracking().Include(r => r.Client).Include(r => r.CoworkingAddress!).ThenInclude(a => a.Coworking).OrderByDescending(r => r.CreatedAt).Take(50).ToListAsync(cancellationToken);
                     data = _mapper.Map<List<ReservationDashboardItemDto>>(reservations).Cast<object>().ToList();
                     break;
@@ -253,7 +253,7 @@ namespace KlyonHubPlatform.Application.Services
                         ActionKey = null,
                         ActionController = AdminDashboardRouteNames.Controller,
                         ActionName = AdminDashboardRouteNames.Payments,
-                        ActionRouteValues = new { status = "Pending" },
+                        ActionRouteValues = new { status = PaymentStatusFilterValues.Pending },
                         ActionText = "Ver Pagamentos Atrasados"
                     });
                 }

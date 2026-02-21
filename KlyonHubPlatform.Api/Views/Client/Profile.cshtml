@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Meu Perfil";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Meu Perfil";
+    Layout = LayoutPaths.Layout;
     var cnpjDigits = Model?.CNPJ != null ? System.Text.RegularExpressions.Regex.Replace(Model.CNPJ, @"\D", "") : "";
     var cpfObrigatorio = string.IsNullOrEmpty(cnpjDigits) || cnpjDigits.Length < 14;
 }

@@ -1,7 +1,7 @@
 @model KlyonHubPlatform.Domain.Entities.Client?
 @{
-    ViewData["Title"] = Model == null ? "Cadastro de Cliente" : "Editar Cliente";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = Model == null ? "Cadastro de Cliente" : "Editar Cliente";
+    Layout = LayoutPaths.Layout;
     var client = Model ?? new KlyonHubPlatform.Domain.Entities.Client();
     var personType = ViewBag.PersonType as string ?? (!string.IsNullOrWhiteSpace(client.CNPJ) ? "Juridica" : "Fisica");
 }

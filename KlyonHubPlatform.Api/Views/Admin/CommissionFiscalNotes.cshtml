@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Emitir NF de Comissão";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Emitir NF de Comissão";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Commission>
@@ -185,7 +185,7 @@
                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importNfModal" 
                                             data-commission-id="@commission.Id" 
                                             data-commission-amount="@commission.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)"
-                                            data-client-name="@(client != null ? (client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName ?? "N/A") : "N/A")">
+                                            data-client-name="@(client != null ? (client.RazaoSocial ?? client.NomeFantasia ?? client.User?.FullName ?? DefaultDisplayStrings.NotAvailable) : DefaultDisplayStrings.NotAvailable)">
                                         <i class="bi bi-upload"></i> Importar NF
                                     </button>
                                 </td>
@@ -211,7 +211,7 @@
 
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action("CommissionFiscalNotes", new { page = i, pageSize = ViewBag.PageSize, coworkingId = ViewBag.CoworkingId, clientId = ViewBag.ClientId })">
                                     @i
                                 </a>

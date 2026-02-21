@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Programação de Repasses";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Programação de Repasses";
+    Layout = LayoutPaths.Layout;
     var byCoworking = ViewBag.ByCoworking as IEnumerable<dynamic> ?? Enumerable.Empty<dynamic>();
     var totalAmount = ViewBag.TotalAmount as decimal? ?? 0;
 }

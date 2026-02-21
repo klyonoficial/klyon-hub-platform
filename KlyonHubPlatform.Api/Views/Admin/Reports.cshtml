@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Application.Interfaces
 @{
-    ViewData["Title"] = "Relatório Financeiro da Plataforma";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Relatório Financeiro da Plataforma";
+    Layout = LayoutPaths.Layout;
     var report = ViewBag.Report as ReportFinancialResult;
     var startDate = ViewBag.StartDate as DateTime? ?? DateTime.UtcNow.AddMonths(-1);
     var endDate = ViewBag.EndDate as DateTime? ?? DateTime.UtcNow;
@@ -406,7 +406,7 @@
 
                                     @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                                     {
-                                        <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                        <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                             <a class="page-link" href="@Url.Action(ActionNames.Reports, ControllerNames.Admin, new { 
                                                 startDate = startDate.ToString("yyyy-MM-dd"), 
                                                 endDate = endDate.ToString("yyyy-MM-dd"), 

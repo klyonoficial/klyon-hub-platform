@@ -158,14 +158,14 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             return type.ToLower() switch
             {
-                "users" => filter == "inactive" ? Url.Action(ActionNames.Users, ControllerNames.Admin, new { status = "inactive" })! :
-                           filter == "unverified" ? Url.Action(ActionNames.Users, ControllerNames.Admin, new { emailVerified = StringBooleanValue.False })! :
+                AdminDashboardListType.Users => filter == UserFilterValues.Inactive ? Url.Action(ActionNames.Users, ControllerNames.Admin, new { status = UserFilterValues.Inactive })! :
+                           filter == UserFilterValues.Unverified ? Url.Action(ActionNames.Users, ControllerNames.Admin, new { emailVerified = StringBooleanValue.False })! :
                            Url.Action(ActionNames.Users, ControllerNames.Admin)!,
-                "coworkings" => Url.Action(ActionNames.Coworkings, ControllerNames.Admin)!,
-                "contracts" => filter == "Active" ? Url.Action(ActionNames.Contracts, ControllerNames.Admin, new { status = "Active" })! : Url.Action(ActionNames.Contracts, ControllerNames.Admin)!,
-                "locations" => Url.Action(ActionNames.Locations, ControllerNames.Admin)!,
-                "payments" => filter == "Pending" ? Url.Action(ActionNames.Payments, ControllerNames.Admin, new { status = "Pending" })! : Url.Action(ActionNames.Payments, ControllerNames.Admin)!,
-                "reservations" => Url.Action(ActionNames.ReportCoworkingRevenue, ControllerNames.Admin)!,
+                AdminDashboardListType.Coworkings => Url.Action(ActionNames.Coworkings, ControllerNames.Admin)!,
+                AdminDashboardListType.Contracts => filter == ContractStatusFilterValues.Active ? Url.Action(ActionNames.Contracts, ControllerNames.Admin, new { status = ContractStatusFilterValues.Active })! : Url.Action(ActionNames.Contracts, ControllerNames.Admin)!,
+                AdminDashboardListType.Locations => Url.Action(ActionNames.Locations, ControllerNames.Admin)!,
+                AdminDashboardListType.Payments => filter == PaymentStatusFilterValues.Pending ? Url.Action(ActionNames.Payments, ControllerNames.Admin, new { status = PaymentStatusFilterValues.Pending })! : Url.Action(ActionNames.Payments, ControllerNames.Admin)!,
+                AdminDashboardListType.Reservations => Url.Action(ActionNames.ReportCoworkingRevenue, ControllerNames.Admin)!,
                 _ => "#"
             };
         }
@@ -374,7 +374,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     $"<p><strong>Email:</strong> {user.Email}</p>" +
                     $"<p><strong>Nova Senha:</strong> {newPassword}</p>" +
                     $"<p><strong>Hash válido:</strong> {(hashValid ? "SIM ✓" : "NÃO ✗")}</p>" +
-                    $"<p><strong>Hash (primeiros 30 chars):</strong> {(savedUser?.PasswordHash != null ? savedUser.PasswordHash.Substring(0, Math.Min(30, savedUser.PasswordHash.Length)) : "N/A")}</p>" +
+                    $"<p><strong>Hash (primeiros 30 chars):</strong> {(savedUser?.PasswordHash != null ? savedUser.PasswordHash.Substring(0, Math.Min(30, savedUser.PasswordHash.Length)) : DefaultDisplayStrings.NotAvailable)}</p>" +
                     $"<hr><p><a href='{loginUrl}'>Fazer Login</a></p>", "text/html");
             }
             catch (Exception ex)
@@ -1573,13 +1573,13 @@ namespace KlyonHubPlatform.Api.Controllers
             var fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
             var contentType = fileExtension switch
             {
-                ".pdf" => "application/pdf",
+                FileExtensions.Pdf => "application/pdf",
                 ".jpg" or ".jpeg" => "image/jpeg",
                 ".png" => "image/png",
                 ".gif" => "image/gif",
                 _ => "application/octet-stream"
             };
-            if (fileExtension != ".pdf")
+            if (fileExtension != FileExtensions.Pdf)
             {
                 Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
                 Response.Headers.Append("Pragma", "no-cache");
@@ -3894,7 +3894,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.SelectPdfFile;
                     return RedirectToAction(ActionNames.CommissionFiscalNotes);
                 }
-                if (!pdfFile.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                if (!pdfFile.FileName.EndsWith(FileExtensions.Pdf, StringComparison.OrdinalIgnoreCase))
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.FileMustBePdf;
                     return RedirectToAction(ActionNames.CommissionFiscalNotes);

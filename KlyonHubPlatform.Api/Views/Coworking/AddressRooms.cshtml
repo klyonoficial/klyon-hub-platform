@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Salas do Endereço";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Salas do Endereço";
+    Layout = LayoutPaths.Layout;
     var address = ViewBag.Address as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
     var roomTypes = ViewBag.RoomTypes as string[] ?? KlyonHubPlatform.Domain.Core.Constants.RoomTypes.All;
 }

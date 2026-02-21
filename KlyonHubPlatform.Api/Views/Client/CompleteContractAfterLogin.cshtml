@@ -1,7 +1,7 @@
 @model int
 @{
-    ViewData["Title"] = "Contratar Endereço Fiscal";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Contratar Endereço Fiscal";
+    Layout = LayoutPaths.Layout;
     var coworkingAddressId = Model;
     var createContractUrl = Url.Action("CreateContract", "Client");
 }

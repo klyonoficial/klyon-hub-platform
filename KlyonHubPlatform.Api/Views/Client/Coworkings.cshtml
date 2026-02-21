@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Coworkings Parceiros";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Coworkings Parceiros";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Coworking>
@@ -61,7 +61,7 @@
 
                         @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Client, new { page = i, pageSize = ViewBag.PageSize })">@i</a>
                             </li>
                         }

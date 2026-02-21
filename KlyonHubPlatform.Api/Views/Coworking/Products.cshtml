@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Produtos";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Produtos";
+    Layout = LayoutPaths.Layout;
     var currentProducts = ViewBag.CurrentProducts as List<string> ?? new List<string>();
     var addresses = ViewBag.Addresses as List<KlyonHubPlatform.Domain.Entities.CoworkingAddress> ?? new List<KlyonHubPlatform.Domain.Entities.CoworkingAddress>();
     var hasRoomRental = currentProducts.Contains("RoomRental");

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Meus Repasses";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Meus Repasses";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.MonthlySettlement>
@@ -188,7 +188,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="pdfFile" class="form-label">Arquivo PDF <span class="text-danger">*</span></label>
-                            <input type="file" class="form-control" id="pdfFile" name="pdfFile" accept=".pdf" required>
+                            <input type="file" class="form-control" id="pdfFile" name="pdfFile" accept="@FileExtensions.Pdf" required>
                             <small class="text-muted">Arquivo PDF da nota fiscal</small>
                         </div>
                         <div class="col-md-6 mb-3">

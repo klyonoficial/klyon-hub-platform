@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Cadastro";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Cadastro";
+    Layout = LayoutPaths.Layout;
     var initialRole = ViewBag.RegisterRole as string ?? ViewBag.PreSelectedRole as string ?? "Client";
     var preservedFullName = ViewBag.RegisterFullName as string;
     var preservedEmail = ViewBag.RegisterEmail as string;

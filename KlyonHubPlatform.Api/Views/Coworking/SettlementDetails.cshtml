@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Detalhes do Repasse";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Detalhes do Repasse";
+    Layout = LayoutPaths.Layout;
 }
 
 @model KlyonHubPlatform.Domain.Entities.MonthlySettlement
@@ -173,7 +173,7 @@
             </div>
             <div class="card-body">
                 <div class="timeline">
-                    <div class="timeline-item @(Model.CreatedAt != default ? "active" : "")">
+                    <div class="timeline-item @(Model.CreatedAt != default ? CssClasses.Active : "")">
                         <div class="timeline-marker bg-success"></div>
                         <div class="timeline-content">
                             <strong>Criado</strong>

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Reservar sala de reunião";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Reservar sala de reunião";
+    Layout = LayoutPaths.Layout;
     var address = ViewBag.Address as KlyonHubPlatform.Domain.Entities.CoworkingAddress;
     var availableCredits = ViewBag.AvailableCredits as int? ?? 0;
     var offersShared = ViewBag.OffersSharedRoom as bool? ?? false;

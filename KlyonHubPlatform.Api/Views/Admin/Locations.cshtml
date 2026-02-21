@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Gerenciar Localidades";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Gerenciar Localidades";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Location>
@@ -45,7 +45,7 @@
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
-                    <option value="active" selected="@(ViewBag.Status == "active")">Ativas</option>
+                    <option value="@StatusFilterValues.Active" selected="@(ViewBag.Status == StatusFilterValues.Active)">Ativas</option>
                     <option value="inactive" selected="@(ViewBag.Status == "inactive")">Inativas</option>
                 </select>
             </div>
@@ -182,7 +182,7 @@
 
             @for (int i = Math.Max(1, ViewBag.CurrentPage - 2); i <= Math.Min(ViewBag.TotalPages, ViewBag.CurrentPage + 2); i++)
             {
-                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                     <a class="page-link" href="@Url.Action(ActionNames.Locations, ControllerNames.Admin, new { 
                         search = ViewBag.Search, 
                         state = ViewBag.State, 

@@ -1,8 +1,8 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData["Title"] = "Meu Perfil - Coworking";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Meu Perfil - Coworking";
+    Layout = LayoutPaths.Layout;
     // Verificar se os menus de coworking estão habilitados
     var enableCoworkingMenus = await SystemConfigurationService.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
     var showCoworkingMenus = enableCoworkingMenus?.ToLower() == "true";
@@ -534,7 +534,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                 {
                                     if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
                                     {
-                                        <li class="page-item @(p == currentPage ? "active" : "")">
+                                        <li class="page-item @(p == currentPage ? CssClasses.Active : "")">
                                             <a class="page-link" href="@PhotosPageUrl(p)">@p</a>
                                         </li>
                                     }
@@ -681,7 +681,7 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                                 {
                                     if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
                                     {
-                                        <li class="page-item @(p == currentPage ? "active" : "")">
+                                        <li class="page-item @(p == currentPage ? CssClasses.Active : "")">
                                             <a class="page-link" href="@PartnersPageUrl(p)">@p</a>
                                         </li>
                                     }

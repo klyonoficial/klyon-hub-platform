@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Receita de Aluguel de Salas";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Receita de Aluguel de Salas";
+    Layout = LayoutPaths.Layout;
     var total = ViewBag.TotalRevenue as decimal? ?? 0m;
     var byRoomType = ViewBag.ByRoomType as IList<Dictionary<string, object>> ?? new List<Dictionary<string, object>>();
     var byClient = ViewBag.ByClient as IList<Dictionary<string, object>> ?? new List<Dictionary<string, object>>();
@@ -126,7 +126,7 @@
                                                     {
                                                         if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
                                                         {
-                                                            <li class="page-item @(p == currentPage ? "active" : "")">
+                                                            <li class="page-item @(p == currentPage ? CssClasses.Active : "")">
                                                                 <a class="page-link" href="@PageUrl(p)">@p</a>
                                                             </li>
                                                         }
@@ -241,7 +241,7 @@
                                                     {
                                                         if (p == 1 || p == totalPages || Math.Abs(p - currentPage) <= 2)
                                                         {
-                                                            <li class="page-item @(p == currentPage ? "active" : "")">
+                                                            <li class="page-item @(p == currentPage ? CssClasses.Active : "")">
                                                                 <a class="page-link" href="@PageUrl(p)">@p</a>
                                                             </li>
                                                         }

@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Solicitações de Remoção de Serviços";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Solicitações de Remoção de Serviços";
+    Layout = LayoutPaths.Layout;
 }
 
 @using KlyonHubPlatform.Domain.Core.Enums
@@ -42,11 +42,11 @@ else
                         {
                             <tr>
                                 <td>
-                                    <strong>@(ps.Coworking?.Name ?? "N/A")</strong><br>
+                                    <strong>@(ps.Coworking?.Name ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                                     <small class="text-muted">@(ps.Coworking?.User?.Email ?? "-")</small>
                                 </td>
                                 <td>
-                                    <strong>@(ps.Service?.Name ?? "N/A")</strong><br>
+                                    <strong>@(ps.Service?.Name ?? DefaultDisplayStrings.NotAvailable)</strong><br>
                                     <small class="text-muted">@(ps.Service?.Description ?? "-")</small>
                                 </td>
                                 <td>
@@ -96,7 +96,7 @@ else
 
                 @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                 {
-                    <li class="page-item @(i == currentPage ? "active" : "")">
+                    <li class="page-item @(i == currentPage ? CssClasses.Active : "")">
                         <a class="page-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin, new { page = i })">
                             @i
                         </a>

@@ -2,7 +2,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Domain.Core.Constants
 @{
-    ViewData["Title"] = "Detalhes do Pagamento";
+    ViewData[ViewDataKeys.Title] = "Detalhes do Pagamento";
     var contract = Model.Subscription?.Contract;
     var reservation = Model.Reservation;
     var isPending = Model.Status == PaymentStatus.Pending;
@@ -647,7 +647,7 @@
                                 
                                 @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
                                 {
-                                    <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <li class="page-item @(i == currentPage ? CssClasses.Active : "")">
                                         <a class="page-link" href="@Url.Action("PaymentDetails", "Client", new { id = Model.Id, historyPage = i })">@i</a>
                                     </li>
                                 }
@@ -718,8 +718,8 @@
 {
     var receiptUrl = Url.Action("ViewReceipt", "Client", new { paymentId = Model.Id });
     var receiptFileExtension = System.IO.Path.GetExtension(Model.ReceiptFilePath ?? "").ToLowerInvariant();
-    if (string.IsNullOrEmpty(receiptFileExtension)) { receiptFileExtension = ".pdf"; }
-    var receiptIsPdf = receiptFileExtension == ".pdf";
+    if (string.IsNullOrEmpty(receiptFileExtension)) { receiptFileExtension = FileExtensions.Pdf; }
+    var receiptIsPdf = receiptFileExtension == FileExtensions.Pdf;
     <!-- Modal Comprovante Enviado (mesmo padrão do Admin/Validar Pagamento) -->
     <div class="modal fade" id="viewReceiptModal" tabindex="-1" aria-labelledby="viewReceiptModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">

@@ -1,7 +1,7 @@
 @removeTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.OptionTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
-    ViewData["Title"] = "Gerenciar Usuários";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Gerenciar Usuários";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.User>
@@ -34,7 +34,7 @@
                 <label for="status" class="form-label">Status</label>
                 <select class="form-select" id="status" name="status">
                     <option value="">Todos</option>
-                    <option value="active" selected="@(ViewBag.Status == "active")">Ativos</option>
+                    <option value="@StatusFilterValues.Active" selected="@(ViewBag.Status == StatusFilterValues.Active)">Ativos</option>
                     <option value="inactive" selected="@(ViewBag.Status == "inactive")">Inativos</option>
                 </select>
             </div>
@@ -209,7 +209,7 @@
 
                         @for (int i = startPage; i <= endPage; i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.Users, ControllerNames.Admin, new { 
                                     search = ViewBag.Search, 
                                     role = ViewBag.SelectedRole, 

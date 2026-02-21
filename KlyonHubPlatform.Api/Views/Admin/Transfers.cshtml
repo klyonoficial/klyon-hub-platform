@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Solicitações de Repasse";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Solicitações de Repasse";
+    Layout = LayoutPaths.Layout;
     var _currentPage = (int)(ViewBag.CurrentPage ?? 1);
     var _totalPages = (int)(ViewBag.TotalPages ?? 1);
     var _totalItems = (int)(ViewBag.TotalItems ?? 0);
@@ -211,7 +211,7 @@
                         }
                         @for (var i = 1; i <= _totalPages; i++)
                         {
-                            <li class="page-item @(i == _currentPage ? "active" : "")">
+                            <li class="page-item @(i == _currentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action("Transfers", "Admin", new { page = i, pageSize = _ps, coworkingId = _coId, status = _st, dateFrom = _dfStr, dateTo = _dtStr })">@i</a>
                             </li>
                         }

@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model CoworkingRevenueDetailDto
 @{
-    ViewData["Title"] = "Drill-Down – Relatório de Reservas por Coworking";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Drill-Down – Relatório de Reservas por Coworking";
+    Layout = LayoutPaths.Layout;
     var dateFrom = ViewBag.DateFrom as DateTime?;
     var dateTo = ViewBag.DateTo as DateTime?;
     

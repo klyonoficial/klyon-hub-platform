@@ -1,6 +1,6 @@
 @{
-    ViewData["Title"] = "Emitir NF de Serviço";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Emitir NF de Serviço";
+    Layout = LayoutPaths.Layout;
 }
 
 @model List<KlyonHubPlatform.Domain.Entities.Payment>
@@ -203,7 +203,7 @@
 
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
-                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <li class="page-item @(i == ViewBag.CurrentPage ? CssClasses.Active : "")">
                                 <a class="page-link" href="@Url.Action(ActionNames.ServiceFiscalNotes, ControllerNames.Coworking, new { page = i, pageSize = ViewBag.PageSize, serviceType = ViewBag.ServiceType, client = ViewBag.Client, contractNumber = ViewBag.ContractNumber })">@i</a>
                             </li>
                         }
@@ -270,7 +270,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="importNfPdf" class="form-label">PDF da NF <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="importNfPdf" name="pdfFile" accept=".pdf" required />
+                        <input type="file" class="form-control" id="importNfPdf" name="pdfFile" accept="@FileExtensions.Pdf" required />
                     </div>
                 </div>
                 <div class="modal-footer">

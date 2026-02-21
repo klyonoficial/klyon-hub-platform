@@ -1,7 +1,7 @@
 @model KlyonHubPlatform.Api.ViewModels.MarketplaceListVm
 @{
-    ViewData["Title"] = "Encontrar Coworking";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Encontrar Coworking";
+    Layout = LayoutPaths.Layout;
 }
 
 <div class="container">
@@ -204,7 +204,7 @@
                     {
                         if (p == 1 || p == Model.TotalPages || Math.Abs(p - Model.Search.Page) <= 2)
                         {
-                            <li class="page-item @(p == Model.Search.Page ? "active" : "")">
+                            <li class="page-item @(p == Model.Search.Page ? CssClasses.Active : "")">
                                 <a class="page-link" href="@PageUrl(p)">@p</a>
                             </li>
                         }

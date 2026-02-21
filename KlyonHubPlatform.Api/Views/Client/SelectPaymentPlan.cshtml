@@ -1,8 +1,8 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @model KlyonHubPlatform.Domain.Entities.CoworkingAddress
 @{
-    ViewData["Title"] = "Escolher forma de pagamento";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData[ViewDataKeys.Title] = "Escolher forma de pagamento";
+    Layout = LayoutPaths.Layout;
     var locationLabel = Model.Location != null ? $"{Model.Location.City}/{Model.Location.State}" : $"{Model.City}/{Model.State}";
     var hasPix = true;
     var hasCard1x = Model.CardPrice1x.HasValue && Model.CardPrice1x.Value > 0;
