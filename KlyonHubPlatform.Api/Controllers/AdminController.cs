@@ -52,6 +52,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAdminDataService _adminDataService;
         private readonly IAdminDbService _adminDbService;
         private readonly StorageServiceFactory _storageFactory;
+        private readonly ICorrespondenceService _correspondenceService;
         public AdminController(
             IUserService userService,
             IReportService reportService,
@@ -76,7 +77,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAdminCoworkingService adminCoworkingService,
             IAdminDataService adminDataService,
             IAdminDbService adminDbService,
-            StorageServiceFactory storageFactory)
+            StorageServiceFactory storageFactory,
+            ICorrespondenceService correspondenceService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -103,6 +105,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _adminDataService = adminDataService;
             _adminDbService = adminDbService;
             _storageFactory = storageFactory;
+            _correspondenceService = correspondenceService;
         }
 
         private IActionResult ApplyAdminResult(AdminCommandResult result, bool isAjax = false, string? exceptionMessage = null)
@@ -413,6 +416,28 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             return View(coworkings);
+        }
+        [HttpGet]
+        public async Task<IActionResult> Correspondences(int? coworkingId, CancellationToken cancellationToken = default)
+        {
+            var list = await _correspondenceService.GetAllAsync(coworkingId, cancellationToken);
+            var coworkings = await _adminService.GetCoworkingsFilteredAsync(null, null, null, null, 1, 500);
+            ViewBag.Coworkings = coworkings ?? new List<Domain.Entities.Coworking>();
+            ViewBag.SelectedCoworkingId = coworkingId;
+            return View(list);
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetCorrespondencePhoto(int id, CancellationToken cancellationToken = default)
+        {
+            var photo = await _adminDbService.GetContext().CorrespondencePhotos
+                .Include(p => p.Correspondence)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+            if (photo == null) return NotFound();
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(photo.FilePath);
+            if (fileBytes == null) return NotFound();
+            var contentType = photo.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+            return File(fileBytes, contentType, photo.FileName);
         }
         [HttpGet]
         public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
@@ -1128,7 +1153,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _systemConfigurationService.CreateOrUpdateAsync(
                     key: FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(),
                     value: StringBooleanValue.False,
-                    description: "Habilita ou desabilita os menus de coworking (Reservar Sala, Reservas, etc.) para clientes e parceiros. Valores: true ou false",
+                    description: "Habilita ou desabilita os menus de coworking (Coworking > Correspondências, Reservar Sala, Reservas, Receita de Salas) para clientes e parceiros. Valores: true ou false",
                     category: "Features",
                     isEncrypted: false,
                     isSensitive: false,

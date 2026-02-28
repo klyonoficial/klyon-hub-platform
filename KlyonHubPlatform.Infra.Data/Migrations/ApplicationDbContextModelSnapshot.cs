@@ -772,6 +772,80 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("Contracts");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Correspondence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ArrivalDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ContractId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime?>("PickupScheduledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("PickupStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArrivalDate");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PickupScheduledAt");
+
+                    b.HasIndex("PickupStatus");
+
+                    b.ToTable("Correspondences");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CorrespondencePhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CorrespondenceId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrespondenceId");
+
+                    b.ToTable("CorrespondencePhotos");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Coworking", b =>
                 {
                     b.Property<int>("Id")
@@ -3349,6 +3423,36 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("CoworkingAddress");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Correspondence", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Contract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CorrespondencePhoto", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Correspondence", "Correspondence")
+                        .WithMany("Photos")
+                        .HasForeignKey("CorrespondenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Correspondence");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Coworking", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.User", "User")
@@ -3877,6 +3981,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Documents");
 
                     b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Correspondence", b =>
+                {
+                    b.Navigation("Photos");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Coworking", b =>

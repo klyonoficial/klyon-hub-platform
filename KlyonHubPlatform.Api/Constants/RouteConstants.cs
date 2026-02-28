@@ -195,5 +195,12 @@ namespace KlyonHubPlatform.Api.Constants
         public const string AddCreditCard = "AddCreditCard";
         public const string ProcessPaymentWithCard = "ProcessPaymentWithCard";
         public const string GetPaymentStatus = "GetPaymentStatus";
+        public const string Correspondences = "Correspondences";
+        public const string RegisterCorrespondence = "RegisterCorrespondence";
+        public const string CorrespondenceDetail = "CorrespondenceDetail";
+        public const string GetCorrespondencePhoto = "GetCorrespondencePhoto";
+        public const string SchedulePickup = "SchedulePickup";
+        public const string ResendCorrespondenceNotification = "ResendCorrespondenceNotification";
+        public const string MarkAsPickedUp = "MarkAsPickedUp";
     }
 }

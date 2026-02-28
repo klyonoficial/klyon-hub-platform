@@ -98,5 +98,9 @@ namespace KlyonHubPlatform.Api.Constants
         public const string KlyonBootDashboard = "KlyonBoot - Dashboard";
         public const string DatabaseMigrations = "Migrations - KlyonBoot Admin";
         public const string UnansweredQuestions = "Perguntas Não Respondidas - KlyonBoot";
+        public const string Correspondences = "Correspondências";
+        public const string RegisterCorrespondence = "Registrar Chegada de Correspondência";
+        public const string CorrespondenceDetail = "Detalhe da Correspondência";
+        public const string SchedulePickup = "Agendar retirada";
     }
 }

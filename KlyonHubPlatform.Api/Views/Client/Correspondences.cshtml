@@ -1,0 +1,86 @@
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.Correspondences;
+    Layout = LayoutPaths.Layout;
+}
+@model List<KlyonHubPlatform.Domain.Entities.Correspondence>
+@using KlyonHubPlatform.Api.Constants
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-check"></i> Minhas correspondências</h2>
+</div>
+
+@if (TempData[SuccessMessage.TempDataKey] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData[SuccessMessage.TempDataKey]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data de chegada</th>
+                            <th>Endereço</th>
+                            <th>Parceiro</th>
+                            <th>Status retirada</th>
+                            <th>Data/hora agendada</th>
+                            <th>Fotos</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            var address = item.Contract?.CoworkingAddress != null
+                                ? $"{item.Contract.CoworkingAddress.Address}, {item.Contract.CoworkingAddress.Number}"
+                                : "-";
+                            var coworkingName = item.Contract?.CoworkingAddress?.Coworking?.Name ?? "-";
+                            var photoCount = item.Photos?.Count ?? 0;
+                            var status = item.PickupStatus;
+                            var statusText = status == KlyonHubPlatform.Domain.Core.Enums.CorrespondencePickupStatus.AwaitingSchedule ? "Aguardando agendamento" : status == KlyonHubPlatform.Domain.Core.Enums.CorrespondencePickupStatus.Scheduled ? "Agendada" : "Retirada";
+                            var statusBadge = status == KlyonHubPlatform.Domain.Core.Enums.CorrespondencePickupStatus.AwaitingSchedule ? "bg-warning" : status == KlyonHubPlatform.Domain.Core.Enums.CorrespondencePickupStatus.Scheduled ? "bg-info" : "bg-success";
+                            <tr>
+                                <td>@item.ArrivalDate.ToString("dd/MM/yyyy")</td>
+                                <td>@address</td>
+                                <td>@coworkingName</td>
+                                <td><span class="badge @statusBadge">@statusText</span></td>
+                                <td>@(item.PickupScheduledAt.HasValue ? item.PickupScheduledAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>
+                                    @if (photoCount > 0)
+                                    {
+                                        <span class="badge bg-secondary">@photoCount foto(s)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (status == KlyonHubPlatform.Domain.Core.Enums.CorrespondencePickupStatus.AwaitingSchedule)
+                                    {
+                                        <a href="@Url.Action(ActionNames.SchedulePickup, ControllerNames.Client, new { id = item.Id })" class="btn btn-sm btn-primary me-1">
+                                            <i class="bi bi-calendar-check"></i> Agendar
+                                        </a>
+                                    }
+                                    <a href="@Url.Action(ActionNames.CorrespondenceDetail, ControllerNames.Client, new { id = item.Id })" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> Detalhe
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">Você ainda não possui correspondências registradas. Quando o parceiro informar a chegada de correspondência no seu endereço fiscal, você será notificado por e-mail e poderá ver aqui.</p>
+        }
+    </div>
+</div>

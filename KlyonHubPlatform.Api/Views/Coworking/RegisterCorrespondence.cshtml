@@ -1,0 +1,92 @@
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.RegisterCorrespondence;
+    Layout = LayoutPaths.Layout;
+}
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Domain.Entities
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-plus"></i> Registrar chegada de correspondência</h2>
+    <a href="@Url.Action(ActionNames.Correspondences, ControllerNames.Coworking)" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (TempData[ErrorMessages.TempDataKey] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData[ErrorMessages.TempDataKey]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="@Url.Action(ActionNames.RegisterCorrespondence, ControllerNames.Coworking)" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="addressId" class="form-label">Endereço (coworking)</label>
+                    <select class="form-select" id="addressId" name="addressId">
+                        <option value="">Selecione o endereço</option>
+                        @if (ViewBag.Addresses != null)
+                        {
+                            @foreach (var addr in (List<CoworkingAddress>)ViewBag.Addresses)
+                            {
+                                var loc = addr.Location != null ? $"{addr.Location.City}/{addr.Location.State}" : "";
+                                var selected = ViewBag.SelectedAddressId != null && ViewBag.SelectedAddressId.ToString() == addr.Id.ToString();
+                                <option value="@addr.Id" selected="@selected">@addr.Address, @addr.Number - @loc</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="contractId" class="form-label">Cliente / Contrato</label>
+                    <select class="form-select" id="contractId" name="contractId" required>
+                        <option value="">Selecione o endereço primeiro</option>
+                        @if (ViewBag.Contracts != null)
+                        {
+                            @foreach (var c in (List<Contract>)ViewBag.Contracts)
+                            {
+                                var name = c.Client?.ContactName ?? c.Client?.RazaoSocial ?? c.Client?.NomeFantasia ?? "Cliente";
+                                <option value="@c.Id">@name - @c.ContractNumber</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="arrivalDate" class="form-label">Data de chegada</label>
+                    <input type="date" class="form-control" id="arrivalDate" name="arrivalDate" value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                </div>
+                <div class="col-12">
+                    <label for="notes" class="form-label">Observações (opcional)</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Ex.: Envelope, caixa pequena...">@ViewBag.Notes</textarea>
+                </div>
+                <div class="col-12">
+                    <label for="Photos" class="form-label">Fotos (opcional)</label>
+                    <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*" />
+                    <small class="text-muted">Você pode anexar uma ou mais fotos da correspondência.</small>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Registrar e notificar cliente
+                    </button>
+                    <a href="@Url.Action(ActionNames.Correspondences, ControllerNames.Coworking)" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('addressId').addEventListener('change', function() {
+            var addressId = this.value;
+            if (addressId) {
+                window.location.href = '@Url.Action(ActionNames.RegisterCorrespondence, ControllerNames.Coworking)' + '?addressId=' + addressId;
+            } else {
+                document.getElementById('contractId').innerHTML = '<option value="">Selecione o endereço primeiro</option>';
+            }
+        });
+    </script>
+}

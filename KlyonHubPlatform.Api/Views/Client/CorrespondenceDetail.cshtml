@@ -1,0 +1,110 @@
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.CorrespondenceDetail;
+    Layout = LayoutPaths.Layout;
+}
+@model KlyonHubPlatform.Domain.Entities.Correspondence
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Domain.Core.Enums
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-open"></i> Detalhe da correspondência</h2>
+    <div class="d-flex gap-2">
+        @if (Model.PickupStatus == CorrespondencePickupStatus.AwaitingSchedule)
+        {
+            <a href="@Url.Action(ActionNames.SchedulePickup, ControllerNames.Client, new { id = Model.Id })" class="btn btn-primary">
+                <i class="bi bi-calendar-check"></i> Agendar retirada
+            </a>
+        }
+        <a href="@Url.Action(ActionNames.Correspondences, ControllerNames.Client)" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Informações</h5>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Status da retirada</dt>
+            <dd class="col-sm-9">
+                @switch (Model.PickupStatus)
+                {
+                    case CorrespondencePickupStatus.AwaitingSchedule:
+                        <span class="badge bg-warning">Aguardando agendamento</span>
+                        <span class="text-muted ms-2">Agende uma data e hora para buscar sua correspondência.</span>
+                        break;
+                    case CorrespondencePickupStatus.Scheduled:
+                        <span class="badge bg-info">Retirada agendada</span>
+                        @if (Model.PickupScheduledAt.HasValue)
+                        {
+                            <span class="ms-2">@Model.PickupScheduledAt.Value.ToString("dd/MM/yyyy") às @Model.PickupScheduledAt.Value.ToString("HH:mm")</span>
+                        }
+                        break;
+                    case CorrespondencePickupStatus.PickedUp:
+                        <span class="badge bg-success">Já retirada</span>
+                        break;
+                }
+            </dd>
+
+            <dt class="col-sm-3">Data de chegada</dt>
+            <dd class="col-sm-9">@Model.ArrivalDate.ToString("dd/MM/yyyy")</dd>
+
+            <dt class="col-sm-3">Endereço</dt>
+            <dd class="col-sm-9">
+                @if (Model.Contract?.CoworkingAddress != null)
+                {
+                    @($"{Model.Contract.CoworkingAddress.Address}, {Model.Contract.CoworkingAddress.Number}")
+                    @if (!string.IsNullOrEmpty(Model.Contract.CoworkingAddress.Complement))
+                    {
+                        @($" - {Model.Contract.CoworkingAddress.Complement}")
+                    }
+                    <br />
+                    <small class="text-muted">@Model.Contract.CoworkingAddress.City / @Model.Contract.CoworkingAddress.State</small>
+                }
+                else
+                {
+                    <span class="text-muted">-</span>
+                }
+            </dd>
+
+            <dt class="col-sm-3">Parceiro</dt>
+            <dd class="col-sm-9">@(Model.Contract?.CoworkingAddress?.Coworking?.Name ?? "-")</dd>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Notes))
+            {
+                <dt class="col-sm-3">Observações</dt>
+                <dd class="col-sm-9">@Model.Notes</dd>
+            }
+
+            <dt class="col-sm-3">Registrado em</dt>
+            <dd class="col-sm-9">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</dd>
+        </dl>
+    </div>
+</div>
+
+@if (Model.Photos != null && Model.Photos.Any())
+{
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Fotos</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                @foreach (var photo in Model.Photos)
+                {
+                    <div class="col-md-4 col-lg-3">
+                        <a href="@Url.Action(ActionNames.GetCorrespondencePhoto, ControllerNames.Client, new { id = photo.Id })" target="_blank" class="d-block text-decoration-none">
+                            <img src="@Url.Action(ActionNames.GetCorrespondencePhoto, ControllerNames.Client, new { id = photo.Id })"
+                                 alt="@photo.FileName"
+                                 class="img-fluid rounded border"
+                                 style="max-height: 200px; object-fit: cover;" />
+                            <small class="text-muted d-block mt-1 text-truncate">@photo.FileName</small>
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}

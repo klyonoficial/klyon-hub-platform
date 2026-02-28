@@ -201,6 +201,9 @@
                             <a class="nav-link" href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)">
                                 <i class="bi bi-building"></i> Coworkings Parceiros
                             </a>
+                            <a class="nav-link" href="@Url.Action(ActionNames.Correspondences, ControllerNames.Admin)">
+                                <i class="bi bi-envelope-check"></i> Correspondências
+                            </a>
                             <a class="nav-link" href="@Url.Action(ActionNames.ServiceRemovalRequests, ControllerNames.Admin)">
                                 <i class="bi bi-exclamation-triangle"></i> Solicitações de Remoção
                             </a>
@@ -342,15 +345,38 @@
                                             <i class="bi bi-file-earmark-text"></i> Contratos de Endereço Fiscal
                                         </a>
                                     </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action(ActionNames.MyContract, ControllerNames.Parceiro)">
+                                            <i class="bi bi-file-earmark-text"></i> Meu Contrato
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action(ActionNames.Services, ControllerNames.Parceiro)">
+                                            <i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens
+                                        </a>
+                                    </li>
                                 </ul>
                             </div>
                             
-                            <a class="nav-link" href="@Url.Action(ActionNames.MyContract, ControllerNames.Parceiro)">
-                                <i class="bi bi-file-earmark-text"></i> Meu Contrato
-                            </a>
-                            <a class="nav-link" href="@Url.Action(ActionNames.Services, ControllerNames.Parceiro)">
-                                <i class="bi bi-grid-3x3-gap"></i> Serviços e Percentagens
-                            </a>
+                            @* Menu Coworking (Correspondências) - só aparece se Features.EnableCoworkingMenus estiver true *@
+                            @if (showCoworkingMenus)
+                            {
+                                <div class="sidebar-dropdown" id="coworkingParceiroDropdown">
+                                    <a class="nav-link sidebar-dropdown-toggle" id="coworkingParceiroLink"
+                                       onclick="toggleSidebarMenu('coworkingParceiro'); return false;"
+                                       href="#">
+                                        <i class="bi bi-building"></i> Coworking
+                                        <i class="bi bi-chevron-right float-end"></i>
+                                    </a>
+                                    <ul class="sidebar-submenu" id="coworkingParceiroMenu">
+                                        <li>
+                                            <a class="nav-link" href="@Url.Action(ActionNames.Correspondences, ControllerNames.Coworking)">
+                                                <i class="bi bi-envelope-check"></i> Correspondências
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            }
                             
                             @* Menu de Reservas e Aluguel de Salas - só aparece se habilitado nas configurações *@
                             @if (showCoworkingMenus)
@@ -409,6 +435,12 @@
                             <a class="nav-link" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)">
                                 <i class="bi bi-file-earmark-text"></i> Contrato de Endereço Fiscal
                             </a>
+                            @if (showCoworkingMenus)
+                            {
+                                <a class="nav-link" href="@Url.Action(ActionNames.Correspondences, ControllerNames.Client)">
+                                    <i class="bi bi-envelope-check"></i> Minhas correspondências
+                                </a>
+                            }
                             
                             @* "Localidades Disponíveis" sempre visível para o cliente (contratar novo endereço mesmo tendo contrato ativo) *@
                             <a class="nav-link" href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)">
@@ -620,7 +652,7 @@
             }
             
             // Lista de todos os menus dropdown
-            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'financeiro', 'financeiroAdmin', 'configuracaoAdmin'];
+            const menuIds = ['enderecoFiscal', 'enderecoFiscalParceiro', 'coworkingParceiro', 'enderecoFiscalAdmin', 'financeiroParceiro', 'reservarSala', 'notaFiscal', 'notaFiscalAdmin', 'financeiro', 'financeiroAdmin', 'configuracaoAdmin'];
             
             menuIds.forEach(function(menuId) {
                 const menu = document.getElementById(menuId + 'Menu');

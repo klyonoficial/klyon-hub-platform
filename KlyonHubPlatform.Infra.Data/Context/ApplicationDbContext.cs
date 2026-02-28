@@ -177,6 +177,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<MonthlySettlement> MonthlySettlements { get; set; }
         public DbSet<SettlementCommission> SettlementCommissions { get; set; }
         public DbSet<PartnerInvoice> PartnerInvoices { get; set; }
+        public DbSet<Correspondence> Correspondences { get; set; }
+        public DbSet<CorrespondencePhoto> CorrespondencePhotos { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -891,6 +893,36 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.MonthlySettlementId);
                 entity.HasIndex(e => e.CoworkingId);
                 entity.HasIndex(e => e.Status);
+            });
+            modelBuilder.Entity<Correspondence>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Contract)
+                    .WithMany()
+                    .HasForeignKey(e => e.ContractId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Notes).HasMaxLength(2000);
+                entity.Property(e => e.PickupStatus).HasColumnType("int");
+                entity.HasIndex(e => e.ContractId);
+                entity.HasIndex(e => e.ArrivalDate);
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.PickupStatus);
+                entity.HasIndex(e => e.PickupScheduledAt);
+            });
+            modelBuilder.Entity<CorrespondencePhoto>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Correspondence)
+                    .WithMany(c => c.Photos)
+                    .HasForeignKey(e => e.CorrespondenceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
+                entity.HasIndex(e => e.CorrespondenceId);
             });
         }
     }

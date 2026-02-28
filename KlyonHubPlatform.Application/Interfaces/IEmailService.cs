@@ -9,5 +9,6 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<bool> SendReservationRequestToCoworkingAsync(string to, string coworkingName, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items);
         Task<bool> SendReservationRequestToClientAsync(string to, string clientName, IEnumerable<(DateTime Date, TimeSpan? Start, TimeSpan? End, string RoomType)> items);
         Task<bool> SendClientCredentialsEmailAsync(string to, string name, string email, string password, string paymentDetailsUrl);
+        Task<bool> SendCorrespondenceArrivalNotificationAsync(string to, string clientName, string addressInfo, DateTime arrivalDate, string schedulePickupUrl);
     }
 }

@@ -8,6 +8,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
+using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
@@ -32,6 +33,8 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ISefazService _sefazService;
         private readonly IMonthlySettlementService _monthlySettlementService;
         private readonly IMapper _mapper;
+        private readonly ICorrespondenceService _correspondenceService;
+        private readonly IContractRepository _contractRepository;
         public CoworkingController(
             ICoworkingService coworkingService,
             ICoworkingAppService coworkingAppService,
@@ -44,7 +47,9 @@ namespace KlyonHubPlatform.Api.Controllers
             ISystemConfigurationService systemConfig,
             ISefazService sefazService,
             IMonthlySettlementService monthlySettlementService,
-            IMapper mapper)
+            IMapper mapper,
+            ICorrespondenceService correspondenceService,
+            IContractRepository contractRepository)
         {
             _coworkingService = coworkingService;
             _coworkingAppService = coworkingAppService;
@@ -58,6 +63,8 @@ namespace KlyonHubPlatform.Api.Controllers
             _sefazService = sefazService;
             _monthlySettlementService = monthlySettlementService;
             _mapper = mapper;
+            _correspondenceService = correspondenceService;
+            _contractRepository = contractRepository;
         }
         private async Task RefreshUserPrincipalAsync(User user)
         {
@@ -1272,6 +1279,182 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var contentType = fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" : "application/octet-stream";
             return File(fileBytes, contentType, fileName);
+        }
+        [HttpGet]
+        public async Task<IActionResult> Correspondences(DateTime? pickupDateFrom, DateTime? pickupDateTo, int? status, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+                return RedirectToAction(ActionNames.Register);
+            CorrespondencePickupStatus? statusFilter = status.HasValue && Enum.IsDefined(typeof(CorrespondencePickupStatus), status.Value)
+                ? (CorrespondencePickupStatus)status.Value
+                : null;
+            var list = (pickupDateFrom.HasValue || pickupDateTo.HasValue || statusFilter.HasValue)
+                ? await _correspondenceService.GetByCoworkingIdFilteredAsync(coworkingEntity.Id, pickupDateFrom, pickupDateTo, statusFilter, cancellationToken)
+                : await _correspondenceService.GetByCoworkingIdAsync(coworkingEntity.Id, cancellationToken);
+            ViewBag.PickupDateFrom = pickupDateFrom;
+            ViewBag.PickupDateTo = pickupDateTo;
+            ViewBag.StatusFilter = statusFilter;
+            return View(list);
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendCorrespondenceNotification(int id, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                return RedirectToAction(ActionNames.Correspondences);
+            }
+            try
+            {
+                await _correspondenceService.ResendArrivalNotificationAsync(id, coworkingEntity.Id, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = "E-mail de notificação reenviado ao cliente com o link para agendar a retirada.";
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+            }
+            return RedirectToAction(ActionNames.Correspondences);
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkAsPickedUp(int id, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                return RedirectToAction(ActionNames.Correspondences);
+            }
+            try
+            {
+                await _correspondenceService.MarkAsPickedUpAsync(id, coworkingEntity.Id, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = "Correspondência marcada como retirada.";
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+            }
+            return RedirectToAction(ActionNames.Correspondences);
+        }
+        [HttpGet]
+        public async Task<IActionResult> RegisterCorrespondence(int? addressId, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+                return RedirectToAction(ActionNames.Register);
+            var allAddresses = await _coworkingAppService.GetCoworkingAddressesPagedAsync(coworkingEntity.Id, null, null, null, 1, 1000, cancellationToken);
+            var addressList = allAddresses.Items;
+            ViewBag.Addresses = addressList;
+            ViewBag.Contracts = new List<Contract>();
+            if (addressId.HasValue)
+            {
+                var contracts = await _contractRepository.GetByCoworkingAddressIdAsync(addressId.Value, cancellationToken);
+                var activeContracts = contracts.Where(c => c.Status == ContractStatus.Active).ToList();
+                ViewBag.Contracts = activeContracts;
+            }
+            ViewBag.SelectedAddressId = addressId;
+            return View();
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RegisterCorrespondence(int contractId, DateTime arrivalDate, string? notes, List<IFormFile>? Photos, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                return RedirectToAction(ActionNames.Correspondences);
+            }
+            var contract = await _contractRepository.GetByIdAsync(contractId, cancellationToken);
+            if (contract == null || contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+            {
+                TempData[ErrorMessages.TempDataKey] = "Contrato não encontrado ou não pertence ao seu coworking.";
+                return RedirectToAction(ActionNames.RegisterCorrespondence);
+            }
+            var photoList = new List<(string FilePath, string FileName)>();
+            if (Photos != null && Photos.Count > 0)
+            {
+                var maxBytes = await GetMaxPhotoSizeBytesAsync();
+                var storageService = await _storageFactory.GetStorageServiceAsync();
+                var folder = $"correspondences/{contractId}";
+                foreach (var file in Photos)
+                {
+                    if (file.Length == 0 || file.Length > maxBytes) continue;
+                    using var stream = new MemoryStream();
+                    await file.CopyToAsync(stream, cancellationToken);
+                    var ext = Path.GetExtension(file.FileName);
+                    if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                    var fileName = $"photo_{DateTime.UtcNow:yyyyMMddHHmmss}_{Path.GetFileNameWithoutExtension(file.FileName)}{ext}";
+                    var path = await storageService.SaveFileAsync(stream.ToArray(), fileName, folder);
+                    photoList.Add((path, file.FileName));
+                }
+            }
+            try
+            {
+                await _correspondenceService.RegisterArrivalAsync(contractId, arrivalDate, notes, userId, photoList, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = "Correspondência registrada com sucesso. O cliente foi notificado por e-mail.";
+                return RedirectToAction(ActionNames.Correspondences);
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+                var allAddressesResult = await _coworkingAppService.GetCoworkingAddressesPagedAsync(coworkingEntity.Id, null, null, null, 1, 1000, cancellationToken);
+                ViewBag.Addresses = allAddressesResult.Items;
+                ViewBag.Contracts = new List<Contract>();
+                ViewBag.SelectedAddressId = (int?)null;
+                return View();
+            }
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetCorrespondencePhoto(int id, CancellationToken cancellationToken = default)
+        {
+            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
+            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
+                return RedirectToAction(ActionNames.Dashboard);
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null) return NotFound();
+            var photo = await _coworkingAppService.DbContext.CorrespondencePhotos
+                .Include(p => p.Correspondence)
+                .ThenInclude(c => c!.Contract)
+                .ThenInclude(c => c!.CoworkingAddress)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+            if (photo?.Correspondence?.Contract?.CoworkingAddress == null || photo.Correspondence.Contract.CoworkingAddress.CoworkingId != coworkingEntity.Id)
+                return NotFound();
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var fileBytes = await storageService.GetFileAsync(photo.FilePath);
+            if (fileBytes == null) return NotFound();
+            var contentType = photo.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+            return File(fileBytes, contentType, photo.FileName);
         }
         [HttpGet]
         public async Task<IActionResult> Reservations(

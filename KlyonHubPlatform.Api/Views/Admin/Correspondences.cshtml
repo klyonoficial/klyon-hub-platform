@@ -1,0 +1,101 @@
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.Correspondences;
+    Layout = LayoutPaths.Layout;
+}
+@model List<KlyonHubPlatform.Domain.Entities.Correspondence>
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Domain.Entities
+@using KlyonHubPlatform.Domain.Core.Enums
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-check"></i> Correspondências (todos os parceiros)</h2>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="@Url.Action(ActionNames.Correspondences, ControllerNames.Admin)" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label for="coworkingId" class="form-label">Filtrar por parceiro / coworking</label>
+                <select class="form-select" id="coworkingId" name="coworkingId">
+                    <option value="">Todos</option>
+                    @if (ViewBag.Coworkings != null)
+                    {
+                        @foreach (var c in (List<Coworking>)ViewBag.Coworkings)
+                        {
+                            var selected = ViewBag.SelectedCoworkingId != null && ViewBag.SelectedCoworkingId.ToString() == c.Id.ToString();
+                            <option value="@c.Id" selected="@selected">@c.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data chegada</th>
+                            <th>Parceiro</th>
+                            <th>Cliente</th>
+                            <th>Endereço</th>
+                            <th>Contrato</th>
+                            <th>Status retirada</th>
+                            <th>Data/hora retirada</th>
+                            <th>Fotos</th>
+                            <th>Registrado em</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            var coworkingName = item.Contract?.CoworkingAddress?.Coworking?.Name ?? "-";
+                            var clientName = item.Contract?.Client?.ContactName ?? item.Contract?.Client?.RazaoSocial ?? item.Contract?.Client?.NomeFantasia ?? "-";
+                            var address = item.Contract?.CoworkingAddress != null
+                                ? $"{item.Contract.CoworkingAddress.Address}, {item.Contract.CoworkingAddress.Number}"
+                                : "-";
+                            var photoCount = item.Photos?.Count ?? 0;
+                            var status = item.PickupStatus;
+                            var statusText = status == CorrespondencePickupStatus.AwaitingSchedule ? "Aguardando agendamento" : status == CorrespondencePickupStatus.Scheduled ? "Agendada" : "Retirada";
+                            var statusBadge = status == CorrespondencePickupStatus.AwaitingSchedule ? "bg-warning" : status == CorrespondencePickupStatus.Scheduled ? "bg-info" : "bg-success";
+                            <tr>
+                                <td>@item.ArrivalDate.ToString("dd/MM/yyyy")</td>
+                                <td>@coworkingName</td>
+                                <td>@clientName</td>
+                                <td>@address</td>
+                                <td>@(item.Contract?.ContractNumber ?? "-")</td>
+                                <td><span class="badge @statusBadge">@statusText</span></td>
+                                <td>@(item.PickupScheduledAt.HasValue ? item.PickupScheduledAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>
+                                    @if (photoCount > 0)
+                                    {
+                                        <span class="badge bg-secondary">@photoCount foto(s)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">Nenhuma correspondência encontrada.</p>
+        }
+    </div>
+</div>

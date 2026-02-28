@@ -1,0 +1,140 @@
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.Correspondences;
+    Layout = LayoutPaths.Layout;
+}
+@model List<KlyonHubPlatform.Domain.Entities.Correspondence>
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Domain.Core.Enums
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-check"></i> Encomendas / Correspondências</h2>
+    <a href="@Url.Action(ActionNames.RegisterCorrespondence, ControllerNames.Coworking)" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Registrar chegada
+    </a>
+</div>
+
+@if (TempData[SuccessMessage.TempDataKey] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData[SuccessMessage.TempDataKey]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData[ErrorMessages.TempDataKey] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData[ErrorMessages.TempDataKey]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" action="@Url.Action(ActionNames.Correspondences, ControllerNames.Coworking)" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="pickupDateFrom" class="form-label">Data retirada (de)</label>
+                <input type="date" class="form-control" id="pickupDateFrom" name="pickupDateFrom" value="@(ViewBag.PickupDateFrom != null ? ((DateTime)ViewBag.PickupDateFrom).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <label for="pickupDateTo" class="form-label">Data retirada (até)</label>
+                <input type="date" class="form-control" id="pickupDateTo" name="pickupDateTo" value="@(ViewBag.PickupDateTo != null ? ((DateTime)ViewBag.PickupDateTo).ToString("yyyy-MM-dd") : "")" />
+            </div>
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    <option value="@((int)CorrespondencePickupStatus.AwaitingSchedule)" selected="@(ViewBag.StatusFilter == CorrespondencePickupStatus.AwaitingSchedule)">Aguardando agendamento</option>
+                    <option value="@((int)CorrespondencePickupStatus.Scheduled)" selected="@(ViewBag.StatusFilter == CorrespondencePickupStatus.Scheduled)">Agendada</option>
+                    <option value="@((int)CorrespondencePickupStatus.PickedUp)" selected="@(ViewBag.StatusFilter == CorrespondencePickupStatus.PickedUp)">Retirada</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data chegada</th>
+                            <th>Cliente</th>
+                            <th>Endereço</th>
+                            <th>Status</th>
+                            <th>Data/hora retirada</th>
+                            <th>Fotos</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            var clientName = item.Contract?.Client?.ContactName ?? item.Contract?.Client?.RazaoSocial ?? item.Contract?.Client?.NomeFantasia ?? "-";
+                            var address = item.Contract?.CoworkingAddress != null
+                                ? $"{item.Contract.CoworkingAddress.Address}, {item.Contract.CoworkingAddress.Number}"
+                                : "-";
+                            var photoCount = item.Photos?.Count ?? 0;
+                            var status = item.PickupStatus;
+                            var statusText = status == CorrespondencePickupStatus.AwaitingSchedule ? "Aguardando agendamento" : status == CorrespondencePickupStatus.Scheduled ? "Agendada" : "Retirada";
+                            var statusBadge = status == CorrespondencePickupStatus.AwaitingSchedule ? "bg-warning" : status == CorrespondencePickupStatus.Scheduled ? "bg-info" : "bg-success";
+                            <tr>
+                                <td>@item.ArrivalDate.ToString("dd/MM/yyyy")</td>
+                                <td>@clientName</td>
+                                <td>@address</td>
+                                <td><span class="badge @statusBadge">@statusText</span></td>
+                                <td>@(item.PickupScheduledAt.HasValue ? item.PickupScheduledAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>
+                                    @if (photoCount > 0)
+                                    {
+                                        <span class="badge bg-secondary">@photoCount foto(s)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (status != CorrespondencePickupStatus.PickedUp)
+                                    {
+                                        <form method="post" action="@Url.Action(ActionNames.ResendCorrespondenceNotification, ControllerNames.Coworking)" class="d-inline" onsubmit="return confirm('Reenviar e-mail ao cliente com o link para agendar a retirada?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Notificar por e-mail">
+                                                <i class="bi bi-envelope"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (status == CorrespondencePickupStatus.Scheduled)
+                                    {
+                                        <form method="post" action="@Url.Action(ActionNames.MarkAsPickedUp, ControllerNames.Coworking)" class="d-inline" onsubmit="return confirm('Marcar esta correspondência como já retirada pelo cliente?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como retirada">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">Nenhuma correspondência encontrada. Clique em <strong>Registrar chegada</strong> para informar a chegada de correspondência de um cliente.</p>
+        }
+    </div>
+</div>

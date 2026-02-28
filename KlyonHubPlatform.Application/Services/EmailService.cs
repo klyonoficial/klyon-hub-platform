@@ -384,5 +384,50 @@ namespace KlyonHubPlatform.Application.Services
 </html>";
             return await SendEmailAsync(to, subject, body, true);
         }
+        public async Task<bool> SendCorrespondenceArrivalNotificationAsync(string to, string clientName, string addressInfo, DateTime arrivalDate, string schedulePickupUrl)
+        {
+            var subject = "Sua correspondência chegou - Agende a retirada - Klyon Endereço Fiscal";
+            var body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        .info-box {{ background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 15px 0; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Klyon Endereço Fiscal</h1>
+        </div>
+        <div class='content'>
+            <h2>Olá, {clientName}!</h2>
+            <p>Informamos que <strong>sua correspondência chegou</strong> ao endereço fiscal.</p>
+            <div class='info-box'>
+                <p style='margin: 0;'><strong>Endereço:</strong> {addressInfo}</p>
+                <p style='margin: 10px 0 0 0;'><strong>Data de chegada:</strong> {arrivalDate:dd/MM/yyyy}</p>
+            </div>
+            <p>Para retirar, é necessário <strong>agendar uma data e hora</strong>. Clique no botão abaixo para escolher quando deseja buscar sua correspondência.</p>
+            <p style='text-align: center;'>
+                <a href='{schedulePickupUrl}' class='button'>Agendar data e hora para retirada</a>
+            </p>
+            <p>Atenciosamente,<br>Equipe Klyon</p>
+        </div>
+        <div class='footer'>
+            <p>Este é um email automático, por favor não responda.</p>
+            <p>© {DateTime.Now.Year} Klyon Endereço Fiscal. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>";
+            return await SendEmailAsync(to, subject, body, true);
+        }
     }
 }
