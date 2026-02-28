@@ -10,6 +10,7 @@ namespace KlyonHubPlatform.Application.Services
     {
         private readonly ICorrespondenceRepository _correspondenceRepository;
         private readonly IContractRepository _contractRepository;
+        private readonly IOperatingHoursRepository _operatingHoursRepository;
         private readonly IEmailService _emailService;
         private readonly IAppBaseUrlProvider _appBaseUrlProvider;
         private readonly ILogger<CorrespondenceService> _logger;
@@ -17,12 +18,14 @@ namespace KlyonHubPlatform.Application.Services
         public CorrespondenceService(
             ICorrespondenceRepository correspondenceRepository,
             IContractRepository contractRepository,
+            IOperatingHoursRepository operatingHoursRepository,
             IEmailService emailService,
             IAppBaseUrlProvider appBaseUrlProvider,
             ILogger<CorrespondenceService> logger)
         {
             _correspondenceRepository = correspondenceRepository;
             _contractRepository = contractRepository;
+            _operatingHoursRepository = operatingHoursRepository;
             _emailService = emailService;
             _appBaseUrlProvider = appBaseUrlProvider;
             _logger = logger;
@@ -107,10 +110,26 @@ namespace KlyonHubPlatform.Application.Services
             var correspondence = await _correspondenceRepository.GetByIdAsync(correspondenceId, cancellationToken);
             if (correspondence == null)
                 throw new InvalidOperationException("Correspondência não encontrada.");
+            if (correspondence.Contract?.CoworkingAddress == null)
+                throw new InvalidOperationException("Endereço de retirada não encontrado.");
             if (correspondence.Contract.ClientId != clientId)
                 throw new UnauthorizedAccessException("Esta correspondência não pertence a você.");
             if (correspondence.PickupStatus != CorrespondencePickupStatus.AwaitingSchedule)
                 throw new InvalidOperationException("Esta correspondência já possui retirada agendada ou já foi retirada.");
+
+            var coworkingId = correspondence.Contract.CoworkingAddress.CoworkingId;
+            var dayOfWeek = scheduledDate.DayOfWeek.ToString().ToUpperInvariant();
+            var operatingHours = await _operatingHoursRepository.GetByCoworkingAndDayAsync(coworkingId, dayOfWeek, cancellationToken);
+            if (operatingHours == null || !operatingHours.IsActive)
+                throw new InvalidOperationException("Não é possível agendar retirada neste dia: o espaço não possui horário de funcionamento cadastrado.");
+            if (!operatingHours.OpeningTime.HasValue || !operatingHours.ClosingTime.HasValue)
+                throw new InvalidOperationException("O horário de funcionamento deste dia não está configurado. Entre em contato com o parceiro.");
+            if (scheduledTime < operatingHours.OpeningTime.Value || scheduledTime > operatingHours.ClosingTime.Value)
+            {
+                var openStr = operatingHours.OpeningTime.Value.ToString(@"hh\:mm");
+                var closeStr = operatingHours.ClosingTime.Value.ToString(@"hh\:mm");
+                throw new InvalidOperationException($"O horário deve estar dentro do horário comercial: das {openStr} às {closeStr}.");
+            }
 
             var scheduledAt = scheduledDate.Date.Add(scheduledTime);
             correspondence.PickupStatus = CorrespondencePickupStatus.Scheduled;

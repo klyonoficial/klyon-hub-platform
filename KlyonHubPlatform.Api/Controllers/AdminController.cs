@@ -440,6 +440,13 @@ namespace KlyonHubPlatform.Api.Controllers
             return File(fileBytes, contentType, photo.FileName);
         }
         [HttpGet]
+        public async Task<IActionResult> GetCorrespondenceDetailModal(int id, CancellationToken cancellationToken = default)
+        {
+            var correspondence = await _correspondenceService.GetByIdAsync(id, cancellationToken);
+            if (correspondence == null) return NotFound();
+            return PartialView("_CorrespondenceDetailModal", correspondence);
+        }
+        [HttpGet]
         public async Task<IActionResult> ViewCoworking(int id, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
@@ -1153,7 +1160,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 await _systemConfigurationService.CreateOrUpdateAsync(
                     key: FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(),
                     value: StringBooleanValue.False,
-                    description: "Habilita ou desabilita os menus de coworking (Coworking > Correspondências, Reservar Sala, Reservas, Receita de Salas) para clientes e parceiros. Valores: true ou false",
+                    description: "Habilita ou desabilita os menus de aluguel de salas (Reservar Sala, Reservas, Receita de Salas) para clientes e parceiros. Correspondências (Endereço Fiscal) permanece sempre visível. Valores: true ou false",
                     category: "Features",
                     isEncrypted: false,
                     isSensitive: false,

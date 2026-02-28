@@ -41,6 +41,7 @@
                 <div class="col-md-6">
                     <label for="scheduledTime" class="form-label">Horário</label>
                     <input type="time" class="form-control" id="scheduledTime" name="scheduledTime" required value="09:00" />
+                    <div class="form-text" id="businessHoursHint">Selecione a data para ver o horário comercial.</div>
                 </div>
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">
@@ -52,3 +53,52 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+<script>
+(function () {
+    var operatingHoursJson = @Html.Raw(ViewBag.OperatingHoursJson ?? "{}");
+    var dateInput = document.getElementById('scheduledDate');
+    var timeInput = document.getElementById('scheduledTime');
+    var hintEl = document.getElementById('businessHoursHint');
+    var dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+    function updateTimeRestriction() {
+        if (!dateInput.value) {
+            timeInput.removeAttribute('min');
+            timeInput.removeAttribute('max');
+            timeInput.disabled = false;
+            if (hintEl) hintEl.textContent = 'Selecione a data para ver o horário comercial.';
+            return;
+        }
+        var date = new Date(dateInput.value + 'T12:00:00');
+        var dayIndex = date.getDay();
+        var dayKey = dayNames[dayIndex];
+        var hours = operatingHoursJson[dayKey];
+        if (!hours || !hours.open || !hours.close) {
+            timeInput.removeAttribute('min');
+            timeInput.removeAttribute('max');
+            timeInput.disabled = true;
+            timeInput.value = '';
+            if (hintEl) hintEl.innerHTML = '<span class="text-warning">Não há horário de funcionamento neste dia. Escolha outra data.</span>';
+            return;
+        }
+        timeInput.setAttribute('min', hours.open);
+        timeInput.setAttribute('max', hours.close);
+        timeInput.disabled = false;
+        if (hintEl) hintEl.textContent = 'Horário comercial: das ' + hours.open + ' às ' + hours.close;
+        var current = timeInput.value;
+        if (current) {
+            if (current < hours.open || current > hours.close) {
+                timeInput.value = hours.open;
+            }
+        } else {
+            timeInput.value = hours.open;
+        }
+    }
+
+    if (dateInput) dateInput.addEventListener('change', updateTimeRestriction);
+    if (dateInput && dateInput.value) updateTimeRestriction();
+})();
+</script>
+}

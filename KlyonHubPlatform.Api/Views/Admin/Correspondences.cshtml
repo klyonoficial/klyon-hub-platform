@@ -54,6 +54,7 @@
                             <th>Data/hora retirada</th>
                             <th>Fotos</th>
                             <th>Registrado em</th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -68,7 +69,7 @@
                             var status = item.PickupStatus;
                             var statusText = status == CorrespondencePickupStatus.AwaitingSchedule ? "Aguardando agendamento" : status == CorrespondencePickupStatus.Scheduled ? "Agendada" : "Retirada";
                             var statusBadge = status == CorrespondencePickupStatus.AwaitingSchedule ? "bg-warning" : status == CorrespondencePickupStatus.Scheduled ? "bg-info" : "bg-success";
-                            <tr>
+                            <tr class="correspondence-row" data-id="@item.Id" style="cursor: pointer;">
                                 <td>@item.ArrivalDate.ToString("dd/MM/yyyy")</td>
                                 <td>@coworkingName</td>
                                 <td>@clientName</td>
@@ -87,6 +88,11 @@
                                     }
                                 </td>
                                 <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td onclick="event.stopPropagation();">
+                                    <button type="button" class="btn btn-sm btn-outline-primary correspondence-detail-btn" data-id="@item.Id" title="Ver detalhes">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -99,3 +105,65 @@
         }
     </div>
 </div>
+
+@* Modal de detalhes da correspondência *@
+<div class="modal fade" id="correspondenceDetailModal" tabindex="-1" aria-labelledby="correspondenceDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="correspondenceDetailModalLabel">
+                    <i class="bi bi-envelope-check"></i> Detalhes da correspondência
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-4" id="correspondenceDetailLoading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+                <div id="correspondenceDetailContent" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        var modalEl = document.getElementById('correspondenceDetailModal');
+        if (!modalEl) return;
+        var modal = new bootstrap.Modal(modalEl);
+        var detailUrl = '@Url.Action(ActionNames.GetCorrespondenceDetailModal, ControllerNames.Admin, new { id = "__id__" })';
+        var loadingEl = document.getElementById('correspondenceDetailLoading');
+        var contentEl = document.getElementById('correspondenceDetailContent');
+
+        function openDetailModal(id) {
+            if (!id) return;
+            loadingEl.style.display = 'block';
+            contentEl.style.display = 'none';
+            contentEl.innerHTML = '';
+            modal.show();
+            var url = detailUrl.replace('__id__', id);
+            fetch(url)
+                .then(function (r) { return r.text(); })
+                .then(function (html) {
+                    loadingEl.style.display = 'none';
+                    contentEl.innerHTML = html;
+                    contentEl.style.display = 'block';
+                })
+                .catch(function () {
+                    loadingEl.style.display = 'none';
+                    contentEl.innerHTML = '<p class="text-danger">Não foi possível carregar os detalhes.</p>';
+                    contentEl.style.display = 'block';
+                });
+        }
+        document.querySelectorAll('.correspondence-detail-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) { e.stopPropagation(); openDetailModal(this.getAttribute('data-id')); });
+        });
+        document.querySelectorAll('.correspondence-row').forEach(function (row) {
+            row.addEventListener('click', function () { openDetailModal(this.getAttribute('data-id')); });
+        });
+    })();
+</script>
+}

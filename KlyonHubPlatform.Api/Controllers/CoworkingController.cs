@@ -1283,9 +1283,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> Correspondences(DateTime? pickupDateFrom, DateTime? pickupDateTo, int? status, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1306,9 +1303,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResendCorrespondenceNotification(int id, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1332,9 +1326,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsPickedUp(int id, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1357,9 +1348,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> RegisterCorrespondence(int? addressId, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1382,9 +1370,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RegisterCorrespondence(int contractId, DateTime arrivalDate, string? notes, List<IFormFile>? Photos, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1436,9 +1421,6 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCorrespondencePhoto(int id, CancellationToken cancellationToken = default)
         {
-            var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
-            if (!StringBooleanValue.IsTrue(enableCoworkingMenus))
-                return RedirectToAction(ActionNames.Dashboard);
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
             var coworkingEntity = coworking.FirstOrDefault();
@@ -1455,6 +1437,19 @@ namespace KlyonHubPlatform.Api.Controllers
             if (fileBytes == null) return NotFound();
             var contentType = photo.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
             return File(fileBytes, contentType, photo.FileName);
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetCorrespondenceDetailModal(int id, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await _coworkingService.GetByUserIdAsync(userId, cancellationToken);
+            var coworkingEntity = coworking.FirstOrDefault();
+            if (coworkingEntity == null) return NotFound();
+            var correspondence = await _correspondenceService.GetByIdAsync(id, cancellationToken);
+            if (correspondence == null) return NotFound();
+            if (correspondence.Contract?.CoworkingAddress?.CoworkingId != coworkingEntity.Id)
+                return NotFound();
+            return PartialView("_CorrespondenceDetailModal", correspondence);
         }
         [HttpGet]
         public async Task<IActionResult> Reservations(

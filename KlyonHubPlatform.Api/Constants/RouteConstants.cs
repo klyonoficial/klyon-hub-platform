@@ -199,6 +199,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string RegisterCorrespondence = "RegisterCorrespondence";
         public const string CorrespondenceDetail = "CorrespondenceDetail";
         public const string GetCorrespondencePhoto = "GetCorrespondencePhoto";
+        public const string GetCorrespondenceDetailModal = "GetCorrespondenceDetailModal";
         public const string SchedulePickup = "SchedulePickup";
         public const string ResendCorrespondenceNotification = "ResendCorrespondenceNotification";
         public const string MarkAsPickedUp = "MarkAsPickedUp";
