@@ -23,8 +23,7 @@ namespace KlyonHubPlatform.Infra.CrossCutting.Middleware
             var ipAddress = context.Connection.RemoteIpAddress?.ToString();
             var userAgent = context.Request.Headers[HttpHeaderNames.UserAgent].ToString();
             await _next(context);
-            var isDatabaseMaintenance = context.Request.Path.StartsWithSegments("/Admin/ClearDatabase") ||
-                                       context.Request.Path.StartsWithSegments("/Admin/DatabaseManager");
+            var isDatabaseMaintenance = context.Request.Path.StartsWithSegments("/Admin/ClearDatabase");
             if (context.Request.Method != "GET" && userId != null && !isDatabaseMaintenance)
             {
                 try

@@ -15,6 +15,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? PasswordResetExpires { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        /// <summary>
+        /// Para usuários com role Client: true = possui CNPJ e ver seção de documentos no cadastro; false = não possui; null = não definido ou usuário antigo.
+        /// </summary>
+        public bool? ClientHasCnpj { get; set; }
         public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     }
 }

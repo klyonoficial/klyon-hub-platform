@@ -202,6 +202,46 @@
     cursor: not-allowed;
 }
 
+/* Mensagem do bot com botão de especialista (inatividade) */
+.fiscal-chat-msg.bot .fiscal-chat-especialista-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: #1a4d7a;
+    color: #fff !important;
+    border-radius: 20px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.fiscal-chat-msg.bot .fiscal-chat-especialista-btn:hover {
+    background: #0a1f3a;
+    color: #fff !important;
+}
+
+.fiscal-chat-msg.bot .fiscal-chat-proxima-etapa-btn {
+    display: inline-block;
+    margin-top: 10px;
+    margin-right: 8px;
+    padding: 8px 16px;
+    background: #28a745;
+    color: #fff !important;
+    border-radius: 20px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.fiscal-chat-msg.bot .fiscal-chat-proxima-etapa-btn:hover {
+    background: #218838;
+    color: #fff !important;
+}
+
 @media (max-width: 480px) {
     #fiscal-chat-window {
         right: 12px;

@@ -277,11 +277,6 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="nav-link" href="@Url.Action(ActionNames.DatabaseManager, ControllerNames.Admin)">
-                                            <i class="bi bi-database"></i> Gerenciador de BD
-                                        </a>
-                                    </li>
-                                    <li>
                                         <a class="nav-link" href="@Url.Action(ActionNames.SefazConfiguration, ControllerNames.Admin)">
                                             <i class="bi bi-receipt"></i> Configuração SEFAZ
                                         </a>
@@ -998,6 +993,7 @@
     @await RenderSectionAsync("Scripts", required: false)
     
     @* Widget de chat - Endereço Fiscal (flutuante, estilo Live Chat) *@
+    @{ ViewBag.FiscalChatNextStepUrl = Url.Action(ActionNames.ChooseLocation, ControllerNames.Client); }
     @await Html.PartialAsync("_FiscalAddressChatWidget")
     
     <!-- KlyonBoot Chat Widget - Temporariamente desabilitado -->

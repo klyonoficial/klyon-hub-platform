@@ -194,6 +194,53 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!string.IsNullOrEmpty(user.FullName))
                 HttpContext.Session.SetString(SessionKeys.UserName, user.FullName);
         }
+        private async Task SaveClientRegistrationDocumentsIfNeededAsync(int clientId, IFormFile? cnpjDoc, IFormFile? contratoDoc, IFormFile? rgCnhDoc, CancellationToken cancellationToken)
+        {
+            if (User.FindFirstValue(AuthConstants.ClientHasCnpjClaimType) != "true")
+                return;
+            const long maxFileBytes = 10 * 1024 * 1024; // 10MB
+            var storageService = await _storageFactory.GetStorageServiceAsync();
+            var baseFolder = $"clients/{clientId}/registration_documents";
+            async Task SaveOneAsync(ClientRegistrationDocumentType type, IFormFile? file)
+            {
+                if (file == null || file.Length == 0) return;
+                if (file.Length > maxFileBytes) return;
+                using var stream = new MemoryStream();
+                await file.CopyToAsync(stream, cancellationToken);
+                var fileBytes = stream.ToArray();
+                var folder = type switch
+                {
+                    ClientRegistrationDocumentType.Cnpj => "cnpj",
+                    ClientRegistrationDocumentType.ContratoSocial => "contrato_social",
+                    ClientRegistrationDocumentType.RgCnhRepresentantes => "rg_cnh_representantes",
+                    _ => "other"
+                };
+                var fileName = $"{folder}_{clientId}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(file.FileName)}";
+                var filePath = await storageService.SaveFileAsync(fileBytes, fileName, $"{baseFolder}/{folder}");
+                var existing = await _context.ClientRegistrationDocuments.FirstOrDefaultAsync(d => d.ClientId == clientId && d.Type == type, cancellationToken);
+                if (existing != null)
+                {
+                    try { await storageService.DeleteFileAsync(existing.FilePath); } catch { }
+                    existing.FileName = file.FileName;
+                    existing.FilePath = filePath;
+                }
+                else
+                {
+                    _context.ClientRegistrationDocuments.Add(new ClientRegistrationDocument
+                    {
+                        ClientId = clientId,
+                        Type = type,
+                        FileName = file.FileName,
+                        FilePath = filePath,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+            await SaveOneAsync(ClientRegistrationDocumentType.Cnpj, cnpjDoc);
+            await SaveOneAsync(ClientRegistrationDocumentType.ContratoSocial, contratoDoc);
+            await SaveOneAsync(ClientRegistrationDocumentType.RgCnhRepresentantes, rgCnhDoc);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo, CancellationToken cancellationToken = default)
@@ -419,6 +466,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
             ViewBag.ReturnUrl = returnUrl;
+            ViewBag.ClientHasCnpj = User.FindFirstValue(AuthConstants.ClientHasCnpjClaimType) == "true";
             if (id.HasValue)
             {
                 var client = await _clientAppService.GetClientByIdWithUserAsync(id.Value, cancellationToken);
@@ -471,7 +519,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null, string? PersonType = null, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> RegisterClient(Client client, string? returnUrl = null, string? PersonType = null, IFormFile? CnpjDocument = null, IFormFile? ContratoSocialDocument = null, IFormFile? RgCnhRepresentantesDocument = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -627,6 +675,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         return RedirectToAction(ActionNames.Contracts, ControllerNames.Admin);
                     }
+                    await SaveClientRegistrationDocumentsIfNeededAsync(existingClient.Id, CnpjDocument, ContratoSocialDocument, RgCnhRepresentantesDocument, cancellationToken);
                     if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                         return Redirect(returnUrl);
                     return RedirectToAction(ActionNames.DashboardDetails);
@@ -747,6 +796,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     client.ZipCode = client.ZipCode.Replace("-", "");
                 }
                 await _clientAppService.AddClientAsync(client, cancellationToken);
+                await SaveClientRegistrationDocumentsIfNeededAsync(client.Id, CnpjDocument, ContratoSocialDocument, RgCnhRepresentantesDocument, cancellationToken);
                 var userForNewClient = await _clientAppService.GetUserByIdAsync(userId, cancellationToken);
                 if (userForNewClient != null && !string.IsNullOrWhiteSpace(client.ContactName))
                 {
@@ -1566,6 +1616,19 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> PaymentDetails(int id, CancellationToken cancellationToken = default)
         {
+            try
+            {
+                return await PaymentDetailsCoreAsync(id, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PaymentDetails falhou. PaymentId: {PaymentId}. Verifique se todas as migrações foram aplicadas (ex.: PaymentHistories.ActionBy nullable, CreditCards.AsaasToken).", id);
+                throw;
+            }
+        }
+
+        private async Task<IActionResult> PaymentDetailsCoreAsync(int id, CancellationToken cancellationToken = default)
+        {
             var payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
             if (payment == null)
             {
@@ -1631,6 +1694,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData[ErrorMessages.TempDataKey] = ex.Message;
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao gerar código PIX/Boleto no PaymentDetails (Asaas configurado). PaymentId: {PaymentId}", id);
+                    TempData[TempDataKeys.Warning] = WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
+                }
             }
             if (payment.Status == PaymentStatus.Pending)
             {
@@ -1639,12 +1707,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (payment.Method == PaymentMethod.PIX && string.IsNullOrEmpty(payment.PixCode))
                     {
                         await _paymentService.GeneratePixCodeAsync(payment.Id);
-                        payment = await _paymentService.GetPaymentByIdAsync(id);
+                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
                     else if (payment.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(payment.BoletoCode))
                     {
                         await _paymentService.GenerateBoletoCodeAsync(payment.Id);
-                        payment = await _paymentService.GetPaymentByIdAsync(id);
+                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
@@ -2088,6 +2156,39 @@ namespace KlyonHubPlatform.Api.Controllers
                     IsDefault = setAsDefault,
                     IsActive = true
                 };
+                var clientWithUser = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
+                if (clientWithUser != null)
+                {
+                    var clientName = clientWithUser.RazaoSocial ?? clientWithUser.NomeFantasia ?? clientWithUser.ContactName ?? clientWithUser.User?.FullName ?? "";
+                    var clientEmail = clientWithUser.ContactEmail ?? clientWithUser.User?.Email ?? "";
+                    var clientTaxId = (clientWithUser.CNPJ ?? clientWithUser.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                    var clientPhone = clientWithUser.ContactPhone ?? clientWithUser.User?.Phone;
+                    var postalCode = (clientWithUser.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                    if (postalCode.Length > 8) postalCode = postalCode.Substring(0, 8);
+                    if (postalCode.Length < 8 && postalCode.All(char.IsDigit)) postalCode = postalCode.PadLeft(8, '0');
+                    var clientAddress = new Application.DTOs.PagBank.PagBankAddress
+                    {
+                        Street = clientWithUser.Address ?? "Não informado",
+                        Number = clientWithUser.AddressNumber ?? "S/N",
+                        Locality = "Não informado",
+                        City = clientWithUser.City ?? "Não informado",
+                        RegionCode = clientWithUser.State?.Length >= 2 ? clientWithUser.State.Substring(0, 2).ToUpperInvariant() : "ES",
+                        Country = "BRA",
+                        PostalCode = postalCode
+                    };
+                    try
+                    {
+                        var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
+                        var remoteIp = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                        var token = await _asaasService.TokenizeCreditCardAsync(asaasCustomerId, cleanCardNumber, expiryMonth, expiryYear, cvv, cardHolderName.Trim(), clientEmail, clientTaxId, postalCode, clientAddress.Number ?? "S/N", clientPhone, remoteIp);
+                        if (!string.IsNullOrEmpty(token))
+                            creditCard.AsaasToken = token;
+                    }
+                    catch (Exception exToken)
+                    {
+                        _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. Cartão será salvo sem token. ClientId={ClientId}", client.Id);
+                    }
+                }
                 await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardAdded;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
@@ -2145,7 +2246,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             try
             {
-                if (request == null || request.Card == null)
+                if (request == null)
                 {
                     return Json(new { success = false, error = ErrorJson.CardDataRequired });
                 }
@@ -2176,6 +2277,31 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (contract == null || contract.ClientId != client.Id)
                 {
                     return Json(new { success = false, error = ErrorJson.PaymentNotBelongToProfile });
+                }
+                if (request.CreditCardId.HasValue && request.CreditCardId.Value > 0)
+                {
+                    var savedCard = await _clientAppService.GetCreditCardByIdAndClientIdAsync(request.CreditCardId.Value, client.Id, cancellationToken);
+                    if (savedCard != null && !string.IsNullOrEmpty(savedCard.AsaasToken))
+                    {
+                        var savedCardInstallments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
+                            ? request.Installments.Value
+                            : 1;
+                        var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, savedCardInstallments);
+                        if (savedCardResult.Status == PaymentStatus.Paid)
+                            return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                        if (savedCardResult.Status == PaymentStatus.Failed)
+                            return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
+                        return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                    }
+                    if (savedCard != null && string.IsNullOrEmpty(savedCard.AsaasToken))
+                    {
+                        _logger.LogWarning("ProcessPaymentWithCard: cartão Id={CreditCardId} do cliente Id={ClientId} não possui AsaasToken. Solicitar dados no formulário.", request.CreditCardId.Value, client.Id);
+                        return Json(new { success = false, error = ErrorJson.CardTokenMissingUseForm });
+                    }
+                }
+                if (request.Card == null)
+                {
+                    return Json(new { success = false, error = ErrorJson.CardDataRequired });
                 }
                 var number = (request.Card.Number ?? "").Replace(" ", "").Replace("-", "").Trim();
                 if (number.Length < 13 || number.Length > 19)

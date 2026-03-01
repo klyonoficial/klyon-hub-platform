@@ -240,6 +240,57 @@ namespace KlyonHubPlatform.Application.Services
                 return (false, 0, $"Erro: {ex.Message}");
             }
         }
+        public async Task<string> GetOrCreateAsaasCustomerIdAsync(string clientName, string clientEmail, string clientTaxId, string? clientPhone, PagBankAddress? clientAddress, string externalReference)
+        {
+            var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+            if (string.IsNullOrEmpty(cpfCnpj) || (cpfCnpj.Length != 11 && cpfCnpj.Length != 14))
+                throw new InvalidOperationException("CPF ou CNPJ inválido. Apenas dígitos (11 ou 14).");
+            return await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, externalReference);
+        }
+
+        public async Task<string?> TokenizeCreditCardAsync(string asaasCustomerId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string email, string cpfCnpj, string postalCode, string addressNumber, string? phone, string remoteIp)
+        {
+            var number = (cardNumber ?? "").Replace(" ", "").Replace("-", "").Trim();
+            var month = (expiryMonth ?? "").Trim();
+            if (month.Length == 1) month = "0" + month;
+            var year = (expiryYear ?? "").Trim();
+            if (year.Length == 2) year = "20" + year;
+            var phoneNorm = NormalizePhone(phone);
+            var body = new
+            {
+                customer = asaasCustomerId,
+                creditCard = new
+                {
+                    holderName = (holderName ?? "").Trim(),
+                    number,
+                    expiryMonth = month,
+                    expiryYear = year,
+                    ccv = (cvv ?? "").Trim()
+                },
+                creditCardHolderInfo = new
+                {
+                    name = (holderName ?? "").Trim(),
+                    email = (email ?? "").Trim(),
+                    cpfCnpj = NormalizeCpfCnpj(cpfCnpj),
+                    postalCode = NormalizePostalCode(postalCode),
+                    addressNumber = (addressNumber ?? "S/N").Trim(),
+                    phone = phoneNorm ?? ""
+                },
+                remoteIp = (remoteIp ?? "127.0.0.1").Trim()
+            };
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/creditCard/tokenizeCreditCard");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Tokenização de cartão Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                return null;
+            }
+            var tokenResponse = JsonSerializer.Deserialize<AsaasTokenizeCardResponse>(content, JsonOptions);
+            return tokenResponse?.CreditCardToken;
+        }
+
         public async Task<OrderResponse> CreateOrderAsync(
             string referenceId,
             decimal amount,
@@ -250,7 +301,9 @@ namespace KlyonHubPlatform.Application.Services
             string? clientPhone = null,
             PagBankCard? card = null,
             int? installments = null,
-            PagBankAddress? clientAddress = null)
+            PagBankAddress? clientAddress = null,
+            string? creditCardToken = null,
+            string? asaasCustomerIdForToken = null)
         {
             var dueDate = method == PaymentMethod.BankTransfer
                 ? DateTime.UtcNow.AddDays(3).ToString("yyyy-MM-dd")
@@ -265,7 +318,11 @@ namespace KlyonHubPlatform.Application.Services
             if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
                 throw new InvalidOperationException(
                     "CNPJ com dígitos verificadores inválidos. Corrija o CNPJ em Meu Perfil (use um CNPJ válido).");
-            var customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, referenceId);
+            string customerId;
+            if (!string.IsNullOrEmpty(creditCardToken) && !string.IsNullOrEmpty(asaasCustomerIdForToken))
+                customerId = asaasCustomerIdForToken;
+            else
+                customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, referenceId);
             var request = new AsaasPaymentRequest
             {
                 Customer = customerId,
@@ -287,7 +344,11 @@ namespace KlyonHubPlatform.Application.Services
                 request.BillingType = "CREDIT_CARD";
                 request.InstallmentCount = installments ?? 1;
                 request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
-                if (card != null)
+                if (!string.IsNullOrEmpty(creditCardToken))
+                {
+                    request.CreditCardToken = creditCardToken;
+                }
+                else if (card != null)
                 {
                     request.CreditCard = MapCard(card);
                     request.CreditCardHolderInfo = new AsaasCreditCardHolderInfo

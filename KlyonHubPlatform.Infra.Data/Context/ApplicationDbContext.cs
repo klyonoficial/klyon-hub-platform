@@ -179,6 +179,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<PartnerInvoice> PartnerInvoices { get; set; }
         public DbSet<Correspondence> Correspondences { get; set; }
         public DbSet<CorrespondencePhoto> CorrespondencePhotos { get; set; }
+        public DbSet<ClientRegistrationDocument> ClientRegistrationDocuments { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -225,6 +226,12 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.CNPJ).IsUnique();
                 entity.HasIndex(e => e.CPF).IsUnique();
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
+            });
+            modelBuilder.Entity<ClientRegistrationDocument>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client).WithMany(c => c.RegistrationDocuments).HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.Type).HasColumnType("int");
             });
             modelBuilder.Entity<CreditCard>(entity =>
             {

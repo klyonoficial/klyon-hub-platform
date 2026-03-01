@@ -38,7 +38,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return StatusCode(500, new { 
                         error = ErrorJson.KlyonBootTablesNotFound, 
                         details = "As tabelas do chatbot não foram criadas no banco de dados.",
-                        solution = "Acesse /Admin/DatabaseManager e execute as migrations pendentes",
+                        solution = "Execute as migrations pela linha de comando: dotnet ef database update",
                         technicalDetails = dbEx.Message
                     });
                 }
@@ -72,8 +72,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return StatusCode(500, new { 
                         error = ErrorJson.KlyonBootTablesNotFound, 
-                        details = "As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations em /Admin/DatabaseManager",
-                        solution = "Acesse /Admin/DatabaseManager e execute as migrations pendentes",
+                        details = "As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations pela linha de comando.",
+                        solution = "Execute as migrations pela linha de comando: dotnet ef database update",
                         technicalDetails = errorMessage
                     });
                 }
@@ -84,7 +84,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return StatusCode(500, new { 
                         error = "Erro de banco de dados", 
                         details = errorMessage,
-                        solution = "Verifique se as migrations foram aplicadas em /Admin/DatabaseManager",
+                        solution = "Verifique se as migrations foram aplicadas (dotnet ef database update)",
                         technicalDetails = innerMessage
                     });
                 }
@@ -241,7 +241,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     tables = results,
                     message = allExist 
                         ? "Todas as tabelas do KlyonBoot existem" 
-                        : "Algumas tabelas do KlyonBoot não existem. Execute as migrations em /Admin/DatabaseManager"
+                        : "Algumas tabelas do KlyonBoot não existem. Execute as migrations pela linha de comando (dotnet ef database update)"
                 });
             }
             catch (Exception ex)

@@ -506,10 +506,10 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong> Selecione um cartão cadastrado (se houver) e clique em "Pagar com cartão". O modal abrirá com nome e validade preenchidos; informe número do cartão e CVV para concluir. Seu contrato será ativado assim que o pagamento for aprovado.
+                            <strong>Instruções:</strong> Se você tiver um cartão cadastrado com pagamento rápido, selecione-o e clique em "Pagar com cartão" — a cobrança será enviada ao Asaas na hora, sem abrir o modal. Caso não tenha ou prefira usar outro cartão, o modal abrirá para preencher os dados. Seu contrato será ativado assim que o pagamento for aprovado.
                         </div>
 
-                        <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#payWithCardModal">
+                        <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
                             <i class="bi bi-credit-card"></i> Pagar com cartão
                         </button>
 
@@ -859,7 +859,8 @@
                 expiryMonth = !string.IsNullOrEmpty(c.ExpiryMonth) && c.ExpiryMonth.Length == 1 ? "0" + c.ExpiryMonth : (c.ExpiryMonth ?? ""),
                 expiryYear = c.ExpiryYear ?? "",
                 lastFourDigits = c.LastFourDigits ?? "",
-                brand = c.Brand ?? ""
+                brand = c.Brand ?? "",
+                hasToken = !string.IsNullOrEmpty(c.AsaasToken)
             })
             .ToList();
         creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
@@ -1297,6 +1298,71 @@
             }
             updateInstallmentsDisplay();
         })();
+
+        // Botão "Pagar com cartão": se houver cartão selecionado, tenta cobrar direto no Asaas; senão ou se a API pedir dados do cartão, abre o modal (delegação para funcionar após AJAX)
+        function openPayWithCardModal() {
+            var modalEl = document.getElementById('payWithCardModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        }
+        document.body.addEventListener('click', async function(e) {
+            var btn = e.target.closest('#btnPagarComCartao');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Pagar com cartão] Clique no botão');
+            var paymentId = parseInt(btn.getAttribute('data-payment-id'), 10);
+            if (isNaN(paymentId) || paymentId <= 0) {
+                console.warn('[Pagar com cartão] paymentId inválido:', paymentId);
+                return;
+            }
+            var radio = document.querySelector('input[name="selectedCard"]:checked');
+            var cardId = radio ? parseInt(radio.value, 10) : 0;
+            console.log('[Pagar com cartão] paymentId:', paymentId, '| cartão selecionado (radio):', !!radio, '| cardId:', cardId);
+            if (!radio || !cardId) {
+                console.log('[Pagar com cartão] Nenhum cartão selecionado -> abrindo modal');
+                openPayWithCardModal();
+                return;
+            }
+            var payload = { paymentId: paymentId, creditCardId: cardId, installments: 1 };
+            console.log('[Pagar com cartão] Enviando requisição:', payload);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
+            try {
+                var response = await fetch('@Url.Action("ProcessPaymentWithCard", "Client")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+                var text = await response.text();
+                console.log('[Pagar com cartão] Response status:', response.status, '| body (raw):', text);
+                var result = null;
+                try { result = text ? JSON.parse(text) : null; } catch (_) { }
+                console.log('[Pagar com cartão] Resultado parseado:', result);
+                if (result && result.success) {
+                    console.log('[Pagar com cartão] Sucesso -> recarregando página');
+                    if (typeof showToast === 'function') showToast(result.message || 'Pagamento processado!', 'success');
+                    window.location.reload();
+                    return;
+                }
+                var errMsg = (result && result.error) ? (result.error + '').toLowerCase() : '';
+                var needCardData = errMsg.indexOf('dados') >= 0 || errMsg.indexOf('cartão') >= 0 || errMsg.indexOf('card') >= 0 || errMsg.indexOf('obrigatório') >= 0 || errMsg.indexOf('required') >= 0;
+                console.log('[Pagar com cartão] Erro. needCardData:', needCardData, '| errMsg:', result && result.error);
+                if (needCardData) {
+                    console.log('[Pagar com cartão] API pediu dados do cartão -> abrindo modal');
+                    openPayWithCardModal();
+                } else if (result && result.error) {
+                    if (typeof showToast === 'function') showToast(result.error, 'error');
+                }
+            } catch (err) {
+                console.error('[Pagar com cartão] Exceção:', err);
+                if (typeof showToast === 'function') showToast('Erro de conexão. Tente novamente.', 'error');
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar com cartão';
+        }, true);
 
         // Modal Pagar com cartão: formatação e envio
         document.getElementById('payCardNumber')?.addEventListener('input', function(e) {

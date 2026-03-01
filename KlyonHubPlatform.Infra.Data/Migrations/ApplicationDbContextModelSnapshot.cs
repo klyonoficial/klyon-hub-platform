@@ -627,6 +627,36 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("ClientCredits");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientRegistrationDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.ToTable("ClientRegistrationDocuments");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Commission", b =>
                 {
                     b.Property<int>("Id")
@@ -1516,6 +1546,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    b.Property<string>("AsaasToken")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Brand")
                         .IsRequired()
@@ -3149,6 +3182,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    b.Property<bool?>("ClientHasCnpj")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -3371,6 +3407,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
                         .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientRegistrationDocument", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany("RegistrationDocuments")
                         .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -3974,6 +4021,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Contracts");
 
                     b.Navigation("CreditCards");
+
+                    b.Navigation("RegistrationDocuments");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Contract", b =>

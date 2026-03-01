@@ -172,7 +172,7 @@ namespace KlyonHubPlatform.Application.Services
                      fullStackTrace.Contains("Unknown table", StringComparison.OrdinalIgnoreCase)))
                 {
                     throw new InvalidOperationException(
-                        "Tabelas do KlyonBoot não encontradas. As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations em /Admin/DatabaseManager.", ex);
+                        "Tabelas do KlyonBoot não encontradas. As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations pela linha de comando (dotnet ef database update).", ex);
                 }
                 throw new InvalidOperationException($"Erro ao criar conversa no banco de dados. Verifique se as tabelas do KlyonBoot foram criadas. Erro: {ex.Message}", ex);
             }
@@ -205,7 +205,7 @@ namespace KlyonHubPlatform.Application.Services
                      fullStackTrace.Contains("Unknown table", StringComparison.OrdinalIgnoreCase)))
                 {
                     throw new InvalidOperationException(
-                        "Tabelas do KlyonBoot não encontradas. As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations em /Admin/DatabaseManager.", ex);
+                        "Tabelas do KlyonBoot não encontradas. As tabelas do chatbot não foram criadas no banco de dados. Execute as migrations pela linha de comando (dotnet ef database update).", ex);
                 }
                 throw new InvalidOperationException($"Erro ao criar mensagem de boas-vindas. Erro: {ex.Message}", ex);
             }

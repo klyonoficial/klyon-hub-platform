@@ -1625,20 +1625,9 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
         [HttpGet]
-        public async Task<IActionResult> DatabaseManager(CancellationToken cancellationToken = default)
+        public IActionResult DatabaseManager()
         {
-            try
-            {
-                var pending = await _adminDbService.GetPendingMigrationsAsync(cancellationToken);
-                ViewBag.PendingMigrations = pending.ToList();
-                ViewBag.AppliedMigrations = await _adminDbService.GetAppliedMigrationsAsync(cancellationToken);
-            }
-            catch
-            {
-                ViewBag.PendingMigrations = new List<string>();
-                ViewBag.AppliedMigrations = new List<string>();
-            }
-            return View();
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1650,18 +1639,18 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (message == AdminResultCodes.NoPendingMigrations)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.NoPendingMigrations;
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 if (message == AdminResultCodes.MigrationMarkedAsApplied)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.MigrationMarkedAsApplied;
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorExecutingMigrations(message);
-                return RedirectToAction(ActionNames.DatabaseManager);
+                return RedirectToAction(ActionNames.Dashboard);
             }
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.MigrationsExecuted(message);
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1678,7 +1667,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (ex.InnerException != null)
                     TempData[TempDataKeys.VerifyOperatingHoursResult] += "\r\n" + ex.InnerException.Message;
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1697,7 +1686,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var msg = ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : "");
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorCreatingCoworkingOperatingHours(msg);
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1722,7 +1711,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (columnExists)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.ColumnD4SignDocumentUuidAlreadyExists;
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 const string alterSql = @"ALTER TABLE Documents ADD COLUMN D4SignDocumentUuid VARCHAR(64) NULL CHARACTER SET utf8mb4;";
                 await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(alterSql);
@@ -1734,7 +1723,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorAddingColumnD4SignDocumentUuid(msg);
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1820,7 +1809,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorCleaningTestData(msg);
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1845,7 +1834,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (columnExists)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.ColumnMustChangePasswordAlreadyExists;
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 const string alterSql = @"ALTER TABLE Users ADD COLUMN MustChangePassword tinyint(1) NOT NULL DEFAULT 0;";
                 await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(alterSql);
@@ -1857,7 +1846,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (ex.InnerException != null) msg += " | " + ex.InnerException.Message;
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorAddingColumnMustChangePassword(msg);
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1907,14 +1896,14 @@ namespace KlyonHubPlatform.Api.Controllers
                         msg.IndexOf("Unknown column", StringComparison.OrdinalIgnoreCase) >= 0)
                         continue;
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorCreatingIndex(name, ex.Message);
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
             }
             if (created.Count > 0)
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.IndexesCreated(created.Count, string.Join(", ", created));
             else
                 TempData[TempDataKeys.Info] = InfoMessages.AllIndexesAlreadyExist;
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1942,7 +1931,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ColumnsIndexFkAdded(string.Join(", ", added));
             else
                 TempData[TempDataKeys.Info] = InfoMessages.ColumnsAlreadyExist;
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -1973,7 +1962,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CreditPurchasesColumnsAdded(string.Join(", ", added));
             else
                 TempData[TempDataKeys.Info] = InfoMessages.CreditPurchasesColumnsAlreadyExist;
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2003,7 +1992,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.TableInterestsAlreadyExists;
                     await connection.CloseAsync();
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 var createTableSql = @"
 CREATE TABLE IF NOT EXISTS Interests (
@@ -2038,7 +2027,7 @@ CREATE TABLE IF NOT EXISTS Interests (
                 }
                 TempData[ErrorMessages.TempDataKey] = errorMessage;
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2068,7 +2057,7 @@ CREATE TABLE IF NOT EXISTS Interests (
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.TableCoworkingProductsAlreadyExists;
                     await connection.CloseAsync();
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 var createTableSql = @"
 CREATE TABLE IF NOT EXISTS CoworkingProducts (
@@ -2094,7 +2083,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 }
                 TempData[ErrorMessages.TempDataKey] = errorMessage;
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2306,97 +2295,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             {
                 HttpContext.Items.Remove("SkipAudit");
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
-        }
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ExecuteSql(string sqlQuery, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(sqlQuery))
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.SqlQueryCannotBeEmpty;
-                return RedirectToAction(ActionNames.DatabaseManager);
-            }
-            var upperQuery = sqlQuery.ToUpper().Trim();
-            var blockedKeywords = new[] { "DROP DATABASE", "DROP TABLE", "TRUNCATE", "DELETE FROM", "UPDATE", "ALTER DATABASE" };
-            if (blockedKeywords.Any(keyword => upperQuery.Contains(keyword)))
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.DangerousOperationsNotAllowed;
-                return RedirectToAction(ActionNames.DatabaseManager);
-            }
-            var allowedKeywords = new[] { "ALTER TABLE", "CREATE TABLE", "CREATE INDEX", "ADD COLUMN", "ADD", "SELECT", "SHOW", "DESCRIBE", "DESC" };
-            if (!allowedKeywords.Any(keyword => upperQuery.Contains(keyword)))
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyAllowedSqlOperations;
-                return RedirectToAction(ActionNames.DatabaseManager);
-            }
-            try
-            {
-                var connection = _adminDbService.GetContext().Database.GetDbConnection();
-                await connection.OpenAsync();
-                using var command = connection.CreateCommand();
-                command.CommandText = sqlQuery;
-                command.CommandTimeout = 300;
-                var result = new System.Text.StringBuilder();
-                var rowsAffected = 0;
-                if (upperQuery.TrimStart().StartsWith("SELECT") ||
-                    upperQuery.TrimStart().StartsWith("SHOW") ||
-                    upperQuery.TrimStart().StartsWith("DESCRIBE") ||
-                    upperQuery.TrimStart().StartsWith("DESC"))
-                {
-                    using var reader = await command.ExecuteReaderAsync();
-                    if (reader.HasRows)
-                    {
-                        var columnNames = new List<string>();
-                        for (int i = 0; i < reader.FieldCount; i++)
-                        {
-                            columnNames.Add(reader.GetName(i));
-                        }
-                        result.AppendLine(string.Join(" | ", columnNames));
-                        result.AppendLine(new string('-', Math.Min(200, columnNames.Sum(c => c.Length) + (columnNames.Count * 3))));
-                        int rowCount = 0;
-                        while (await reader.ReadAsync() && rowCount < 1000)
-                        {
-                            var row = new List<string>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                            {
-                                var value = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "NULL";
-                                if (value.Length > 50)
-                                {
-                                    value = value.Substring(0, 47) + "...";
-                                }
-                                row.Add(value);
-                            }
-                            result.AppendLine(string.Join(" | ", row));
-                            rowCount++;
-                        }
-                        if (rowCount >= 1000)
-                        {
-                            result.AppendLine($"\n... (limitado a 1000 linhas)");
-                        }
-                    }
-                    else
-                    {
-                        result.AppendLine("Nenhum resultado encontrado.");
-                    }
-                }
-                else
-                {
-                    rowsAffected = await command.ExecuteNonQueryAsync();
-                    result.AppendLine($"Comando executado com sucesso!");
-                    result.AppendLine($"Linhas afetadas: {rowsAffected}");
-                }
-                await connection.CloseAsync();
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.SqlQueryExecuted;
-                TempData[TempDataKeys.QueryResult] = result.ToString();
-                TempData[TempDataKeys.ExecutedQuery] = sqlQuery;
-            }
-            catch (Exception ex)
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("executar query", ex.Message);
-                TempData[TempDataKeys.ExecutedQuery] = sqlQuery;
-            }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2426,7 +2325,7 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.TableCoworkingRatingsAlreadyExists;
                     await connection.CloseAsync();
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 var createTableSql = @"
 CREATE TABLE IF NOT EXISTS CoworkingRatings (
@@ -2453,7 +2352,7 @@ CREATE TABLE IF NOT EXISTS CoworkingRatings (
                 }
                 TempData[ErrorMessages.TempDataKey] = errorMessage;
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2534,7 +2433,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 TempData[ErrorMessages.TempDataKey] = errorMessage;
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -2546,7 +2445,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 if (existingPlans)
                 {
                     TempData[TempDataKeys.Info] = InfoMessages.CreditPlansAlreadyInitialized;
-                    return RedirectToAction(ActionNames.DatabaseManager);
+                    return RedirectToAction(ActionNames.Dashboard);
                 }
                 var plans = new List<Domain.Entities.CreditPlan>
                 {
@@ -2589,7 +2488,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("inicializar planos", ex.Message);
             }
-            return RedirectToAction(ActionNames.DatabaseManager);
+            return RedirectToAction(ActionNames.Dashboard);
         }
         [HttpPost]
         public async Task<IActionResult> AddRoomConfigurationColumns(CancellationToken cancellationToken = default)
@@ -2636,12 +2535,12 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.RoomConfigColumnsAdded;
-                return RedirectToAction(ActionNames.DatabaseManager);
+                return RedirectToAction(ActionNames.Dashboard);
             }
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("adicionar colunas", ex.Message);
-                return RedirectToAction(ActionNames.DatabaseManager);
+                return RedirectToAction(ActionNames.Dashboard);
             }
         }
         [HttpPost]
@@ -2685,12 +2584,12 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 }
                 await connection.CloseAsync();
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.RoomTypeTotalValueColumnsAdded;
-                return RedirectToAction(ActionNames.DatabaseManager);
+                return RedirectToAction(ActionNames.Dashboard);
             }
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("adicionar colunas", ex.Message);
-                return RedirectToAction(ActionNames.DatabaseManager);
+                return RedirectToAction(ActionNames.Dashboard);
             }
         }
         [HttpPost]

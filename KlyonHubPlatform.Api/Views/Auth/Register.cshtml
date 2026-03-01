@@ -48,6 +48,20 @@
                                 <option value="CoworkingPartner">Coworking Parceiro</option>
                             </select>
                         </div>
+                        <div class="mb-3 d-none" id="hasCnpjContainer">
+                            <label class="form-label">Possui CNPJ?</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="hasCnpj" id="hasCnpjSim" value="true">
+                                    <label class="form-check-label" for="hasCnpjSim">Sim</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="hasCnpj" id="hasCnpjNao" value="false" checked>
+                                    <label class="form-check-label" for="hasCnpjNao">Não</label>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Se sim, na etapa de completar o cadastro você poderá anexar documentos (CNPJ, contrato social, RG/CNH dos representantes). O envio é opcional e não bloqueia o fluxo.</small>
+                        </div>
                         <div class="mb-3">
                             <div class="form-check">
                                 <input type="hidden" name="acceptLgpdTerms" id="acceptLgpdTermsValue" value="@(preservedAcceptLgpd ? "true" : "false")">
@@ -95,6 +109,22 @@
     document.addEventListener('DOMContentLoaded', function() {
         var sel = document.getElementById('role');
         if (sel && '@initialRole') sel.value = '@initialRole';
+
+        var hasCnpjContainer = document.getElementById('hasCnpjContainer');
+        var preservedHasCnpj = '@(ViewBag.RegisterHasCnpj as string ?? "")';
+        function toggleHasCnpj() {
+            if (sel && sel.value === 'Client') {
+                hasCnpjContainer.classList.remove('d-none');
+                if (preservedHasCnpj === 'true') document.getElementById('hasCnpjSim').checked = true;
+                else if (preservedHasCnpj === 'false') document.getElementById('hasCnpjNao').checked = true;
+            } else {
+                hasCnpjContainer.classList.add('d-none');
+            }
+        }
+        if (sel) {
+            sel.addEventListener('change', toggleHasCnpj);
+            toggleHasCnpj();
+        }
 
         var form = document.querySelector('form[action*="Register"]');
         var acceptCheckbox = document.getElementById('acceptLgpdTerms');

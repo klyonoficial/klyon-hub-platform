@@ -70,7 +70,7 @@ namespace KlyonHubPlatform.Application.Services
             var whatsApp = string.IsNullOrWhiteSpace(_options.WhatsAppUrl) ? "https://wa.me/27989030369" : _options.WhatsAppUrl.Trim();
 
             if (ContainsAny(t, "valor", "preço", "preco", "quanto custa", "valor do", "mensal", "anual"))
-                return "O valor do serviço é R$ 999,00 por ano.";
+                return "O valor do serviço pode ser: R$ 718,80 à vista no Pix; ou R$ 85,90 em 12x no cartão; ou R$ 102,00 mensal.";
             if (ContainsAny(t, "onde fica", "localização", "localizacao", "endereço", "endereco", "cariacica", "moxuara", "ficam", "fica o endereço"))
                 return "Estamos no Shopping Moxuara em Cariacica/ES.";
             if (ContainsAny(t, "o que está incluso", "o que inclui", "inclui", "incluso", "incluído"))
@@ -164,12 +164,12 @@ SOBRE O SERVIÇO:
 
 INCLUI: Uso do endereço para abertura e registro da empresa; recebimento de correspondências; aviso quando correspondência chegar; atendimento em horário comercial.
 
-VALOR: R$ 999,00 por ano
+VALOR: R$ 718,80 à vista no Pix; ou R$ 85,90 em 12x no cartão; ou R$ 102,00 mensal.
 HORÁRIO DE ATENDIMENTO: 09:00 às 18:00
 PRAZO MÍNIMO: 6 meses
 
 BASE DE PERGUNTAS E RESPOSTAS (use estas respostas quando a pergunta for equivalente):
-1. Qual o valor do endereço fiscal? → O valor do serviço é R$ 999,00 por ano.
+1. Qual o valor do endereço fiscal? → O valor do serviço pode ser: R$ 718,80 à vista no Pix; ou R$ 85,90 em 12x no cartão; ou R$ 102,00 mensal.
 2. Onde fica o endereço? → Estamos no Shopping Moxuara em Cariacica/ES.
 3. O que está incluso? → Inclui uso do endereço fiscal, recebimento de correspondências e aviso quando houver entrega.
 4. Posso usar para abrir empresa? → Sim, o endereço pode ser usado para abertura e registro da empresa.

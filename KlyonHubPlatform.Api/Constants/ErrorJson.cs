@@ -5,6 +5,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ClientNotFound = "Cliente não encontrado.";
         public const string ClientNotFoundShort = "Cliente não encontrado";
         public const string CardDataRequired = "Dados do cartão são obrigatórios.";
+        /// <summary>Cartão cadastrado mas sem token Asaas (tokenização falhou ou cartão antigo). Usuário deve preencher o formulário.</summary>
+        public const string CardTokenMissingUseForm = "Este cartão não possui token de pagamento rápido. Preencha os dados no formulário para concluir o pagamento.";
         public const string PaymentNotFound = "Pagamento não encontrado.";
         public const string PaymentNotFoundShort = "Pagamento não encontrado";
         public const string PaymentNoLongerPending = "Este pagamento não está mais pendente.";

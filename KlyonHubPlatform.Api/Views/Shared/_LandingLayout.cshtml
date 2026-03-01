@@ -209,11 +209,20 @@
         .fiscal-chat-send { width: 42px; height: 42px; border-radius: 50%; background: #1a4d7a; color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
         .fiscal-chat-send:hover { background: #0a1f3a; }
         .fiscal-chat-send:disabled { opacity: 0.6; cursor: not-allowed; }
+        .fiscal-chat-msg.bot .fiscal-chat-especialista-btn { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #1a4d7a; color: #fff !important; border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .fiscal-chat-msg.bot .fiscal-chat-especialista-btn:hover { background: #0a1f3a; color: #fff !important; }
+        .fiscal-chat-msg.bot .fiscal-chat-proxima-etapa-btn { display: inline-block; margin-top: 10px; margin-right: 8px; padding: 8px 16px; background: #28a745; color: #fff !important; border-radius: 20px; text-decoration: none; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .fiscal-chat-msg.bot .fiscal-chat-proxima-etapa-btn:hover { background: #218838; color: #fff !important; }
     </style>
     <button type="button" id="fiscal-chat-toggle" aria-label="Abrir chat de endereço fiscal" title="Endereço fiscal - Tire suas dúvidas">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.804 21.644A6.707 6.707 0 0 1 2 18H1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1a6.707 6.707 0 0 1 2.804-3.644l1.392-1.392A6.707 6.707 0 0 1 8 8.5V7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1.5a6.707 6.707 0 0 1 2.804 3.644l1.392 1.392A6.707 6.707 0 0 1 23 13v4a1 1 0 0 1-1 1h-1a6.707 6.707 0 0 1-2.804 3.644l-1.392 1.392A6.707 6.707 0 0 1 16 19.5V21a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1.5a6.707 6.707 0 0 1-2.804-3.644l-1.392-1.392z"/></svg>
     </button>
-    <div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal">
+    @{
+        var fiscalChatNextStepUrl = User.Identity?.IsAuthenticated == true && User.IsInRole("Client")
+            ? Url.Action("ChooseLocation", "Client")
+            : Url.Action("FiscalAddress", "Home");
+    }
+    <div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal" data-next-step-url="@fiscalChatNextStepUrl">
         <div class="fiscal-chat-header">
             <div class="fiscal-chat-header-avatar" aria-hidden="true">📍</div>
             <div class="fiscal-chat-header-text">
@@ -234,33 +243,42 @@
     <script>
     (function(){
         var API_BASE = '/api/fiscal-address-chat';
+        var WHATSAPP_URL = 'https://wa.me/27989030369';
+        var INACTIVITY_MS = 60000;
         var toggle = document.getElementById('fiscal-chat-toggle');
         var windowEl = document.getElementById('fiscal-chat-window');
+        var NEXT_STEP_URL = (windowEl && windowEl.getAttribute('data-next-step-url') || '/Client/ChooseLocation').replace(/&amp;/g, '&');
         var messagesEl = document.getElementById('fiscal-chat-messages');
         var inputEl = document.getElementById('fiscal-chat-input');
         var sendBtn = document.getElementById('fiscal-chat-send');
         var closeBtn = document.getElementById('fiscal-chat-close');
         var minBtn = document.getElementById('fiscal-chat-minimize');
         var initialLoaded = false;
-        function openWindow(){ windowEl.classList.add('is-open'); if(!initialLoaded){ initialLoaded=true; fetch(API_BASE+'/initial').then(function(r){return r.json();}).then(function(d){ if(d&&d.message){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent=d.message; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; } }).catch(function(){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent='Olá! Como posso ajudar com endereço fiscal? Envie sua pergunta.'; messagesEl.appendChild(div); }); } inputEl.focus(); }
-        function closeWindow(){ windowEl.classList.remove('is-open'); }
+        var inactivityTimerId = null;
+        var inactivityMessageShown = false;
+        function openWindow(){ windowEl.classList.add('is-open'); if(!initialLoaded){ initialLoaded=true; fetch(API_BASE+'/initial').then(function(r){return r.json();}).then(function(d){ if(d&&d.message){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent=d.message; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; } startInactivityTimer(); }).catch(function(){ var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.textContent='Olá! Como posso ajudar com endereço fiscal? Envie sua pergunta.'; messagesEl.appendChild(div); startInactivityTimer(); }); } else startInactivityTimer(); inputEl.focus(); }
+        function closeWindow(){ windowEl.classList.remove('is-open'); stopInactivityTimer(); }
         if(toggle){ toggle.addEventListener('click',function(){ if(windowEl.classList.contains('is-open')) closeWindow(); else openWindow(); }); }
         if(closeBtn) closeBtn.addEventListener('click', closeWindow);
         if(minBtn) minBtn.addEventListener('click', closeWindow);
         function appendMessage(text, isUser){ var div=document.createElement('div'); div.className='fiscal-chat-msg '+(isUser?'user':'bot'); div.textContent=text; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; }
+        function appendNextStepMessage(){ if(inactivityMessageShown) return; inactivityMessageShown=true; var div=document.createElement('div'); div.className='fiscal-chat-msg bot'; div.innerHTML='Podemos continuar para próxima etapa? Ou deseja falar com um especialista?<br><a href="'+NEXT_STEP_URL+'" class="fiscal-chat-proxima-etapa-btn">Ir para próxima etapa</a><a href="'+WHATSAPP_URL+'" target="_blank" rel="noopener noreferrer" class="fiscal-chat-especialista-btn">Falar com especialista</a>'; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; }
         function showTyping(){ var div=document.createElement('div'); div.className='fiscal-chat-msg typing'; div.id='fiscal-chat-typing'; div.innerHTML='<div class="fiscal-chat-typing-dots"><span></span><span></span><span></span></div>'; messagesEl.appendChild(div); messagesEl.scrollTop=messagesEl.scrollHeight; }
         function hideTyping(){ var el=document.getElementById('fiscal-chat-typing'); if(el) el.remove(); }
+        function startInactivityTimer(){ stopInactivityTimer(); if(inactivityMessageShown) return; inactivityTimerId=setTimeout(function(){ inactivityTimerId=null; if(windowEl.classList.contains('is-open')) appendNextStepMessage(); }, INACTIVITY_MS); }
+        function stopInactivityTimer(){ if(inactivityTimerId){ clearTimeout(inactivityTimerId); inactivityTimerId=null; } }
         function sendMessage(){
             var text=(inputEl.value||'').trim();
             if(!text) return;
             inputEl.value='';
+            inactivityMessageShown=false;
             appendMessage(text, true);
             sendBtn.disabled=true;
             showTyping();
             fetch(API_BASE+'/chat',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message:text}) })
                 .then(function(r){ return r.json(); })
-                .then(function(d){ hideTyping(); appendMessage((d&&d.reply)?d.reply:'Não foi possível obter resposta. Tente novamente.', false); })
-                .catch(function(){ hideTyping(); appendMessage('Erro de conexão. Tente novamente ou fale com o atendimento.', false); })
+                .then(function(d){ hideTyping(); appendMessage((d&&d.reply)?d.reply:'Não foi possível obter resposta. Tente novamente.', false); startInactivityTimer(); })
+                .catch(function(){ hideTyping(); appendMessage('Erro de conexão. Tente novamente ou fale com o atendimento.', false); startInactivityTimer(); })
                 .finally(function(){ sendBtn.disabled=false; inputEl.focus(); });
         }
         if(sendBtn) sendBtn.addEventListener('click', sendMessage);

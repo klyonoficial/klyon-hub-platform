@@ -196,7 +196,7 @@ class KlyonBoot {
             let errorMsg = error.message || 'Desculpe, ocorreu um erro ao iniciar o chat. Por favor, tente novamente.';
             if (errorMsg.includes('Tabelas') || errorMsg.includes('tabelas') || errorMsg.includes('migrations')) {
                 errorMsg = '⚠️ Erro: As tabelas do KlyonBoot não foram criadas no banco de dados.\n\n' +
-                          'Solução: Acesse /Admin/DatabaseManager e execute as migrations pendentes.\n\n' +
+                          'Solução: Execute as migrations pela linha de comando: dotnet ef database update\n\n' +
                           'Detalhes: ' + errorMsg;
             }
             this.addMessage(errorMsg, 'bot', null, true);

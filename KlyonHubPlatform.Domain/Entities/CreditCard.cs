@@ -9,6 +9,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string ExpiryMonth { get; set; } = string.Empty;
         public string ExpiryYear { get; set; } = string.Empty;
         public string Brand { get; set; } = string.Empty;
+        /// <summary>Token Asaas para cobrança com cartão salvo (tokenização).</summary>
+        public string? AsaasToken { get; set; }
         public bool IsDefault { get; set; } = false;
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }

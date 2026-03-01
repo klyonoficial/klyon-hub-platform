@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -64,7 +65,7 @@ namespace KlyonHubPlatform.Application.Services
                 return null;
             return user;
         }
-        public async Task<bool> RegisterAsync(string email, string password, string fullName, string roleName, string? returnUrl = null)
+        public async Task<bool> RegisterAsync(string email, string password, string fullName, string roleName, string? returnUrl = null, bool? clientHasCnpj = null)
         {
             var existingUser = await _userRepository.GetByEmailAsync(email);
             if (existingUser != null)
@@ -78,7 +79,8 @@ namespace KlyonHubPlatform.Application.Services
                 FullName = fullName,
                 EmailVerificationToken = emailVerificationToken,
                 IsActive = true,
-                EmailVerified = false
+                EmailVerified = false,
+                ClientHasCnpj = roleName == RoleNames.Client ? clientHasCnpj : null
             };
             await _userRepository.CreateAsync(user);
             var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);

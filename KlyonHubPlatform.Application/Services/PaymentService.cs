@@ -606,6 +606,124 @@ namespace KlyonHubPlatform.Application.Services
             }
             return payment;
         }
+
+        public async Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+            if (payment.Status != PaymentStatus.Pending)
+                throw new InvalidOperationException("Apenas pagamentos pendentes podem ser processados");
+            if (!payment.SubscriptionId.HasValue)
+                throw new InvalidOperationException("Pagamento não possui assinatura associada.");
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+            if (subscription == null)
+                throw new InvalidOperationException("Assinatura não encontrada");
+            var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+            if (contract == null)
+                throw new InvalidOperationException("Contrato não encontrado");
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
+            if (client == null)
+                throw new InvalidOperationException("Cliente não encontrado");
+            var card = await _context.CreditCards
+                .FirstOrDefaultAsync(c => c.Id == creditCardId && c.ClientId == client.Id);
+            if (card == null)
+                throw new InvalidOperationException("Cartão não encontrado.");
+            if (string.IsNullOrEmpty(card.AsaasToken))
+                throw new InvalidOperationException("Este cartão não está habilitado para pagamento rápido. Remova e cadastre-o novamente para usar esta opção.");
+            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
+            if (string.IsNullOrWhiteSpace(clientName))
+                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil'.");
+            var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
+            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil'.");
+            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
+            if (!string.IsNullOrWhiteSpace(clientTaxId))
+                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil'.");
+            var clientPhone = client.ContactPhone ?? client.User?.Phone;
+            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
+            {
+                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+            }
+            var postalCode = "00000000";
+            if (!string.IsNullOrWhiteSpace(client.ZipCode))
+            {
+                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp;
+                else if (postalCodeTemp.Length > 8)
+                    postalCode = postalCodeTemp.Substring(0, 8);
+                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp.PadLeft(8, '0');
+            }
+            if (postalCode == "00000000" || string.IsNullOrWhiteSpace(client.ZipCode))
+                throw new InvalidOperationException("CEP não informado. Atualize em 'Meu Perfil' com o CEP do titular do cartão.");
+            var regionCode = "SP";
+            if (!string.IsNullOrWhiteSpace(client.State))
+            {
+                var stateTemp = client.State.Trim().ToUpper();
+                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
+                    regionCode = stateTemp.Substring(0, 2);
+            }
+            var clientAddress = new PagBankAddress
+            {
+                Street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado),
+                Number = "S/N",
+                Complement = null,
+                Locality = DefaultDisplayStrings.NaoInformado,
+                City = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado),
+                RegionCode = regionCode,
+                Country = "BRA",
+                PostalCode = postalCode
+            };
+            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
+                clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
+            decimal amountToCharge = payment.Amount;
+            var feePercentageStr = await _systemConfigurationService.GetValueAsync(PaymentConfigKey.CreditCardFeePercentage.ToConfigKey());
+            if (!string.IsNullOrWhiteSpace(feePercentageStr) && decimal.TryParse(feePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fee) && fee > 0)
+            {
+                amountToCharge = payment.Amount * (1 + fee / 100);
+            }
+            var inst = installments ?? 1;
+            var orderResponse = await _asaasService.CreateOrderAsync(
+                referenceId: payment.ExternalPaymentId,
+                amount: amountToCharge,
+                method: PaymentMethod.CreditCard,
+                clientName: clientName,
+                clientEmail: clientEmail,
+                clientTaxId: clientTaxId,
+                clientPhone: clientPhone,
+                card: null,
+                installments: inst,
+                clientAddress: clientAddress,
+                creditCardToken: card.AsaasToken,
+                asaasCustomerIdForToken: asaasCustomerId
+            );
+            payment.ExternalPaymentId = orderResponse.Id;
+            payment.Status = PaymentStatus.Processing;
+            payment.InstallmentCount = inst;
+            payment.InstallmentValue = Math.Round(amountToCharge / inst, 2);
+            if (orderResponse.Charges != null && orderResponse.Charges.Any())
+            {
+                var charge = orderResponse.Charges.First();
+                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid :
+                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed :
+                                 PaymentStatus.Processing;
+                if (charge.PaidAt.HasValue)
+                    payment.PaidAt = charge.PaidAt.Value;
+                if (charge.PaymentMethod?.Card != null)
+                    payment.TransactionId = charge.Id;
+            }
+            await _paymentRepository.UpdateAsync(payment);
+            if (payment.Status == PaymentStatus.Paid)
+                await ConfirmPaymentAsync(payment.Id, payment.TransactionId);
+            return payment;
+        }
+
         public async Task<List<Payment>> GetPendingPaymentsAsync()
         {
             return await _paymentRepository.GetPendingPaymentsAsync();

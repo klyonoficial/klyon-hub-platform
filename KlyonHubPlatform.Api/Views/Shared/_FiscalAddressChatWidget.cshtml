@@ -7,7 +7,10 @@
     </svg>
 </button>
 
-<div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal">
+@{
+    var nextStepUrl = ViewBag.FiscalChatNextStepUrl as string ?? Url.Action("ChooseLocation", "Client");
+}
+<div id="fiscal-chat-window" role="dialog" aria-label="Chat Endereço Fiscal" data-next-step-url="@nextStepUrl">
     <div class="fiscal-chat-header">
         <div class="fiscal-chat-header-avatar" aria-hidden="true">📍</div>
         <div class="fiscal-chat-header-text">
@@ -37,22 +40,29 @@
 <script>
 (function() {
     var API_BASE = '/api/fiscal-address-chat';
+    var WHATSAPP_URL = 'https://wa.me/27989030369';
+    var INACTIVITY_MS = 60000; // 1 minuto
     var toggle = document.getElementById('fiscal-chat-toggle');
     var windowEl = document.getElementById('fiscal-chat-window');
+    var NEXT_STEP_URL = (windowEl && windowEl.getAttribute('data-next-step-url') || '/Client/ChooseLocation').replace(/&amp;/g, '&');
     var messagesEl = document.getElementById('fiscal-chat-messages');
     var inputEl = document.getElementById('fiscal-chat-input');
     var sendBtn = document.getElementById('fiscal-chat-send');
     var closeBtn = document.getElementById('fiscal-chat-close');
     var minBtn = document.getElementById('fiscal-chat-minimize');
     var initialLoaded = false;
+    var inactivityTimerId = null;
+    var inactivityMessageShown = false;
 
     function openWindow() {
         windowEl.classList.add('is-open');
         if (!initialLoaded) loadInitialMessage();
+        else startInactivityTimer();
         inputEl.focus();
     }
     function closeWindow() {
         windowEl.classList.remove('is-open');
+        stopInactivityTimer();
     }
     toggle.addEventListener('click', function() {
         if (windowEl.classList.contains('is-open')) closeWindow();
@@ -65,6 +75,15 @@
         var div = document.createElement('div');
         div.className = 'fiscal-chat-msg ' + (isUser ? 'user' : 'bot');
         div.textContent = text;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function appendNextStepMessage() {
+        if (inactivityMessageShown) return;
+        inactivityMessageShown = true;
+        var div = document.createElement('div');
+        div.className = 'fiscal-chat-msg bot';
+        div.innerHTML = 'Podemos continuar para próxima etapa? Ou deseja falar com um especialista?<br><a href="' + NEXT_STEP_URL + '" class="fiscal-chat-proxima-etapa-btn">Ir para próxima etapa</a><a href="' + WHATSAPP_URL + '" target="_blank" rel="noopener noreferrer" class="fiscal-chat-especialista-btn">Falar com especialista</a>';
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -81,15 +100,32 @@
         if (el) el.remove();
     }
 
+    function startInactivityTimer() {
+        stopInactivityTimer();
+        if (inactivityMessageShown) return;
+        inactivityTimerId = setTimeout(function() {
+            inactivityTimerId = null;
+            if (windowEl.classList.contains('is-open')) appendNextStepMessage();
+        }, INACTIVITY_MS);
+    }
+    function stopInactivityTimer() {
+        if (inactivityTimerId) {
+            clearTimeout(inactivityTimerId);
+            inactivityTimerId = null;
+        }
+    }
+
     function loadInitialMessage() {
         initialLoaded = true;
         fetch(API_BASE + '/initial')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data && data.message) appendMessage(data.message, false);
+                startInactivityTimer();
             })
             .catch(function() {
                 appendMessage('Olá! Posso ajudar com informações sobre endereço fiscal. Como posso ajudar?', false);
+                startInactivityTimer();
             });
     }
 
@@ -97,6 +133,7 @@
         var text = (inputEl.value || '').trim();
         if (!text) return;
         inputEl.value = '';
+        inactivityMessageShown = false;
         appendMessage(text, true);
         sendBtn.disabled = true;
         showTyping();
@@ -111,10 +148,12 @@
                 hideTyping();
                 var reply = (data && data.reply) ? data.reply : 'Não foi possível obter resposta. Tente novamente ou fale com nosso atendimento.';
                 appendMessage(reply, false);
+                startInactivityTimer();
             })
             .catch(function() {
                 hideTyping();
                 appendMessage('Erro de conexão. Tente novamente ou entre em contato com o atendimento.', false);
+                startInactivityTimer();
             })
             .finally(function() {
                 sendBtn.disabled = false;

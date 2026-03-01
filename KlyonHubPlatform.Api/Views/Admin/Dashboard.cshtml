@@ -48,10 +48,14 @@
                     </ul>
                 </details>
             }
-            <div class="mt-3">
-                <a href="@Url.Action(ActionNames.DatabaseManager, ControllerNames.Admin)" class="btn btn-warning btn-lg">
-                    <i class="bi bi-database"></i> Executar Migrations Agora
-                </a>
+            <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
+                <form method="post" action="@Url.Action(ActionNames.RunMigrations, ControllerNames.Admin)" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-database-fill-check"></i> Executar migrations agora
+                    </button>
+                </form>
+                <span class="text-muted small">ou pela linha de comando: <code>dotnet ef database update</code></span>
             </div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -567,18 +571,6 @@
                     <div class="col-md-2 mb-2">
                         <a href="@Url.Action(ActionNames.CreateLocation, ControllerNames.Admin)" class="btn btn-outline-success w-100">
                             <i class="bi bi-plus-circle"></i><br>Nova Localidade
-                        </a>
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <a href="@Url.Action(ActionNames.DatabaseManager, ControllerNames.Admin)" class="btn btn-outline-warning w-100 position-relative">
-                            <i class="bi bi-database"></i><br>Banco de Dados
-                            @if (pendingMigrationsCount > 0)
-                            {
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                    @pendingMigrationsCount
-                                    <span class="visually-hidden">migrations pendentes</span>
-                                </span>
-                            }
                         </a>
                     </div>
                 </div>

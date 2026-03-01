@@ -66,6 +66,10 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 claims.Add(new Claim(ClaimTypes.Role, role));
             }
+            if (roles.Contains(RoleNames.Client) && user.ClientHasCnpj == true)
+            {
+                claims.Add(new Claim(AuthConstants.ClientHasCnpjClaimType, "true"));
+            }
             var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
             var rememberMeDays = _configuration.GetValue("Auth:RememberMeExpirationDays", 14);
@@ -109,11 +113,14 @@ namespace KlyonHubPlatform.Api.Controllers
             return View();
         }
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = RoleNames.Client, string? returnUrl = null, string? acceptLgpdTerms = null, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = RoleNames.Client, string? returnUrl = null, string? acceptLgpdTerms = null, string? hasCnpj = null, CancellationToken cancellationToken = default)
         {
             var acceptLgpdRaw = acceptLgpdTerms ?? Request.Form["acceptLgpdTerms"].ToString();
             bool aceiteLgpd = StringBooleanValue.IsTrue(acceptLgpdRaw)
                 || string.Equals(acceptLgpdRaw?.Trim(), "on", StringComparison.OrdinalIgnoreCase);
+            bool? clientHasCnpj = null;
+            if (role == RoleNames.Client && !string.IsNullOrWhiteSpace(hasCnpj))
+                clientHasCnpj = StringBooleanValue.IsTrue(hasCnpj);
             void PreserveRegisterForm(string? err = null)
             {
                 if (err != null) ViewData[ViewDataKeys.Error] = err;
@@ -122,6 +129,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.RegisterEmail = email;
                 ViewBag.RegisterRole = role;
                 ViewBag.RegisterAcceptLgpdTerms = aceiteLgpd;
+                ViewBag.RegisterHasCnpj = hasCnpj;
                 if (role == RoleNames.CoworkingPartner) ViewBag.PreSelectedRole = RoleNames.CoworkingPartner;
             }
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
@@ -134,7 +142,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 PreserveRegisterForm("É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.");
                 return View();
             }
-            var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl);
+            var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl, clientHasCnpj);
             if (!success)
             {
                 PreserveRegisterForm("Erro ao criar conta. Email já existe?");
