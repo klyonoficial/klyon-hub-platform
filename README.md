@@ -1,139 +1,131 @@
-# Klyon Endereço Fiscal - Sistema SaaS + Marketplace
+# Klyon Hub Platform
 
-Sistema completo para comercialização automatizada de endereço fiscal, conectando clientes finais, coworkings próprios e parceiros.
+Sistema SaaS + Marketplace para comercialização automatizada de endereço fiscal, conectando clientes finais, coworkings próprios e parceiros. Backend em .NET 8 e frontend em Razor (CSHTML) com Bootstrap.
 
-## 🚀 Tecnologias
+## Contexto do Projeto
 
-- **Backend**: ASP.NET Core 8.0 (C#)
-- **Frontend**: Razor Pages (CSHTML) + Bootstrap 5 + JavaScript
-- **Banco de Dados**: MariaDB
-- **ORM**: Entity Framework Core
-- **Autenticação**: JWT + Cookies
-- **Geração de PDF**: iTextSharp
+A solução foi estruturada para atender fluxos de cadastro de clientes e empresas, contratação de endereço fiscal, gestão de contratos, pagamentos, comissões e repasses. Inclui integrações com gateways de pagamento (Asaas, PagBank), emissão fiscal (Focus NFe, SEFAZ), assinatura eletrônica (Clicksign) e armazenamento de documentos.
 
-## 📋 Pré-requisitos
+A arquitetura segue separação em camadas com Domain, Application e Infra, mantendo responsabilidades bem definidas entre projetos.
 
-- .NET 8.0 SDK
-- MariaDB 10.5+
-- Visual Studio 2022 ou VS Code
+## Arquitetura
 
-## 🔧 Configuração
+- Backend: .NET 8 com arquitetura em camadas
+- Frontend: ASP.NET Core MVC com Views Razor (CSHTML), Bootstrap 5 e JavaScript
+- API: padrão RESTful + controllers MVC
+- Banco de dados: MariaDB com Entity Framework Core
+- Solução: `klyon-hub-platform.sln`
 
-### Opção 1: Usando Docker (Recomendado)
+### Camadas do Backend
 
-1. **Clone o repositório**
+- `KlyonHubPlatform.Api`: entrypoint da API e da aplicação web (Controllers, Views, wwwroot)
+- `KlyonHubPlatform.Application`: casos de uso, serviços de aplicação e orquestração
+- `KlyonHubPlatform.Domain`: entidades e interfaces de repositórios
+- `KlyonHubPlatform.Domain.Core`: enums, constantes e compartilhados de domínio
+- `KlyonHubPlatform.Infra.Data`: persistência (DbContext, repositórios, migrations)
+- `KlyonHubPlatform.Infra.CrossCutting`: middlewares, helpers e utilitários transversais
 
-2. **Inicie apenas o banco de dados MariaDB:**
+### Frontend
+
+- `KlyonHubPlatform.Api/Views`: Views Razor organizadas por área (Admin, Auth, Client, Coworking, Shared)
+- `KlyonHubPlatform.Api/wwwroot`: CSS, JS e arquivos estáticos
+
+## Como Executar
+
+### Backend (e aplicação web)
+
+```bash
+dotnet restore klyon-hub-platform.sln
+dotnet build klyon-hub-platform.sln
+dotnet run --project KlyonHubPlatform.Api
+```
+
+Acesse: `https://localhost:5001`
+
+### Usando Docker (recomendado para desenvolvimento)
+
+1. Subir apenas o MariaDB:
+
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-3. **Execute o projeto:**
+2. Executar a aplicação:
+
 ```bash
-dotnet run
+dotnet run --project KlyonHubPlatform.Api
 ```
 
-4. **Acesse:** `https://localhost:5001`
+### Credenciais padrão
 
-### Opção 2: Instalação Manual
-
-1. **Clone o repositório**
-
-2. **Instale o MariaDB** e configure a string de conexão no `appsettings.json`:
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=klyon_hub_platform;User=root;Password=sua_senha;Port=3306;"
-}
-```
-
-3. **Execute o projeto:**
-```bash
-dotnet run
-```
-
-4. **Acesse:** `https://localhost:5001`
-
-> 📖 **Nota:** O sistema cria o banco de dados automaticamente na primeira execução usando Entity Framework Core.
-
-> 🐳 **Dica:** Para mais informações sobre Docker, consulte [DOCKER.md](DOCKER.md)
-
-## 👤 Credenciais Padrão
-
-- **Email**: admin@klyon.com
+- **Email**: admin@klyon.com  
 - **Senha**: Admin@123
 
-## 📦 Estrutura do Projeto
+## Banco de Dados (EF Core)
 
-```
-klyon-hub-platform/
-├── Controllers/          # Controllers MVC
-├── Models/              # Modelos de dados
-├── Services/            # Serviços de negócio
-├── Repositories/        # Repositórios (acesso a dados)
-├── Data/                # DbContext e configurações
-├── Middleware/          # Middlewares customizados
-├── Views/               # Views Razor (CSHTML)
-└── wwwroot/             # Arquivos estáticos
+Na raiz do repositório:
 
+```bash
+dotnet ef migrations add <NomeDaMigration> -s KlyonHubPlatform.Api -p KlyonHubPlatform.Infra.Data
+dotnet ef database update -s KlyonHubPlatform.Api -p KlyonHubPlatform.Infra.Data
 ```
 
-## 🎯 Funcionalidades
+## Documentação
 
-### Para Clientes
+- Configuração de email: [docs/README_EMAIL.md](docs/README_EMAIL.md)
+- Configuração de pagamento: [docs/CONFIGURAR_PAGAMENTO.md](docs/CONFIGURAR_PAGAMENTO.md)
+- Docker: [docs/DOCKER.md](docs/DOCKER.md)
+- Deploy: [docs/DEPLOY.md](docs/DEPLOY.md)
+- Oracle Object Storage: [docs/ORACLE_OBJECT_STORAGE.md](docs/ORACLE_OBJECT_STORAGE.md)
+- Cache: [docs/CACHE.md](docs/CACHE.md)
+- Validação em controllers: [docs/VALIDACAO-CONTROLLERS.md](docs/VALIDACAO-CONTROLLERS.md)
+
+## Funcionalidades principais
+
+### Clientes
+
 - Cadastro de empresa/profissional
 - Escolha de localidade
 - Contratação de endereço fiscal
-- Gestão de contratos
-- Download de documentos
+- Gestão de contratos e documentos
 - Histórico de pagamentos
 
-### Para Coworkings
-- Cadastro do coworking
-- Cadastro de endereços fiscais
+### Coworkings
+
+- Cadastro do coworking e endereços fiscais
 - Definição de preços
-- Visualização de contratos ativos
-- Gestão de comissões
-- Solicitação de repasses
+- Contratos ativos, comissões e solicitação de repasses
 
-### Para Administradores
-- Gestão completa de usuários
-- Gestão de coworkings
-- Gestão de localidades e comissões
-- Relatórios financeiros
-- Logs de auditoria
+### Administração
 
-## 🔐 Segurança
+- Gestão de usuários, coworkings e localidades
+- Relatórios financeiros e logs de auditoria
 
-- Autenticação JWT + Cookies
-- Autorização baseada em roles (RBAC)
-- Criptografia de senhas (BCrypt)
-- Logs de auditoria
-- Validação de dados
+## Estrutura de Pastas (resumo)
 
-## 📄 Documentos Gerados
-
-- Contrato de endereço fiscal
-- Recibos de pagamento
-- Declaração para Receita Federal
-- Termos de uso
-
-## 💳 Pagamentos
-
-O sistema está preparado para integração com gateways de pagamento (Stripe, PagSeguro, etc.). Atualmente, o processamento é simulado.
-
-## 🔄 Processos Automatizados
-
-- Criação de contratos
-- Geração de assinaturas mensais
-- Processamento de pagamentos recorrentes
-- Cálculo e criação de comissões
-- Repasses automáticos
-- Geração de documentos
-
-## 📝 Licença
-
-Este projeto é proprietário.
-
-## 👥 Suporte
-
-Para suporte, entre em contato através do email: suporte@klyon.com
+```text
+.
+├── docs/
+│   ├── CACHE.md
+│   ├── CONFIGURAR_PAGAMENTO.md
+│   ├── DEPLOY.md
+│   ├── DOCKER.md
+│   ├── ORACLE_OBJECT_STORAGE.md
+│   ├── README_EMAIL.md
+│   └── VALIDACAO-CONTROLLERS.md
+├── KlyonHubPlatform.Api/
+│   ├── Controllers/
+│   ├── Views/
+│   ├── wwwroot/
+│   └── ...
+├── KlyonHubPlatform.Application/
+├── KlyonHubPlatform.Domain/
+├── KlyonHubPlatform.Domain.Core/
+├── KlyonHubPlatform.Infra.CrossCutting/
+├── KlyonHubPlatform.Infra.Data/
+├── docker-compose.dev.yml
+├── docker-compose.yml
+├── Dockerfile
+├── init.sql
+└── klyon-hub-platform.sln
+```
