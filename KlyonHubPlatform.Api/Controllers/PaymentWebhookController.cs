@@ -81,12 +81,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 var paymentId = paymentEl.TryGetProperty(AsaasWebhookPayloadKeys.Id, out var idEl) ? idEl.GetString() : null;
                 var status = paymentEl.TryGetProperty(AsaasWebhookPayloadKeys.Status, out var st) ? st.GetString() : null;
+                var externalRef = paymentEl.TryGetProperty("externalReference", out var refEl) ? refEl.GetString() : null;
                 if (string.IsNullOrEmpty(paymentId))
                 {
                     _logger.LogWarning("Webhook Asaas sem payment.id");
                     return Ok();
                 }
-                _logger.LogInformation("Webhook Asaas: event={Event}, paymentId={PaymentId}, status={Status}", eventType, paymentId, status);
+                _logger.LogInformation("Webhook Asaas: event={Event}, paymentId={PaymentId}, externalRef={ExternalRef}, status={Status}", eventType, paymentId, externalRef, status);
                 var valid = await _asaasService.ValidateWebhookSignatureAsync(payload, signature ?? "");
                 if (!valid)
                 {
@@ -96,7 +97,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var paidEvents = new[] { AsaasWebhookEvents.PaymentReceived, AsaasWebhookEvents.PaymentConfirmed, AsaasWebhookEvents.PaymentReceivedInCash };
                 if (paidEvents.Contains(eventType ?? "") && (status == AsaasPaymentStatus.Received || status == AsaasPaymentStatus.Confirmed))
                 {
-                    var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId);
+                    var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId, externalRef);
                     if (payment != null && payment.Status != PaymentStatus.Paid)
                     {
                         await _paymentService.ConfirmPaymentAsync(payment.Id, paymentId);
@@ -105,7 +106,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (eventType == AsaasWebhookEvents.PaymentDeleted || eventType == AsaasWebhookEvents.PaymentOverdue)
                 {
-                    var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId);
+                    var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId, externalRef);
                     if (payment != null && payment.Status == PaymentStatus.Pending)
                     {
                         await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
@@ -120,8 +121,8 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Erro ao processar webhook do Asaas");
-                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook });
+                _logger.LogError(ex, "Erro ao processar webhook do Asaas: {Message}", ex.Message);
+                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook, detail = ex.Message });
             }
             return Ok();
         }
