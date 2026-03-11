@@ -168,6 +168,7 @@ builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 builder.Services.AddHostedService<MonthlySettlementBackgroundService>();
 builder.Services.AddAutoMapper(typeof(Program), typeof(KlyonHubPlatform.Application.Mappers.ApplicationMappingProfile));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -198,6 +199,7 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapHub<KlyonHubPlatform.Api.Hubs.PaymentHub>("/hubs/payment");
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

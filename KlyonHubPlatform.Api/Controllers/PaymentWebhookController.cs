@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Hubs;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -14,16 +16,19 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly IAsaasService _asaasService;
         private readonly IPaymentRepository _paymentRepository;
+        private readonly IHubContext<PaymentHub> _hubContext;
         private readonly ILogger<PaymentWebhookController> _logger;
         public PaymentWebhookController(
             IPaymentService paymentService,
             IAsaasService asaasService,
             IPaymentRepository paymentRepository,
+            IHubContext<PaymentHub> hubContext,
             ILogger<PaymentWebhookController> logger)
         {
             _paymentService = paymentService;
             _asaasService = asaasService;
             _paymentRepository = paymentRepository;
+            _hubContext = hubContext;
             _logger = logger;
         }
         [HttpPost("stripe")]
@@ -102,6 +107,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         await _paymentService.ConfirmPaymentAsync(payment.Id, paymentId);
                         _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
+                        try
+                        {
+                            await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentConfirmed, new { paymentId = payment.Id });
+                        }
+                        catch (Exception exHub)
+                        {
+                            _logger.LogWarning(exHub, "Falha ao notificar SignalR para pagamento {PaymentId}", payment.Id);
+                        }
                     }
                 }
                 else if (eventType == AsaasWebhookEvents.PaymentDeleted || eventType == AsaasWebhookEvents.PaymentOverdue)
@@ -111,6 +124,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
                         _logger.LogInformation("Pagamento {PaymentId} cancelado/vencido via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
+                        try
+                        {
+                            await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
+                        }
+                        catch (Exception exHub)
+                        {
+                            _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
+                        }
                     }
                 }
             }
@@ -121,8 +142,9 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             catch (Exception ex)
             {
+                var innerMsg = ex.InnerException?.Message ?? ex.Message;
                 _logger.LogError(ex, "Erro ao processar webhook do Asaas: {Message}", ex.Message);
-                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook, detail = ex.Message });
+                return StatusCode(500, new { error = ErrorJson.ErrorProcessingWebhook, detail = innerMsg });
             }
             return Ok();
         }

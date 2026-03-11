@@ -276,11 +276,7 @@ namespace KlyonHubPlatform.Application.Services
                             }
                         }
                     }
-                    var commission = await _commissionService.CreateCommissionAsync(payment.Id);
-                    if (commission != null)
-                    {
-                        _context.Commissions.Update(commission);
-                    }
+                    await _commissionService.CreateCommissionAsync(payment.Id);
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
                     return payment;
@@ -943,10 +939,6 @@ namespace KlyonHubPlatform.Application.Services
                         }
                     }
                     var commission = await _commissionService.CreateCommissionAsync(payment.Id);
-                    if (commission != null)
-                    {
-                        _context.Commissions.Update(commission);
-                    }
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
                     return payment;

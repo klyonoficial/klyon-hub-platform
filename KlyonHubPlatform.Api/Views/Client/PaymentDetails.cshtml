@@ -1007,6 +1007,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
     <script>
         function copyPixCode() {
             const pixCode = document.getElementById('pixCode');
@@ -1978,6 +1979,33 @@
         @if (isPending || Model.Status == PaymentStatus.Processing)
         {
             <text>
+            (function() {
+                var paymentIdForHub = @Model.Id;
+                var hubUrl = '@Url.Content("~/hubs/payment")';
+                if (typeof signalR !== 'undefined') {
+                    var connection = new signalR.HubConnectionBuilder()
+                        .withUrl(hubUrl)
+                        .withAutomaticReconnect()
+                        .build();
+                    connection.on('PaymentConfirmed', function(data) {
+                        if (data && data.paymentId === paymentIdForHub) {
+                            if (typeof showToast === 'function') showToast('Pagamento confirmado! Atualizando página...', 'success', 3000);
+                            setTimeout(function() { window.location.reload(); }, 1000);
+                        }
+                    });
+                    connection.on('PaymentCancelled', function(data) {
+                        if (data && data.paymentId === paymentIdForHub) {
+                            if (typeof showToast === 'function') showToast('Pagamento cancelado ou vencido. Atualizando página...', 'info', 3000);
+                            setTimeout(function() { window.location.reload(); }, 1000);
+                        }
+                    });
+                    connection.start().then(function() {
+                        return connection.invoke('JoinPaymentGroup', paymentIdForHub);
+                    }).catch(function(err) {
+                        console.warn('SignalR PaymentHub:', err);
+                    });
+                }
+            })();
             (function() {
                 const currentStatus = '@Model.Status.ToString()';
                 const paymentId = @Model.Id;
