@@ -202,7 +202,6 @@
                                 data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-card-1x="@(address.CardPrice1x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-card-monthly="@(address.CardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
-                                data-card-12x="@(address.CardPrice12x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-location="@(address.Location != null ? $"{address.Location.City}/{address.Location.State}" : DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-created-at="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
                                 data-updated-at="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)"
@@ -475,10 +474,6 @@
                         <label class="form-label fw-bold text-muted small">Mensal</label>
                         <p class="mb-0" id="viewAddrCardMonthly">—</p>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">12x</label>
-                        <p class="mb-0" id="viewAddrCard12x">—</p>
-                    </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
@@ -550,10 +545,8 @@
                 document.getElementById('viewAddrMaxContractsApproval').textContent = val('data-max-contracts-approval-status');
                 var card1x = val('data-card-1x');
                 var cardMon = val('data-card-monthly');
-                var card12x = val('data-card-12x');
                 document.getElementById('viewAddrCard1x').textContent = card1x !== '—' ? 'R$ ' + card1x : '—';
                 document.getElementById('viewAddrCardMonthly').textContent = cardMon !== '—' ? 'R$ ' + cardMon : '—';
-                document.getElementById('viewAddrCard12x').textContent = card12x !== '—' ? 'R$ ' + card12x : '—';
                 var shared = val('data-shared-room');
                 var sharedPrice = val('data-shared-price');
                 var sharedSeats = val('data-shared-seats');

@@ -15,15 +15,16 @@ namespace KlyonHubPlatform.Application.Services
             _subscriptionRepository = subscriptionRepository;
             _paymentService = paymentService;
         }
-        public async Task<Subscription> CreateSubscriptionAsync(int contractId, decimal monthlyAmount)
+        public async Task<Subscription> CreateSubscriptionAsync(int contractId, decimal monthlyAmount, ContractCardPlanType? cardPlanType = null)
         {
+            var isAnnual = cardPlanType == ContractCardPlanType.Card1x;
             var subscription = new Subscription
             {
                 ContractId = contractId,
                 MonthlyAmount = monthlyAmount,
-                BillingCycle = "Monthly",
+                BillingCycle = isAnnual ? "Yearly" : "Monthly",
                 Status = SubscriptionStatus.Active,
-                NextBillingDate = DateTime.UtcNow.AddMonths(1),
+                NextBillingDate = isAnnual ? DateTime.UtcNow.AddYears(1) : DateTime.UtcNow.AddMonths(1),
                 ExternalSubscriptionId = Guid.NewGuid().ToString()
             };
             return await _subscriptionRepository.CreateAsync(subscription);
@@ -52,6 +53,11 @@ namespace KlyonHubPlatform.Application.Services
                         PaymentMethod.CreditCard
                     );
                     await _paymentService.ProcessPaymentAsync(payment.Id);
+                    subscription.LastBillingDate = DateTime.UtcNow;
+                    subscription.NextBillingDate = subscription.Contract?.CardPlanType == ContractCardPlanType.Card1x
+                        ? DateTime.UtcNow.AddYears(1)
+                        : DateTime.UtcNow.AddMonths(1);
+                    await _subscriptionRepository.UpdateAsync(subscription);
                     processed.Add(subscription);
                 }
                 catch (Exception)

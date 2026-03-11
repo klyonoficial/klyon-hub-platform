@@ -33,6 +33,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public int SnapshotCapacityConsumed { get; set; }
         public bool IsAssistedSale { get; set; }
         public int? AssistedSaleAdminId { get; set; }
+        /// <summary>Tipo de plano no cartão (1x anual, mensal ou 12x) para definir recorrência da cobrança.</summary>
+        public ContractCardPlanType? CardPlanType { get; set; }
         public virtual Client Client { get; set; } = null!;
         public virtual CoworkingAddress CoworkingAddress { get; set; } = null!;
         public virtual Subscription? Subscription { get; set; }

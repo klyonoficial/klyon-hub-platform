@@ -44,12 +44,11 @@
 {
     <div class="alert alert-warning">
         <i class="bi bi-clock-history"></i> <strong>Solicitação pendente:</strong> Sua alteração de preços está aguardando aprovação administrativa.
-        @if (pendingRequest.RequestedCardPrice1x.HasValue || pendingRequest.RequestedCardPriceMonthly.HasValue || pendingRequest.RequestedCardPrice12x.HasValue)
+        @if (pendingRequest.RequestedCardPrice1x.HasValue || pendingRequest.RequestedCardPriceMonthly.HasValue)
         {
             <span>Valores solicitados: </span>
             @if (pendingRequest.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @pendingRequest.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
             @if (pendingRequest.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @pendingRequest.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-            @if (pendingRequest.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @pendingRequest.RequestedCardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
         }
         <span class="d-block mt-2">Os valores só serão exibidos aos clientes após aprovação do administrador.</span>
     </div>
@@ -86,7 +85,7 @@ else
                     <input type="number" step="0.01" min="0" class="form-control" id="CardPrice1x" name="CardPrice1x"
                            value="@((hasPendingRequest ? pendingRequest.RequestedCardPrice1x : Model.CardPrice1x)?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                            placeholder="Ex: 1200,00" @(hasPendingRequest ? "readonly" : "")>
-                    <small class="form-text text-muted">Valor único para pagamento em 1 vez no cartão.</small>
+                    <small class="form-text text-muted">Cobrança recorrente anual no cartão (1x por ano).</small>
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="CardPriceMonthly" class="form-label">Venda mensal — R$</label>
@@ -94,13 +93,6 @@ else
                            value="@((hasPendingRequest ? pendingRequest.RequestedCardPriceMonthly : Model.CardPriceMonthly)?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                            placeholder="Ex: 120,00" @(hasPendingRequest ? "readonly" : "")>
                     <small class="form-text text-muted">Valor da mensalidade no cartão (cobrança recorrente).</small>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="CardPrice12x" class="form-label">Venda em 12 vezes — R$ (por parcela)</label>
-                    <input type="number" step="0.01" min="0" class="form-control" id="CardPrice12x" name="CardPrice12x"
-                           value="@((hasPendingRequest ? pendingRequest.RequestedCardPrice12x : Model.CardPrice12x)?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
-                           placeholder="Ex: 110,00" @(hasPendingRequest ? "readonly" : "")>
-                    <small class="form-text text-muted">Valor de cada parcela (12x no cartão).</small>
                 </div>
             </div>
 
@@ -115,7 +107,7 @@ else
         </form>
         @if (hasPendingRequest)
         {
-            <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> Valores em exibição para clientes atualmente: @(Model.CardPrice1x.HasValue ? $"1x R$ {Model.CardPrice1x:N2}" : "") @(Model.CardPriceMonthly.HasValue ? $"Mensal R$ {Model.CardPriceMonthly:N2}" : "") @(Model.CardPrice12x.HasValue ? $"12x R$ {Model.CardPrice12x:N2}" : "") @(!Model.CardPrice1x.HasValue && !Model.CardPriceMonthly.HasValue && !Model.CardPrice12x.HasValue ? "Nenhum" : "")</p>
+            <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> Valores em exibição para clientes atualmente: @(Model.CardPrice1x.HasValue ? $"1x R$ {Model.CardPrice1x:N2}" : "") @(Model.CardPriceMonthly.HasValue ? $"Mensal R$ {Model.CardPriceMonthly:N2}" : "") @(!Model.CardPrice1x.HasValue && !Model.CardPriceMonthly.HasValue ? "Nenhum" : "")</p>
         }
     </div>
 </div>

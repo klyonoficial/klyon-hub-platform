@@ -277,7 +277,6 @@
                                             data-privateroommaxseats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-cardprice1x="@(address.CardPrice1x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-cardpricemonthly="@(address.CardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
-                                            data-cardprice12x="@(address.CardPrice12x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-createdat="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
                                             data-updatedat="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)">
                                             <td>@address.Address, @address.Number</td>
@@ -302,7 +301,7 @@
                             </table>
                         </div>
                         <p class="text-muted small mt-2">
-                            <i class="bi bi-info-circle"></i> Para gerenciar endereços, utilize a tela de visualização. Use <strong>Preço base</strong> para definir o preço base (R$) do endereço e <strong>Preços no cartão</strong> para definir venda à vista (1x), mensal e em 12 vezes.
+                            <i class="bi bi-info-circle"></i> Para gerenciar endereços, utilize a tela de visualização. Use <strong>Preço base</strong> para definir o preço base (R$) do endereço e <strong>Preços no cartão</strong> para definir venda à vista (1x) e mensal.
                         </p>
                     }
                     else
@@ -417,7 +416,6 @@
                 { label: 'Preço base', value: val('baseprice') === '—' ? '—' : 'R$ ' + parseFloat(val('baseprice')).toFixed(2).replace('.', ',') },
                 { label: 'Venda à vista (1x no cartão)', value: val('cardprice1x') === '—' ? '—' : 'R$ ' + parseFloat(val('cardprice1x')).toFixed(2).replace('.', ',') },
                 { label: 'Venda mensal (cartão)', value: val('cardpricemonthly') === '—' ? '—' : 'R$ ' + parseFloat(val('cardpricemonthly')).toFixed(2).replace('.', ',') },
-                { label: 'Venda em 12 vezes (por parcela)', value: val('cardprice12x') === '—' ? '—' : 'R$ ' + parseFloat(val('cardprice12x')).toFixed(2).replace('.', ',') },
                 { label: 'Disponível', value: val('isavailable') },
                 { label: 'Status do endereço', value: val('addressstatus') },
                 { label: 'Contratos', value: val('currentcontracts') + ' / ' + val('maxcontracts') },

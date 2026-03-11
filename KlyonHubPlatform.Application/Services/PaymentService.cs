@@ -785,7 +785,10 @@ namespace KlyonHubPlatform.Application.Services
                         if (subscription != null)
                         {
                             subscription.LastBillingDate = DateTime.UtcNow;
-                            subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
+                            var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x
+                                ? subscription.NextBillingDate.AddYears(1)
+                                : subscription.NextBillingDate.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
                             if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
                             {

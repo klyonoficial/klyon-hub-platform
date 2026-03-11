@@ -726,6 +726,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("CardPlanType")
+                        .HasColumnType("int");
+
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 

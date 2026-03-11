@@ -1134,21 +1134,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 decimal monthlyValueForContract;
                 PaymentMethod? initialPaymentMethod = null;
+                ContractCardPlanType? cardPlanType = null;
                 var option = (paymentOption ?? "PIX").Trim();
                 if (option == "Card1x" && addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0)
                 {
                     monthlyValueForContract = addressEntity.CardPrice1x.Value;
                     initialPaymentMethod = PaymentMethod.CreditCard;
+                    cardPlanType = ContractCardPlanType.Card1x;
                 }
                 else if (option == "CardMonthly" && addressEntity.CardPriceMonthly.HasValue && addressEntity.CardPriceMonthly.Value > 0)
                 {
                     monthlyValueForContract = addressEntity.CardPriceMonthly.Value;
                     initialPaymentMethod = PaymentMethod.CreditCard;
-                }
-                else if (option == "Card12x" && addressEntity.CardPrice12x.HasValue && addressEntity.CardPrice12x.Value > 0)
-                {
-                    monthlyValueForContract = addressEntity.CardPrice12x.Value;
-                    initialPaymentMethod = PaymentMethod.CreditCard;
+                    cardPlanType = ContractCardPlanType.CardMonthly;
                 }
                 else
                 {
@@ -1160,7 +1158,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     coworkingAddressId,
                     monthlyValueForContract,
                     assistedSaleAdminId: null,
-                    initialPaymentMethod
+                    initialPaymentMethod,
+                    cardPlanType
                 );
                 var subscription = await _clientAppService.GetSubscriptionByContractIdAsync(contract.Id, cancellationToken);
                 if (subscription != null)
@@ -1736,19 +1735,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.CreditCards = creditCards;
             }
             string? creditCardPlanLabel = null;
+            string? creditCardRecurrence = null;
             if (payment.Method == PaymentMethod.CreditCard && payment.Subscription?.Contract?.CoworkingAddress != null)
             {
                 var address = payment.Subscription.Contract.CoworkingAddress;
                 var amount = payment.Amount;
                 const decimal tolerance = 0.01m;
                 if (address.CardPrice1x.HasValue && Math.Abs(amount - address.CardPrice1x.Value) <= tolerance)
-                    creditCardPlanLabel = "À vista (1x)";
-                else if (address.CardPrice12x.HasValue && Math.Abs(amount - address.CardPrice12x.Value) <= tolerance)
-                    creditCardPlanLabel = $"12x de R$ {address.CardPrice12x.Value:N2}";
+                {
+                    creditCardPlanLabel = $"À vista (1x no cartão) — R$ {address.CardPrice1x.Value:N2} — recorrência anual cobrada no cartão de crédito";
+                    creditCardRecurrence = "annual";
+                }
                 else if (address.CardPriceMonthly.HasValue && Math.Abs(amount - address.CardPriceMonthly.Value) <= tolerance)
-                    creditCardPlanLabel = CreditPlanPeriods.Mensal;
+                {
+                    creditCardPlanLabel = $"Venda mensal — R$ {address.CardPriceMonthly.Value:N2} — recorrência mensal no cartão de crédito";
+                    creditCardRecurrence = "monthly";
+                }
             }
             ViewBag.CreditCardPlanLabel = creditCardPlanLabel;
+            ViewBag.CreditCardRecurrence = creditCardRecurrence;
             decimal originalAmount = payment.Amount;
             decimal finalAmount = payment.Amount;
             decimal? feePercentage = null;
@@ -2282,15 +2287,39 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, error = ErrorJson.PaymentNotBelongToProfile });
                 }
+                var address = contract.CoworkingAddress;
+                var cardPlanOption = (request.CardPlanOption ?? "").Trim().ToLowerInvariant();
+                decimal amountToCharge = payment.Amount;
+                ContractCardPlanType? newCardPlanType = null;
+                if (address != null)
+                {
+                    if (cardPlanOption == "monthly" && address.CardPriceMonthly.HasValue && address.CardPriceMonthly.Value > 0)
+                    {
+                        amountToCharge = address.CardPriceMonthly.Value;
+                        newCardPlanType = ContractCardPlanType.CardMonthly;
+                    }
+                    else if (address.CardPrice1x.HasValue && address.CardPrice1x.Value > 0)
+                    {
+                        amountToCharge = address.CardPrice1x.Value;
+                        newCardPlanType = ContractCardPlanType.Card1x;
+                    }
+                }
+                if (newCardPlanType.HasValue)
+                {
+                    contract.CardPlanType = newCardPlanType.Value;
+                    if (payment.Amount != amountToCharge)
+                    {
+                        payment.Amount = amountToCharge;
+                    }
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                const int installmentsForGateway = 1;
                 if (request.CreditCardId.HasValue && request.CreditCardId.Value > 0)
                 {
                     var savedCard = await _clientAppService.GetCreditCardByIdAndClientIdAsync(request.CreditCardId.Value, client.Id, cancellationToken);
                     if (savedCard != null && !string.IsNullOrEmpty(savedCard.AsaasToken))
                     {
-                        var savedCardInstallments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
-                            ? request.Installments.Value
-                            : 1;
-                        var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, savedCardInstallments);
+                        var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway);
                         if (savedCardResult.Status == PaymentStatus.Paid)
                             return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
                         if (savedCardResult.Status == PaymentStatus.Failed)
@@ -2338,9 +2367,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
                 }
-                var installments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
-                    ? request.Installments.Value
-                    : (int?)1;
 
                 if (request.SaveCard)
                 {
@@ -2403,7 +2429,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         }
                     }
                     await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
-                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installments.Value);
+                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway);
                     if (savedResult.Status == PaymentStatus.Paid)
                         return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
                     if (savedResult.Status == PaymentStatus.Failed)
@@ -2419,7 +2445,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Holder = new Application.DTOs.PagBank.PagBankCardHolder { Name = holderName.ToUpper() },
                     Store = false
                 };
-                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installments);
+                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installmentsForGateway);
                 if (result.Status == PaymentStatus.Paid)
                 {
                     return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });

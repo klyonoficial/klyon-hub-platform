@@ -944,17 +944,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 decimal? cardPrice1x = decimal.TryParse(Request.Form["CardPrice1x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v1) ? v1 : (decimal?)null;
                 decimal? cardPriceMonthly = decimal.TryParse(Request.Form["CardPriceMonthly"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v2) ? v2 : (decimal?)null;
-                decimal? cardPrice12x = decimal.TryParse(Request.Form["CardPrice12x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v3) ? v3 : (decimal?)null;
                 if (cardPrice1x.HasValue && cardPrice1x.Value < 0) cardPrice1x = null;
                 if (cardPriceMonthly.HasValue && cardPriceMonthly.Value < 0) cardPriceMonthly = null;
-                if (cardPrice12x.HasValue && cardPrice12x.Value < 0) cardPrice12x = null;
 
                 if (User.IsInRole(RoleNames.Administrator))
                 {
-                    // Admin altera os valores diretamente; não altera status de aprovação do endereço nem do coworking.
+                    // Admin altera os valores diretamente; não altera status de aprovação do endereço nem do coworking. Opção 12x removida (apenas 1x e mensal).
                     address.CardPrice1x = cardPrice1x;
                     address.CardPriceMonthly = cardPriceMonthly;
-                    address.CardPrice12x = cardPrice12x;
+                    address.CardPrice12x = null;
                     address.UpdatedAt = DateTime.UtcNow;
                     await _coworkingAppService.SaveChangesAsync();
                     TempData[SuccessMessage.TempDataKey] = "Preços no cartão atualizados pelo administrador.";
@@ -966,7 +964,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     CoworkingAddressId = address.Id,
                     RequestedCardPrice1x = cardPrice1x,
                     RequestedCardPriceMonthly = cardPriceMonthly,
-                    RequestedCardPrice12x = cardPrice12x,
+                    RequestedCardPrice12x = null,
                     PreviousCardPrice1x = address.CardPrice1x,
                     PreviousCardPriceMonthly = address.CardPriceMonthly,
                     PreviousCardPrice12x = address.CardPrice12x,
@@ -984,8 +982,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _coworkingAppService.SaveChangesAsync();
 
-                var oldPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = address.CardPrice1x, CardPriceMonthly = address.CardPriceMonthly, CardPrice12x = address.CardPrice12x });
-                var newPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = cardPrice1x, CardPriceMonthly = cardPriceMonthly, CardPrice12x = cardPrice12x, Status = "PendingApproval" });
+                var oldPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = address.CardPrice1x, CardPriceMonthly = address.CardPriceMonthly });
+                var newPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = cardPrice1x, CardPriceMonthly = cardPriceMonthly, Status = "PendingApproval" });
                 await _auditService.LogActionAsync(userId, "CardPricesSubmitted", "Coworking", address.CoworkingId, oldPricesJson, newPricesJson);
 
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardPriceChangeRequestSent;

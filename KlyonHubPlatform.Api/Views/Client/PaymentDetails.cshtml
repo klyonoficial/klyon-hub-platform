@@ -99,7 +99,24 @@
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8">
-                        @if (Model.Method == PaymentMethod.CreditCard && ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
+                        @if (Model.Method == PaymentMethod.CreditCard && isPending)
+                        {
+                            var addrVal = Model.Subscription?.Contract?.CoworkingAddress;
+                            var price1xVal = addrVal?.CardPrice1x;
+                            var priceMonthlyVal = addrVal?.CardPriceMonthly;
+                            var has1xVal = price1xVal.HasValue && price1xVal.Value > 0;
+                            var hasMonthlyVal = priceMonthlyVal.HasValue && priceMonthlyVal.Value > 0;
+                            if (!has1xVal && !hasMonthlyVal) { has1xVal = true; price1xVal = Model.Amount; }
+                            var initialVal = has1xVal ? (price1xVal ?? Model.Amount) : (priceMonthlyVal ?? 0);
+                            var initialLabel = has1xVal ? "recorrência anual — equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
+                            var price1xStr = price1xVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                            var priceMonthlyStr = priceMonthlyVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                            <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr">
+                                <h4 class="text-primary mb-0">R$ <span id="paymentInfoValorDisplay">@initialVal.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></h4>
+                                <small class="text-muted d-block mt-1" id="paymentInfoValorLabel">@initialLabel</small>
+                            </div>
+                        }
+                        else if (Model.Method == PaymentMethod.CreditCard && ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
                         {
                             <div>
                                 <h4 class="text-primary mb-0">R$ @ViewBag.FinalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
@@ -120,7 +137,13 @@
                         else
                         {
                             <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
-                            @if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                            @if (Model.Method == PaymentMethod.PIX)
+                            {
+                                var pixMonthly = Model.Amount / 12m;
+                                <small class="text-muted d-block mt-1">recorrência anual</small>
+                                <small class="text-muted d-block mt-1">equivale a R$ @pixMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</small>
+                            }
+                            else if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                             {
                                 <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
                             }
@@ -152,14 +175,35 @@
                                         <option value="CreditCard">Cartão de Crédito</option>
                                     }
                                 </select>
-                                @if (Model.Method == PaymentMethod.CreditCard && ViewBag.CreditCardPlanLabel != null)
-                                {
-                                    <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
-                                }
-                                <small class="text-muted d-block mt-1">
-                                    <i class="bi bi-info-circle"></i> Você pode alterar o método de pagamento a qualquer momento
-                                </small>
-                            </form>
+                                </form>
+                            @if (Model.Method == PaymentMethod.CreditCard)
+                            {
+                                var pageAddr = Model.Subscription?.Contract?.CoworkingAddress;
+                                var pagePrice1x = pageAddr?.CardPrice1x;
+                                var pagePriceMonthly = pageAddr?.CardPriceMonthly;
+                                var pageHas1x = pagePrice1x.HasValue && pagePrice1x.Value > 0;
+                                var pageHasMonthly = pagePriceMonthly.HasValue && pagePriceMonthly.Value > 0;
+                                if (!pageHas1x && !pageHasMonthly) { pageHas1x = true; pagePrice1x = Model.Amount; }
+                                <div class="mt-3 pt-2 border-top" id="pageCardPlanOptionWrap">
+                                    <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                                    <div id="pageCardPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Selecione a forma de cobrança antes de clicar em "Pagar com cartão".</div>
+                                    @if (pageHas1x)
+                                    {
+                                        var pageMonthly1x = ((pagePrice1x ?? Model.Amount) / 12m);
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" checked>
+                                            <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @((pagePrice1x ?? Model.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                                        </div>
+                                    }
+                                    @if (pageHasMonthly)
+                                    {
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlanMonthly" value="monthly" @(pageHas1x ? "" : "checked")>
+                                            <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @((pagePriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
+                                        </div>
+                                    }
+                                </div>
+                            }
                         }
                         else
                         {
@@ -372,111 +416,67 @@
                 <div class="card mb-4" id="creditCardPaymentCard">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0">
-                            <i class="bi bi-credit-card"></i> Pagamento com Cartão de Crédito
-                            @if (ViewBag.CreditCardPlanLabel != null)
-                            {
-                                <span class="badge bg-light text-dark ms-2">@ViewBag.CreditCardPlanLabel</span>
-                            }
+                            <i class="bi bi-credit-card"></i> Cartão de Crédito
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted mb-3">
-                            <strong>Valor:</strong> 
-                            @if (ViewBag.FeePercentage != null && ViewBag.FeePercentage > 0)
-                            {
-                                <span class="text-primary">R$ @ViewBag.FinalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                                <br>
-                                <small class="text-muted">
-                                    Valor original: R$ @ViewBag.OriginalAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
-                                    <br>
-                                    <span class="text-warning">
-                                        <i class="bi bi-info-circle"></i> Taxa de cartão de crédito: @ViewBag.FeePercentage.ToString(NumberFormatConstants.CurrencyTwoDecimals)%
-                                    </span>
-                                    @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
-                                    {
-                                        <br>
-                                        <span><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></span>
-                                    }
-                                </small>
-                            }
-                            else
-                            {
-                                <span class="text-primary">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                                @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
-                                {
-                                    <br><small class="text-muted"><i class="bi bi-credit-card-2-back"></i> @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</small>
-                                }
-                            }
-                            <br>
-                            <strong>Vencimento:</strong> @Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
-                        </p>
-                        
                         @if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
                         {
                             <div class="mb-3">
-                                <label class="form-label"><strong>Selecione um cartão cadastrado:</strong></label>
+                                <label class="form-label"><strong>Cartões já cadastrados:</strong></label>
                                 <p class="text-muted small mb-2">
-                                    <i class="bi bi-info-circle"></i> Para alterar o número ou outros dados do cartão, remova o cartão e adicione um novo.
+                                    <i class="bi bi-info-circle"></i> Estes cartões poderão ser selecionados no modal ao clicar em "Pagar com cartão".
                                 </p>
                                 <div class="list-group">
                                     @foreach (var card in (List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
                                     {
                                         <div class="list-group-item">
-                                            <div class="form-check d-flex align-items-start">
-                                                <input class="form-check-input mt-2" type="radio" name="selectedCard" id="card_@card.Id" value="@card.Id" @(card.IsDefault ? "checked" : "")>
-                                                <label class="form-check-label flex-grow-1 ms-2" for="card_@card.Id">
-                                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-                                                        <div>
-                                                            <i class="bi bi-credit-card-2-front"></i> 
-                                                            @if (!string.IsNullOrWhiteSpace(card.Nickname))
-                                                            {
-                                                                <strong>@card.Nickname</strong>
-                                                                <span class="text-muted"> — @card.Brand •••• @card.LastFourDigits</span>
-                                                            }
-                                                            else
-                                                            {
-                                                                <strong>@card.Brand</strong> <span class="text-muted">•••• @card.LastFourDigits</span>
-                                                            }
-                                                            <br>
-                                                            <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
-                                                        </div>
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            @if (card.IsDefault)
-                                                            {
-                                                                <span class="badge bg-primary">Padrão</span>
-                                                            }
-                                                            else
-                                                            {
-                                                                <form method="post" action="@Url.Action("SetDefaultCreditCard", "Client")" class="d-inline">
-                                                                    @Html.AntiForgeryToken()
-                                                                    <input type="hidden" name="paymentId" value="@Model.Id" />
-                                                                    <input type="hidden" name="cardId" value="@card.Id" />
-                                                                    <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
-                                                                </form>
-                                                            }
-                                                            <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
-                                                                @Html.AntiForgeryToken()
-                                                                <input type="hidden" name="paymentId" value="@Model.Id" />
-                                                                <input type="hidden" name="cardId" value="@card.Id" />
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </label>
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                                <div>
+                                                    <i class="bi bi-credit-card-2-front"></i>
+                                                    @if (!string.IsNullOrWhiteSpace(card.Nickname))
+                                                    {
+                                                        <strong>@card.Nickname</strong>
+                                                        <span class="text-muted"> — @card.Brand •••• @card.LastFourDigits</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <strong>@card.Brand</strong> <span class="text-muted">•••• @card.LastFourDigits</span>
+                                                    }
+                                                    <br />
+                                                    <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    @if (card.IsDefault)
+                                                    {
+                                                        <span class="badge bg-primary">Padrão</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <form method="post" action="@Url.Action("SetDefaultCreditCard", "Client")" class="d-inline">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                            <input type="hidden" name="cardId" value="@card.Id" />
+                                                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
+                                                        </form>
+                                                    }
+                                                    <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                        <input type="hidden" name="cardId" value="@card.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
+                                                    </form>
+                                                </div>
                                             </div>
                                         </div>
                                     }
                                 </div>
                             </div>
                         }
-                        else
-                        {
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> 
-                                Você não possui cartões cadastrados. Adicione um cartão para realizar o pagamento.
-                            </div>
-                        }
 
+                        <p class="text-muted small mb-3">
+                            <i class="bi bi-info-circle"></i> Cadastre um cartão abaixo para usar no pagamento. Ao clicar em "Pagar com cartão", você escolhe a forma de cobrança (1x anual ou mensal) e o cartão no modal.
+                        </p>
                         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
                             <i class="bi bi-plus-circle"></i> Adicionar Novo Cartão
                         </button>
@@ -514,7 +514,7 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong> Se você já tem um cartão cadastrado, selecione-o na lista acima e clique em "Pagar com cartão" — a cobrança será enviada na hora, sem abrir o modal. Se não tiver cartão cadastrado ou quiser usar outro, clique em "Pagar com cartão" e o modal abrirá para escolher um cartão ou cadastrar um novo. Seu contrato será ativado assim que o pagamento for aprovado.
+                            Seu contrato será ativado assim que o pagamento for aprovado.
                         </div>
 
                         <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
@@ -862,6 +862,12 @@
 @if (isPending && Model.Method == PaymentMethod.CreditCard)
 {
     var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
+    var addressCard = Model.Subscription?.Contract?.CoworkingAddress;
+    decimal? cardPrice1x = addressCard?.CardPrice1x;
+    decimal? cardPriceMonthly = addressCard?.CardPriceMonthly;
+    var has1x = cardPrice1x.HasValue && cardPrice1x.Value > 0;
+    var hasMonthly = cardPriceMonthly.HasValue && cardPriceMonthly.Value > 0;
+    if (!has1x && !hasMonthly) { has1x = true; cardPrice1x = (decimal)totalAmountForCard; }
     var creditCardsJson = "[]";
     if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
     {
@@ -882,7 +888,7 @@
         creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
     }
 <!-- Modal Pagar com cartão (processar pagamento no Asaas) -->
-<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))">
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))" data-card-price-1x="@(cardPrice1x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")" data-card-price-monthly="@(cardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -893,9 +899,26 @@
             </div>
             <div class="modal-body">
                 <div class="alert alert-light border mb-3 py-2" id="payWithCardAmountSummary">
-                    <strong>Valor total:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                    <br class="d-none" id="payWithCardPerInstallmentBr">
-                    <strong class="d-none" id="payWithCardPerInstallmentLabel">Valor por parcela:</strong> <span class="d-none" id="payWithCardPerInstallmentDisplay"></span>
+                    <strong>Valor a cobrar:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                </div>
+                <div class="mb-3" id="payModalPlanOptionWrap">
+                    <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                    <div id="payModalPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Campo obrigatório.</div>
+                    @if (has1x)
+                    {
+                        var modalMonthly1x = ((cardPrice1x ?? totalAmountForCard) / 12m);
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" checked>
+                            <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual) — R$ @((cardPrice1x ?? totalAmountForCard).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                        </div>
+                    }
+                    @if (hasMonthly)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(has1x ? "" : "checked")>
+                            <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal) — R$ @((cardPriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
+                        </div>
+                    }
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Como deseja pagar?</label>
@@ -957,23 +980,6 @@
                             <input type="text" class="form-control" id="payCardCvv" placeholder="123" maxlength="4">
                             <small class="form-text text-muted">3 ou 4 dígitos no verso do cartão</small>
                         </div>
-                        <div class="mb-3">
-                            <label for="payCardInstallments" class="form-label">Parcelas</label>
-                            <select class="form-select" id="payCardInstallments">
-                                @for (int i = 1; i <= 12; i++)
-                                {
-                                    var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
-                                    @if (i == 1)
-                                    {
-                                        <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                                    }
-                                }
-                            </select>
-                        </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="payModalSaveCard" name="payModalSaveCard">
                             <label class="form-check-label" for="payModalSaveCard">Salvar este cartão para usar em outros pagamentos</label>
@@ -983,23 +989,6 @@
                             <label class="form-check-label" for="payModalSetDefault">Marcar como cartão padrão</label>
                         </div>
                     </form>
-                </div>
-                <div class="mb-3" id="payModalInstallmentsForSaved">
-                    <label for="payCardInstallmentsSaved" class="form-label">Parcelas</label>
-                    <select class="form-select" id="payCardInstallmentsSaved">
-                        @for (int i = 1; i <= 12; i++)
-                        {
-                            var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
-                            @if (i == 1)
-                            {
-                                <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                            }
-                            else
-                            {
-                                <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                            }
-                        }
-                    </select>
                 </div>
                 <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
             </div>
@@ -1224,6 +1213,10 @@
                         } else if (newPaymentDetailsCreditCards && existingCardsScript) {
                             existingCardsScript.replaceWith(newPaymentDetailsCreditCards.cloneNode(true));
                         }
+                        var newModal = document.getElementById('payWithCardModal');
+                        if (newModal && typeof window.attachPayWithCardModalOnShow === 'function') {
+                            window.attachPayWithCardModalOnShow(newModal);
+                        }
                     }
                 }
                 
@@ -1280,57 +1273,96 @@
             e.target.value = e.target.value.replace(/\D/g, '');
         });
 
-        // Modal Pagar com cartão: valor total e valor por parcela conforme número de parcelas
+        // Modal Pagar com cartão: valor exibido conforme forma de cobrança (1x ou mensal)
         (function() {
             var modalEl = document.getElementById('payWithCardModal');
-            if (!modalEl) return;
-            var totalAmountAttr = modalEl.getAttribute('data-total-amount');
-            var totalAmount = totalAmountAttr ? parseFloat(totalAmountAttr) : 0;
-            var selectEl = document.getElementById('payCardInstallments');
-            var totalDisplay = document.getElementById('payWithCardTotalDisplay');
-            var perInstallmentBr = document.getElementById('payWithCardPerInstallmentBr');
-            var perInstallmentLabel = document.getElementById('payWithCardPerInstallmentLabel');
-            var perInstallmentDisplay = document.getElementById('payWithCardPerInstallmentDisplay');
 
             function formatBrl(value) {
                 return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
-            function updateInstallmentsDisplay() {
-                if (!totalAmount) return;
-                var sel = selectEl || document.getElementById('payCardInstallments');
-                var n = sel ? (parseInt(sel.value, 10) || 1) : 1;
-                var savedSel = document.getElementById('payCardInstallmentsSaved');
-                if (savedSel) n = parseInt(savedSel.value, 10) || n;
-                if (totalDisplay) totalDisplay.textContent = formatBrl(totalAmount);
-                var perParcel = totalAmount / n;
-                if (n > 1 && perInstallmentBr && perInstallmentLabel && perInstallmentDisplay) {
-                    perInstallmentBr.classList.remove('d-none');
-                    perInstallmentLabel.classList.remove('d-none');
-                    perInstallmentDisplay.classList.remove('d-none');
-                    perInstallmentDisplay.textContent = 'R$ ' + formatBrl(perParcel) + ' (' + n + 'x)';
-                } else if (perInstallmentBr && perInstallmentLabel && perInstallmentDisplay) {
-                    perInstallmentBr.classList.add('d-none');
-                    perInstallmentLabel.classList.add('d-none');
-                    perInstallmentDisplay.classList.add('d-none');
+            function updatePlanDisplay() {
+                var modal = document.getElementById('payWithCardModal');
+                var totalDisplay = document.getElementById('payWithCardTotalDisplay');
+                if (!modal || !totalDisplay) return;
+                var planRadio = document.querySelector('input[name="payCardPlanOption"]:checked');
+                var option = planRadio ? (planRadio.value || '1x') : '1x';
+                var totalAmount = parseFloat(modal.getAttribute('data-total-amount') || '0');
+                var price1x = modal.getAttribute('data-card-price-1x');
+                var priceMonthly = modal.getAttribute('data-card-price-monthly');
+                var amount = totalAmount;
+                if (option === 'monthly' && priceMonthly) {
+                    var m = parseFloat(priceMonthly);
+                    if (!isNaN(m)) amount = m;
+                } else if (price1x) {
+                    var x = parseFloat(price1x);
+                    if (!isNaN(x)) amount = x;
                 }
-                [sel, savedSel].forEach(function(select) {
-                    if (!select) return;
-                    for (var i = 0; i < select.options.length; i++) {
-                        var opt = select.options[i];
-                        var num = parseInt(opt.value, 10);
-                        var val = totalAmount / num;
-                        opt.textContent = num + ' x R$ ' + formatBrl(val);
-                    }
-                });
+                totalDisplay.textContent = formatBrl(amount);
             }
 
-            if (selectEl) selectEl.addEventListener('change', updateInstallmentsDisplay);
-            document.getElementById('payCardInstallmentsSaved')?.addEventListener('change', updateInstallmentsDisplay);
-            if (modalEl) {
-                modalEl.addEventListener('show.bs.modal', function() {
-                    totalAmount = parseFloat(modalEl.getAttribute('data-total-amount') || '0');
-                    updateInstallmentsDisplay();
+            function clearPagePlanHighlight() {
+                var wrap = document.getElementById('pageCardPlanOptionWrap');
+                var errBox = document.getElementById('pageCardPlanOptionError');
+                if (wrap) wrap.classList.remove('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+                if (errBox) errBox.classList.add('d-none');
+            }
+            function clearModalPlanHighlight() {
+                var wrap = document.getElementById('payModalPlanOptionWrap');
+                var errBox = document.getElementById('payModalPlanOptionError');
+                if (wrap) wrap.classList.remove('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+                if (errBox) errBox.classList.add('d-none');
+            }
+            function updatePaymentInfoValor() {
+                var container = document.getElementById('paymentInfoValorContainer');
+                var displayEl = document.getElementById('paymentInfoValorDisplay');
+                var labelEl = document.getElementById('paymentInfoValorLabel');
+                if (!container || !displayEl) return;
+                var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
+                var option = (pagePlan && pagePlan.value) ? pagePlan.value : '1x';
+                var price1x = container.getAttribute('data-card-price-1x');
+                var priceMonthly = container.getAttribute('data-card-price-monthly');
+                var amount = 0;
+                if (option === 'monthly' && priceMonthly) {
+                    var m = parseFloat(priceMonthly);
+                    if (!isNaN(m)) amount = m;
+                } else if (price1x) {
+                    var x = parseFloat(price1x);
+                    if (!isNaN(x)) amount = x;
+                }
+                displayEl.textContent = amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                if (labelEl) {
+                    if (option === 'monthly') {
+                        labelEl.textContent = 'recorrência mensal';
+                    } else {
+                        var monthlyEq = (amount / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        labelEl.textContent = 'recorrência anual — equivale a R$ ' + monthlyEq + '/mês';
+                    }
+                }
+            }
+            document.body.addEventListener('change', function(e) {
+                if (e.target && e.target.name === 'payCardPlanOption') {
+                    updatePlanDisplay();
+                    clearModalPlanHighlight();
+                }
+                if (e.target && e.target.name === 'pageCardPlanOption') {
+                    clearPagePlanHighlight();
+                    updatePaymentInfoValor();
+                }
+            });
+            updatePaymentInfoValor();
+            function attachPayWithCardModalOnShow(modalElement) {
+                if (!modalElement) return;
+                modalElement.removeEventListener('show.bs.modal', attachPayWithCardModalOnShow._handler);
+                attachPayWithCardModalOnShow._handler = function() {
+                    var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
+                    if (pagePlan && pagePlan.value) {
+                        var modal1x = document.getElementById('payCardPlan1x');
+                        var modalMonthly = document.getElementById('payCardPlanMonthly');
+                        if (pagePlan.value === '1x' && modal1x) { modal1x.checked = true; if (modalMonthly) modalMonthly.checked = false; }
+                        else if (pagePlan.value === 'monthly' && modalMonthly) { modalMonthly.checked = true; if (modal1x) modal1x.checked = false; }
+                    }
+                    updatePlanDisplay();
                     var cardsEl = document.getElementById('paymentDetailsCreditCards');
                     var cards = [];
                     if (cardsEl && cardsEl.textContent) {
@@ -1340,15 +1372,13 @@
                     var optNew = document.getElementById('payModalOptionNew');
                     var sectionSaved = document.getElementById('payModalSavedCardsSection');
                     var sectionNew = document.getElementById('payModalNewCardSection');
-                    var sectionInstallmentsSaved = document.getElementById('payModalInstallmentsForSaved');
                     var listSaved = document.getElementById('payModalSavedCardsList');
                     if (cards.length > 0) {
-                        optSaved.parentElement.style.display = '';
-                        optSaved.checked = true;
-                        optNew.checked = false;
+                        if (optSaved && optSaved.parentElement) optSaved.parentElement.style.display = '';
+                        if (optSaved) optSaved.checked = true;
+                        if (optNew) optNew.checked = false;
                         if (sectionSaved) sectionSaved.classList.remove('d-none');
                         if (sectionNew) sectionNew.classList.add('d-none');
-                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.remove('d-none');
                         if (listSaved) {
                             listSaved.innerHTML = '';
                             var defaultCard = cards.find(function(c) { return c.isDefault; }) || cards[0];
@@ -1373,11 +1403,10 @@
                             });
                         }
                     } else {
-                        optSaved.parentElement.style.display = 'none';
-                        optNew.checked = true;
+                        if (optSaved && optSaved.parentElement) optSaved.parentElement.style.display = 'none';
+                        if (optNew) optNew.checked = true;
                         if (sectionSaved) sectionSaved.classList.add('d-none');
                         if (sectionNew) sectionNew.classList.remove('d-none');
-                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.add('d-none');
                     }
                     var payHolder = document.getElementById('payCardHolderName');
                     var payMonth = document.getElementById('payCardExpiryMonth');
@@ -1392,22 +1421,22 @@
                     var saveCheck = document.getElementById('payModalSaveCard');
                     var defaultWrap = document.getElementById('payModalSetDefaultWrap');
                     if (saveCheck && defaultWrap) defaultWrap.style.display = saveCheck.checked ? 'block' : 'none';
-                });
+                };
+                modalElement.addEventListener('show.bs.modal', attachPayWithCardModalOnShow._handler);
             }
+            window.attachPayWithCardModalOnShow = attachPayWithCardModalOnShow;
+            if (modalEl) attachPayWithCardModalOnShow(modalEl);
             document.body.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'payModalOption') {
                     var sectionSaved = document.getElementById('payModalSavedCardsSection');
                     var sectionNew = document.getElementById('payModalNewCardSection');
-                    var sectionInstallmentsSaved = document.getElementById('payModalInstallmentsForSaved');
                     if (!sectionSaved || !sectionNew) return;
                     if (document.getElementById('payModalOptionSaved')?.checked) {
                         sectionSaved.classList.remove('d-none');
                         sectionNew.classList.add('d-none');
-                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.remove('d-none');
                     } else {
                         sectionSaved.classList.add('d-none');
                         sectionNew.classList.remove('d-none');
-                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.add('d-none');
                     }
                 }
                 if (e.target && e.target.id === 'payModalSaveCard') {
@@ -1419,7 +1448,7 @@
                     }
                 }
             });
-            updateInstallmentsDisplay();
+            updatePlanDisplay();
         })();
 
         // Botão "Pagar com cartão": se houver cartão selecionado, tenta cobrar direto no Asaas; senão ou se a API pedir dados do cartão, abre o modal (delegação para funcionar após AJAX)
@@ -1434,57 +1463,18 @@
             if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
-            console.log('[Pagar com cartão] Clique no botão');
-            var paymentId = parseInt(btn.getAttribute('data-payment-id'), 10);
-            if (isNaN(paymentId) || paymentId <= 0) {
-                console.warn('[Pagar com cartão] paymentId inválido:', paymentId);
+            var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
+            if (!pagePlan || !pagePlan.value) {
+                var wrap = document.getElementById('pageCardPlanOptionWrap');
+                var errBox = document.getElementById('pageCardPlanOptionError');
+                if (wrap) {
+                    wrap.classList.add('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+                    wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                if (errBox) { errBox.classList.remove('d-none'); }
                 return;
             }
-            var radio = document.querySelector('input[name="selectedCard"]:checked');
-            var cardId = radio ? parseInt(radio.value, 10) : 0;
-            console.log('[Pagar com cartão] paymentId:', paymentId, '| cartão selecionado (radio):', !!radio, '| cardId:', cardId);
-            if (!radio || !cardId) {
-                console.log('[Pagar com cartão] Nenhum cartão selecionado -> abrindo modal');
-                openPayWithCardModal();
-                return;
-            }
-            var payload = { paymentId: paymentId, creditCardId: cardId, installments: 1 };
-            console.log('[Pagar com cartão] Enviando requisição:', payload);
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
-            try {
-                var response = await fetch('@Url.Action("ProcessPaymentWithCard", "Client")', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify(payload)
-                });
-                var text = await response.text();
-                console.log('[Pagar com cartão] Response status:', response.status, '| body (raw):', text);
-                var result = null;
-                try { result = text ? JSON.parse(text) : null; } catch (_) { }
-                console.log('[Pagar com cartão] Resultado parseado:', result);
-                if (result && result.success) {
-                    console.log('[Pagar com cartão] Sucesso -> recarregando página');
-                    if (typeof showToast === 'function') showToast(result.message || 'Pagamento processado!', 'success');
-                    window.location.reload();
-                    return;
-                }
-                var errMsg = (result && result.error) ? (result.error + '').toLowerCase() : '';
-                var needCardData = errMsg.indexOf('dados') >= 0 || errMsg.indexOf('cartão') >= 0 || errMsg.indexOf('card') >= 0 || errMsg.indexOf('obrigatório') >= 0 || errMsg.indexOf('required') >= 0;
-                console.log('[Pagar com cartão] Erro. needCardData:', needCardData, '| errMsg:', result && result.error);
-                if (needCardData) {
-                    console.log('[Pagar com cartão] API pediu dados do cartão -> abrindo modal');
-                    openPayWithCardModal();
-                } else if (result && result.error) {
-                    if (typeof showToast === 'function') showToast(result.error, 'error');
-                }
-            } catch (err) {
-                console.error('[Pagar com cartão] Exceção:', err);
-                if (typeof showToast === 'function') showToast('Erro de conexão. Tente novamente.', 'error');
-            }
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar com cartão';
+            openPayWithCardModal();
         }, true);
 
         // Modal Pagar com cartão: formatação e envio
@@ -1508,19 +1498,34 @@
             errEl.classList.add('d-none');
             errEl.textContent = '';
 
+            var planRadio = document.querySelector('input[name="payCardPlanOption"]:checked');
+            if (!planRadio || !planRadio.value) {
+                var modalWrap = document.getElementById('payModalPlanOptionWrap');
+                var modalErrBox = document.getElementById('payModalPlanOptionError');
+                if (modalWrap) {
+                    modalWrap.classList.add('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+                    modalWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                if (modalErrBox) modalErrBox.classList.remove('d-none');
+                return;
+            }
+            var modalWrapOk = document.getElementById('payModalPlanOptionWrap');
+            var modalErrBoxOk = document.getElementById('payModalPlanOptionError');
+            if (modalWrapOk) modalWrapOk.classList.remove('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+            if (modalErrBoxOk) modalErrBoxOk.classList.add('d-none');
+            var cardPlanOption = planRadio.value;
+
             var useSaved = document.getElementById('payModalOptionSaved')?.checked;
-            var payload = { paymentId: paymentId, installments: 1 };
+            var payload = { paymentId: paymentId, installments: 1, cardPlanOption: cardPlanOption };
 
             if (useSaved) {
                 var savedRadio = document.querySelector('input[name="payModalSavedCardId"]:checked');
-                var instSavedEl = document.getElementById('payCardInstallmentsSaved');
                 if (!savedRadio) {
                     errEl.textContent = 'Selecione um cartão cadastrado.';
                     errEl.classList.remove('d-none');
                     return;
                 }
                 payload.creditCardId = parseInt(savedRadio.value, 10);
-                payload.installments = parseInt(instSavedEl?.value || '1', 10) || 1;
             } else {
                 var form = document.getElementById('payWithCardForm');
                 var numEl = document.getElementById('payCardNumber');
@@ -1528,14 +1533,12 @@
                 var monthEl = document.getElementById('payCardExpiryMonth');
                 var yearEl = document.getElementById('payCardExpiryYear');
                 var cvvEl = document.getElementById('payCardCvv');
-                var instEl = document.getElementById('payCardInstallments');
-                if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl || !instEl) return;
+                if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl) return;
                 var number = (numEl.value || '').replace(/\s/g, '');
                 var holderName = (nameEl.value || '').trim();
                 var expMonth = monthEl.value;
                 var expYear = yearEl.value;
                 var securityCode = (cvvEl.value || '').trim();
-                var installments = parseInt(instEl.value, 10) || 1;
                 if (number.length < 13 || number.length > 19) {
                     errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
                     errEl.classList.remove('d-none');
@@ -1566,7 +1569,6 @@
                     errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     return;
                 }
-                if (installments < 1 || installments > 12) installments = 1;
                 var year = expYear.length === 2 ? '20' + expYear : expYear;
                 var nicknameEl = document.getElementById('payCardNickname');
                 payload.card = {
@@ -1577,7 +1579,6 @@
                     holderName: holderName,
                     nickname: (nicknameEl && nicknameEl.value) ? nicknameEl.value.trim() : null
                 };
-                payload.installments = installments;
                 var saveCardChk = document.getElementById('payModalSaveCard');
                 var setDefaultChk = document.getElementById('payModalSetDefault');
                 payload.saveCard = !!(saveCardChk && saveCardChk.checked);

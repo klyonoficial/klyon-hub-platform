@@ -78,7 +78,7 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _contractRepository.GetByClientIdAsync(clientId);
         }
-        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null)
+        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null, ContractCardPlanType? cardPlanType = null)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
@@ -114,6 +114,7 @@ namespace KlyonHubPlatform.Application.Services
                         Status = ContractStatus.PendingPayment,
                         IsAssistedSale = assistedSaleAdminId.HasValue,
                         AssistedSaleAdminId = assistedSaleAdminId,
+                        CardPlanType = cardPlanType,
                         SnapshotMonthlyValue = monthlyValue,
                         SnapshotPlatformCommissionPercentage = platformCommissionPercentage,
                         SnapshotCoworkingCommissionPercentage = coworkingCommissionPercentage,
@@ -124,7 +125,8 @@ namespace KlyonHubPlatform.Application.Services
                     var createdContract = await _contractRepository.CreateAsync(contract);
                     var subscription = await _subscriptionService.CreateSubscriptionAsync(
                         createdContract.Id,
-                        monthlyValue
+                        monthlyValue,
+                        cardPlanType
                     );
                     await _paymentService.CreatePaymentAsync(
                         subscription.Id,

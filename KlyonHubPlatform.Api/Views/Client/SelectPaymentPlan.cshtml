@@ -7,7 +7,6 @@
     var hasPix = true;
     var hasCard1x = Model.CardPrice1x.HasValue && Model.CardPrice1x.Value > 0;
     var hasCardMonthly = Model.CardPriceMonthly.HasValue && Model.CardPriceMonthly.Value > 0;
-    var hasCard12x = Model.CardPrice12x.HasValue && Model.CardPrice12x.Value > 0;
 }
 
 <div class="container py-4">
@@ -41,7 +40,7 @@
                             <input type="radio" name="paymentOption" value="PIX" class="form-check-input me-3" checked>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-qr-code text-primary me-2"></i>PIX</span>
-                                <span class="text-muted d-block small">Pagamento via PIX — R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</span>
+                                <span class="text-muted d-block small">Pagamento via PIX — R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</span>
                             </div>
                             <span class="badge bg-primary rounded-pill">R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </label>
@@ -52,7 +51,7 @@
                             <input type="radio" name="paymentOption" value="Card1x" class="form-check-input me-3">
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão à vista (1x)</span>
-                                <span class="text-muted d-block small">Pagamento único no cartão de crédito</span>
+                                <span class="text-muted d-block small">Venda à vista (1x no cartão) — recorrência anual cobrada no cartão de crédito</span>
                             </div>
                             <span class="badge bg-info rounded-pill">R$ @Model.CardPrice1x!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                         </label>
@@ -63,25 +62,14 @@
                             <input type="radio" name="paymentOption" value="CardMonthly" class="form-check-input me-3">
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão — mensal</span>
-                                <span class="text-muted d-block small">Cobrança mensal no cartão</span>
+                                <span class="text-muted d-block small">Venda mensal — recorrência mensal no cartão de crédito</span>
                             </div>
                             <span class="badge bg-info rounded-pill">R$ @Model.CardPriceMonthly!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</span>
                         </label>
                     }
-                    @if (hasCard12x)
-                    {
-                        <label class="list-group-item list-group-item-action d-flex align-items-center cursor-pointer">
-                            <input type="radio" name="paymentOption" value="Card12x" class="form-check-input me-3">
-                            <div class="flex-grow-1">
-                                <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão — 12x</span>
-                                <span class="text-muted d-block small">12 parcelas de R$ @Model.CardPrice12x!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals) no cartão</span>
-                            </div>
-                            <span class="badge bg-info rounded-pill">12x R$ @Model.CardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                        </label>
-                    }
                 </div>
 
-                @if (!hasCard1x && !hasCardMonthly && !hasCard12x)
+                @if (!hasCard1x && !hasCardMonthly)
                 {
                     <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle"></i> O parceiro não configurou opções de pagamento no cartão para este endereço. Disponível apenas PIX.</p>
                 }

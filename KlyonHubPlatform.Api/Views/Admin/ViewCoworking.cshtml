@@ -177,8 +177,7 @@
                                             {
                                                 @if (pendingReq.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @pendingReq.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                                 @if (pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @pendingReq.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                                @if (pendingReq.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @pendingReq.RequestedCardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                                @if (!pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue && !pendingReq.RequestedCardPrice12x.HasValue) { <span class="text-muted">—</span> }
+                                                @if (!pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">—</span> }
                                             }
                                             else
                                             {
@@ -188,8 +187,7 @@
                                         <td>
                                             @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                             @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (addr.CardPrice12x.HasValue) { <span class="badge bg-secondary">12x: R$ @addr.CardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue && !addr.CardPrice12x.HasValue) { <span class="text-muted">Nenhum</span> }
+                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue) { <span class="text-muted">Nenhum</span> }
                                         </td>
                                         @if (hasPendingCardPrices)
                                         {
