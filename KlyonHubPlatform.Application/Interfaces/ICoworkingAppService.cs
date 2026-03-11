@@ -50,6 +50,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Location?> FindLocationAsync(int locationId, CancellationToken cancellationToken = default);
         Task<CoworkingAddress?> GetAddressWithLocationAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default);
         Task<CoworkingAddress?> GetAddressWithLocationAndCapacityRequestsAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default);
+        /// <summary>Obtém endereço por id (para uso do administrador, sem filtrar por coworking).</summary>
+        Task<CoworkingAddress?> GetAddressWithLocationAndCapacityRequestsByAddressIdAsync(int addressId, CancellationToken cancellationToken = default);
         Task<bool> HasActiveContractsForAddressAsync(int addressId, CancellationToken cancellationToken = default);
         Task<Service?> GetServiceByCodeAsync(string code, CancellationToken cancellationToken = default);
         Task<bool> PartnerServiceExistsAsync(int coworkingId, int serviceId, CancellationToken cancellationToken = default);
@@ -59,6 +61,10 @@ namespace KlyonHubPlatform.Application.Interfaces
 
         // CardPrices
         Task<CoworkingAddress?> GetAddressWithCardPriceRequestsAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default);
+        /// <summary>Obtém o motivo da última reprovação de preços no cartão por endereço (para endereços com CardPricesApprovalStatus Rejected).</summary>
+        Task<Dictionary<int, string>> GetCardPriceRejectionReasonsByAddressIdsAsync(IEnumerable<int> addressIds, CancellationToken cancellationToken = default);
+        /// <summary>Obtém endereço por id (para uso do administrador, sem filtrar por coworking).</summary>
+        Task<CoworkingAddress?> GetAddressWithCardPriceRequestsByAddressIdAsync(int addressId, CancellationToken cancellationToken = default);
         void AddCardPriceChangeRequest(CardPriceChangeRequest request);
 
         // EditMaxContracts

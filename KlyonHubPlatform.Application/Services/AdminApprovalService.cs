@@ -161,6 +161,9 @@ namespace KlyonHubPlatform.Application.Services
                 $"{{\"Status\":\"Pending\"}}",
                 $"{{\"CardPrice1x\":{request.RequestedCardPrice1x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPriceMonthly\":{request.RequestedCardPriceMonthly?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPrice12x\":{request.RequestedCardPrice12x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"Status\":\"Approved\"}}", cancellationToken: cancellationToken);
 
+            var newValuesCoworking = $"{{\"CardPrice1x\":{request.RequestedCardPrice1x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPriceMonthly\":{request.RequestedCardPriceMonthly?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"CardPrice12x\":{request.RequestedCardPrice12x?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"},\"Status\":\"Approved\"}}";
+            await _auditService.LogActionAsync(userId, "CardPricesApproved", "Coworking", address.CoworkingId, "{\"Status\":\"Pending\"}", newValuesCoworking, cancellationToken: cancellationToken);
+
             var result = Ok(AdminResultMessages.CardPricesApprovedSuccess, address.CoworkingId);
             result.SuccessMessage = AdminResultMessages.PrecosNoCartaoAprovados;
             return result;
@@ -190,6 +193,9 @@ namespace KlyonHubPlatform.Application.Services
             await _auditService.LogActionAsync(userId, "CardPriceChangeRejected", "CardPriceChangeRequest", requestId,
                 $"{{\"Status\":\"Pending\"}}",
                 $"{{\"Status\":\"Rejected\",\"RejectionReason\":{System.Text.Json.JsonSerializer.Serialize(rejectionReason)}}}", cancellationToken: cancellationToken);
+
+            var rejectedNewValues = $"{{\"Status\":\"Rejected\",\"RejectionReason\":{System.Text.Json.JsonSerializer.Serialize(rejectionReason)}}}";
+            await _auditService.LogActionAsync(userId, "CardPricesRejected", "Coworking", address.CoworkingId, "{\"Status\":\"Pending\"}", rejectedNewValues, cancellationToken: cancellationToken);
 
             var resultReject = Ok(AdminResultMessages.CardPricesRejected, address.CoworkingId);
             resultReject.SuccessMessage = AdminResultMessages.PrecosNoCartaoReprovados;

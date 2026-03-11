@@ -488,7 +488,11 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!result.Success)
             {
                 TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
-                return result.RedirectToDashboard ? RedirectToAction(ActionNames.Dashboard) : RedirectToAction(ActionNames.Coworkings);
+                if (result.RedirectToDashboard)
+                    return RedirectToAction(ActionNames.Dashboard);
+                if (result.RedirectCoworkingId.HasValue)
+                    return RedirectToAction(ActionNames.ViewCoworking, new { id = result.RedirectCoworkingId.Value });
+                return RedirectToAction(ActionNames.Coworkings);
             }
             TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
             if (page.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(isPartner) || !string.IsNullOrEmpty(approvalStatus))

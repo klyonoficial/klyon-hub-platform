@@ -166,6 +166,25 @@ namespace KlyonHubPlatform.Application.Services
             _context.Users.Update(user);
         }
 
+        /// <inheritdoc />
+        public async Task<Dictionary<int, string>> GetCardPriceRejectionReasonsByAddressIdsAsync(IEnumerable<int> addressIds, CancellationToken cancellationToken = default)
+        {
+            var ids = addressIds.Distinct().ToList();
+            if (ids.Count == 0) return new Dictionary<int, string>();
+            var rejected = await _context.CardPriceChangeRequests
+                .Where(r => ids.Contains(r.CoworkingAddressId) && r.Status == CapacityApprovalStatus.Rejected && !string.IsNullOrEmpty(r.RejectionReason))
+                .OrderByDescending(r => r.ReviewedAt ?? r.UpdatedAt ?? r.CreatedAt)
+                .Select(r => new { r.CoworkingAddressId, r.RejectionReason })
+                .ToListAsync(cancellationToken);
+            var dict = new Dictionary<int, string>();
+            foreach (var r in rejected)
+            {
+                if (r.RejectionReason != null && !dict.ContainsKey(r.CoworkingAddressId))
+                    dict[r.CoworkingAddressId] = r.RejectionReason;
+            }
+            return dict;
+        }
+
         public async Task<(List<CoworkingAddress> Items, int TotalItems)> GetCoworkingAddressesPagedAsync(int coworkingId, string? search, string? status, int? locationId, int page, int pageSize, CancellationToken cancellationToken = default)
         {
             var query = _context.CoworkingAddresses
@@ -242,6 +261,15 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId, cancellationToken);
         }
 
+        public async Task<CoworkingAddress?> GetAddressWithLocationAndCapacityRequestsByAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CoworkingAddresses
+                .Include(a => a.Location)
+                .Include(a => a.CapacityChangeRequests)
+                .Include(a => a.Coworking)
+                .FirstOrDefaultAsync(a => a.Id == addressId, cancellationToken);
+        }
+
         public async Task<bool> HasActiveContractsForAddressAsync(int addressId, CancellationToken cancellationToken = default)
         {
             return await _context.Contracts
@@ -285,6 +313,15 @@ namespace KlyonHubPlatform.Application.Services
                 .Include(a => a.Location)
                 .Include(a => a.CardPriceChangeRequests)
                 .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId, cancellationToken);
+        }
+
+        public async Task<CoworkingAddress?> GetAddressWithCardPriceRequestsByAddressIdAsync(int addressId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CoworkingAddresses
+                .Include(a => a.Location)
+                .Include(a => a.CardPriceChangeRequests)
+                .Include(a => a.Coworking)
+                .FirstOrDefaultAsync(a => a.Id == addressId, cancellationToken);
         }
 
         public void AddCardPriceChangeRequest(CardPriceChangeRequest request)

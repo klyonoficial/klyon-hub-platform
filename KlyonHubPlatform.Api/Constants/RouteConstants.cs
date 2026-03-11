@@ -63,6 +63,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Coworkings = "Coworkings";
         public const string ViewCoworking = "ViewCoworking";
         public const string EditCoworking = "EditCoworking";
+        public const string EditAddress = "EditAddress";
         public const string ApproveCoworking = "ApproveCoworking";
         public const string RejectCoworking = "RejectCoworking";
         public const string CoworkingHistory = "CoworkingHistory";

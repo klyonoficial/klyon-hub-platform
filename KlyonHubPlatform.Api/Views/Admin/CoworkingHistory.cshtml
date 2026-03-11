@@ -22,8 +22,39 @@
             "ApprovalStatus" => "Status de Aprovação",
             "Reason" => "Motivo",
             "RejectionReason" => "Motivo da Rejeição",
+            "CardPrice1x" => "Venda à vista 1x (R$)",
+            "CardPriceMonthly" => "Venda mensal (R$)",
+            "CardPrice12x" => "Venda 12x (R$)",
+            "Status" => "Status",
+            "AddressId" => "ID do Endereço",
+            "LocationId" => "Localidade (ID)",
+            "Address" => "Endereço",
+            "Number" => "Número",
+            "Complement" => "Complemento",
+            "Neighborhood" => "Bairro",
+            "City" => "Cidade",
+            "State" => "Estado",
+            "ZipCode" => "CEP",
+            "BasePrice" => "Preço Base (R$)",
+            "MaxContracts" => "Máximo de contratos",
             _ => fieldName
         };
+    }
+    
+    // Formata valor do log para exibição (números com 2 casas decimais)
+    string FormatLogValue(System.Text.Json.JsonElement el)
+    {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.Number)
+        {
+            if (el.TryGetDecimal(out var d))
+                return d.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+            if (el.TryGetInt32(out var i))
+                return i.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+            return el.ToString();
+        }
+        if (el.ValueKind == System.Text.Json.JsonValueKind.String)
+            return el.GetString() ?? "";
+        return el.ToString();
     }
 }
 
@@ -83,8 +114,7 @@
                                                     <li><strong>Usuário:</strong> @log.User.FullName</li>
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
-                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString()) : FormatLogValue(p.Value);
                                                         <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
@@ -94,8 +124,7 @@
                                                 <ul class="list-unstyled mb-0">
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
-                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString()) : FormatLogValue(p.Value);
                                                         <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
@@ -129,8 +158,7 @@
                                                     <li><strong>Usuário:</strong> @log.User.FullName</li>
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
-                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString()) : FormatLogValue(p.Value);
                                                         <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
@@ -140,8 +168,7 @@
                                                 <ul class="list-unstyled mb-0">
                                                     @foreach (var p in j.RootElement.EnumerateObject())
                                                     {
-                                                        var value = p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString();
-                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(value) : value;
+                                                        var displayValue = p.Name == "ApprovalStatus" ? TranslateApprovalStatus(p.Value.ValueKind == System.Text.Json.JsonValueKind.String ? p.Value.GetString() : p.Value.ToString()) : FormatLogValue(p.Value);
                                                         <li><strong>@TranslateFieldName(p.Name):</strong> @displayValue</li>
                                                     }
                                                 </ul>
@@ -353,7 +380,14 @@
         };
         return translations[fieldName] || fieldName;
     }
-    
+
+    function formatValueForSummary(value) {
+        if (typeof value === 'number') {
+            return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return typeof value === 'string' ? value : JSON.stringify(value);
+    }
+
     function formatJsonForDisplay(obj, type) {
         let html = '<div class="json-display">';
         
@@ -364,6 +398,9 @@
                 return `<code>${escapeHtml(JSON.stringify(value, null, 2))}</code>`;
             } else if (Array.isArray(value)) {
                 return `<code>${escapeHtml(JSON.stringify(value, null, 2))}</code>`;
+            } else if (typeof value === 'number') {
+                const formatted = Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                return `<span class="json-value">${escapeHtml(formatted)}</span>`;
             } else if (typeof value === 'string') {
                 // Traduzir ApprovalStatus se for o campo
                 if (key === 'ApprovalStatus') {
@@ -415,34 +452,31 @@
             html += '<div class="list-group-item list-group-item-success"><strong><i class="bi bi-plus-circle"></i> Campos Adicionados:</strong><ul class="mb-0 mt-2">';
             added.forEach(item => {
                 const translatedKey = translateFieldName(item.key);
-                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(JSON.stringify(item.newValue))}</code></li>`;
+                const displayVal = item.key === 'ApprovalStatus' ? translateApprovalStatus(item.newValue) : formatValueForSummary(item.newValue);
+                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(displayVal)}</code></li>`;
             });
             html += '</ul></div>';
         }
-        
+
         if (removed.length > 0) {
             html += '<div class="list-group-item list-group-item-danger"><strong><i class="bi bi-dash-circle"></i> Campos Removidos:</strong><ul class="mb-0 mt-2">';
             removed.forEach(item => {
                 const translatedKey = translateFieldName(item.key);
-                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(JSON.stringify(item.oldValue))}</code></li>`;
+                const displayVal = item.key === 'ApprovalStatus' ? translateApprovalStatus(item.oldValue) : formatValueForSummary(item.oldValue);
+                html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <code>${escapeHtml(displayVal)}</code></li>`;
             });
             html += '</ul></div>';
         }
-        
+
         if (modified.length > 0) {
             html += '<div class="list-group-item list-group-item-warning"><strong><i class="bi bi-arrow-left-right"></i> Campos Modificados:</strong><ul class="mb-0 mt-2">';
             modified.forEach(item => {
                 const translatedKey = translateFieldName(item.key);
                 html += `<li><strong>${escapeHtml(translatedKey)}</strong>: <br>`;
-                // Traduzir ApprovalStatus
-                let oldValueDisplay = item.oldValue;
-                let newValueDisplay = item.newValue;
-                if (item.key === 'ApprovalStatus') {
-                    oldValueDisplay = translateApprovalStatus(item.oldValue);
-                    newValueDisplay = translateApprovalStatus(item.newValue);
-                }
-                html += `&nbsp;&nbsp;<span class="text-danger">Antes:</span> <code>${escapeHtml(JSON.stringify(oldValueDisplay))}</code><br>`;
-                html += `&nbsp;&nbsp;<span class="text-success">Depois:</span> <code>${escapeHtml(JSON.stringify(newValueDisplay))}</code></li>`;
+                let oldValueDisplay = item.key === 'ApprovalStatus' ? translateApprovalStatus(item.oldValue) : formatValueForSummary(item.oldValue);
+                let newValueDisplay = item.key === 'ApprovalStatus' ? translateApprovalStatus(item.newValue) : formatValueForSummary(item.newValue);
+                html += `&nbsp;&nbsp;<span class="text-danger">Antes:</span> <code>${escapeHtml(oldValueDisplay)}</code><br>`;
+                html += `&nbsp;&nbsp;<span class="text-success">Depois:</span> <code>${escapeHtml(newValueDisplay)}</code></li>`;
             });
             html += '</ul></div>';
         }

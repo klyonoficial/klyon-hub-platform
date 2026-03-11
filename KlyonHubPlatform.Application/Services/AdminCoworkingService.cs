@@ -70,6 +70,11 @@ namespace KlyonHubPlatform.Application.Services
             if (coworking == null)
                 return new AdminCommandResult { Success = false, ErrorMessage = AdminResultMessages.CoworkingNotFound, RedirectToDashboard = true };
 
+            var hasPendingCardPrices = await _context.CoworkingAddresses
+                .AnyAsync(a => a.CoworkingId == id && a.CardPricesApprovalStatus == CapacityApprovalStatus.Pending, cancellationToken);
+            if (hasPendingCardPrices)
+                return new AdminCommandResult { Success = false, ErrorMessage = AdminResultMessages.CoworkingCannotApproveWithPendingCardPrices, RedirectCoworkingId = id };
+
             var fiscalAddressService = await _context.Services
                 .FirstOrDefaultAsync(s => s.Code == FiscalAddressOffer && s.IsActive, cancellationToken);
             if (fiscalAddressService != null)

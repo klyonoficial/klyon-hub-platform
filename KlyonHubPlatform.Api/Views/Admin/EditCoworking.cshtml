@@ -228,7 +228,7 @@
             <!-- Endereços Cadastrados (somente visualização) -->
             <div class="card mb-3" id="enderecos">
                 <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecosBody" aria-expanded="false" aria-controls="enderecosBody">
-                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços Cadastrados (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
+                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço Fiscal (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
                 </div>
                 <div class="card-body collapse" id="enderecosBody">
                     @if (Model.Addresses != null && Model.Addresses.Any())
@@ -243,6 +243,7 @@
                                         <th>Status</th>
                                         <th>Disponível</th>
                                         <th>Contratos</th>
+                                        <th>Definir preços</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -274,6 +275,9 @@
                                             data-offersprivateroom="@(address.OffersPrivateRoom ? "Sim" : "Não")"
                                             data-privateroomprice="@(address.PrivateRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-privateroommaxseats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-cardprice1x="@(address.CardPrice1x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-cardpricemonthly="@(address.CardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
+                                            data-cardprice12x="@(address.CardPrice12x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-createdat="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
                                             data-updatedat="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)">
                                             <td>@address.Address, @address.Number</td>
@@ -288,13 +292,17 @@
                                                 </span>
                                             </td>
                                             <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                            <td onclick="event.stopPropagation();">
+                                                <a href="@Url.Action(ActionNames.EditAddress, ControllerNames.Coworking, new { id = address.Id })" class="btn btn-sm btn-outline-primary me-1" title="Preço Base (R$)">Preço base</a>
+                                                <a href="@Url.Action(ActionNames.CardPrices, ControllerNames.Coworking, new { id = address.Id })" class="btn btn-sm btn-outline-info" title="Valores para venda no cartão">Preços no cartão</a>
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                         </div>
                         <p class="text-muted small mt-2">
-                            <i class="bi bi-info-circle"></i> Para gerenciar endereços, utilize a tela de visualização.
+                            <i class="bi bi-info-circle"></i> Para gerenciar endereços, utilize a tela de visualização. Use <strong>Preço base</strong> para definir o preço base (R$) do endereço e <strong>Preços no cartão</strong> para definir venda à vista (1x), mensal e em 12 vezes.
                         </p>
                     }
                     else
@@ -407,6 +415,9 @@
                 { label: 'Estado', value: val('state') },
                 { label: 'CEP', value: val('zipcode') },
                 { label: 'Preço base', value: val('baseprice') === '—' ? '—' : 'R$ ' + parseFloat(val('baseprice')).toFixed(2).replace('.', ',') },
+                { label: 'Venda à vista (1x no cartão)', value: val('cardprice1x') === '—' ? '—' : 'R$ ' + parseFloat(val('cardprice1x')).toFixed(2).replace('.', ',') },
+                { label: 'Venda mensal (cartão)', value: val('cardpricemonthly') === '—' ? '—' : 'R$ ' + parseFloat(val('cardpricemonthly')).toFixed(2).replace('.', ',') },
+                { label: 'Venda em 12 vezes (por parcela)', value: val('cardprice12x') === '—' ? '—' : 'R$ ' + parseFloat(val('cardprice12x')).toFixed(2).replace('.', ',') },
                 { label: 'Disponível', value: val('isavailable') },
                 { label: 'Status do endereço', value: val('addressstatus') },
                 { label: 'Contratos', value: val('currentcontracts') + ' / ' + val('maxcontracts') },

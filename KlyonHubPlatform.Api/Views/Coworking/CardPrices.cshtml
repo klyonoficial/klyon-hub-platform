@@ -4,6 +4,12 @@
     Layout = LayoutPaths.Layout;
     var pendingRequest = Model?.CardPriceChangeRequests?.FirstOrDefault(r => r.Status == CapacityApprovalStatus.Pending);
     var hasPendingRequest = pendingRequest != null;
+    var rejectedRequest = Model?.CardPriceChangeRequests?
+        .Where(r => r.Status == CapacityApprovalStatus.Rejected && !string.IsNullOrEmpty(r.RejectionReason))
+        .OrderByDescending(r => r.ReviewedAt ?? r.UpdatedAt ?? r.CreatedAt)
+        .FirstOrDefault();
+    var isCardPricesRejected = Model?.CardPricesApprovalStatus == CapacityApprovalStatus.Rejected;
+    var hasRejectedWithReason = rejectedRequest != null && isCardPricesRejected;
 }
 
 @model KlyonHubPlatform.Domain.Entities.CoworkingAddress
@@ -26,6 +32,14 @@
     </a>
 </div>
 
+@if (hasRejectedWithReason)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-x-circle-fill"></i> <strong>Preços no cartão reprovados:</strong> Sua última solicitação de alteração foi reprovada pelo administrador.
+        <p class="mb-0 mt-2"><strong>Motivo da reprovação:</strong> @rejectedRequest!.RejectionReason</p>
+        <p class="mb-0 mt-1 small">Ajuste os valores conforme o feedback e envie novamente para aprovação.</p>
+    </div>
+}
 @if (hasPendingRequest)
 {
     <div class="alert alert-warning">
