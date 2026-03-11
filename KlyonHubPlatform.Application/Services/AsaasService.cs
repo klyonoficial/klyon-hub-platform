@@ -566,6 +566,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             return new OrderResponse { Id = chargeId, Status = "CANCELLED" };
         }
+        /// <summary>Valida o webhook Asaas. O Asaas envia o token configurado no header asaas-access-token (em claro). Comparamos o header com o token armazenado.</summary>
         public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
         {
             var token = await _systemConfig.GetValueAsync(AsaasConfigKey.WebhookToken.ToConfigKey());
@@ -575,12 +576,11 @@ namespace KlyonHubPlatform.Application.Services
                 return true;
             }
             if (string.IsNullOrEmpty(signature))
-                return true;
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var dataToHash = $"{token}-{payload}";
-            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(dataToHash));
-            var computed = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-            return string.Equals(computed, signature, StringComparison.OrdinalIgnoreCase);
+            {
+                _logger.LogWarning("Webhook Asaas sem header asaas-access-token.");
+                return false;
+            }
+            return string.Equals(signature.Trim(), token.Trim(), StringComparison.Ordinal);
         }
         public async Task<PixTransferResult> CreatePixTransferAsync(string referenceId, decimal amount, string pixKey, string pixKeyType, string receiverName, string? description = null)
         {
