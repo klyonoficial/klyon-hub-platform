@@ -154,18 +154,30 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
         }
-        public async Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method)
+        public async Task<Payment> CreatePaymentAsync(int? subscriptionId, decimal amount, PaymentMethod method)
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
-            if (subscription == null)
-                throw new InvalidOperationException("Assinatura não encontrada");
+            DateTime dueDate;
+            if (subscriptionId.HasValue)
+            {
+                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId.Value);
+                if (subscription == null)
+                    throw new InvalidOperationException("Assinatura não encontrada");
+                dueDate = subscription.NextBillingDate;
+            }
+            else
+            {
+                // PIX sem recorrência (ou outro fluxo sem assinatura): vencimento padrão
+                dueDate = method == PaymentMethod.PIX
+                    ? DateTime.UtcNow.AddHours(24)
+                    : DateTime.UtcNow.AddDays(1);
+            }
             var payment = new Payment
             {
                 SubscriptionId = subscriptionId,
                 Amount = amount,
                 Method = method,
                 Status = PaymentStatus.Pending,
-                DueDate = subscription.NextBillingDate,
+                DueDate = dueDate,
                 ExternalPaymentId = Guid.NewGuid().ToString()
             };
             if (method == PaymentMethod.PIX)
@@ -200,7 +212,10 @@ namespace KlyonHubPlatform.Application.Services
                         if (subscription != null)
                         {
                             subscription.LastBillingDate = DateTime.UtcNow;
-                            subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
+                            var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x
+                                ? subscription.LastBillingDate.Value.AddYears(1)
+                                : subscription.LastBillingDate.Value.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
                             if (subscription.Status == SubscriptionStatus.PastDue)
                             {
@@ -861,8 +876,8 @@ namespace KlyonHubPlatform.Application.Services
                             subscription.LastBillingDate = DateTime.UtcNow;
                             var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
                             subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x
-                                ? subscription.NextBillingDate.AddYears(1)
-                                : subscription.NextBillingDate.AddMonths(1);
+                                ? subscription.LastBillingDate.Value.AddYears(1)
+                                : subscription.LastBillingDate.Value.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
                             if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
                             {

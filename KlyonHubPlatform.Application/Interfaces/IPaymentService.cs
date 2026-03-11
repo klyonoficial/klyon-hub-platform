@@ -5,7 +5,8 @@ namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IPaymentService
     {
-        Task<Payment> CreatePaymentAsync(int subscriptionId, decimal amount, PaymentMethod method);
+        /// <summary>Cria um pagamento. Para PIX sem recorrência, subscriptionId pode ser null.</summary>
+        Task<Payment> CreatePaymentAsync(int? subscriptionId, decimal amount, PaymentMethod method);
         Task<Payment> ProcessPaymentAsync(int paymentId);
         Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
