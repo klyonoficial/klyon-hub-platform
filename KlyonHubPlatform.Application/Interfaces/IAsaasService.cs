@@ -18,6 +18,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<string> GetOrCreateAsaasCustomerIdAsync(string clientName, string clientEmail, string clientTaxId, string? clientPhone, PagBankAddress? clientAddress, string externalReference);
         /// <summary>Tokeniza um cartão no Asaas para cobranças com cartão salvo. Retorna o token ou null em caso de erro.</summary>
         Task<string?> TokenizeCreditCardAsync(string asaasCustomerId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string email, string cpfCnpj, string postalCode, string addressNumber, string? phone, string remoteIp);
+        /// <param name="customerExternalReference">Referência estável do cliente no Asaas (ex: "client_8"). Quando informada, reutiliza o mesmo cadastro para todas as cobranças desse cliente. Se omitida, usa referenceId (pode criar duplicatas).</param>
         Task<OrderResponse> CreateOrderAsync(
             string referenceId,
             decimal amount,
@@ -30,7 +31,9 @@ namespace KlyonHubPlatform.Application.Interfaces
             int? installments = null,
             PagBankAddress? clientAddress = null,
             string? creditCardToken = null,
-            string? asaasCustomerIdForToken = null);
+            string? asaasCustomerIdForToken = null,
+            string? remoteIp = null,
+            string? customerExternalReference = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
         Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null);
         Task<bool> ValidateWebhookSignatureAsync(string payload, string signature);

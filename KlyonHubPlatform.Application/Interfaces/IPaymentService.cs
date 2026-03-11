@@ -12,9 +12,9 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method);
         Task<string> GeneratePixCodeAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
-        Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null);
+        Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null);
         /// <summary>Cobra o pagamento usando um cartão já tokenizado (AsaasToken).</summary>
-        Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null);
+        Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null);
         Task<List<Payment>> GetPendingPaymentsAsync();
         Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId);
         Task<Payment?> GetPaymentByIdAsync(int paymentId);

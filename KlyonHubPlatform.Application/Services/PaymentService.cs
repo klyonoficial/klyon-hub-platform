@@ -49,6 +49,44 @@ namespace KlyonHubPlatform.Application.Services
             _auditService = auditService;
             _httpContextAccessor = httpContextAccessor;
         }
+
+        /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
+        private static DateTime GetBrazilianTime()
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+                return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            }
+            catch
+            {
+                return DateTime.UtcNow.AddHours(-3);
+            }
+        }
+
+        /// <summary>Converte um DateTime (assumido UTC) para horário de Brasília.</summary>
+        private static DateTime ToBrazilianTime(DateTime utcDateTime)
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+                var utc = utcDateTime.Kind == DateTimeKind.Utc ? utcDateTime : DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+                return TimeZoneInfo.ConvertTimeFromUtc(utc, tz);
+            }
+            catch
+            {
+                return utcDateTime.AddHours(-3);
+            }
+        }
+
+        /// <summary>Garante que PaidAt tenha data e hora em horário de Brasília. Se o valor vier só com data (00:00:00), usa a hora atual de Brasília.</summary>
+        private static DateTime EnsurePaidAtWithTime(DateTime dateTime)
+        {
+            if (dateTime.TimeOfDay == TimeSpan.Zero)
+                return dateTime.Date.Add(GetBrazilianTime().TimeOfDay);
+            return ToBrazilianTime(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc));
+        }
+
         private async Task LogAuditAsync(int? userId, string action, string entityType, int? entityId, object? oldValues = null, object? newValues = null)
         {
             if (_auditService == null) return;
@@ -152,7 +190,7 @@ namespace KlyonHubPlatform.Application.Services
                     _context.Payments.Update(payment);
                     await Task.Delay(1000);
                     payment.Status = PaymentStatus.Paid;
-                    payment.PaidAt = DateTime.UtcNow;
+                    payment.PaidAt = GetBrazilianTime();
                     payment.TransactionId = Guid.NewGuid().ToString();
                     payment.UpdatedAt = DateTime.UtcNow;
                     _context.Payments.Update(payment);
@@ -266,7 +304,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             if (status == PaymentStatus.Paid)
             {
-                payment.PaidAt = DateTime.UtcNow;
+                payment.PaidAt = GetBrazilianTime();
             }
             return await _paymentRepository.UpdateAsync(payment);
         }
@@ -339,6 +377,41 @@ namespace KlyonHubPlatform.Application.Services
             var validation = _asaasService.ValidateCustomerDataForPayment(clientName, clientEmail, clientTaxId, clientPhone, payment.Amount);
             if (!validation.IsValid)
                 throw new InvalidOperationException(validation.Message);
+            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
+            {
+                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+            }
+            var street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado);
+            var number = "S/N";
+            var locality = DefaultDisplayStrings.NaoInformado;
+            var city = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado);
+            var regionCode = "SP";
+            if (!string.IsNullOrWhiteSpace(client.State))
+            {
+                var stateTemp = client.State.Trim().ToUpper();
+                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
+                    regionCode = stateTemp.Substring(0, 2);
+            }
+            var postalCode = "00000000";
+            if (!string.IsNullOrWhiteSpace(client.ZipCode))
+            {
+                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                if (postalCodeTemp.Length >= 8 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp.Length > 8 ? postalCodeTemp.Substring(0, 8) : postalCodeTemp;
+                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
+                    postalCode = postalCodeTemp.PadLeft(8, '0');
+            }
+            var clientAddress = new PagBankAddress
+            {
+                Street = street,
+                Number = number,
+                Complement = null,
+                Locality = locality,
+                City = city,
+                RegionCode = regionCode,
+                Country = "BRA",
+                PostalCode = postalCode
+            };
             var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,
@@ -346,7 +419,9 @@ namespace KlyonHubPlatform.Application.Services
                 clientName: clientName,
                 clientEmail: clientEmail,
                 clientTaxId: clientTaxId,
-                clientPhone: clientPhone
+                clientPhone: clientPhone,
+                clientAddress: clientAddress,
+                customerExternalReference: "client_" + client.Id
             );
             payment.ExternalPaymentId = orderResponse.Id;
             if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
@@ -463,7 +538,8 @@ namespace KlyonHubPlatform.Application.Services
                 clientEmail: clientEmail,
                 clientTaxId: clientTaxId,
                 clientPhone: clientPhone,
-                clientAddress: clientAddress
+                clientAddress: clientAddress,
+                customerExternalReference: "client_" + client.Id
             );
             payment.ExternalPaymentId = orderResponse.Id;
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
@@ -479,7 +555,7 @@ namespace KlyonHubPlatform.Application.Services
             await _paymentRepository.UpdateAsync(payment);
             return payment.BoletoCode ?? payment.BoletoBarcode ?? "";
         }
-        public async Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null)
+        public async Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
@@ -577,7 +653,8 @@ namespace KlyonHubPlatform.Application.Services
                 clientPhone: clientPhone,
                 card: card,
                 installments: installments,
-                clientAddress: clientAddress
+                clientAddress: clientAddress,
+                remoteIp: remoteIp
             );
             payment.ExternalPaymentId = orderResponse.Id;
             payment.Status = PaymentStatus.Processing;
@@ -592,7 +669,7 @@ namespace KlyonHubPlatform.Application.Services
                                  PaymentStatus.Processing;
                 if (charge.PaidAt.HasValue)
                 {
-                    payment.PaidAt = charge.PaidAt.Value;
+                    payment.PaidAt = EnsurePaidAtWithTime(charge.PaidAt.Value);
                 }
                 if (charge.PaymentMethod?.Card != null)
                 {
@@ -607,7 +684,7 @@ namespace KlyonHubPlatform.Application.Services
             return payment;
         }
 
-        public async Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null)
+        public async Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
@@ -701,7 +778,8 @@ namespace KlyonHubPlatform.Application.Services
                 installments: inst,
                 clientAddress: clientAddress,
                 creditCardToken: card.AsaasToken,
-                asaasCustomerIdForToken: asaasCustomerId
+                asaasCustomerIdForToken: asaasCustomerId,
+                remoteIp: remoteIp
             );
             payment.ExternalPaymentId = orderResponse.Id;
             payment.Status = PaymentStatus.Processing;
@@ -714,7 +792,7 @@ namespace KlyonHubPlatform.Application.Services
                                  charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed :
                                  PaymentStatus.Processing;
                 if (charge.PaidAt.HasValue)
-                    payment.PaidAt = charge.PaidAt.Value;
+                    payment.PaidAt = EnsurePaidAtWithTime(charge.PaidAt.Value);
                 if (charge.PaymentMethod?.Card != null)
                     payment.TransactionId = charge.Id;
             }
@@ -748,7 +826,7 @@ namespace KlyonHubPlatform.Application.Services
                     var oldPaidAt = payment.PaidAt;
                     var oldTransactionId = payment.TransactionId;
                     payment.Status = PaymentStatus.Paid;
-                    payment.PaidAt = DateTime.UtcNow;
+                    payment.PaidAt = GetBrazilianTime();
                     if (!string.IsNullOrEmpty(transactionId))
                     {
                         payment.TransactionId = transactionId;

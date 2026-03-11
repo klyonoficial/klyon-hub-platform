@@ -934,10 +934,11 @@
                 <div id="payModalSavedCardsSection" class="mb-3 d-none">
                     <label class="form-label">Selecione o cartão:</label>
                     <div id="payModalSavedCardsList" class="list-group"></div>
-                    <p class="text-muted small mt-2 mb-0">O pagamento será processado com o cartão escolhido (token salvo).</p>
+                    <p id="payModalSavedCardConfirmMsg" class="text-muted small mt-2 mb-0 d-none">O pagamento será processado com o cartão escolhido (token salvo).</p>
                 </div>
+                <div id="payModalRevalidateMsg" class="alert alert-warning py-2 mb-2 d-none">Este cartão precisa ser revalidado. Informe o número e o CVV abaixo.</div>
                 <div id="payModalNewCardSection">
-                    <p class="text-muted small mb-2">Preencha os dados do novo cartão. Opcionalmente você pode salvar para usar depois.</p>
+                    <p id="payModalNewCardIntro" class="text-muted small mb-2">Preencha os dados do novo cartão. Opcionalmente você pode salvar para usar depois.</p>
                     <form id="payWithCardForm">
                         <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
                         <div class="mb-3">
@@ -1392,13 +1393,18 @@
                                 radio.name = 'payModalSavedCardId';
                                 radio.value = id;
                                 radio.className = 'form-check-input me-2';
+                                radio.dataset.hasToken = c.hasToken ? '1' : '0';
                                 if (id === (defaultCard.id || defaultCard.Id)) radio.checked = true;
                                 item.appendChild(radio);
                                 var text = document.createElement('span');
                                 var displayName = (c.nickname && c.nickname.trim()) ? (c.nickname.trim() + ' — ' + (c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || '')) : ((c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || ''));
+                                if (!c.hasToken) displayName += ' <span class="badge bg-warning text-dark ms-1">Revalidar</span>';
                                 text.innerHTML = displayName + (c.isDefault ? ' <span class="badge bg-primary ms-1">Padrão</span>' : '');
                                 item.appendChild(text);
-                                item.addEventListener('click', function() { radio.checked = true; });
+                                item.addEventListener('click', function() {
+                                    radio.checked = true;
+                                    if (typeof updateModalSavedVsNewCardVisibility === 'function') updateModalSavedVsNewCardVisibility();
+                                });
                                 listSaved.appendChild(item);
                             });
                         }
@@ -1421,23 +1427,61 @@
                     var saveCheck = document.getElementById('payModalSaveCard');
                     var defaultWrap = document.getElementById('payModalSetDefaultWrap');
                     if (saveCheck && defaultWrap) defaultWrap.style.display = saveCheck.checked ? 'block' : 'none';
+                    if (typeof updateModalSavedVsNewCardVisibility === 'function') updateModalSavedVsNewCardVisibility();
                 };
                 modalElement.addEventListener('show.bs.modal', attachPayWithCardModalOnShow._handler);
             }
             window.attachPayWithCardModalOnShow = attachPayWithCardModalOnShow;
             if (modalEl) attachPayWithCardModalOnShow(modalEl);
+            function updateModalSavedVsNewCardVisibility() {
+                var sectionSaved = document.getElementById('payModalSavedCardsSection');
+                var sectionNew = document.getElementById('payModalNewCardSection');
+                var payModalRevalidateMsg = document.getElementById('payModalRevalidateMsg');
+                var savedCardConfirmMsg = document.getElementById('payModalSavedCardConfirmMsg');
+                var newCardIntro = document.getElementById('payModalNewCardIntro');
+                if (!sectionSaved || !sectionNew) return;
+                var useSaved = document.getElementById('payModalOptionSaved')?.checked;
+                if (!useSaved) {
+                    sectionSaved.classList.add('d-none');
+                    sectionNew.classList.remove('d-none');
+                    if (payModalRevalidateMsg) payModalRevalidateMsg.classList.add('d-none');
+                    if (savedCardConfirmMsg) savedCardConfirmMsg.classList.add('d-none');
+                    if (newCardIntro) newCardIntro.classList.remove('d-none');
+                    return;
+                }
+                sectionSaved.classList.remove('d-none');
+                if (savedCardConfirmMsg) savedCardConfirmMsg.classList.add('d-none');
+                var savedRadio = document.querySelector('input[name="payModalSavedCardId"]:checked');
+                var needsRevalidate = savedRadio && savedRadio.dataset.hasToken === '0';
+                if (needsRevalidate) {
+                    sectionNew.classList.remove('d-none');
+                    if (payModalRevalidateMsg) payModalRevalidateMsg.classList.remove('d-none');
+                    if (newCardIntro) newCardIntro.classList.add('d-none');
+                    var cardsEl = document.getElementById('paymentDetailsCreditCards');
+                    var cards = [];
+                    if (cardsEl && cardsEl.textContent) { try { cards = JSON.parse(cardsEl.textContent.trim()); } catch (e) { } }
+                    var cardId = savedRadio ? parseInt(savedRadio.value, 10) : 0;
+                    var card = cards.find(function(c) { return (c.id || c.Id) === cardId; });
+                    if (card) {
+                        var payHolder = document.getElementById('payCardHolderName');
+                        var payMonth = document.getElementById('payCardExpiryMonth');
+                        var payYear = document.getElementById('payCardExpiryYear');
+                        if (payHolder && card.cardHolderName) payHolder.value = card.cardHolderName;
+                        if (payMonth && card.expiryMonth) payMonth.value = card.expiryMonth;
+                        if (payYear && card.expiryYear) payYear.value = card.expiryYear.length === 4 ? card.expiryYear : (card.expiryYear.length === 2 ? '20' + card.expiryYear : card.expiryYear);
+                    }
+                } else {
+                    sectionNew.classList.add('d-none');
+                    if (payModalRevalidateMsg) payModalRevalidateMsg.classList.add('d-none');
+                    if (newCardIntro) newCardIntro.classList.add('d-none');
+                }
+            }
             document.body.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'payModalOption') {
-                    var sectionSaved = document.getElementById('payModalSavedCardsSection');
-                    var sectionNew = document.getElementById('payModalNewCardSection');
-                    if (!sectionSaved || !sectionNew) return;
-                    if (document.getElementById('payModalOptionSaved')?.checked) {
-                        sectionSaved.classList.remove('d-none');
-                        sectionNew.classList.add('d-none');
-                    } else {
-                        sectionSaved.classList.add('d-none');
-                        sectionNew.classList.remove('d-none');
-                    }
+                    updateModalSavedVsNewCardVisibility();
+                }
+                if (e.target && e.target.name === 'payModalSavedCardId') {
+                    updateModalSavedVsNewCardVisibility();
                 }
                 if (e.target && e.target.id === 'payModalSaveCard') {
                     var wrap = document.getElementById('payModalSetDefaultWrap');
@@ -1526,6 +1570,54 @@
                     return;
                 }
                 payload.creditCardId = parseInt(savedRadio.value, 10);
+                var needsRevalidate = savedRadio.dataset.hasToken === '0';
+                if (needsRevalidate) {
+                    var form = document.getElementById('payWithCardForm');
+                    var numEl = document.getElementById('payCardNumber');
+                    var nameEl = document.getElementById('payCardHolderName');
+                    var monthEl = document.getElementById('payCardExpiryMonth');
+                    var yearEl = document.getElementById('payCardExpiryYear');
+                    var cvvEl = document.getElementById('payCardCvv');
+                    if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl) return;
+                    var number = (numEl.value || '').replace(/\s/g, '');
+                    var holderName = (nameEl.value || '').trim();
+                    var expMonth = monthEl.value;
+                    var expYear = yearEl.value;
+                    var securityCode = (cvvEl.value || '').trim();
+                    if (number.length < 13 || number.length > 19) {
+                        errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
+                        errEl.classList.remove('d-none');
+                        errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        return;
+                    }
+                    if (!holderName || holderName.length < 2) {
+                        errEl.textContent = 'Nome no cartão é obrigatório (mínimo 2 caracteres).';
+                        errEl.classList.remove('d-none');
+                        errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        return;
+                    }
+                    if (!expMonth || !expYear) {
+                        errEl.textContent = 'Data de validade inválida. Selecione mês e ano.';
+                        errEl.classList.remove('d-none');
+                        errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        return;
+                    }
+                    if (securityCode.length < 3 || securityCode.length > 4) {
+                        errEl.textContent = 'CVV inválido. Informe 3 ou 4 dígitos.';
+                        errEl.classList.remove('d-none');
+                        errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        return;
+                    }
+                    var year = expYear.length === 2 ? '20' + expYear : expYear;
+                    payload.card = {
+                        number: number,
+                        expirationMonth: expMonth,
+                        expirationYear: year,
+                        securityCode: securityCode,
+                        holderName: holderName,
+                        nickname: null
+                    };
+                }
             } else {
                 var form = document.getElementById('payWithCardForm');
                 var numEl = document.getElementById('payCardNumber');

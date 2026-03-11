@@ -2195,7 +2195,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     catch (Exception exToken)
                     {
-                        _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. Cartão será salvo sem token. ClientId={ClientId}", client.Id);
+                        _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. ClientId={ClientId}", client.Id);
+                        TempData[ErrorMessages.TempDataKey] = exToken.Message;
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                     }
                 }
                 await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
@@ -2314,21 +2316,110 @@ namespace KlyonHubPlatform.Api.Controllers
                     await _context.SaveChangesAsync(cancellationToken);
                 }
                 const int installmentsForGateway = 1;
+                var remoteIpForPayment = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
                 if (request.CreditCardId.HasValue && request.CreditCardId.Value > 0)
                 {
                     var savedCard = await _clientAppService.GetCreditCardByIdAndClientIdAsync(request.CreditCardId.Value, client.Id, cancellationToken);
                     if (savedCard != null && !string.IsNullOrEmpty(savedCard.AsaasToken))
                     {
-                        var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway);
-                        if (savedCardResult.Status == PaymentStatus.Paid)
-                            return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
-                        if (savedCardResult.Status == PaymentStatus.Failed)
-                            return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
-                        return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                        try
+                        {
+                            var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpForPayment);
+                            if (savedCardResult.Status == PaymentStatus.Paid)
+                                return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                            if (savedCardResult.Status == PaymentStatus.Failed)
+                                return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
+                            return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                        }
+                        catch (Exception ex) when (ex.Message.Contains("CreditCardToken", StringComparison.OrdinalIgnoreCase) && (ex.Message.Contains("não encontrado", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("nao encontrado", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            var creditCardEntity = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == request.CreditCardId.Value && c.ClientId == client.Id, cancellationToken);
+                            if (creditCardEntity != null)
+                            {
+                                creditCardEntity.AsaasToken = null;
+                                await _context.SaveChangesAsync(cancellationToken);
+                                _logger.LogWarning("ProcessPaymentWithCard: token do cartão Id={CreditCardId} invalidado pelo Asaas. Token removido para revalidação.", request.CreditCardId.Value);
+                            }
+                            return Json(new { success = false, error = ErrorJson.CardTokenMissingUseForm });
+                        }
                     }
                     if (savedCard != null && string.IsNullOrEmpty(savedCard.AsaasToken))
                     {
-                        _logger.LogWarning("ProcessPaymentWithCard: cartão Id={CreditCardId} do cliente Id={ClientId} não possui AsaasToken. Solicitar dados no formulário.", request.CreditCardId.Value, client.Id);
+                        if (request.Card == null)
+                        {
+                            _logger.LogWarning("ProcessPaymentWithCard: cartão Id={CreditCardId} do cliente Id={ClientId} não possui AsaasToken. Solicitar dados no formulário.", request.CreditCardId.Value, client.Id);
+                            return Json(new { success = false, error = ErrorJson.CardTokenMissingUseForm });
+                        }
+                        var numberReval = (request.Card.Number ?? "").Replace(" ", "").Replace("-", "").Trim();
+                        var monthReval = (request.Card.ExpirationMonth ?? "").Trim();
+                        var yearReval = (request.Card.ExpirationYear ?? "").Trim();
+                        if (yearReval.Length == 2) yearReval = "20" + yearReval;
+                        var cvvReval = (request.Card.SecurityCode ?? "").Trim();
+                        var holderReval = (request.Card.HolderName ?? "").Trim();
+                        if (numberReval.Length < 13 || numberReval.Length > 19)
+                        {
+                            return Json(new { success = false, error = ErrorJson.CardNumberInvalid });
+                        }
+                        if (string.IsNullOrEmpty(monthReval) || string.IsNullOrEmpty(yearReval) || monthReval.Length > 2 || yearReval.Length != 4)
+                        {
+                            return Json(new { success = false, error = ErrorJson.ExpirationDateInvalid });
+                        }
+                        if (string.IsNullOrEmpty(cvvReval) || cvvReval.Length < 3)
+                        {
+                            return Json(new { success = false, error = ErrorJson.SecurityCodeInvalid });
+                        }
+                        if (string.IsNullOrEmpty(holderReval) || holderReval.Length < 2 || !holderReval.Any(char.IsLetter))
+                        {
+                            return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
+                        }
+                        var clientWithUserReval = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
+                        if (clientWithUserReval != null)
+                        {
+                            var clientNameReval = clientWithUserReval.RazaoSocial ?? clientWithUserReval.NomeFantasia ?? clientWithUserReval.ContactName ?? clientWithUserReval.User?.FullName ?? "";
+                            var clientEmailReval = clientWithUserReval.ContactEmail ?? clientWithUserReval.User?.Email ?? "";
+                            var clientTaxIdReval = (clientWithUserReval.CNPJ ?? clientWithUserReval.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                            var clientPhoneReval = clientWithUserReval.ContactPhone ?? clientWithUserReval.User?.Phone;
+                            var postalCodeReval = (clientWithUserReval.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                            if (postalCodeReval.Length > 8) postalCodeReval = postalCodeReval.Substring(0, 8);
+                            if (postalCodeReval.Length < 8 && postalCodeReval.All(char.IsDigit)) postalCodeReval = postalCodeReval.PadLeft(8, '0');
+                            var clientAddressReval = new Application.DTOs.PagBank.PagBankAddress
+                            {
+                                Street = clientWithUserReval.Address ?? "Não informado",
+                                Number = clientWithUserReval.AddressNumber ?? "S/N",
+                                Locality = "Não informado",
+                                City = clientWithUserReval.City ?? "Não informado",
+                                RegionCode = clientWithUserReval.State?.Length >= 2 ? clientWithUserReval.State.Substring(0, 2).ToUpperInvariant() : "ES",
+                                Country = "BRA",
+                                PostalCode = postalCodeReval
+                            };
+                            try
+                            {
+                                var asaasCustomerIdReval = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientNameReval, clientEmailReval, clientTaxIdReval, clientPhoneReval, clientAddressReval, "client_" + client.Id);
+                                var remoteIpReval = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                                var tokenReval = await _asaasService.TokenizeCreditCardAsync(asaasCustomerIdReval, numberReval, monthReval, yearReval, cvvReval, holderReval.Trim(), clientEmailReval, clientTaxIdReval, postalCodeReval, clientAddressReval.Number ?? "S/N", clientPhoneReval, remoteIpReval);
+                                if (!string.IsNullOrEmpty(tokenReval))
+                                {
+                                    var creditCardEntity = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == request.CreditCardId.Value && c.ClientId == client.Id, cancellationToken);
+                                    if (creditCardEntity != null)
+                                    {
+                                        creditCardEntity.AsaasToken = tokenReval;
+                                        await _context.SaveChangesAsync(cancellationToken);
+                                    }
+                                    var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpReval);
+                                    if (savedCardResult.Status == PaymentStatus.Paid)
+                                        return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                                    if (savedCardResult.Status == PaymentStatus.Failed)
+                                        return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
+                                    return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                                }
+                            }
+                            catch (Exception exToken)
+                            {
+                                _logger.LogWarning(exToken, "ProcessPaymentWithCard: revalidação de token para cartão Id={CreditCardId} falhou.", request.CreditCardId.Value);
+                                var revalError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
+                                return Json(new { success = false, error = revalError });
+                            }
+                        }
                         return Json(new { success = false, error = ErrorJson.CardTokenMissingUseForm });
                     }
                 }
@@ -2426,10 +2517,12 @@ namespace KlyonHubPlatform.Api.Controllers
                         catch (Exception exToken)
                         {
                             _logger.LogWarning(exToken, "Tokenização Asaas ao salvar cartão no pagamento falhou. ClientId={ClientId}", client.Id);
+                            var tokenError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
+                            return Json(new { success = false, error = tokenError });
                         }
                     }
                     await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
-                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway);
+                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway, remoteIpForPayment);
                     if (savedResult.Status == PaymentStatus.Paid)
                         return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
                     if (savedResult.Status == PaymentStatus.Failed)
@@ -2445,7 +2538,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     Holder = new Application.DTOs.PagBank.PagBankCardHolder { Name = holderName.ToUpper() },
                     Store = false
                 };
-                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installmentsForGateway);
+                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installmentsForGateway, remoteIpForPayment);
                 if (result.Status == PaymentStatus.Paid)
                 {
                     return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
@@ -2463,7 +2556,10 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao processar pagamento com cartão. PaymentId: {PaymentId}", request?.PaymentId);
-                return Json(new { success = false, error = ErrorJson.ErrorProcessingPayment });
+                var userMessage = ex is InvalidOperationException || (ex.Message?.Contains("recusad", StringComparison.OrdinalIgnoreCase) == true) || (ex.Message?.Contains("cartão", StringComparison.OrdinalIgnoreCase) == true) || (ex.Message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true)
+                    ? ex.Message
+                    : ErrorJson.ErrorProcessingPayment;
+                return Json(new { success = false, error = userMessage });
             }
         }
         [HttpGet]
@@ -2756,7 +2852,9 @@ namespace KlyonHubPlatform.Api.Controllers
                         clientName: clientName,
                         clientEmail: clientEmail,
                         clientTaxId: clientTaxId,
-                        clientPhone: clientPhone
+                        clientPhone: clientPhone,
+                        clientAddress: clientAddress,
+                        customerExternalReference: "client_" + client.Id
                     );
                     purchase.ExternalPaymentId = orderResponse.Id;
                     if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
@@ -2779,7 +2877,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         clientEmail: clientEmail,
                         clientTaxId: clientTaxId,
                         clientPhone: clientPhone,
-                        clientAddress: clientAddress
+                        clientAddress: clientAddress,
+                        customerExternalReference: "client_" + client.Id
                     );
                     purchase.ExternalPaymentId = orderResponse.Id;
                     if (orderResponse.Charges != null && orderResponse.Charges.Any())
@@ -2895,7 +2994,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     clientPhone: clientPhone,
                     card: request.Card,
                     installments: request.Installments,
-                    clientAddress: clientAddress
+                    clientAddress: clientAddress,
+                    remoteIp: HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1"
                 );
                 purchase.ExternalPaymentId = orderResponse.Id;
                 if (orderResponse.Charges != null && orderResponse.Charges.Any())

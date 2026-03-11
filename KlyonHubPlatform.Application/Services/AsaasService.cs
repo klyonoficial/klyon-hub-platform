@@ -285,7 +285,8 @@ namespace KlyonHubPlatform.Application.Services
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Tokenização de cartão Asaas: {StatusCode} - {Content}", response.StatusCode, content);
-                return null;
+                var errMsg = ParseAsaasError(content);
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(errMsg) ? "Cartão recusado na tokenização. Verifique os dados ou use outro cartão." : errMsg);
             }
             var tokenResponse = JsonSerializer.Deserialize<AsaasTokenizeCardResponse>(content, JsonOptions);
             return tokenResponse?.CreditCardToken;
@@ -303,7 +304,9 @@ namespace KlyonHubPlatform.Application.Services
             int? installments = null,
             PagBankAddress? clientAddress = null,
             string? creditCardToken = null,
-            string? asaasCustomerIdForToken = null)
+            string? asaasCustomerIdForToken = null,
+            string? remoteIp = null,
+            string? customerExternalReference = null)
         {
             var dueDate = method == PaymentMethod.BankTransfer
                 ? DateTime.UtcNow.AddDays(3).ToString("yyyy-MM-dd")
@@ -322,7 +325,7 @@ namespace KlyonHubPlatform.Application.Services
             if (!string.IsNullOrEmpty(creditCardToken) && !string.IsNullOrEmpty(asaasCustomerIdForToken))
                 customerId = asaasCustomerIdForToken;
             else
-                customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, referenceId);
+                customerId = await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, !string.IsNullOrWhiteSpace(customerExternalReference) ? customerExternalReference.Trim() : referenceId);
             var request = new AsaasPaymentRequest
             {
                 Customer = customerId,
@@ -344,6 +347,7 @@ namespace KlyonHubPlatform.Application.Services
                 request.BillingType = "CREDIT_CARD";
                 request.InstallmentCount = installments ?? 1;
                 request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
+                request.RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim();
                 if (!string.IsNullOrEmpty(creditCardToken))
                 {
                     request.CreditCardToken = creditCardToken;
@@ -468,6 +472,22 @@ namespace KlyonHubPlatform.Application.Services
             PagBankAddress? clientAddress,
             string? externalReference)
         {
+            if (!string.IsNullOrWhiteSpace(externalReference))
+            {
+                var listByRefReq = await CreateRequestAsync(HttpMethod.Get, $"/customers?externalReference={Uri.EscapeDataString(externalReference.Trim())}");
+                var listByRefRes = await _httpClient.SendAsync(listByRefReq);
+                if (listByRefRes.IsSuccessStatusCode)
+                {
+                    var listByRefContent = await listByRefRes.Content.ReadAsStringAsync();
+                    var listByRef = JsonSerializer.Deserialize<AsaasCustomerListResponse>(listByRefContent, JsonOptions);
+                    var existingByRef = listByRef?.Data?.FirstOrDefault();
+                    if (!string.IsNullOrEmpty(existingByRef?.Id))
+                    {
+                        _logger.LogInformation("Asaas cliente encontrado por externalReference: {CustomerId}", existingByRef.Id);
+                        return existingByRef.Id;
+                    }
+                }
+            }
             var phone = NormalizePhone(clientPhone);
             var customerPayload = new AsaasCustomerRequest
             {

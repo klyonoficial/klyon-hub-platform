@@ -2623,10 +2623,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.PendingPayments);
                 }
                 payment.Status = PaymentStatus.Paid;
-                payment.PaidAt = DateTime.UtcNow;
+                var validatedAtBr = DateTimeHelper.GetBrazilianTime();
+                payment.PaidAt = validatedAtBr;
                 payment.ValidatedBy = userId;
-                payment.ValidatedAt = DateTime.UtcNow;
-                payment.UpdatedAt = DateTime.UtcNow;
+                payment.ValidatedAt = validatedAtBr;
+                payment.UpdatedAt = validatedAtBr;
                 _coworkingAppService.DbContext.PaymentHistories.Add(new PaymentHistory
                 {
                     PaymentId = paymentId,
