@@ -428,7 +428,15 @@
                                                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
                                                         <div>
                                                             <i class="bi bi-credit-card-2-front"></i> 
-                                                            <strong>@card.Brand</strong> •••• @card.LastFourDigits
+                                                            @if (!string.IsNullOrWhiteSpace(card.Nickname))
+                                                            {
+                                                                <strong>@card.Nickname</strong>
+                                                                <span class="text-muted"> — @card.Brand •••• @card.LastFourDigits</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <strong>@card.Brand</strong> <span class="text-muted">•••• @card.LastFourDigits</span>
+                                                            }
                                                             <br>
                                                             <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
                                                         </div>
@@ -506,7 +514,7 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Instruções:</strong> Se você tiver um cartão cadastrado com pagamento rápido, selecione-o e clique em "Pagar com cartão" — a cobrança será enviada ao Asaas na hora, sem abrir o modal. Caso não tenha ou prefira usar outro cartão, o modal abrirá para preencher os dados. Seu contrato será ativado assim que o pagamento for aprovado.
+                            <strong>Instruções:</strong> Se você já tem um cartão cadastrado, selecione-o na lista acima e clique em "Pagar com cartão" — a cobrança será enviada na hora, sem abrir o modal. Se não tiver cartão cadastrado ou quiser usar outro, clique em "Pagar com cartão" e o modal abrirá para escolher um cartão ou cadastrar um novo. Seu contrato será ativado assim que o pagamento for aprovado.
                         </div>
 
                         <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
@@ -800,6 +808,12 @@
                         <input type="text" class="form-control" id="cardHolderName" name="cardHolderName" 
                                placeholder="NOME COMO ESTÁ NO CARTÃO" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="cardNickname" class="form-label">Apelido do cartão</label>
+                        <input type="text" class="form-control" id="cardNickname" name="nickname" 
+                               placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100">
+                        <small class="form-text text-muted">Opcional. Use para identificar este cartão nas listas.</small>
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="expiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
@@ -860,7 +874,9 @@
                 expiryYear = c.ExpiryYear ?? "",
                 lastFourDigits = c.LastFourDigits ?? "",
                 brand = c.Brand ?? "",
-                hasToken = !string.IsNullOrEmpty(c.AsaasToken)
+                nickname = string.IsNullOrWhiteSpace(c.Nickname) ? null : c.Nickname.Trim(),
+                hasToken = !string.IsNullOrEmpty(c.AsaasToken),
+                isDefault = c.IsDefault
             })
             .ToList();
         creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
@@ -876,68 +892,116 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small mb-3">Se você escolheu um cartão cadastrado, nome e validade já foram preenchidos — informe o número do cartão e o CVV para concluir. O pagamento será enviado ao Asaas e processado na hora.</p>
                 <div class="alert alert-light border mb-3 py-2" id="payWithCardAmountSummary">
                     <strong>Valor total:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
                     <br class="d-none" id="payWithCardPerInstallmentBr">
                     <strong class="d-none" id="payWithCardPerInstallmentLabel">Valor por parcela:</strong> <span class="d-none" id="payWithCardPerInstallmentDisplay"></span>
                 </div>
-                <form id="payWithCardForm">
-                    <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
-                    <div class="mb-3">
-                        <label for="payCardNumber" class="form-label">Número do cartão <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="payCardNumber" placeholder="0000 0000 0000 0000" maxlength="19" required>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Como deseja pagar?</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="payModalOption" id="payModalOptionSaved" value="saved">
+                        <label class="form-check-label" for="payModalOptionSaved">Usar um cartão já cadastrado</label>
                     </div>
-                    <div class="mb-3">
-                        <label for="payCardHolderName" class="form-label">Nome no cartão <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="payCardHolderName" placeholder="NOME COMO NO CARTÃO" required>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="payModalOption" id="payModalOptionNew" value="new" checked>
+                        <label class="form-check-label" for="payModalOptionNew">Adicionar e usar um novo cartão</label>
                     </div>
-                    <div class="row">
-                        <div class="col-6 mb-3">
-                            <label for="payCardExpiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
-                            <select class="form-select" id="payCardExpiryMonth" required>
-                                <option value="">MM</option>
+                </div>
+                <div id="payModalSavedCardsSection" class="mb-3 d-none">
+                    <label class="form-label">Selecione o cartão:</label>
+                    <div id="payModalSavedCardsList" class="list-group"></div>
+                    <p class="text-muted small mt-2 mb-0">O pagamento será processado com o cartão escolhido (token salvo).</p>
+                </div>
+                <div id="payModalNewCardSection">
+                    <p class="text-muted small mb-2">Preencha os dados do novo cartão. Opcionalmente você pode salvar para usar depois.</p>
+                    <form id="payWithCardForm">
+                        <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
+                        <div class="mb-3">
+                            <label for="payCardNumber" class="form-label">Número do cartão <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardNumber" placeholder="0000 0000 0000 0000" maxlength="19">
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardHolderName" class="form-label">Nome no cartão <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardHolderName" placeholder="NOME COMO NO CARTÃO">
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardNickname" class="form-label">Apelido do cartão</label>
+                            <input type="text" class="form-control" id="payCardNickname" placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100">
+                            <small class="form-text text-muted">Opcional. Aparece nas listas ao salvar.</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label for="payCardExpiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
+                                <select class="form-select" id="payCardExpiryMonth">
+                                    <option value="">MM</option>
+                                    @for (int i = 1; i <= 12; i++)
+                                    {
+                                        <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label for="payCardExpiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
+                                <select class="form-select" id="payCardExpiryYear">
+                                    <option value="">AAAA</option>
+                                    @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 15; y++)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardCvv" class="form-label">CVV <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardCvv" placeholder="123" maxlength="4">
+                            <small class="form-text text-muted">3 ou 4 dígitos no verso do cartão</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardInstallments" class="form-label">Parcelas</label>
+                            <select class="form-select" id="payCardInstallments">
                                 @for (int i = 1; i <= 12; i++)
                                 {
-                                    <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                    var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
+                                    @if (i == 1)
+                                    {
+                                        <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
+                                    }
                                 }
                             </select>
                         </div>
-                        <div class="col-6 mb-3">
-                            <label for="payCardExpiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
-                            <select class="form-select" id="payCardExpiryYear" required>
-                                <option value="">AAAA</option>
-                                @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 15; y++)
-                                {
-                                    <option value="@y">@y</option>
-                                }
-                            </select>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="payModalSaveCard" name="payModalSaveCard">
+                            <label class="form-check-label" for="payModalSaveCard">Salvar este cartão para usar em outros pagamentos</label>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="payCardCvv" class="form-label">CVV <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="payCardCvv" placeholder="123" maxlength="4" required>
-                        <small class="form-text text-muted">3 ou 4 dígitos no verso do cartão</small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="payCardInstallments" class="form-label">Parcelas</label>
-                        <select class="form-select" id="payCardInstallments">
-                            @for (int i = 1; i <= 12; i++)
+                        <div class="form-check mb-3" id="payModalSetDefaultWrap">
+                            <input class="form-check-input" type="checkbox" id="payModalSetDefault" name="payModalSetDefault">
+                            <label class="form-check-label" for="payModalSetDefault">Marcar como cartão padrão</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="mb-3" id="payModalInstallmentsForSaved">
+                    <label for="payCardInstallmentsSaved" class="form-label">Parcelas</label>
+                    <select class="form-select" id="payCardInstallmentsSaved">
+                        @for (int i = 1; i <= 12; i++)
+                        {
+                            var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
+                            @if (i == 1)
                             {
-                                var parcelValue = i == 1 ? totalAmountForCard : (totalAmountForCard / i);
-                                @if (i == 1)
-                                {
-                                    <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                                }
-                                else
-                                {
-                                    <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
-                                }
+                                <option value="@i" selected>@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
                             }
-                        </select>
-                    </div>
-                    <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
-                </form>
+                            else
+                            {
+                                <option value="@i">@i x R$ @parcelValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -998,6 +1062,32 @@
             showToast('Linha digitável copiada!', 'success', 3000);
         }
 
+        // Helper de loading: usa KlyonLoading do loading.js ou fallback pelo overlay (se o script não carregou)
+        function showPaymentLoading() {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                window.KlyonLoading.show();
+                return;
+            }
+            var el = document.getElementById('klyon-loading-overlay');
+            if (!el && document.body) {
+                el = document.createElement('div');
+                el.id = 'klyon-loading-overlay';
+                el.className = 'klyon-loading-overlay';
+                el.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.9);display:flex;justify-content:center;align-items:center;z-index:99999;';
+                el.innerHTML = '<div style="text-align:center"><div class="klyon-loading-spinner"></div><div class="klyon-loading-text">Carregando...</div></div>';
+                document.body.appendChild(el);
+            }
+            if (el) { el.style.display = 'flex'; el.classList.remove('hidden'); }
+        }
+        function hidePaymentLoading() {
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                window.KlyonLoading.hide();
+                return;
+            }
+            var el = document.getElementById('klyon-loading-overlay');
+            if (el) { el.style.display = 'none'; el.classList.add('hidden'); }
+        }
+
         window.updatePaymentMethod = async function(selectElement) {
             // Armazenar o valor anterior antes de mostrar o confirm
             const previousValue = selectElement.dataset.previousValue || selectElement.value;
@@ -1009,11 +1099,6 @@
             );
             
             if (confirmed) {
-                // Garantir que o loading seja exibido após a confirmação
-                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
-                    window.KlyonLoading.show();
-                }
-                
                 // Preparar dados do formulário (usar data-action-url para evitar action relativa após innerHTML)
                 const form = selectElement.form;
                 const formData = new FormData(form);
@@ -1028,8 +1113,8 @@
                     return;
                 }
                 
-                // Marcar como requisição AJAX manual
-                form.setAttribute('data-ajax-request', 'true');
+                // beforeSend: mostrar loading antes de enviar a requisição
+                showPaymentLoading();
                 
                 try {
                     const response = await fetch(actionUrl, {
@@ -1042,40 +1127,21 @@
                         redirect: 'manual'
                     });
                     
-                    // Esconder loading após receber resposta
-                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                        window.KlyonLoading.hide();
-                    }
-                    
-                    // Remover marcação
-                    form.removeAttribute('data-ajax-request');
-                    
                     if (response.ok || response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
-                        // Atualizar as seções dinamicamente
                         await updatePaymentMethodSections();
-                        
-                        // Salvar o valor atual como anterior
                         selectElement.dataset.previousValue = selectElement.value;
-                        
                         showToast('Método de pagamento atualizado com sucesso!', 'success');
                     } else {
-                        // Restaurar valor anterior em caso de erro
                         selectElement.value = previousValue;
                         showToast('Erro ao atualizar método de pagamento. Por favor, tente novamente.', 'error');
                     }
                 } catch (error) {
-                    // Esconder loading em caso de erro
-                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                        window.KlyonLoading.hide();
-                    }
-                    
-                    // Remover marcação
-                    form.removeAttribute('data-ajax-request');
-                    
-                    // Restaurar valor anterior
                     selectElement.value = previousValue;
                     showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
                     console.error('Erro:', error);
+                } finally {
+                    // complete: esconder o loading após terminar (sucesso ou erro)
+                    hidePaymentLoading();
                 }
             } else {
                 // Restaurar valor anterior sem recarregar a página
@@ -1231,8 +1297,11 @@
             }
 
             function updateInstallmentsDisplay() {
-                if (!selectEl || !totalAmount) return;
-                var n = parseInt(selectEl.value, 10) || 1;
+                if (!totalAmount) return;
+                var sel = selectEl || document.getElementById('payCardInstallments');
+                var n = sel ? (parseInt(sel.value, 10) || 1) : 1;
+                var savedSel = document.getElementById('payCardInstallmentsSaved');
+                if (savedSel) n = parseInt(savedSel.value, 10) || n;
                 if (totalDisplay) totalDisplay.textContent = formatBrl(totalAmount);
                 var perParcel = totalAmount / n;
                 if (n > 1 && perInstallmentBr && perInstallmentLabel && perInstallmentDisplay) {
@@ -1245,57 +1314,111 @@
                     perInstallmentLabel.classList.add('d-none');
                     perInstallmentDisplay.classList.add('d-none');
                 }
-                // Atualizar textos das options para refletir valor por parcela
-                for (var i = 0; i < selectEl.options.length; i++) {
-                    var opt = selectEl.options[i];
-                    var num = parseInt(opt.value, 10);
-                    var val = totalAmount / num;
-                    opt.textContent = num + ' x R$ ' + formatBrl(val);
-                }
+                [sel, savedSel].forEach(function(select) {
+                    if (!select) return;
+                    for (var i = 0; i < select.options.length; i++) {
+                        var opt = select.options[i];
+                        var num = parseInt(opt.value, 10);
+                        var val = totalAmount / num;
+                        opt.textContent = num + ' x R$ ' + formatBrl(val);
+                    }
+                });
             }
 
-            if (selectEl) {
-                selectEl.addEventListener('change', updateInstallmentsDisplay);
-            }
+            if (selectEl) selectEl.addEventListener('change', updateInstallmentsDisplay);
+            document.getElementById('payCardInstallmentsSaved')?.addEventListener('change', updateInstallmentsDisplay);
             if (modalEl) {
                 modalEl.addEventListener('show.bs.modal', function() {
                     totalAmount = parseFloat(modalEl.getAttribute('data-total-amount') || '0');
                     updateInstallmentsDisplay();
-                    // Preencher dados do cartão cadastrado selecionado (nome e validade; número completo e CVV não são armazenados por segurança)
                     var cardsEl = document.getElementById('paymentDetailsCreditCards');
                     var cards = [];
                     if (cardsEl && cardsEl.textContent) {
                         try { cards = JSON.parse(cardsEl.textContent.trim()); } catch (e) { cards = []; }
                     }
-                    var selectedRadio = document.querySelector('input[name="selectedCard"]:checked');
+                    var optSaved = document.getElementById('payModalOptionSaved');
+                    var optNew = document.getElementById('payModalOptionNew');
+                    var sectionSaved = document.getElementById('payModalSavedCardsSection');
+                    var sectionNew = document.getElementById('payModalNewCardSection');
+                    var sectionInstallmentsSaved = document.getElementById('payModalInstallmentsForSaved');
+                    var listSaved = document.getElementById('payModalSavedCardsList');
+                    if (cards.length > 0) {
+                        optSaved.parentElement.style.display = '';
+                        optSaved.checked = true;
+                        optNew.checked = false;
+                        if (sectionSaved) sectionSaved.classList.remove('d-none');
+                        if (sectionNew) sectionNew.classList.add('d-none');
+                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.remove('d-none');
+                        if (listSaved) {
+                            listSaved.innerHTML = '';
+                            var defaultCard = cards.find(function(c) { return c.isDefault; }) || cards[0];
+                            cards.forEach(function(c) {
+                                var id = c.id || c.Id;
+                                var item = document.createElement('label');
+                                item.className = 'list-group-item list-group-item-action d-flex align-items-center';
+                                item.style.cursor = 'pointer';
+                                var radio = document.createElement('input');
+                                radio.type = 'radio';
+                                radio.name = 'payModalSavedCardId';
+                                radio.value = id;
+                                radio.className = 'form-check-input me-2';
+                                if (id === (defaultCard.id || defaultCard.Id)) radio.checked = true;
+                                item.appendChild(radio);
+                                var text = document.createElement('span');
+                                var displayName = (c.nickname && c.nickname.trim()) ? (c.nickname.trim() + ' — ' + (c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || '')) : ((c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || ''));
+                                text.innerHTML = displayName + (c.isDefault ? ' <span class="badge bg-primary ms-1">Padrão</span>' : '');
+                                item.appendChild(text);
+                                item.addEventListener('click', function() { radio.checked = true; });
+                                listSaved.appendChild(item);
+                            });
+                        }
+                    } else {
+                        optSaved.parentElement.style.display = 'none';
+                        optNew.checked = true;
+                        if (sectionSaved) sectionSaved.classList.add('d-none');
+                        if (sectionNew) sectionNew.classList.remove('d-none');
+                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.add('d-none');
+                    }
                     var payHolder = document.getElementById('payCardHolderName');
                     var payMonth = document.getElementById('payCardExpiryMonth');
                     var payYear = document.getElementById('payCardExpiryYear');
                     var payNumber = document.getElementById('payCardNumber');
                     var payCvv = document.getElementById('payCardCvv');
-                    if (selectedRadio && cards.length && payHolder && payMonth && payYear) {
-                        var cardId = parseInt(selectedRadio.value, 10);
-                        var card = cards.find(function(c) { return (c.id || c.Id) === cardId; });
-                        if (card) {
-                            payHolder.value = (card.cardHolderName || card.CardHolderName || '').trim();
-                            var month = String(card.expiryMonth || card.ExpiryMonth || '').trim();
-                            payMonth.value = month.length === 1 ? '0' + month : month;
-                            var year = String(card.expiryYear || card.ExpiryYear || '').trim();
-                            payYear.value = (year.length === 2) ? ('20' + year) : year;
-                        } else {
-                            payHolder.value = '';
-                            payMonth.value = '';
-                            payYear.value = '';
-                        }
-                    } else {
-                        if (payHolder) payHolder.value = '';
-                        if (payMonth) payMonth.value = '';
-                        if (payYear) payYear.value = '';
-                    }
+                    if (payHolder) payHolder.value = '';
+                    if (payMonth) payMonth.value = '';
+                    if (payYear) payYear.value = '';
                     if (payNumber) payNumber.value = '';
                     if (payCvv) payCvv.value = '';
+                    var saveCheck = document.getElementById('payModalSaveCard');
+                    var defaultWrap = document.getElementById('payModalSetDefaultWrap');
+                    if (saveCheck && defaultWrap) defaultWrap.style.display = saveCheck.checked ? 'block' : 'none';
                 });
             }
+            document.body.addEventListener('change', function(e) {
+                if (e.target && e.target.name === 'payModalOption') {
+                    var sectionSaved = document.getElementById('payModalSavedCardsSection');
+                    var sectionNew = document.getElementById('payModalNewCardSection');
+                    var sectionInstallmentsSaved = document.getElementById('payModalInstallmentsForSaved');
+                    if (!sectionSaved || !sectionNew) return;
+                    if (document.getElementById('payModalOptionSaved')?.checked) {
+                        sectionSaved.classList.remove('d-none');
+                        sectionNew.classList.add('d-none');
+                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.remove('d-none');
+                    } else {
+                        sectionSaved.classList.add('d-none');
+                        sectionNew.classList.remove('d-none');
+                        if (sectionInstallmentsSaved) sectionInstallmentsSaved.classList.add('d-none');
+                    }
+                }
+                if (e.target && e.target.id === 'payModalSaveCard') {
+                    var wrap = document.getElementById('payModalSetDefaultWrap');
+                    if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+                    if (!e.target.checked) {
+                        var defChk = document.getElementById('payModalSetDefault');
+                        if (defChk) defChk.checked = false;
+                    }
+                }
+            });
             updateInstallmentsDisplay();
         })();
 
@@ -1377,87 +1500,90 @@
             var btn = e.target.closest('#payWithCardSubmitBtn');
             if (!btn) return;
             e.preventDefault();
-            var form = document.getElementById('payWithCardForm');
             var errEl = document.getElementById('payWithCardError');
-            if (!form || !errEl || !btn) return;
-            errEl.classList.add('d-none');
-            errEl.textContent = '';
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-            var numEl = document.getElementById('payCardNumber');
-            var nameEl = document.getElementById('payCardHolderName');
-            var monthEl = document.getElementById('payCardExpiryMonth');
-            var yearEl = document.getElementById('payCardExpiryYear');
-            var cvvEl = document.getElementById('payCardCvv');
-            var instEl = document.getElementById('payCardInstallments');
-            if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl || !instEl) return;
-            var number = (numEl.value || '').replace(/\s/g, '');
-            var holderName = (nameEl.value || '').trim();
-            var expMonth = monthEl.value;
-            var expYear = yearEl.value;
-            var securityCode = (cvvEl.value || '').trim();
-            var installments = parseInt(instEl.value, 10) || 1;
-            // Validação alinhada ao backend e ao teste Admin (campos obrigatórios e formato)
-            if (number.length < 13 || number.length > 19) {
-                errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (!holderName) {
-                errEl.textContent = 'Nome no cartão é obrigatório.';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (holderName.length < 2) {
-                errEl.textContent = 'Nome do portador inválido. Informe o nome como está no cartão (mínimo 2 caracteres).';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (!/[a-zA-Z\u00C0-\u024F]/.test(holderName)) {
-                errEl.textContent = 'Nome do portador inválido. O nome deve conter pelo menos uma letra (como no cartão).';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (!expMonth || !expYear) {
-                errEl.textContent = 'Data de validade inválida. Selecione mês e ano.';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (securityCode.length < 3 || securityCode.length > 4) {
-                errEl.textContent = 'CVV inválido. Informe 3 ou 4 dígitos do verso do cartão.';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
-            if (installments < 1 || installments > 12) {
-                errEl.textContent = 'Selecione entre 1 e 12 parcelas.';
-                errEl.classList.remove('d-none');
-                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                return;
-            }
             var paymentIdEl = document.getElementById('payWithCardPaymentId');
-            if (!paymentIdEl) return;
+            if (!errEl || !paymentIdEl) return;
             var paymentId = parseInt(paymentIdEl.value, 10);
             if (isNaN(paymentId) || paymentId <= 0) return;
-            var year = expYear.length === 2 ? '20' + expYear : expYear;
-            var payload = {
-                paymentId: paymentId,
-                card: {
+            errEl.classList.add('d-none');
+            errEl.textContent = '';
+
+            var useSaved = document.getElementById('payModalOptionSaved')?.checked;
+            var payload = { paymentId: paymentId, installments: 1 };
+
+            if (useSaved) {
+                var savedRadio = document.querySelector('input[name="payModalSavedCardId"]:checked');
+                var instSavedEl = document.getElementById('payCardInstallmentsSaved');
+                if (!savedRadio) {
+                    errEl.textContent = 'Selecione um cartão cadastrado.';
+                    errEl.classList.remove('d-none');
+                    return;
+                }
+                payload.creditCardId = parseInt(savedRadio.value, 10);
+                payload.installments = parseInt(instSavedEl?.value || '1', 10) || 1;
+            } else {
+                var form = document.getElementById('payWithCardForm');
+                var numEl = document.getElementById('payCardNumber');
+                var nameEl = document.getElementById('payCardHolderName');
+                var monthEl = document.getElementById('payCardExpiryMonth');
+                var yearEl = document.getElementById('payCardExpiryYear');
+                var cvvEl = document.getElementById('payCardCvv');
+                var instEl = document.getElementById('payCardInstallments');
+                if (!numEl || !nameEl || !monthEl || !yearEl || !cvvEl || !instEl) return;
+                var number = (numEl.value || '').replace(/\s/g, '');
+                var holderName = (nameEl.value || '').trim();
+                var expMonth = monthEl.value;
+                var expYear = yearEl.value;
+                var securityCode = (cvvEl.value || '').trim();
+                var installments = parseInt(instEl.value, 10) || 1;
+                if (number.length < 13 || number.length > 19) {
+                    errEl.textContent = 'Número do cartão inválido. Informe entre 13 e 19 dígitos.';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                if (!holderName || holderName.length < 2) {
+                    errEl.textContent = 'Nome no cartão é obrigatório (mínimo 2 caracteres).';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                if (!/[a-zA-Z\u00C0-\u024F]/.test(holderName)) {
+                    errEl.textContent = 'Nome do portador deve conter pelo menos uma letra.';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                if (!expMonth || !expYear) {
+                    errEl.textContent = 'Data de validade inválida. Selecione mês e ano.';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                if (securityCode.length < 3 || securityCode.length > 4) {
+                    errEl.textContent = 'CVV inválido. Informe 3 ou 4 dígitos.';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                if (installments < 1 || installments > 12) installments = 1;
+                var year = expYear.length === 2 ? '20' + expYear : expYear;
+                var nicknameEl = document.getElementById('payCardNickname');
+                payload.card = {
                     number: number,
                     expirationMonth: expMonth,
                     expirationYear: year,
                     securityCode: securityCode,
-                    holderName: holderName
-                },
-                installments: installments
-            };
+                    holderName: holderName,
+                    nickname: (nicknameEl && nicknameEl.value) ? nicknameEl.value.trim() : null
+                };
+                payload.installments = installments;
+                var saveCardChk = document.getElementById('payModalSaveCard');
+                var setDefaultChk = document.getElementById('payModalSetDefault');
+                payload.saveCard = !!(saveCardChk && saveCardChk.checked);
+                payload.setAsDefault = !!(setDefaultChk && setDefaultChk.checked);
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
             try {

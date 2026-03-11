@@ -2112,7 +2112,7 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddCreditCard(int paymentId, string cardNumber, string cardHolderName, 
-            string expiryMonth, string expiryYear, string cvv, string? isDefault, CancellationToken cancellationToken = default)
+            string expiryMonth, string expiryYear, string cvv, string? isDefault, string? nickname, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -2141,6 +2141,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (cleanCardNumber.StartsWith("60") || cleanCardNumber.StartsWith("65"))
                     brand = "Discover";
                 var setAsDefault = StringBooleanValue.IsTrue(isDefault);
+                var existingCardsCount = await _context.CreditCards.CountAsync(c => c.ClientId == client.Id && c.IsActive, cancellationToken);
+                if (existingCardsCount == 0)
+                    setAsDefault = true;
                 if (setAsDefault)
                 {
                     await _clientAppService.ClearDefaultCreditCardsAsync(client.Id, cancellationToken);
@@ -2153,6 +2156,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     ExpiryMonth = expiryMonth,
                     ExpiryYear = expiryYear,
                     Brand = brand,
+                    Nickname = string.IsNullOrWhiteSpace(nickname) ? null : (nickname.Trim().Length > 100 ? nickname.Trim().Substring(0, 100) : nickname.Trim()),
                     IsDefault = setAsDefault,
                     IsActive = true
                 };
@@ -2334,6 +2338,79 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
                 }
+                var installments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
+                    ? request.Installments.Value
+                    : (int?)1;
+
+                if (request.SaveCard)
+                {
+                    var lastFourDigits = number.Substring(number.Length - 4);
+                    var brand = "Cartão";
+                    var firstDigit = number[0];
+                    if (firstDigit == '4') brand = "Visa";
+                    else if (firstDigit == '5' || firstDigit == '2') brand = "Mastercard";
+                    else if (number.StartsWith("34") || number.StartsWith("37")) brand = "American Express";
+                    else if (number.StartsWith("60") || number.StartsWith("65")) brand = "Discover";
+                    var setAsDefault = request.SetAsDefault;
+                    var existingCardsCount = await _context.CreditCards.CountAsync(c => c.ClientId == client.Id && c.IsActive, cancellationToken);
+                    if (existingCardsCount == 0)
+                        setAsDefault = true;
+                    if (setAsDefault)
+                        await _clientAppService.ClearDefaultCreditCardsAsync(client.Id, cancellationToken);
+                    var creditCard = new CreditCard
+                    {
+                        ClientId = client.Id,
+                        LastFourDigits = lastFourDigits,
+                        CardHolderName = holderName.ToUpper(),
+                        ExpiryMonth = month,
+                        ExpiryYear = year,
+                        Brand = brand,
+                        Nickname = string.IsNullOrWhiteSpace(request.Card.Nickname) ? null : (request.Card.Nickname.Trim().Length > 100 ? request.Card.Nickname.Trim().Substring(0, 100) : request.Card.Nickname.Trim()),
+                        IsDefault = setAsDefault,
+                        IsActive = true
+                    };
+                    var clientWithUser = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
+                    if (clientWithUser != null)
+                    {
+                        var clientName = clientWithUser.RazaoSocial ?? clientWithUser.NomeFantasia ?? clientWithUser.ContactName ?? clientWithUser.User?.FullName ?? "";
+                        var clientEmail = clientWithUser.ContactEmail ?? clientWithUser.User?.Email ?? "";
+                        var clientTaxId = (clientWithUser.CNPJ ?? clientWithUser.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                        var clientPhone = clientWithUser.ContactPhone ?? clientWithUser.User?.Phone;
+                        var postalCode = (clientWithUser.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                        if (postalCode.Length > 8) postalCode = postalCode.Substring(0, 8);
+                        if (postalCode.Length < 8 && postalCode.All(char.IsDigit)) postalCode = postalCode.PadLeft(8, '0');
+                        var clientAddress = new Application.DTOs.PagBank.PagBankAddress
+                        {
+                            Street = clientWithUser.Address ?? "Não informado",
+                            Number = clientWithUser.AddressNumber ?? "S/N",
+                            Locality = "Não informado",
+                            City = clientWithUser.City ?? "Não informado",
+                            RegionCode = clientWithUser.State?.Length >= 2 ? clientWithUser.State.Substring(0, 2).ToUpperInvariant() : "ES",
+                            Country = "BRA",
+                            PostalCode = postalCode
+                        };
+                        try
+                        {
+                            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
+                            var remoteIp = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                            var token = await _asaasService.TokenizeCreditCardAsync(asaasCustomerId, number, month, year, cvv, holderName.Trim(), clientEmail, clientTaxId, postalCode, clientAddress.Number ?? "S/N", clientPhone, remoteIp);
+                            if (!string.IsNullOrEmpty(token))
+                                creditCard.AsaasToken = token;
+                        }
+                        catch (Exception exToken)
+                        {
+                            _logger.LogWarning(exToken, "Tokenização Asaas ao salvar cartão no pagamento falhou. ClientId={ClientId}", client.Id);
+                        }
+                    }
+                    await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
+                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installments.Value);
+                    if (savedResult.Status == PaymentStatus.Paid)
+                        return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                    if (savedResult.Status == PaymentStatus.Failed)
+                        return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
+                    return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                }
+
                 var card = new Application.DTOs.PagBank.PagBankCard
                 {
                     Number = number,
@@ -2342,9 +2419,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     Holder = new Application.DTOs.PagBank.PagBankCardHolder { Name = holderName.ToUpper() },
                     Store = false
                 };
-                var installments = request.Installments.HasValue && request.Installments.Value >= 1 && request.Installments.Value <= 12
-                    ? request.Installments.Value
-                    : (int?)1;
                 var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installments);
                 if (result.Status == PaymentStatus.Paid)
                 {

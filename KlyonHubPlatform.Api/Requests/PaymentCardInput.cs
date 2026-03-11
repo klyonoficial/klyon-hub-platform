@@ -7,5 +7,7 @@ namespace KlyonHubPlatform.Api.Requests
         public string? ExpirationYear { get; set; }
         public string? SecurityCode { get; set; }
         public string? HolderName { get; set; }
+        /// <summary>Apelido para identificar o cartão (ex.: "Cartão pessoal").</summary>
+        public string? Nickname { get; set; }
     }
 }

@@ -263,7 +263,7 @@
             return false;
         }
         const isStaticFile = urlString.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|mp3)(\?|$)/i);
-        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account|Parceiro)\
+        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account|Parceiro)\//);
         if (isStaticFile && !isControllerAction) {
             return false;
         }
