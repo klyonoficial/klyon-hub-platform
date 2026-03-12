@@ -253,7 +253,8 @@
             urlString.includes('/start?') || 
             urlString.includes('/connect?') ||
             urlString.includes('transport=webSockets') ||
-            urlString.includes('clientProtocol=')) {
+            urlString.includes('clientProtocol=') ||
+            urlString.includes('/hubs')) {
             return false;
         }
         if (urlString.includes('browserLink') || 

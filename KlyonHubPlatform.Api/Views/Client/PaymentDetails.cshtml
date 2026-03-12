@@ -2007,9 +2007,7 @@
         }
 
         // ============================================================
-        // POLLING AUTOMÁTICO - Atualiza página quando pagamento mudar
-        // Intervalo maior e limite de tentativas para evitar chamadas desnecessárias.
-        // ============================================================
+        // Atualização em tempo real apenas via SignalR (sem polling)
         @if (isPending || Model.Status == PaymentStatus.Processing)
         {
             <text>
@@ -2023,13 +2021,13 @@
                         .build();
                     connection.on('PaymentConfirmed', function(data) {
                         if (data && data.paymentId === paymentIdForHub) {
-                            if (typeof showToast === 'function') showToast('Pagamento confirmado! Atualizando página...', 'success', 3000);
+                            if (typeof showToast === 'function') showToast('Pagamento confirmado! Atualizando página...', 'success', 5000);
                             setTimeout(function() { window.location.reload(); }, 1000);
                         }
                     });
                     connection.on('PaymentCancelled', function(data) {
                         if (data && data.paymentId === paymentIdForHub) {
-                            if (typeof showToast === 'function') showToast('Pagamento cancelado ou vencido. Atualizando página...', 'info', 3000);
+                            if (typeof showToast === 'function') showToast('Pagamento cancelado ou vencido. Atualizando página...', 'info', 5000);
                             setTimeout(function() { window.location.reload(); }, 1000);
                         }
                     });
@@ -2039,89 +2037,6 @@
                         console.warn('SignalR PaymentHub:', err);
                     });
                 }
-            })();
-            (function() {
-                const currentStatus = '@Model.Status.ToString()';
-                const paymentId = @Model.Id;
-                const pollIntervalMs = 20000; // 20 segundos (evita chamadas frequentes)
-                const maxAttempts = 90;       // máx. ~30 min (90 x 20s)
-                const initialDelayMs = 15000; // primeira chamada só após 15s na página
-                let pollingTimer = null;
-                let isPolling = false;
-                let attemptCount = 0;
-
-                async function checkPaymentStatus() {
-                    if (isPolling) return;
-                    if (attemptCount >= maxAttempts) {
-                        stopPolling();
-                        return;
-                    }
-                    isPolling = true;
-                    attemptCount += 1;
-
-                    try {
-                        const response = await fetch('@Url.Action("GetPaymentStatus", "Client")?paymentId=' + paymentId + '&_=' + Date.now(), {
-                            method: 'GET',
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'Cache-Control': 'no-cache'
-                            }
-                        });
-
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.status && data.status !== currentStatus) {
-                                if (data.status === 'Paid') {
-                                    if (typeof showToast === 'function') showToast('🎉 Pagamento confirmado! Atualizando página...', 'success', 3000);
-                                } else if (data.status === 'Processing') {
-                                    if (typeof showToast === 'function') showToast('⏳ Pagamento em processamento...', 'info', 3000);
-                                } else if (data.status === 'Failed') {
-                                    if (typeof showToast === 'function') showToast('❌ Pagamento falhou. Atualizando página...', 'error', 3000);
-                                } else {
-                                    if (typeof showToast === 'function') showToast('Status atualizado! Atualizando página...', 'info', 3000);
-                                }
-                                stopPolling();
-                                setTimeout(function() { window.location.reload(); }, 1000);
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Erro ao verificar status do pagamento:', error);
-                    } finally {
-                        isPolling = false;
-                    }
-                }
-
-                function startPolling() {
-                    if (pollingTimer) return;
-                    pollingTimer = setInterval(checkPaymentStatus, pollIntervalMs);
-                }
-
-                function stopPolling() {
-                    if (pollingTimer) {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
-                    }
-                }
-
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Primeira chamada só após initialDelayMs; depois a cada pollIntervalMs
-                    setTimeout(function() {
-                        if (document.hidden) return;
-                        checkPaymentStatus();
-                        startPolling();
-                    }, initialDelayMs);
-                });
-
-                window.addEventListener('beforeunload', stopPolling);
-
-                document.addEventListener('visibilitychange', function() {
-                    if (document.hidden) {
-                        stopPolling();
-                    } else {
-                        @* Razor interpreta "<" como tag HTML; @Html.Raw("<") emite o caractere sem encoding *@
-                        if (attemptCount @(Html.Raw("<")) maxAttempts) startPolling();
-                    }
-                });
             })();
             </text>
         }
