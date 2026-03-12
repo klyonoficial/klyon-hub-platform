@@ -71,7 +71,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ContractId", "Version");
 
-                    b.ToTable("AddressDeclarations");
+                    b.ToTable("AddressDeclarations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.AuditLog", b =>
@@ -115,7 +115,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.BlockedDate", b =>
@@ -154,7 +154,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId", "BlockedDateValue");
 
-                    b.ToTable("BlockedDates");
+                    b.ToTable("BlockedDates", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CapacityChangeRequest", b =>
@@ -203,7 +203,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("CapacityChangeRequests");
+                    b.ToTable("CapacityChangeRequests", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CardPriceChangeRequest", b =>
@@ -260,7 +260,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("CardPriceChangeRequests");
+                    b.ToTable("CardPriceChangeRequests", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatConversation", b =>
@@ -308,7 +308,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("ChatConversations");
+                    b.ToTable("ChatConversations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatFaqItem", b =>
@@ -363,7 +363,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.ToTable("ChatFaqItems");
+                    b.ToTable("ChatFaqItems", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatIntention", b =>
@@ -410,7 +410,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("MessageId");
 
-                    b.ToTable("ChatIntentions");
+                    b.ToTable("ChatIntentions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatMessage", b =>
@@ -459,7 +459,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("SentAt");
 
-                    b.ToTable("ChatMessages");
+                    b.ToTable("ChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ChatUnansweredQuestion", b =>
@@ -520,7 +520,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("ChatUnansweredQuestions");
+                    b.ToTable("ChatUnansweredQuestions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Client", b =>
@@ -596,7 +596,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Clients");
+                    b.ToTable("Clients", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientCredit", b =>
@@ -624,7 +624,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ClientId");
 
-                    b.ToTable("ClientCredits");
+                    b.ToTable("ClientCredits", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientRegistrationDocument", b =>
@@ -654,7 +654,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ClientId");
 
-                    b.ToTable("ClientRegistrationDocuments");
+                    b.ToTable("ClientRegistrationDocuments", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Commission", b =>
@@ -693,7 +693,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("PaymentId");
 
-                    b.ToTable("Commissions");
+                    b.ToTable("Commissions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Contract", b =>
@@ -802,7 +802,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingAddressId");
 
-                    b.ToTable("Contracts");
+                    b.ToTable("Contracts", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Correspondence", b =>
@@ -847,7 +847,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("PickupStatus");
 
-                    b.ToTable("Correspondences");
+                    b.ToTable("Correspondences", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CorrespondencePhoto", b =>
@@ -876,7 +876,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CorrespondenceId");
 
-                    b.ToTable("CorrespondencePhotos");
+                    b.ToTable("CorrespondencePhotos", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Coworking", b =>
@@ -1011,7 +1011,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Coworkings");
+                    b.ToTable("Coworkings", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingAddress", b =>
@@ -1126,7 +1126,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "Address")
                         .IsUnique();
 
-                    b.ToTable("CoworkingAddresses");
+                    b.ToTable("CoworkingAddresses", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingDocument", b =>
@@ -1176,7 +1176,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId");
 
-                    b.ToTable("CoworkingDocuments");
+                    b.ToTable("CoworkingDocuments", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingOperatingHours", b =>
@@ -1213,7 +1213,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "DayOfWeek")
                         .IsUnique();
 
-                    b.ToTable("CoworkingOperatingHours");
+                    b.ToTable("CoworkingOperatingHours", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingPartner", b =>
@@ -1263,7 +1263,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId");
 
-                    b.ToTable("CoworkingPartners");
+                    b.ToTable("CoworkingPartners", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingPhoto", b =>
@@ -1295,7 +1295,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId");
 
-                    b.ToTable("CoworkingPhotos");
+                    b.ToTable("CoworkingPhotos", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingProduct", b =>
@@ -1326,7 +1326,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "ProductType")
                         .IsUnique();
 
-                    b.ToTable("CoworkingProducts");
+                    b.ToTable("CoworkingProducts", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRating", b =>
@@ -1360,7 +1360,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingId");
 
-                    b.ToTable("CoworkingRatings", t =>
+                    b.ToTable("CoworkingRatings", null, t =>
                         {
                             t.HasCheckConstraint("CK_Rating_Range", "Rating >= 1 AND Rating <= 5");
                         });
@@ -1407,7 +1407,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingAddressId");
 
-                    b.ToTable("CoworkingRooms");
+                    b.ToTable("CoworkingRooms", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoomPhoto", b =>
@@ -1440,7 +1440,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingRoomId");
 
-                    b.ToTable("CoworkingRoomPhotos");
+                    b.ToTable("CoworkingRoomPhotos", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingSefazConfiguration", b =>
@@ -1541,7 +1541,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "State", "Environment")
                         .IsUnique();
 
-                    b.ToTable("CoworkingSefazConfigurations");
+                    b.ToTable("CoworkingSefazConfigurations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditCard", b =>
@@ -1596,7 +1596,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("ClientId", "LastFourDigits", "ExpiryMonth", "ExpiryYear")
                         .IsUnique();
 
-                    b.ToTable("CreditCards");
+                    b.ToTable("CreditCards", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditPlan", b =>
@@ -1638,7 +1638,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("CreditPlans");
+                    b.ToTable("CreditPlans", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CreditPurchase", b =>
@@ -1706,7 +1706,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CreditPlanId");
 
-                    b.ToTable("CreditPurchases");
+                    b.ToTable("CreditPurchases", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Document", b =>
@@ -1750,7 +1750,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ContractId");
 
-                    b.ToTable("Documents");
+                    b.ToTable("Documents", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalNote", b =>
@@ -1862,7 +1862,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Type", "ReservationId", "ContractId");
 
-                    b.ToTable("FiscalNotes");
+                    b.ToTable("FiscalNotes", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalNoteScriptExecution", b =>
@@ -1915,7 +1915,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ExecutedByUserId");
 
-                    b.ToTable("FiscalNoteScriptExecutions");
+                    b.ToTable("FiscalNoteScriptExecutions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FocusNFeWebhookLog", b =>
@@ -2004,7 +2004,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Ref", "Status", "Evento");
 
-                    b.ToTable("FocusNFeWebhookLogs");
+                    b.ToTable("FocusNFeWebhookLogs", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Interest", b =>
@@ -2069,7 +2069,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingAddressId");
 
-                    b.ToTable("Interests");
+                    b.ToTable("Interests", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Language", b =>
@@ -2112,7 +2112,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Languages");
+                    b.ToTable("Languages", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Location", b =>
@@ -2142,7 +2142,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Locations");
+                    b.ToTable("Locations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.LocationCommission", b =>
@@ -2173,7 +2173,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("LocationId");
 
-                    b.ToTable("LocationCommissions");
+                    b.ToTable("LocationCommissions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MaxContractsChangeRequest", b =>
@@ -2222,7 +2222,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("MaxContractsChangeRequests");
+                    b.ToTable("MaxContractsChangeRequests", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.MonthlySettlement", b =>
@@ -2308,7 +2308,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "ReferenceYear", "ReferenceMonth")
                         .IsUnique();
 
-                    b.ToTable("MonthlySettlements");
+                    b.ToTable("MonthlySettlements", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PagBankWebhookLog", b =>
@@ -2388,7 +2388,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ResourceId");
 
-                    b.ToTable("PagBankWebhookLogs");
+                    b.ToTable("PagBankWebhookLogs", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PartnerInvoice", b =>
@@ -2507,7 +2507,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ValidatedBy");
 
-                    b.ToTable("PartnerInvoices");
+                    b.ToTable("PartnerInvoices", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PartnerService", b =>
@@ -2553,7 +2553,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("CoworkingId", "ServiceId")
                         .IsUnique();
 
-                    b.ToTable("PartnerServices");
+                    b.ToTable("PartnerServices", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Payment", b =>
@@ -2643,7 +2643,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ValidatedBy");
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PaymentHistory", b =>
@@ -2676,7 +2676,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("PaymentId");
 
-                    b.ToTable("PaymentHistories");
+                    b.ToTable("PaymentHistories", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PlatformCreditBalance", b =>
@@ -2693,7 +2693,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PlatformCreditBalances");
+                    b.ToTable("PlatformCreditBalances", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Reservation", b =>
@@ -2756,7 +2756,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("CoworkingRoomId");
 
-                    b.ToTable("Reservations");
+                    b.ToTable("Reservations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ReservationCommission", b =>
@@ -2787,7 +2787,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ReservationId");
 
-                    b.ToTable("ReservationCommissions");
+                    b.ToTable("ReservationCommissions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Role", b =>
@@ -2813,7 +2813,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Roles");
+                    b.ToTable("Roles", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.SefazConfiguration", b =>
@@ -2911,7 +2911,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("State", "Environment")
                         .IsUnique();
 
-                    b.ToTable("SefazConfigurations");
+                    b.ToTable("SefazConfigurations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Service", b =>
@@ -2960,7 +2960,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Services");
+                    b.ToTable("Services", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.SettlementCommission", b =>
@@ -2988,7 +2988,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("MonthlySettlementId", "CommissionId")
                         .IsUnique();
 
-                    b.ToTable("SettlementCommissions");
+                    b.ToTable("SettlementCommissions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Subscription", b =>
@@ -3046,7 +3046,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("ContractId")
                         .IsUnique();
 
-                    b.ToTable("Subscriptions");
+                    b.ToTable("Subscriptions", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.SystemConfiguration", b =>
@@ -3094,7 +3094,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("SystemConfigurations");
+                    b.ToTable("SystemConfigurations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Transfer", b =>
@@ -3142,7 +3142,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("ReservationId");
 
-                    b.ToTable("Transfers");
+                    b.ToTable("Transfers", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Translation", b =>
@@ -3185,7 +3185,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Key", "LanguageCode")
                         .IsUnique();
 
-                    b.ToTable("Translations");
+                    b.ToTable("Translations", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.User", b =>
@@ -3242,7 +3242,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.UserRole", b =>
@@ -3260,7 +3260,7 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("UserRoles");
+                    b.ToTable("UserRoles", (string)null);
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.AddressDeclaration", b =>

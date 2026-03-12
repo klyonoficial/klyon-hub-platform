@@ -722,11 +722,11 @@ namespace KlyonHubPlatform.Application.Services
                 Amount = value
             };
         }
-        private async Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string paymentId)
+        public async Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string asaasPaymentId)
         {
             try
             {
-                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{paymentId}/pixQrCode");
+                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/payments/{asaasPaymentId}/pixQrCode");
                 var response = await _httpClient.SendAsync(httpRequest);
                 var content = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
@@ -738,7 +738,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Exceção ao obter QR Code PIX para pagamento {PaymentId}", paymentId);
+                _logger.LogWarning(ex, "Exceção ao obter QR Code PIX para pagamento Asaas {AsaasPaymentId}", asaasPaymentId);
                 return null;
             }
         }

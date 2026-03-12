@@ -327,10 +327,25 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não encontrado");
             if (payment.Status != PaymentStatus.Pending)
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ter o método alterado");
+            // Ao sair de PIX: preservar PixCode/PixConciliationIdentifier se for PIX recorrente anual para reaproveitar ao voltar (evita criar várias autorizações no Asaas)
+            var preservePixForReuse = false;
+            if (method != PaymentMethod.PIX && payment.SubscriptionId.HasValue)
+            {
+                var sub = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                if (sub != null)
+                {
+                    var c = await _contractRepository.GetByIdAsync(sub.ContractId);
+                    if (c?.CardPlanType == ContractCardPlanType.PixAnnual)
+                        preservePixForReuse = true;
+                }
+            }
             payment.Method = method;
-            payment.PixCode = null;
-            payment.PixExpiresAt = null;
-            payment.PixConciliationIdentifier = null;
+            if (!preservePixForReuse)
+            {
+                payment.PixCode = null;
+                payment.PixExpiresAt = null;
+                payment.PixConciliationIdentifier = null;
+            }
             payment.BoletoCode = null;
             payment.BoletoBarcode = null;
             payment.BoletoExpiresAt = null;
@@ -450,37 +465,75 @@ namespace KlyonHubPlatform.Application.Services
             {
                 if (!string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId) && !string.IsNullOrEmpty(payment.PixCode))
                 {
-                    // Já tem autorização e QR (ex.: primeira vez na tela)
+                    // Já tem autorização e QR (ex.: primeira vez na tela ou reaproveitado ao voltar de cartão)
                     return payment.PixCode;
                 }
-                // Sem QR: primeira criação ou usuário trocou para PIX recorrente — criar nova autorização sempre com contractId único (evita "Já existe uma autorização")
                 var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
                     clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
                 var baseContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
-                var suffix = Guid.NewGuid().ToString("N")[..8];
-                var asaasContractId = $"{baseContractId}-{suffix}";
-                if (asaasContractId.Length > 35)
-                    asaasContractId = asaasContractId[..35];
-                var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
-                    asaasCustomerId,
-                    asaasContractId,
-                    payment.Amount,
-                    $"Contrato {contract.ContractNumber} - PIX anual",
-                    86400);
-                if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
+                if (baseContractId.Length > 35)
+                    baseContractId = baseContractId[..35];
+                // Tentar com contractId padrão primeiro (reaproveitar autorização existente no Asaas)
+                try
                 {
-                    payment.PixCode = authResponse.Payload;
-                    payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                    payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
-                    subscription.PixAutomaticAuthorizationId = authResponse.Id;
-                    await _subscriptionRepository.UpdateAsync(subscription);
-                    await _paymentRepository.UpdateAsync(payment);
-                    return payment.PixCode ?? "";
+                    var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
+                        asaasCustomerId,
+                        baseContractId,
+                        payment.Amount,
+                        $"Contrato {contract.ContractNumber} - PIX anual",
+                        86400);
+                    if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
+                    {
+                        payment.PixCode = authResponse.Payload;
+                        payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                        payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+                        subscription.PixAutomaticAuthorizationId = authResponse.Id;
+                        await _subscriptionRepository.UpdateAsync(subscription);
+                        await _paymentRepository.UpdateAsync(payment);
+                        return payment.PixCode ?? "";
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Já existe uma autorização", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Usuário voltou de cartão/PIX normal para PIX recorrente: criar nova autorização com contractId único
+                    var uniqueContractId = $"{baseContractId}-{Guid.NewGuid().ToString("N")[..8]}";
+                    if (uniqueContractId.Length > 35) uniqueContractId = uniqueContractId[..35];
+                    var retryAuth = await _asaasService.CreatePixAutomaticAuthorizationAsync(
+                        asaasCustomerId,
+                        uniqueContractId,
+                        payment.Amount,
+                        $"Contrato {contract.ContractNumber} - PIX anual",
+                        86400);
+                    if (retryAuth != null && !string.IsNullOrEmpty(retryAuth.Id))
+                    {
+                        payment.PixCode = retryAuth.Payload;
+                        payment.PixExpiresAt = AsaasDateParser.TryParse(retryAuth.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                        payment.PixConciliationIdentifier = retryAuth.ImmediateQrCode?.ConciliationIdentifier;
+                        subscription.PixAutomaticAuthorizationId = retryAuth.Id;
+                        await _subscriptionRepository.UpdateAsync(subscription);
+                        await _paymentRepository.UpdateAsync(payment);
+                        return payment.PixCode ?? "";
+                    }
+                    throw new InvalidOperationException(
+                        "Já existe uma autorização PIX recorrente para este contrato. O código anterior pode ter expirado. Entre em contato com o suporte para gerar um novo código se necessário.");
                 }
                 throw new InvalidOperationException(
                     "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade está habilitada e os logs da aplicação.");
             }
 
+            // Reaproveitar cobrança PIX já existente no Asaas (evita acumular muitas cobranças no sandbox)
+            if (!string.IsNullOrEmpty(payment.ExternalPaymentId))
+            {
+                var existingQr = await _asaasService.GetPixQrCodeAsync(payment.ExternalPaymentId);
+                if (existingQr != null && !string.IsNullOrEmpty(existingQr.Payload))
+                {
+                    payment.PixCode = existingQr.Payload;
+                    if (!string.IsNullOrEmpty(existingQr.ExpirationDate) && DateTime.TryParse(existingQr.ExpirationDate, out var exp))
+                        payment.PixExpiresAt = exp;
+                    await _paymentRepository.UpdateAsync(payment);
+                    return payment.PixCode;
+                }
+            }
             var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,

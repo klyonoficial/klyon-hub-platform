@@ -35,6 +35,8 @@ namespace KlyonHubPlatform.Application.Interfaces
             string? remoteIp = null,
             string? customerExternalReference = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
+        /// <summary>Obtém o QR Code PIX de uma cobrança já existente no Asaas (para reutilizar em vez de criar nova).</summary>
+        Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string asaasPaymentId);
         Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null);
         /// <summary>Cria autorização PIX Automático recorrência anual. Retorna id, payload do QR Code e expiração.</summary>
         Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(string asaasCustomerId, string contractId, decimal annualValue, string description, int immediateExpirationSeconds = 86400);
