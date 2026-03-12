@@ -728,6 +728,15 @@ namespace KlyonHubPlatform.Application.Services
                         Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
+                    },
+                    new SystemConfiguration
+                    {
+                        Key = PaymentConfigKey.HiddenPaymentOptions.ToConfigKey(),
+                        Value = "",
+                        Description = "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixAnnual, PIX, Card1x, CardMonthly. Ex.: PIX oculta apenas PIX (pagamento único); PIX,PixAnnual oculta ambos.",
+                        Category = SystemConfigurationCategoryKeys.Payment,
+                        IsSensitive = false,
+                        IsEncrypted = false
                     }
                     );
                     await _context.SaveChangesAsync();

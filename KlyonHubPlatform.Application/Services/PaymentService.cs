@@ -320,7 +320,7 @@ namespace KlyonHubPlatform.Application.Services
             }
             return await _paymentRepository.UpdateAsync(payment);
         }
-        public async Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method)
+        public async Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method, ContractCardPlanType? pixPlanType = null)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
@@ -330,9 +330,29 @@ namespace KlyonHubPlatform.Application.Services
             payment.Method = method;
             payment.PixCode = null;
             payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = null;
             payment.BoletoCode = null;
             payment.BoletoBarcode = null;
             payment.BoletoExpiresAt = null;
+            if (method == PaymentMethod.PIX && payment.SubscriptionId.HasValue)
+            {
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                if (subscription != null)
+                {
+                    var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+                    if (contract != null && pixPlanType.HasValue)
+                    {
+                        contract.CardPlanType = pixPlanType.Value;
+                        await _contractRepository.UpdateAsync(contract);
+                        if (pixPlanType.Value != ContractCardPlanType.PixAnnual)
+                        {
+                            subscription.PixAutomaticAuthorizationId = null;
+                            await _subscriptionRepository.UpdateAsync(subscription);
+                        }
+                    }
+                }
+            }
+            await _paymentRepository.UpdateAsync(payment);
             if (method == PaymentMethod.PIX)
             {
                 await GeneratePixCodeAsync(paymentId);
@@ -341,7 +361,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 await GenerateBoletoCodeAsync(paymentId);
             }
-            return await _paymentRepository.UpdateAsync(payment);
+            return await _paymentRepository.GetByIdAsync(paymentId) ?? payment;
         }
         public async Task<string> GeneratePixCodeAsync(int paymentId)
         {
@@ -428,16 +448,19 @@ namespace KlyonHubPlatform.Application.Services
             // PIX recorrente anual: usar autorização PIX Automático (não criar cobrança PIX comum)
             if (contract.CardPlanType == ContractCardPlanType.PixAnnual)
             {
-                if (!string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId))
+                if (!string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId) && !string.IsNullOrEmpty(payment.PixCode))
                 {
-                    // Já tem autorização; o QR deve ter sido gerado na criação do contrato
-                    if (!string.IsNullOrEmpty(payment.PixCode))
-                        return payment.PixCode;
-                    throw new InvalidOperationException("O código PIX da autorização já foi gerado. Se expirou, entre em contato com o suporte.");
+                    // Já tem autorização e QR (ex.: primeira vez na tela)
+                    return payment.PixCode;
                 }
+                // Sem QR: primeira criação ou usuário trocou para PIX recorrente — criar nova autorização sempre com contractId único (evita "Já existe uma autorização")
                 var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
                     clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
-                var asaasContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
+                var baseContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
+                var suffix = Guid.NewGuid().ToString("N")[..8];
+                var asaasContractId = $"{baseContractId}-{suffix}";
+                if (asaasContractId.Length > 35)
+                    asaasContractId = asaasContractId[..35];
                 var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
                     asaasCustomerId,
                     asaasContractId,

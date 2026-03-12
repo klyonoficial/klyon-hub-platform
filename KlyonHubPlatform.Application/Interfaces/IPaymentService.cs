@@ -10,7 +10,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> ProcessPaymentAsync(int paymentId);
         Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
-        Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method);
+        /// <summary>Altera o método de pagamento. Para PIX, use pixPlanType: PixAnnual (recorrente anual) ou None (pagamento único) para gerar o QR correto.</summary>
+        Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method, ContractCardPlanType? pixPlanType = null);
         Task<string> GeneratePixCodeAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
         Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null);

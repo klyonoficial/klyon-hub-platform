@@ -7,6 +7,13 @@
     var hasPix = true;
     var hasCard1x = Model.CardPrice1x.HasValue && Model.CardPrice1x.Value > 0;
     var hasCardMonthly = Model.CardPriceMonthly.HasValue && Model.CardPriceMonthly.Value > 0;
+    var hidden = ViewBag.HiddenPaymentOptions as IReadOnlyCollection<string> ?? Array.Empty<string>();
+    var hiddenSet = hidden as IReadOnlySet<string> ?? new HashSet<string>(hidden, StringComparer.OrdinalIgnoreCase);
+    var showPixAnnual = hasPix && !hiddenSet.Contains("PixAnnual");
+    var showPix = hasPix && !hiddenSet.Contains("PIX");
+    var showCard1x = hasCard1x && !hiddenSet.Contains("Card1x");
+    var showCardMonthly = hasCardMonthly && !hiddenSet.Contains("CardMonthly");
+    var firstChecked = showPixAnnual ? "PixAnnual" : (showPix ? "PIX" : (showCard1x ? "Card1x" : (showCardMonthly ? "CardMonthly" : "")));
 }
 
 <div class="container py-4">
@@ -34,18 +41,21 @@
                 <input type="hidden" name="coworkingAddressId" value="@Model.Id" />
 
                 <div class="list-group list-group-flush">
-                    @if (hasPix)
+                    @if (showPixAnnual)
                     {
                         <label class="list-group-item list-group-item-action d-flex align-items-center cursor-pointer">
-                            <input type="radio" name="paymentOption" value="PixAnnual" class="form-check-input me-3" checked>
+                            <input type="radio" name="paymentOption" value="PixAnnual" class="form-check-input me-3" @(firstChecked == "PixAnnual" ? "checked" : "")>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-qr-code text-primary me-2"></i>PIX recorrente anual</span>
                                 <span class="text-muted d-block small">PIX Automático — débito todo ano na mesma data; autorize uma vez e pague automaticamente.</span>
                             </div>
                             <span class="badge bg-primary rounded-pill">R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</span>
                         </label>
+                    }
+                    @if (showPix)
+                    {
                         <label class="list-group-item list-group-item-action d-flex align-items-center cursor-pointer">
-                            <input type="radio" name="paymentOption" value="PIX" class="form-check-input me-3">
+                            <input type="radio" name="paymentOption" value="PIX" class="form-check-input me-3" @(firstChecked == "PIX" ? "checked" : "")>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-qr-code text-primary me-2"></i>PIX (pagamento único)</span>
                                 <span class="text-muted d-block small">Pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma.</span>
@@ -53,10 +63,10 @@
                             <span class="badge bg-primary rounded-pill">R$ @Model.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</span>
                         </label>
                     }
-                    @if (hasCard1x)
+                    @if (showCard1x)
                     {
                         <label class="list-group-item list-group-item-action d-flex align-items-center cursor-pointer">
-                            <input type="radio" name="paymentOption" value="Card1x" class="form-check-input me-3">
+                            <input type="radio" name="paymentOption" value="Card1x" class="form-check-input me-3" @(firstChecked == "Card1x" ? "checked" : "")>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão à vista (1x)</span>
                                 <span class="text-muted d-block small">Venda à vista (1x no cartão) — recorrência anual cobrada no cartão de crédito</span>
@@ -64,10 +74,10 @@
                             <span class="badge bg-primary rounded-pill">R$ @Model.CardPrice1x!.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</span>
                         </label>
                     }
-                    @if (hasCardMonthly)
+                    @if (showCardMonthly)
                     {
                         <label class="list-group-item list-group-item-action d-flex align-items-center cursor-pointer">
-                            <input type="radio" name="paymentOption" value="CardMonthly" class="form-check-input me-3">
+                            <input type="radio" name="paymentOption" value="CardMonthly" class="form-check-input me-3" @(firstChecked == "CardMonthly" ? "checked" : "")>
                             <div class="flex-grow-1">
                                 <span class="fw-semibold"><i class="bi bi-credit-card text-info me-2"></i>Cartão — mensal</span>
                                 <span class="text-muted d-block small">Venda mensal — recorrência mensal no cartão de crédito</span>
@@ -77,13 +87,17 @@
                     }
                 </div>
 
-                @if (!hasCard1x && !hasCardMonthly)
+                @if (!showCard1x && !showCardMonthly && (showPixAnnual || showPix))
                 {
                     <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle"></i> O parceiro não configurou opções de pagamento no cartão para este endereço. Disponível PIX (recorrente anual ou único).</p>
                 }
+                @if (string.IsNullOrEmpty(firstChecked))
+                {
+                    <p class="text-danger mt-2 mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
+                }
 
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg">
+                    <button type="submit" class="btn btn-primary btn-lg" @(string.IsNullOrEmpty(firstChecked) ? "disabled" : "")>
                         <i class="bi bi-check-lg me-1"></i> Continuar para pagamento
                     </button>
                     <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-outline-secondary btn-lg">Cancelar</a>

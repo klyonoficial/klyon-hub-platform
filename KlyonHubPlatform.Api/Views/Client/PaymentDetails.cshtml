@@ -9,6 +9,13 @@
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
     var isExpired = Model.PixExpiresAt.HasValue && Model.PixExpiresAt.Value < DateTime.UtcNow;
+    var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as IReadOnlySet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
+    var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
+    var showPixInDropdown = showPixAnnualInDropdown || showPixSingleInDropdown;
+    var showCreditCardInDropdown = !hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly");
+    var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
+    var currentMethodValue = isPix ? (isPixAnnual ? "PixAnnual" : "PIX") : Model.Method.ToString();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -157,22 +164,39 @@
                             <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
-                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@Model.Method.ToString()">
-                                    @if (Model.Method == PaymentMethod.PIX)
+                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue">
+                                    @if (showPixAnnualInDropdown)
                                     {
-                                        <option value="PIX" selected>PIX</option>
+                                        if (currentMethodValue == "PixAnnual")
+                                        {
+                                            <option value="PixAnnual" selected>PIX (recorrente anual)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="PixAnnual">PIX (recorrente anual)</option>
+                                        }
                                     }
-                                    else
+                                    @if (showPixSingleInDropdown)
                                     {
-                                        <option value="PIX">PIX</option>
+                                        if (currentMethodValue == "PIX")
+                                        {
+                                            <option value="PIX" selected>PIX (pagamento único)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="PIX">PIX (pagamento único)</option>
+                                        }
                                     }
-                                    @if (Model.Method == PaymentMethod.CreditCard)
+                                    @if (showCreditCardInDropdown)
                                     {
-                                        <option value="CreditCard" selected>Cartão de Crédito</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="CreditCard">Cartão de Crédito</option>
+                                        if (currentMethodValue == "CreditCard")
+                                        {
+                                            <option value="CreditCard" selected>Cartão de Crédito</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="CreditCard">Cartão de Crédito</option>
+                                        }
                                     }
                                 </select>
                                 </form>
@@ -210,7 +234,8 @@
                             @switch (Model.Method)
                             {
                                 case PaymentMethod.PIX:
-                                    <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                                    var pixLabel = contract?.CardPlanType == ContractCardPlanType.PixAnnual ? "PIX (recorrente anual)" : "PIX (pagamento único)";
+                                    <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabel</span>
                                     break;
                                 case PaymentMethod.CreditCard:
                                     <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
@@ -1080,8 +1105,8 @@
         }
 
         window.updatePaymentMethod = async function(selectElement) {
-            // Armazenar o valor anterior antes de mostrar o confirm
-            const previousValue = selectElement.dataset.previousValue || selectElement.value;
+            // Valor atual (antes da alteração): ao mudar o option, value já é o novo; usar data-previous-value da página
+            const previousValue = (selectElement.dataset.previousValue || selectElement.value || '').trim();
             
             const confirmed = await showConfirm(
                 'Deseja alterar o método de pagamento? Isso pode gerar um novo código de pagamento dependendo do método selecionado.',
@@ -1123,11 +1148,20 @@
                         selectElement.dataset.previousValue = selectElement.value;
                         showToast('Método de pagamento atualizado com sucesso!', 'success');
                     } else {
+                        // Reverter dropdown para a opção anterior em caso de erro
                         selectElement.value = previousValue;
-                        showToast('Erro ao atualizar método de pagamento. Por favor, tente novamente.', 'error');
+                        selectElement.dataset.previousValue = previousValue;
+                        let errMsg = 'Erro ao atualizar método de pagamento. Por favor, tente novamente.';
+                        try {
+                            const data = await response.json();
+                            if (data && typeof data.error === 'string' && data.error.trim()) errMsg = data.error;
+                        } catch (_) { }
+                        showToast(errMsg, 'error');
                     }
                 } catch (error) {
+                    // Reverter dropdown para a opção anterior em caso de exceção (rede, etc.)
                     selectElement.value = previousValue;
+                    selectElement.dataset.previousValue = previousValue;
                     showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
                     console.error('Erro:', error);
                 } finally {

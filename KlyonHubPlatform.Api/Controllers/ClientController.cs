@@ -1040,6 +1040,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotAvailableForContract;
                 return RedirectToAction(ActionNames.ChooseLocation);
             }
+            var hiddenRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+            var hiddenSet = (hiddenRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            ViewBag.HiddenPaymentOptions = hiddenSet;
             return View(address);
         }
         [AllowAnonymous]
@@ -1132,10 +1135,17 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = msg;
                     return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
                 }
+                var hiddenRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+                var hiddenSet = (hiddenRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var option = (paymentOption ?? "PixAnnual").Trim();
+                if (hiddenSet.Count > 0 && (string.IsNullOrEmpty(option) || hiddenSet.Contains(option)))
+                {
+                    TempData[ErrorMessages.TempDataKey] = "A forma de pagamento selecionada não está disponível. Escolha outra opção na tela anterior.";
+                    return RedirectToAction(ActionNames.SelectPaymentPlan, new { coworkingAddressId });
+                }
                 decimal monthlyValueForContract;
                 PaymentMethod? initialPaymentMethod = null;
                 ContractCardPlanType? cardPlanType = null;
-                var option = (paymentOption ?? "PixAnnual").Trim();
                 if (option == "Card1x" && addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0)
                 {
                     monthlyValueForContract = addressEntity.CardPrice1x.Value;
@@ -1686,7 +1696,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
                 }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
+                catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
                 {
                     TempData[TempDataKeys.Warning] = WarningMessages.PaymentSystemNotConfiguredConfigureAsaasShort;
                 }
@@ -1705,6 +1715,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[TempDataKeys.Warning] = WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
                 }
             }
+            var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+            var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            ViewBag.HiddenPaymentOptions = hiddenPaymentSet;
             if (payment.Status == PaymentStatus.Pending)
             {
                 try
@@ -1720,7 +1733,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
                 }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
+                catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
                 {
                     TempData[TempDataKeys.Warning] = WarningMessages.PaymentSystemNotConfiguredConfigureAsaasShort;
                 }
@@ -1879,17 +1892,54 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanChangeMethod;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
-                if (!Enum.TryParse<PaymentMethod>(method, out var paymentMethod))
+                var hiddenUpdateRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+                var hiddenUpdateSet = (hiddenUpdateRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                ContractCardPlanType? pixPlanType = null;
+                PaymentMethod paymentMethod;
+                if (string.Equals(method, "PixAnnual", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (hiddenUpdateSet.Contains("PixAnnual"))
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX recorrente anual não está disponível.";
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    }
+                    paymentMethod = PaymentMethod.PIX;
+                    pixPlanType = ContractCardPlanType.PixAnnual;
+                }
+                else if (string.Equals(method, "PIX", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (hiddenUpdateSet.Contains("PIX"))
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX (pagamento único) não está disponível.";
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    }
+                    paymentMethod = PaymentMethod.PIX;
+                    pixPlanType = ContractCardPlanType.None;
+                }
+                else if (!Enum.TryParse<PaymentMethod>(method, out paymentMethod))
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidPaymentMethod;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                else
+                {
+                    if (paymentMethod == PaymentMethod.PIX && hiddenUpdateSet.Contains("PIX"))
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX não está disponível.";
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    }
+                    if (paymentMethod == PaymentMethod.CreditCard && hiddenUpdateSet.Contains("Card1x") && hiddenUpdateSet.Contains("CardMonthly"))
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "A forma de pagamento com cartão não está disponível.";
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    }
                 }
                 if (paymentMethod == PaymentMethod.BankTransfer)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.BoletoNoLongerAvailable;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
-                await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod);
+                await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod, pixPlanType);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentMethodUpdated;
                 if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                     return Ok();
@@ -1943,9 +1993,14 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PixCodeGenerated;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.PaymentSystemNotConfigured;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
             catch (Exception ex)
@@ -2913,7 +2968,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.CheckoutCredits, new { creditPlanId });
                 }
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Asaas") || ex.Message.Contains("API Key"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.PaymentSystemNotConfigured;
                 return RedirectToAction(ActionNames.CheckoutCredits, new { creditPlanId });

@@ -30,7 +30,7 @@
             </div>
 
             <div class="mb-3">
-                <label for="value" class="form-label">
+                <label for="configValor" class="form-label">
                     <strong>Valor</strong>
                     @if (Model.IsSensitive)
                     {
@@ -43,7 +43,7 @@
                 </label>
                 @if (Model.IsSensitive)
                 {
-                    <input type="password" class="form-control" id="value" name="value" value="@Model.Value" required>
+                    <input type="password" class="form-control" id="configValor" name="value" value="@Model.Value">
                     <small class="form-text text-muted">
                         <i class="bi bi-lock"></i> Este é um campo sensível. Digite o novo valor para atualizar.
                         @if (Model.Key == "PagBank.AccessToken" || Model.Key == AsaasConfigKey.ApiKey.ToConfigKey())
@@ -76,7 +76,7 @@
                 {
                     @if (Model.Key == "PagBank.UseSandbox" || Model.Key == AsaasConfigKey.UseSandbox.ToConfigKey())
                     {
-                        <select class="form-control" id="value" name="value" required>
+                        <select class="form-control" id="configValor" name="value">
                             <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Ambiente de Testes - Sandbox)</option>
                             <option value="false" selected="@(Model.Value?.ToLower() == "false")">false (Ambiente de Produção)</option>
                         </select>
@@ -86,7 +86,7 @@
                     }
                     else if (Model.Key == D4SignConfigKeys.UseSandbox)
                     {
-                        <select class="form-control" id="value" name="value" required>
+                        <select class="form-control" id="configValor" name="value">
                             <option value="true" selected="@(Model.Value?.ToLower() == "true")">true (Sandbox - sem validade jurídica)</option>
                             <option value="false" selected="@(Model.Value?.ToLower() == "false")">false (Produção - assinaturas com validade jurídica)</option>
                         </select>
@@ -96,7 +96,8 @@
                     }
                     else
                     {
-                        <textarea class="form-control" id="value" name="value" rows="3" required>@Model.Value</textarea>
+                        <textarea class="form-control" id="configValor" name="value" rows="3">@Model.Value</textarea>
+                        <small class="form-text text-muted">Deixe em branco se o parâmetro não precisar de valor (ex.: Payment.HiddenPaymentOptions vazio para exibir todas as formas de pagamento).</small>
                     }
                 }
             </div>
@@ -140,8 +141,11 @@
 
 @section Scripts {
     <script>
-        // Mostrar/ocultar senha para campos sensíveis
         document.addEventListener('DOMContentLoaded', function() {
+            // Remover obrigatoriedade do campo Valor em qualquer tipo (textarea, input, select)
+            document.querySelectorAll('[name="value"]').forEach(function(el) { el.removeAttribute('required'); });
+
+            // Mostrar/ocultar senha para campos sensíveis
             const sensitiveInputs = document.querySelectorAll('input[type="password"][name="value"]');
             sensitiveInputs.forEach(input => {
                 const toggleBtn = document.createElement('button');

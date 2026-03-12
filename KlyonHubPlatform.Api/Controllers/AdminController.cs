@@ -1234,7 +1234,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditSystemConfiguration(int id, string value, string? description, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> EditSystemConfiguration(int id, string? value, string? description, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1244,7 +1244,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ConfigNotFound;
                     return RedirectToAction(ActionNames.SystemConfigurations);
                 }
-                configuration.Value = value;
+                configuration.Value = value ?? "";
                 configuration.Description = description ?? configuration.Description;
                 configuration.UpdatedBy = User.Identity?.Name;
                 await _systemConfigurationService.UpdateAsync(configuration, User.Identity?.Name);
