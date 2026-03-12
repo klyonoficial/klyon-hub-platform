@@ -16,18 +16,22 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IPaymentService _paymentService;
         private readonly IAsaasService _asaasService;
         private readonly IPaymentRepository _paymentRepository;
+        private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IHubContext<PaymentHub> _hubContext;
         private readonly ILogger<PaymentWebhookController> _logger;
+
         public PaymentWebhookController(
             IPaymentService paymentService,
             IAsaasService asaasService,
             IPaymentRepository paymentRepository,
+            ISubscriptionRepository subscriptionRepository,
             IHubContext<PaymentHub> hubContext,
             ILogger<PaymentWebhookController> logger)
         {
             _paymentService = paymentService;
             _asaasService = asaasService;
             _paymentRepository = paymentRepository;
+            _subscriptionRepository = subscriptionRepository;
             _hubContext = hubContext;
             _logger = logger;
         }
@@ -79,6 +83,64 @@ namespace KlyonHubPlatform.Api.Controllers
                 using var doc = JsonDocument.Parse(payload);
                 var root = doc.RootElement;
                 var eventType = root.TryGetProperty(AsaasWebhookPayloadKeys.Event, out var ev) ? ev.GetString() : null;
+                var valid = await _asaasService.ValidateWebhookSignatureAsync(payload, signature ?? "");
+                if (!valid)
+                {
+                    _logger.LogWarning("Webhook Asaas com assinatura inválida");
+                    return Unauthorized();
+                }
+
+                if (eventType == AsaasWebhookEvents.PixAutomaticAuthorizationActivated && root.TryGetProperty("authorization", out var authEl))
+                {
+                    var authId = authEl.TryGetProperty(AsaasWebhookPayloadKeys.Id, out var authIdEl) ? authIdEl.GetString() : null;
+                    if (!string.IsNullOrEmpty(authId))
+                    {
+                        var subscription = await _subscriptionRepository.GetByPixAutomaticAuthorizationIdAsync(authId, cancellationToken);
+                        var pendingPayment = subscription?.Payments?.FirstOrDefault(p => p.Status == PaymentStatus.Pending);
+                        if (pendingPayment != null)
+                        {
+                            await _paymentService.ConfirmPaymentAsync(pendingPayment.Id, null);
+                            _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook PIX Automático (autorização ativada)", pendingPayment.Id);
+                            try
+                            {
+                                await _hubContext.Clients.Group($"payment_{pendingPayment.Id}").SendAsync(PaymentHub.PaymentConfirmed, new { paymentId = pendingPayment.Id });
+                            }
+                            catch (Exception exHub)
+                            {
+                                _logger.LogWarning(exHub, "Falha ao notificar SignalR para pagamento {PaymentId}", pendingPayment.Id);
+                            }
+                        }
+                    }
+                    return Ok();
+                }
+
+                if (eventType == AsaasWebhookEvents.PixAutomaticPaymentInstructionRefused)
+                {
+                    string? asaasPaymentId = null;
+                    if (root.TryGetProperty("payment", out var payEl))
+                        asaasPaymentId = payEl.TryGetProperty(AsaasWebhookPayloadKeys.Id, out var pid) ? pid.GetString() : null;
+                    if (!string.IsNullOrEmpty(asaasPaymentId))
+                    {
+                        var payment = await _paymentRepository.GetByExternalPaymentIdAsync(asaasPaymentId, cancellationToken);
+                        if (payment != null && payment.Status == PaymentStatus.Pending)
+                        {
+                            await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Failed, asaasPaymentId);
+                            if (payment.SubscriptionId.HasValue)
+                            {
+                                var sub = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value, cancellationToken);
+                                if (sub != null)
+                                {
+                                    sub.Status = SubscriptionStatus.PastDue;
+                                    sub.FailedPaymentAttempts++;
+                                    await _subscriptionRepository.UpdateAsync(sub);
+                                }
+                            }
+                            _logger.LogInformation("Pagamento {PaymentId} recusado (PIX Automático sem saldo); assinatura em atraso.", payment.Id);
+                        }
+                    }
+                    return Ok();
+                }
+
                 if (!root.TryGetProperty(AsaasWebhookPayloadKeys.Payment, out var paymentEl))
                 {
                     _logger.LogWarning("Webhook Asaas sem objeto payment");
@@ -92,20 +154,31 @@ namespace KlyonHubPlatform.Api.Controllers
                     _logger.LogWarning("Webhook Asaas sem payment.id");
                     return Ok();
                 }
-                _logger.LogInformation("Webhook Asaas: event={Event}, paymentId={PaymentId}, externalRef={ExternalRef}, status={Status}", eventType, paymentId, externalRef, status);
-                var valid = await _asaasService.ValidateWebhookSignatureAsync(payload, signature ?? "");
-                if (!valid)
-                {
-                    _logger.LogWarning("Webhook Asaas com assinatura inválida");
-                    return Unauthorized();
-                }
+                var pixQrCodeId = paymentEl.TryGetProperty("pixQrCodeId", out var qrEl) ? qrEl.GetString() : null;
+                _logger.LogInformation("Webhook Asaas: event={Event}, paymentId={PaymentId}, externalRef={ExternalRef}, pixQrCodeId={PixQrCodeId}, status={Status}", eventType, paymentId, externalRef, pixQrCodeId, status);
                 var paidEvents = new[] { AsaasWebhookEvents.PaymentReceived, AsaasWebhookEvents.PaymentConfirmed, AsaasWebhookEvents.PaymentReceivedInCash };
                 if (paidEvents.Contains(eventType ?? "") && (status == AsaasPaymentStatus.Received || status == AsaasPaymentStatus.Confirmed))
                 {
                     var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId, externalRef);
+                    var foundByPixQrCodeId = false;
+                    // PIX Automático: cobrança criada pelo Asaas ao pagar o QR vem com externalReference null; buscar por pixQrCodeId (conciliationIdentifier)
+                    if (payment == null && !string.IsNullOrEmpty(pixQrCodeId))
+                    {
+                        payment = await _paymentRepository.GetByPixConciliationIdentifierAsync(pixQrCodeId, cancellationToken);
+                        foundByPixQrCodeId = payment != null;
+                    }
                     if (payment != null && payment.Status != PaymentStatus.Paid)
                     {
                         await _paymentService.ConfirmPaymentAsync(payment.Id, paymentId);
+                        if (foundByPixQrCodeId)
+                        {
+                            payment = await _paymentRepository.GetByIdAsync(payment.Id, cancellationToken);
+                            if (payment != null && payment.ExternalPaymentId != paymentId)
+                            {
+                                payment.ExternalPaymentId = paymentId;
+                                await _paymentRepository.UpdateAsync(payment);
+                            }
+                        }
                         _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
                         try
                         {

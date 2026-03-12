@@ -79,5 +79,13 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
             }
             return null;
         }
+        public async Task<Payment?> GetByPixConciliationIdentifierAsync(string pixConciliationIdentifier, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(pixConciliationIdentifier)) return null;
+            return await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Contract)
+                .FirstOrDefaultAsync(p => p.PixConciliationIdentifier == pixConciliationIdentifier, cancellationToken);
+        }
     }
 }

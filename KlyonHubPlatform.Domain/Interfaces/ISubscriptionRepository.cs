@@ -9,5 +9,6 @@ namespace KlyonHubPlatform.Domain.Interfaces
         Task<Subscription> UpdateAsync(Subscription subscription, CancellationToken cancellationToken = default);
         Task<List<Subscription>> GetActiveSubscriptionsAsync(CancellationToken cancellationToken = default);
         Task<List<Subscription>> GetDueSubscriptionsAsync(DateTime date, CancellationToken cancellationToken = default);
+        Task<Subscription?> GetByPixAutomaticAuthorizationIdAsync(string pixAutomaticAuthorizationId, CancellationToken cancellationToken = default);
     }
 }

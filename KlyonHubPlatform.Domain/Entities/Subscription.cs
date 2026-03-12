@@ -15,6 +15,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? SuspendedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
         public string? CancellationReason { get; set; }
+        /// <summary>ID da autorização PIX Automático no Asaas (quando recorrência é PIX anual).</summary>
+        public string? PixAutomaticAuthorizationId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public virtual Contract Contract { get; set; } = null!;

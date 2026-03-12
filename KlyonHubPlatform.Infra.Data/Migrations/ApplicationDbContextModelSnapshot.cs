@@ -2602,6 +2602,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("PixCode")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("PixConciliationIdentifier")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime?>("PixExpiresAt")
                         .HasColumnType("datetime(6)");
 
@@ -3025,6 +3028,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<DateTime>("NextBillingDate")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PixAutomaticAuthorizationId")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

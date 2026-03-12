@@ -1135,7 +1135,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 decimal monthlyValueForContract;
                 PaymentMethod? initialPaymentMethod = null;
                 ContractCardPlanType? cardPlanType = null;
-                var option = (paymentOption ?? "PIX").Trim();
+                var option = (paymentOption ?? "PixAnnual").Trim();
                 if (option == "Card1x" && addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0)
                 {
                     monthlyValueForContract = addressEntity.CardPrice1x.Value;
@@ -1148,10 +1148,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     initialPaymentMethod = PaymentMethod.CreditCard;
                     cardPlanType = ContractCardPlanType.CardMonthly;
                 }
+                else if (option == "PixAnnual")
+                {
+                    monthlyValueForContract = addressEntity.BasePrice;
+                    initialPaymentMethod = PaymentMethod.PIX;
+                    cardPlanType = ContractCardPlanType.PixAnnual;
+                }
                 else
                 {
                     monthlyValueForContract = addressEntity.BasePrice;
-                    initialPaymentMethod = null;
+                    initialPaymentMethod = PaymentMethod.PIX;
                 }
                 var contract = await _contractService.CreateContractAsync(
                     client.Id,

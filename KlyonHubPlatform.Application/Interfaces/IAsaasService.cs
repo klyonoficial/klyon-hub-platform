@@ -36,6 +36,10 @@ namespace KlyonHubPlatform.Application.Interfaces
             string? customerExternalReference = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
         Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null);
+        /// <summary>Cria autorização PIX Automático recorrência anual. Retorna id, payload do QR Code e expiração.</summary>
+        Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(string asaasCustomerId, string contractId, decimal annualValue, string description, int immediateExpirationSeconds = 86400);
+        /// <summary>Cria cobrança PIX vinculada à autorização (débito automático na data).</summary>
+        Task<OrderResponse?> CreatePaymentWithPixAutomaticAuthorizationAsync(string asaasCustomerId, string pixAutomaticAuthorizationId, decimal value, DateTime dueDate, string externalReference, string description);
         Task<bool> ValidateWebhookSignatureAsync(string payload, string signature);
         Task<PixTransferResult> CreatePixTransferAsync(
             string referenceId,

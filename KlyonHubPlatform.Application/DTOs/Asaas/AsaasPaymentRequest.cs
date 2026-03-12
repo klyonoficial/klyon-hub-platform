@@ -32,6 +32,10 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         [JsonPropertyName("remoteIp")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? RemoteIp { get; set; }
+        /// <summary>ID da autorização PIX Automático (para cobranças recorrentes via débito automático).</summary>
+        [JsonPropertyName("pixAutomaticAuthorizationId")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? PixAutomaticAuthorizationId { get; set; }
     }
     public class AsaasCustomerData
     {

@@ -57,6 +57,19 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
     options.RequestCultureProviders.Clear();
 });
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var envName = builder.Environment.EnvironmentName;
+var connHint = "(vazio)";
+if (!string.IsNullOrEmpty(connectionString))
+{
+    try
+    {
+        var parts = connectionString.Split(';').Select(p => p.Trim())
+            .Where(p => p.StartsWith("Server=", StringComparison.OrdinalIgnoreCase) || p.StartsWith("Database=", StringComparison.OrdinalIgnoreCase));
+        connHint = string.Join("; ", parts);
+    }
+    catch { connHint = "(não foi possível extrair)"; }
+}
+Console.WriteLine($"[Klyon] ASPNETCORE_ENVIRONMENT = {envName} | Connection: {connHint}");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.Parse("10.5.29-mariadb"), 
         mySqlOptions => 

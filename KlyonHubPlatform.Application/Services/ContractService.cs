@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -20,6 +21,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IDocumentService _documentService;
         private readonly ISubscriptionService _subscriptionService;
         private readonly IPaymentService _paymentService;
+        private readonly IAsaasService _asaasService;
         private readonly IConfiguration _configuration;
         private readonly IAuditService? _auditService;
         private readonly IHttpContextAccessor? _httpContextAccessor;
@@ -30,6 +32,7 @@ namespace KlyonHubPlatform.Application.Services
             IDocumentService documentService,
             ISubscriptionService subscriptionService,
             IPaymentService paymentService,
+            IAsaasService asaasService,
             IConfiguration configuration,
             IAuditService? auditService = null,
             IHttpContextAccessor? httpContextAccessor = null)
@@ -40,6 +43,7 @@ namespace KlyonHubPlatform.Application.Services
             _documentService = documentService;
             _subscriptionService = subscriptionService;
             _paymentService = paymentService;
+            _asaasService = asaasService;
             _configuration = configuration;
             _auditService = auditService;
             _httpContextAccessor = httpContextAccessor;
@@ -128,11 +132,50 @@ namespace KlyonHubPlatform.Application.Services
                         monthlyValue,
                         cardPlanType
                     );
-                    await _paymentService.CreatePaymentAsync(
+                    var isPixAnnual = cardPlanType == ContractCardPlanType.PixAnnual;
+                    var firstPaymentAmount = isPixAnnual ? monthlyValue : monthlyValue;
+                    var payment = await _paymentService.CreatePaymentAsync(
                         subscription.Id,
-                        monthlyValue,
-                        initialPaymentMethod ?? PaymentMethod.PIX
+                        firstPaymentAmount,
+                        isPixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX)
                     );
+                    if (isPixAnnual)
+                    {
+                        var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == createdContract.ClientId);
+                        if (client != null)
+                        {
+                            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
+                            var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
+                            var clientTaxId = client.CPF ?? client.CNPJ ?? "";
+                            var clientPhone = client.ContactPhone;
+                            if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(clientEmail) || string.IsNullOrWhiteSpace(clientTaxId))
+                                throw new InvalidOperationException("Cliente sem nome, e-mail ou CPF/CNPJ. Complete o cadastro em Meu Perfil.");
+                            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, null, $"client_{client.Id}");
+                            var annualValue = monthlyValue;
+                            // contractId único (ContractNumber + Id) para evitar "Já existe autorização" ao reutilizar número
+                            var asaasContractId = $"{createdContract.ContractNumber ?? ""}-{createdContract.Id}";
+                            var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
+                                asaasCustomerId,
+                                asaasContractId,
+                                annualValue,
+                                $"Contrato {createdContract.ContractNumber} - PIX anual",
+                                86400
+                            );
+                            if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
+                            {
+                                payment.PixCode = authResponse.Payload;
+                                payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                                payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+                                subscription.PixAutomaticAuthorizationId = authResponse.Id;
+                                _context.Payments.Update(payment);
+                                _context.Subscriptions.Update(subscription);
+                                await _context.SaveChangesAsync();
+                            }
+                            else
+                                throw new InvalidOperationException(
+                                    "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade PIX Automático está habilitada e se a API retornou erro (veja os logs da aplicação).");
+                        }
+                    }
                     try
                     {
                         await _documentService.GenerateContractDocumentAsync(createdContract.Id);

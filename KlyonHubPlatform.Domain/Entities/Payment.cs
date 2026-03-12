@@ -14,6 +14,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? PaidAt { get; set; }
         public string? TransactionId { get; set; }
         public string? PixCode { get; set; }
+        /// <summary>Identificador de conciliação do QR PIX (ex.: autorização PIX Automático). Usado para vincular PAYMENT_RECEIVED quando externalReference vem null.</summary>
+        public string? PixConciliationIdentifier { get; set; }
         public DateTime? PixExpiresAt { get; set; }
         public string? BoletoCode { get; set; }
         public string? BoletoBarcode { get; set; }

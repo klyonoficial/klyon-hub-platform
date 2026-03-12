@@ -567,6 +567,91 @@ namespace KlyonHubPlatform.Application.Services
             return new OrderResponse { Id = chargeId, Status = "CANCELLED" };
         }
         /// <summary>Valida o webhook Asaas. O Asaas envia o token configurado no header asaas-access-token (em claro). Comparamos o header com o token armazenado.</summary>
+        /// <summary>Cria autorização PIX Automático com recorrência anual. Retorna id da autorização, payload do QR Code e data de expiração do primeiro pagamento.</summary>
+        public async Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(
+            string asaasCustomerId,
+            string contractId,
+            decimal annualValue,
+            string description,
+            int immediateExpirationSeconds = 86400)
+        {
+            var baseUrl = await GetBaseUrlAsync();
+            var apiKey = await GetApiKeyAsync();
+            var keyMask = apiKey.Length >= 4 ? "..." + apiKey.Substring(apiKey.Length - 4) : "(não exibido)";
+            _logger.LogInformation(
+                "PIX Automático: enviando para conta Asaas baseUrl={BaseUrl}, apiKey termina com {KeyMask}, contractId={ContractId}",
+                baseUrl, keyMask, contractId);
+
+            var startDate = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+            var request = new AsaasPixAutomaticAuthorizationRequest
+            {
+                Frequency = "ANNUALLY",
+                ContractId = contractId,
+                StartDate = startDate,
+                CustomerId = asaasCustomerId,
+                Value = annualValue,
+                Description = description.Length > 35 ? description.Substring(0, 35) : description,
+                ImmediateQrCode = new AsaasPixAutomaticImmediateQrCodeRequest
+                {
+                    OriginalValue = annualValue,
+                    ExpirationSeconds = immediateExpirationSeconds,
+                    Description = "Primeira cobrança anual - PIX Automático"
+                }
+            };
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/pix/automatic/authorizations");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao criar autorização PIX Automático: {StatusCode} - {Content}", response.StatusCode, content);
+                var msg = content.Length > 300 ? content.Substring(0, 300) + "..." : content;
+                throw new InvalidOperationException(
+                    $"Asaas PIX Automático: a API retornou {(int)response.StatusCode} ({response.StatusCode}). Detalhe: {msg}");
+            }
+            return JsonSerializer.Deserialize<AsaasPixAutomaticAuthorizationResponse>(content, JsonOptions);
+        }
+
+        /// <summary>Cria cobrança PIX vinculada à autorização PIX Automático (para recorrência anual). A cobrança será debitada automaticamente na data de vencimento.</summary>
+        public async Task<OrderResponse?> CreatePaymentWithPixAutomaticAuthorizationAsync(
+            string asaasCustomerId,
+            string pixAutomaticAuthorizationId,
+            decimal value,
+            DateTime dueDate,
+            string externalReference,
+            string description)
+        {
+            var request = new AsaasPaymentRequest
+            {
+                Customer = asaasCustomerId,
+                BillingType = "PIX",
+                Value = value,
+                DueDate = dueDate.ToString("yyyy-MM-dd"),
+                ExternalReference = externalReference,
+                Description = description.Length > 500 ? description.Substring(0, 500) : description,
+                PixAutomaticAuthorizationId = pixAutomaticAuthorizationId
+            };
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/payments");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao criar cobrança PIX Automático: {StatusCode} - {Content}", response.StatusCode, content);
+                return null;
+            }
+            var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
+            if (payment == null) return null;
+            return new OrderResponse
+            {
+                Id = payment.Id,
+                ReferenceId = externalReference,
+                Status = payment.Status,
+                CreatedAt = AsaasDateParser.TryParse(payment.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = AsaasDateParser.TryParse(payment.ConfirmedDate ?? payment.ClientPaymentDate)
+            };
+        }
+
         public async Task<bool> ValidateWebhookSignatureAsync(string payload, string signature)
         {
             var token = await _systemConfig.GetValueAsync(AsaasConfigKey.WebhookToken.ToConfigKey());

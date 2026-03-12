@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
@@ -213,7 +214,7 @@ namespace KlyonHubPlatform.Application.Services
                         {
                             subscription.LastBillingDate = DateTime.UtcNow;
                             var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x
+                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
                                 ? subscription.LastBillingDate.Value.AddYears(1)
                                 : subscription.LastBillingDate.Value.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
@@ -423,6 +424,40 @@ namespace KlyonHubPlatform.Application.Services
                 Country = "BRA",
                 PostalCode = postalCode
             };
+
+            // PIX recorrente anual: usar autorização PIX Automático (não criar cobrança PIX comum)
+            if (contract.CardPlanType == ContractCardPlanType.PixAnnual)
+            {
+                if (!string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId))
+                {
+                    // Já tem autorização; o QR deve ter sido gerado na criação do contrato
+                    if (!string.IsNullOrEmpty(payment.PixCode))
+                        return payment.PixCode;
+                    throw new InvalidOperationException("O código PIX da autorização já foi gerado. Se expirou, entre em contato com o suporte.");
+                }
+                var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
+                    clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
+                var asaasContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
+                var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
+                    asaasCustomerId,
+                    asaasContractId,
+                    payment.Amount,
+                    $"Contrato {contract.ContractNumber} - PIX anual",
+                    86400);
+                if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
+                {
+                    payment.PixCode = authResponse.Payload;
+                    payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                    payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+                    subscription.PixAutomaticAuthorizationId = authResponse.Id;
+                    await _subscriptionRepository.UpdateAsync(subscription);
+                    await _paymentRepository.UpdateAsync(payment);
+                    return payment.PixCode ?? "";
+                }
+                throw new InvalidOperationException(
+                    "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade está habilitada e os logs da aplicação.");
+            }
+
             var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,
@@ -875,7 +910,7 @@ namespace KlyonHubPlatform.Application.Services
                         {
                             subscription.LastBillingDate = DateTime.UtcNow;
                             var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x
+                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
                                 ? subscription.LastBillingDate.Value.AddYears(1)
                                 : subscription.LastBillingDate.Value.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
