@@ -13,7 +13,9 @@
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
     var showPixInDropdown = showPixAnnualInDropdown || showPixSingleInDropdown;
-    var showCreditCardInDropdown = !hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly");
+    var addressHasCard1x = contract?.CoworkingAddress?.CardPrice1x.HasValue == true && contract.CoworkingAddress.CardPrice1x!.Value > 0;
+    var addressHasCardMonthly = contract?.CoworkingAddress?.CardPriceMonthly.HasValue == true && contract.CoworkingAddress.CardPriceMonthly!.Value > 0;
+    var showCreditCardInDropdown = (addressHasCard1x || addressHasCardMonthly) && (!hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly"));
     var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
     var currentMethodValue = isPix ? (isPixAnnual ? "PixAnnual" : "PIX") : Model.Method.ToString();
 }

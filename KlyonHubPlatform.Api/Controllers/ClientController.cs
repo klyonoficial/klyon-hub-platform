@@ -1934,6 +1934,20 @@ namespace KlyonHubPlatform.Api.Controllers
                         return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                     }
                 }
+                if (paymentMethod == PaymentMethod.CreditCard && contract != null)
+                {
+                    var address = await _context.CoworkingAddresses.FindAsync(contract.CoworkingAddressId);
+                    var hasCard1x = address?.CardPrice1x is { } p1x && p1x > 0;
+                    var hasCardMonthly = address?.CardPriceMonthly is { } pMon && pMon > 0;
+                    if (!hasCard1x && !hasCardMonthly)
+                    {
+                        var msg = "O parceiro não configurou opções de pagamento no cartão para este endereço. Disponível PIX (recorrente anual ou único).";
+                        TempData[ErrorMessages.TempDataKey] = msg;
+                        if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
+                            return StatusCode(400, new { error = msg });
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    }
+                }
                 if (paymentMethod == PaymentMethod.BankTransfer)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.BoletoNoLongerAvailable;
