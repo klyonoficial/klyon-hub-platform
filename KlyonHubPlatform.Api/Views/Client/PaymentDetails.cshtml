@@ -535,7 +535,7 @@
                                 <strong>Instruções:</strong>
                                 <ul class="mb-0 mt-2">
                                     <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
-                                    <li>O boleto vence em: <strong>@Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)</strong></li>
+                                    <li>O boleto vence em: <strong>@((Model.BoletoExpiresAt ?? Model.DueDate).ToString(DateFormatConstants.DisplayDateOnly))</strong></li>
                                     <li>Após o pagamento, envie o comprovante para validação</li>
                                 </ul>
                             </div>

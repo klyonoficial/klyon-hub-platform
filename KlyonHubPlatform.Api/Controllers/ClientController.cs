@@ -1836,10 +1836,18 @@ namespace KlyonHubPlatform.Api.Controllers
                         await _paymentService.GeneratePixCodeAsync(payment.Id, pixPlanType);
                         payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
-                    else if (payment.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(payment.BoletoCode))
+                    else if (payment.Method == PaymentMethod.BankTransfer)
                     {
-                        await _paymentService.GenerateBoletoCodeAsync(payment.Id);
-                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
+                        var boletoExpUtc = payment.BoletoExpiresAt.HasValue
+                            ? (payment.BoletoExpiresAt.Value.Kind == DateTimeKind.Utc ? payment.BoletoExpiresAt.Value : DateTime.SpecifyKind(payment.BoletoExpiresAt.Value, DateTimeKind.Utc))
+                            : (DateTime?)null;
+                        var boletoMissingOrExpired = string.IsNullOrEmpty(payment.BoletoCode) ||
+                            (boletoExpUtc.HasValue && boletoExpUtc.Value < DateTime.UtcNow);
+                        if (boletoMissingOrExpired)
+                        {
+                            await _paymentService.GenerateBoletoCodeAsync(payment.Id);
+                            payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
+                        }
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))

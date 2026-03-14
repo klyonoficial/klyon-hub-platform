@@ -392,7 +392,12 @@ namespace KlyonHubPlatform.Application.Services
             }
             else if (method == PaymentMethod.BankTransfer)
             {
-                await GenerateBoletoCodeAsync(paymentId);
+                var boletoExpUtc = payment.BoletoExpiresAt.HasValue
+                    ? (payment.BoletoExpiresAt.Value.Kind == DateTimeKind.Utc ? payment.BoletoExpiresAt.Value : DateTime.SpecifyKind(payment.BoletoExpiresAt.Value, DateTimeKind.Utc))
+                    : (DateTime?)null;
+                var boletoValid = !string.IsNullOrEmpty(payment.BoletoCode) && (!boletoExpUtc.HasValue || boletoExpUtc.Value > DateTime.UtcNow);
+                if (!boletoValid)
+                    await GenerateBoletoCodeAsync(paymentId);
             }
             return await _paymentRepository.GetByIdAsync(paymentId) ?? payment;
         }
@@ -869,6 +874,10 @@ namespace KlyonHubPlatform.Application.Services
                     payment.BoletoBarcode = charge.PaymentMethod.Boleto.Barcode;
                     payment.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode ?? charge.PaymentMethod.Boleto.Barcode;
                     payment.BoletoExpiresAt = charge.PaymentMethod.Boleto.DueDate;
+                    if (charge.PaymentMethod.Boleto.DueDate.HasValue)
+                        payment.DueDate = charge.PaymentMethod.Boleto.DueDate.Value.Kind == DateTimeKind.Utc
+                            ? charge.PaymentMethod.Boleto.DueDate.Value
+                            : DateTime.SpecifyKind(charge.PaymentMethod.Boleto.DueDate.Value, DateTimeKind.Utc);
                 }
             }
             await _paymentRepository.UpdateAsync(payment);
