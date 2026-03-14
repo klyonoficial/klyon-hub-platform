@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
@@ -1794,6 +1795,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return Forbid();
             }
+            ViewBag.IsPaymentOwner = isAuthorized;
             var asaasApiKey = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
             var isAsaasConfigured = !string.IsNullOrEmpty(asaasApiKey);
             if (!isAsaasConfigured)
@@ -1802,7 +1804,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
             var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (payment.Status == PaymentStatus.Pending && isAsaasConfigured)
+            if (isAuthorized && payment.Status == PaymentStatus.Pending && isAsaasConfigured)
             {
                 var showPixInDropdownEarly = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
                 var showBoletoInDropdownEarly = !hiddenPaymentSet.Contains("Boleto");
@@ -1879,10 +1881,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var showCreditCardSectionCore = (payment.Method == PaymentMethod.CreditCard && showCreditCardInDropdownCore) ||
                 (payment.Method == PaymentMethod.PIX && !showPixInDropdownCore && showCreditCardInDropdownCore) ||
                 (payment.Method == PaymentMethod.BankTransfer && !showBoletoInDropdownCore && showCreditCardInDropdownCore);
-            if (showCreditCardSectionCore && client != null)
+            if (showCreditCardSectionCore)
             {
-                var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(client.Id, cancellationToken);
-                ViewBag.CreditCards = creditCards;
+                var ownerClientId = payment.Subscription?.Contract?.ClientId ?? client?.Id;
+                if (ownerClientId.HasValue)
+                {
+                    var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(ownerClientId.Value, cancellationToken);
+                    ViewBag.CreditCards = creditCards;
+                }
             }
             string? creditCardPlanLabel = null;
             string? creditCardRecurrence = null;
@@ -1939,6 +1945,25 @@ namespace KlyonHubPlatform.Api.Controllers
             if (payment.Status == PaymentStatus.Cancelled && payment.Subscription?.Contract != null && !string.IsNullOrEmpty(payment.Subscription.Contract.CancellationReason))
             {
                 ViewBag.ContractCancellationReason = payment.Subscription.Contract.CancellationReason;
+            }
+            if (payment.Method == PaymentMethod.BankTransfer && !string.IsNullOrEmpty(payment.BoletoCode))
+            {
+                if (payment.BoletoCode == payment.BoletoBarcode)
+                {
+                    var (barcode44, digitableFormatted) = BoletoHelper.NormalizeBoletoValues(payment.BoletoCode);
+                    if (!string.IsNullOrEmpty(barcode44) && !string.IsNullOrEmpty(digitableFormatted))
+                    {
+                        payment.BoletoBarcode = barcode44;
+                        payment.BoletoCode = digitableFormatted;
+                    }
+                }
+                var boleto47Digits = BoletoHelper.OnlyDigits(payment.BoletoCode);
+                if (boleto47Digits.Length == 47)
+                {
+                    var (validationOk, validationError) = BoletoHelper.ValidateBoletoFromIntegration(boleto47Digits);
+                    ViewBag.BoletoValidationValid = validationOk;
+                    ViewBag.BoletoValidationMessage = validationOk ? "Validação FEBRABAN: dígitos verificadores conferem." : (validationError ?? "Validação FEBRABAN não realizada.");
+                }
             }
             return View(payment);
         }
@@ -2013,10 +2038,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
                 if (contract == null || contract.ClientId != client.Id)
                 {
-                    if (!User.IsInRole(Administrator))
-                    {
-                        return Forbid();
-                    }
+                    return Forbid();
                 }
                 if (payment.Status != PaymentStatus.Pending)
                 {
@@ -2138,10 +2160,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
                 if (contract == null || contract.ClientId != client.Id)
                 {
-                    if (!User.IsInRole(Administrator))
-                    {
-                        return Forbid();
-                    }
+                    return Forbid();
                 }
                 if (payment.Method != PaymentMethod.PIX)
                 {
@@ -2206,10 +2225,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
                 if (contract == null || contract.ClientId != client.Id)
                 {
-                    if (!User.IsInRole(Administrator))
-                    {
-                        return Forbid();
-                    }
+                    return Forbid();
                 }
                 if (payment.Status != PaymentStatus.Pending)
                 {

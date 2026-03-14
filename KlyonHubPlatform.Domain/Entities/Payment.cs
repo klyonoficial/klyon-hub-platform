@@ -19,6 +19,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? PixExpiresAt { get; set; }
         public string? BoletoCode { get; set; }
         public string? BoletoBarcode { get; set; }
+        /// <summary>URL do boleto em PDF retornada pelo Asaas (bankSlipUrl). Permite ao usuário abrir/gerar o boleto.</summary>
+        public string? BankSlipUrl { get; set; }
         public DateTime? BoletoExpiresAt { get; set; }
         public string? FailureReason { get; set; }
         public string? ReceiptFilePath { get; set; }

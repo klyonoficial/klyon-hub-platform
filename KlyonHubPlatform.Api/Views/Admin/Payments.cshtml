@@ -110,6 +110,7 @@
                                     }
                                 </td>
                                 <td>
+                                    <a href="@Url.Action("PaymentDetails", "Client", new { id = payment.Id })" class="text-decoration-none" title="Ver detalhes do pagamento do cliente">
                                     @switch (payment.Status)
                                     {
                                         case PaymentStatus.Pending:
@@ -153,6 +154,7 @@
                                             </span>
                                             break;
                                     }
+                                    </a>
                                 </td>
                                 <td>
                                     @payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly)

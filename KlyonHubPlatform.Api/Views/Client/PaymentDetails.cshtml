@@ -3,6 +3,7 @@
 @using KlyonHubPlatform.Domain.Core.Constants
 @{
     ViewData[ViewDataKeys.Title] = "Detalhes do Pagamento";
+    var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
     var contract = Model.Subscription?.Contract;
     var reservation = Model.Reservation;
     var isPending = Model.Status == PaymentStatus.Pending;
@@ -47,6 +48,12 @@
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
+@if (!isPaymentOwner)
+{
+    <div class="alert alert-info mb-4" role="alert">
+        <i class="bi bi-eye"></i> <strong>Visualização somente leitura.</strong> Você está visualizando este pagamento como administrador; nenhum campo pode ser alterado.
+    </div>
+}
 
 <div class="row">
     <div class="col-md-8">
@@ -183,7 +190,7 @@
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
-                        @if (isPending)
+                        @if (isPending && isPaymentOwner)
                         {
                             @if (!showPixInDropdown && !showCreditCardInDropdown && !showBoletoInDropdown)
                             {
@@ -330,6 +337,30 @@
                             }
                             }
                         }
+                        else if (isPending && !isPaymentOwner)
+                        {
+                            @switch (Model.Method)
+                            {
+                                case PaymentMethod.PIX:
+                                    var pixLabelRo = contract?.CardPlanType == ContractCardPlanType.PixAnnual ? "PIX (recorrente anual)" : "PIX (pagamento único)";
+                                    <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabelRo</span>
+                                    break;
+                                case PaymentMethod.CreditCard:
+                                    <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
+                                    @if (ViewBag.CreditCardPlanLabel != null)
+                                    {
+                                        <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                    }
+                                    @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                    {
+                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                    }
+                                    break;
+                                case PaymentMethod.BankTransfer:
+                                    <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto Bancário</span>
+                                    break;
+                            }
+                        }
                         else
                         {
                             @switch (Model.Method)
@@ -447,15 +478,22 @@
                         {
                             <div class="alert alert-warning">
                                 <i class="bi bi-exclamation-triangle"></i> <strong>Este código PIX expirou.</strong>
-                                <p class="mb-2 mt-2">Clique no botão abaixo para gerar um novo código e realizar o pagamento.</p>
-                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="paymentId" value="@Model.Id" />
-                                    <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-qr-code"></i> Gerar novo código PIX
-                                    </button>
-                                </form>
+                                @if (isPaymentOwner)
+                                {
+                                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar um novo código e realizar o pagamento.</p>
+                                    <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-qr-code"></i> Gerar novo código PIX
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
+                                }
                             </div>
                         }
                         else if (!string.IsNullOrEmpty(effectivePixCode))
@@ -467,7 +505,7 @@
                                 <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="pixCode" value="@effectivePixCode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode()">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode(event)">
                                         <i class="bi bi-clipboard"></i> Copiar
                                     </button>
                                 </div>
@@ -489,15 +527,22 @@
                             <div class="alert alert-warning">
                                 <i class="bi bi-exclamation-triangle"></i> 
                                 <strong>Código PIX não gerado.</strong>
-                                <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
-                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="paymentId" value="@Model.Id" />
-                                    <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-qr-code"></i> Gerar Código PIX
-                                    </button>
-                                </form>
+                                @if (isPaymentOwner)
+                                {
+                                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
+                                    <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-qr-code"></i> Gerar Código PIX
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
+                                }
                             </div>
                         }
                     </div>
@@ -512,24 +557,37 @@
                     <div class="card-body">
                         @if (!string.IsNullOrEmpty(Model.BoletoCode))
                         {
+                            @* Copiar sempre clicáveis (inclusive para admin) para repassar códigos ao usuário *@
                             <div class="mb-3">
-                                <label class="form-label"><strong>Código de Barras:</strong></label>
+                                <label class="form-label"><strong>Código de Barras (44 dígitos):</strong></label>
+                                <p class="text-muted small mb-1">Para leitura por equipamento de código de barras.</p>
                                 <div class="input-group">
                                     <input type="text" class="form-control font-monospace" id="boletoBarcode" value="@Model.BoletoBarcode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoBarcode()">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoBarcode(event)">
                                         <i class="bi bi-clipboard"></i> Copiar
                                     </button>
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><strong>Linha Digitável:</strong></label>
+                                <label class="form-label"><strong>Linha Digitável (47 caracteres):</strong></label>
+                                <p class="text-muted small mb-1">Para digitação no internet banking ou aplicativo do banco.</p>
                                 <div class="input-group">
                                     <input type="text" class="form-control font-monospace" id="boletoCode" value="@Model.BoletoCode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoCode()">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoCode(event)">
                                         <i class="bi bi-clipboard"></i> Copiar
                                     </button>
                                 </div>
                             </div>
+                            @if (!string.IsNullOrWhiteSpace(Model.BankSlipUrl))
+                            {
+                                @* Link sempre clicável (inclusive para admin) para permitir emitir/visualizar o boleto para o usuário *@
+                                <div class="mb-3">
+                                    <a href="@Model.BankSlipUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                                        <i class="bi bi-file-earmark-pdf"></i> Abrir boleto (PDF)
+                                    </a>
+                                    <p class="text-muted small mb-0 mt-1">Clique para visualizar ou imprimir o boleto em PDF.</p>
+                                </div>
+                            }
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle"></i> 
                                 <strong>Instruções:</strong>
@@ -539,6 +597,17 @@
                                     <li>Após o pagamento, envie o comprovante para validação</li>
                                 </ul>
                             </div>
+                            @if (User.IsInRole("Administrator") && ViewBag.BoletoValidationValid != null)
+                            {
+                                @if (ViewBag.BoletoValidationValid == true)
+                                {
+                                    <p class="text-success small mb-0"><i class="bi bi-check-circle"></i> @(ViewBag.BoletoValidationMessage ?? "Validação FEBRABAN: dígitos verificadores conferem.")</p>
+                                }
+                                else
+                                {
+                                    <p class="text-warning small mb-0"><i class="bi bi-exclamation-triangle"></i> @ViewBag.BoletoValidationMessage</p>
+                                }
+                            }
                         }
                         else
                         {
@@ -587,21 +656,24 @@
                                                     {
                                                         <span class="badge bg-primary">Padrão</span>
                                                     }
-                                                    else
+                                                    @if (isPaymentOwner)
                                                     {
-                                                        <form method="post" action="@Url.Action("SetDefaultCreditCard", "Client")" class="d-inline">
+                                                        @if (!card.IsDefault)
+                                                        {
+                                                            <form method="post" action="@Url.Action("SetDefaultCreditCard", "Client")" class="d-inline">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                                <input type="hidden" name="cardId" value="@card.Id" />
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
+                                                            </form>
+                                                        }
+                                                        <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
                                                             @Html.AntiForgeryToken()
                                                             <input type="hidden" name="paymentId" value="@Model.Id" />
                                                             <input type="hidden" name="cardId" value="@card.Id" />
-                                                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
                                                         </form>
                                                     }
-                                                    <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
-                                                        @Html.AntiForgeryToken()
-                                                        <input type="hidden" name="paymentId" value="@Model.Id" />
-                                                        <input type="hidden" name="cardId" value="@card.Id" />
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
-                                                    </form>
                                                 </div>
                                             </div>
                                         </div>
@@ -610,12 +682,15 @@
                             </div>
                         }
 
+                        @if (isPaymentOwner)
+                        {
                         <p class="text-muted small mb-3">
                             <i class="bi bi-info-circle"></i> Cadastre um cartão abaixo para usar no pagamento. Ao clicar em "Pagar com cartão", você escolhe a forma de cobrança (1x anual ou mensal) e o cartão no modal.
                         </p>
                         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
                             <i class="bi bi-plus-circle"></i> Adicionar Novo Cartão
                         </button>
+                        }
                     </div>
                 </div>
             }
@@ -628,6 +703,8 @@
                 </div>
                 <div class="card-body">
                     <p class="mb-3">Este pagamento PIX venceu ou foi cancelado. Você pode gerar um novo código para realizar o pagamento.</p>
+                    @if (isPaymentOwner)
+                    {
                     <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="paymentId" value="@Model.Id" />
@@ -636,6 +713,11 @@
                             <i class="bi bi-qr-code"></i> Gerar novo código PIX
                         </button>
                     </form>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">Visualização somente leitura.</p>
+                    }
                 </div>
             </div>
         }
@@ -656,9 +738,12 @@
                             <strong>Instruções:</strong> Após realizar o pagamento, envie o comprovante para validação.
                         </div>
 
+                        @if (isPaymentOwner)
+                        {
                         <button type="button" class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#confirmPaymentModal">
                             <i class="bi bi-upload"></i> Enviar Comprovante
                         </button>
+                        }
 
                         <p class="text-muted small mt-3">
                             <i class="bi bi-info-circle"></i> 
@@ -674,9 +759,12 @@
                                 Seu contrato será ativado assim que o pagamento for aprovado.
                             </div>
 
+                            @if (isPaymentOwner)
+                            {
                             <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
                                 <i class="bi bi-credit-card"></i> Pagar com cartão
                             </button>
+                            }
 
                             <p class="text-muted small mt-3">
                                 <i class="bi bi-info-circle"></i> 
@@ -1171,22 +1259,27 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
     <script>
-        function copyPixCode() {
-            const pixCode = document.getElementById('pixCode');
-            pixCode.select();
+        function copyToClipboardWithButtonFeedback(elementId, ev) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.select();
             document.execCommand('copy');
-            
-            const button = event.target.closest('button');
-            const originalHtml = button.innerHTML;
-            button.innerHTML = '<i class="bi bi-check"></i> Copiado!';
-            button.classList.add('btn-success');
-            button.classList.remove('btn-outline-secondary');
-            
-            setTimeout(() => {
-                button.innerHTML = originalHtml;
-                button.classList.remove('btn-success');
-                button.classList.add('btn-outline-secondary');
-            }, 2000);
+            const button = (ev && ev.target) ? ev.target.closest('button') : null;
+            if (button) {
+                const originalHtml = button.innerHTML;
+                button.innerHTML = '<i class="bi bi-check"></i> Copiado!';
+                button.classList.add('btn-success');
+                button.classList.remove('btn-outline-secondary');
+                setTimeout(() => {
+                    button.innerHTML = originalHtml;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-outline-secondary');
+                }, 2000);
+            }
+        }
+
+        function copyPixCode(ev) {
+            copyToClipboardWithButtonFeedback('pixCode', ev);
         }
 
         @if (isPending && showPixCard && !string.IsNullOrEmpty(effectivePixCode) && !isExpired)
@@ -1201,18 +1294,12 @@
             </text>
         }
 
-        function copyBoletoBarcode() {
-            const barcode = document.getElementById('boletoBarcode');
-            barcode.select();
-            document.execCommand('copy');
-            showToast('Código de barras copiado!', 'success', 3000);
+        function copyBoletoBarcode(ev) {
+            copyToClipboardWithButtonFeedback('boletoBarcode', ev);
         }
 
-        function copyBoletoCode() {
-            const code = document.getElementById('boletoCode');
-            code.select();
-            document.execCommand('copy');
-            showToast('Linha digitável copiada!', 'success', 3000);
+        function copyBoletoCode(ev) {
+            copyToClipboardWithButtonFeedback('boletoCode', ev);
         }
 
         // Helper de loading: usa KlyonLoading do loading.js ou fallback pelo overlay (se o script não carregou)

@@ -871,9 +871,13 @@ namespace KlyonHubPlatform.Application.Services
                 var charge = orderResponse.Charges.First();
                 if (charge.PaymentMethod?.Boleto != null)
                 {
-                    payment.BoletoBarcode = charge.PaymentMethod.Boleto.Barcode;
-                    payment.BoletoCode = charge.PaymentMethod.Boleto.FormattedBarcode ?? charge.PaymentMethod.Boleto.Barcode;
+                    var rawBoleto = charge.PaymentMethod.Boleto.FormattedBarcode ?? charge.PaymentMethod.Boleto.Barcode;
+                    var (barcode44, digitableFormatted) = BoletoHelper.NormalizeBoletoValues(rawBoleto);
+                    payment.BoletoBarcode = !string.IsNullOrEmpty(barcode44) ? barcode44 : rawBoleto;
+                    payment.BoletoCode = !string.IsNullOrEmpty(digitableFormatted) ? digitableFormatted : rawBoleto;
                     payment.BoletoExpiresAt = charge.PaymentMethod.Boleto.DueDate;
+                    var bankSlipLink = charge.PaymentMethod.Boleto.Links?.FirstOrDefault(l => string.Equals(l.Rel, "bankSlip", StringComparison.OrdinalIgnoreCase));
+                    payment.BankSlipUrl = !string.IsNullOrWhiteSpace(bankSlipLink?.Href) ? bankSlipLink.Href.Trim() : null;
                     if (charge.PaymentMethod.Boleto.DueDate.HasValue)
                         payment.DueDate = charge.PaymentMethod.Boleto.DueDate.Value.Kind == DateTimeKind.Utc
                             ? charge.PaymentMethod.Boleto.DueDate.Value

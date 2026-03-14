@@ -2565,6 +2565,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(65,30)");
 
+                    b.Property<string>("BankSlipUrl")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("BoletoBarcode")
                         .HasColumnType("longtext");
 
