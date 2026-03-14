@@ -27,9 +27,18 @@
     // isPixAnnual já definido acima para effectivePixCode/effectivePixExpiresAt
     var currentPixPlanValue = isPixAnnual ? "PixAnnual" : "PIX";
     var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
-    // Quando PIX está oculto (HiddenPaymentOptions): não mostrar card PIX; mostrar seção de cartão como única opção
-    var showPixCard = isPending && Model.Method == PaymentMethod.PIX && showPixInDropdown;
-    var showCreditCardSection = Model.Method == PaymentMethod.CreditCard || (Model.Method == PaymentMethod.PIX && !showPixInDropdown && showCreditCardInDropdown);
+    // Quando qualquer opção está em HiddenPaymentOptions (PixAnnual, PIX, Card1x, CardMonthly, Boleto): carregar a tela da primeira opção disponível (fallback)
+    var showPixCard = isPending && (
+        (Model.Method == PaymentMethod.PIX && showPixInDropdown) ||
+        (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showPixInDropdown) ||
+        (Model.Method == PaymentMethod.BankTransfer && !showBoletoInDropdown && showPixInDropdown));
+    var showCreditCardSection = (Model.Method == PaymentMethod.CreditCard && showCreditCardInDropdown) ||
+        (Model.Method == PaymentMethod.PIX && !showPixInDropdown && showCreditCardInDropdown) ||
+        (Model.Method == PaymentMethod.BankTransfer && !showBoletoInDropdown && showCreditCardInDropdown);
+    var showBoletoSection = isPending && (
+        (Model.Method == PaymentMethod.BankTransfer && showBoletoInDropdown) ||
+        (Model.Method == PaymentMethod.PIX && !showPixInDropdown && !showCreditCardInDropdown && showBoletoInDropdown) ||
+        (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showBoletoInDropdown));
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -283,10 +292,10 @@
                                 var pageHas1x = pagePrice1x.HasValue && pagePrice1x.Value > 0;
                                 var pageHasMonthly = pagePriceMonthly.HasValue && pagePriceMonthly.Value > 0;
                                 if (!pageHas1x && !pageHasMonthly) { pageHas1x = true; pagePrice1x = Model.Amount; }
-                                // Quando já está em Cartão de Crédito, exibir sempre as opções 1x/mensal (fallback se endereço sem preços ou não carregado)
-                                var pageShowCard1x = (showCard1x && pageHas1x) || (Model.Method == PaymentMethod.CreditCard && pageHas1x);
-                                var pageShowCardMonthly = (showCardMonthly && pageHasMonthly) || (Model.Method == PaymentMethod.CreditCard && pageHasMonthly);
-                                if (Model.Method == PaymentMethod.CreditCard && !pageShowCard1x && !pageShowCardMonthly)
+                                // Exibir opções 1x/mensal quando a seção de cartão está visível (método atual ou fallback por opção oculta)
+                                var pageShowCard1x = (showCard1x && pageHas1x) || (showCreditCardSection && pageHas1x);
+                                var pageShowCardMonthly = (showCardMonthly && pageHasMonthly) || (showCreditCardSection && pageHasMonthly);
+                                if (showCreditCardSection && !pageShowCard1x && !pageShowCardMonthly)
                                 {
                                     pageShowCard1x = true;
                                     pagePrice1x = Model.Amount;
@@ -494,7 +503,7 @@
                     </div>
                 </div>
             }
-            else if (Model.Method == PaymentMethod.BankTransfer)
+            else if (showBoletoSection)
             {
                 <div class="card mb-4" id="boletoPaymentCard">
                     <div class="card-header bg-secondary text-white">
@@ -640,7 +649,7 @@
             <div class="card-body" id="actionsCardBody">
                 @if (isPending)
                 {
-                    @if (showPixCard || Model.Method == PaymentMethod.BankTransfer)
+                    @if (showPixCard || showBoletoSection)
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 

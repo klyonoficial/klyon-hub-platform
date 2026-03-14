@@ -1800,8 +1800,32 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 TempData[TempDataKeys.Warning] = WarningMessages.PaymentSystemNotConfiguredConfigureAsaas;
             }
+            var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+            var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             if (payment.Status == PaymentStatus.Pending && isAsaasConfigured)
             {
+                var showPixInDropdownEarly = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
+                var showBoletoInDropdownEarly = !hiddenPaymentSet.Contains("Boleto");
+                var addressHasCardPricesEarly = payment.Subscription?.Contract?.CoworkingAddress is { } addrE && ((addrE.CardPrice1x.HasValue && addrE.CardPrice1x.Value > 0) || (addrE.CardPriceMonthly.HasValue && addrE.CardPriceMonthly.Value > 0));
+                var hasCard1xEarly = payment.Subscription?.Contract?.CoworkingAddress?.CardPrice1x is { } p1xE && p1xE > 0;
+                var hasCardMonthlyEarly = payment.Subscription?.Contract?.CoworkingAddress?.CardPriceMonthly is { } pMonE && pMonE > 0;
+                var showCreditCardInDropdownEarly = (hasCard1xEarly || hasCardMonthlyEarly) && (!hiddenPaymentSet.Contains("Card1x") || !hiddenPaymentSet.Contains("CardMonthly"));
+                var showPixCardCore = (payment.Method == PaymentMethod.PIX && showPixInDropdownEarly) ||
+                    (payment.Method == PaymentMethod.BankTransfer && !showBoletoInDropdownEarly && showPixInDropdownEarly) ||
+                    (payment.Method == PaymentMethod.CreditCard && !showCreditCardInDropdownEarly && showPixInDropdownEarly);
+                if (showPixCardCore && payment.Method != PaymentMethod.PIX)
+                {
+                    var defaultPixPlan = !hiddenPaymentSet.Contains("PixAnnual") ? ContractCardPlanType.PixAnnual : ContractCardPlanType.None;
+                    try
+                    {
+                        await _paymentService.UpdatePaymentMethodAsync(payment.Id, PaymentMethod.PIX, defaultPixPlan);
+                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Falha ao alterar método para PIX (fallback) no PaymentDetails. PaymentId: {PaymentId}", id);
+                    }
+                }
                 try
                 {
                     if (payment.Method == PaymentMethod.PIX)
@@ -1837,12 +1861,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[TempDataKeys.Warning] = WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
                 }
             }
-            var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
-            var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             ViewBag.HiddenPaymentOptions = hiddenPaymentSet;
             var showPixInDropdownCore = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
+            var showBoletoInDropdownCore = !hiddenPaymentSet.Contains("Boleto");
             var addressHasCardPrices = payment.Subscription?.Contract?.CoworkingAddress is { } addr && ((addr.CardPrice1x.HasValue && addr.CardPrice1x.Value > 0) || (addr.CardPriceMonthly.HasValue && addr.CardPriceMonthly.Value > 0));
-            var showCreditCardSectionCore = payment.Method == PaymentMethod.CreditCard || (payment.Method == PaymentMethod.PIX && !showPixInDropdownCore && addressHasCardPrices);
+            var hasCard1x = payment.Subscription?.Contract?.CoworkingAddress?.CardPrice1x is { } p1x && p1x > 0;
+            var hasCardMonthly = payment.Subscription?.Contract?.CoworkingAddress?.CardPriceMonthly is { } pMon && pMon > 0;
+            var showCreditCardInDropdownCore = (hasCard1x || hasCardMonthly) && (!hiddenPaymentSet.Contains("Card1x") || !hiddenPaymentSet.Contains("CardMonthly"));
+            var showCreditCardSectionCore = (payment.Method == PaymentMethod.CreditCard && showCreditCardInDropdownCore) ||
+                (payment.Method == PaymentMethod.PIX && !showPixInDropdownCore && showCreditCardInDropdownCore) ||
+                (payment.Method == PaymentMethod.BankTransfer && !showBoletoInDropdownCore && showCreditCardInDropdownCore);
             if (showCreditCardSectionCore && client != null)
             {
                 var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(client.Id, cancellationToken);
