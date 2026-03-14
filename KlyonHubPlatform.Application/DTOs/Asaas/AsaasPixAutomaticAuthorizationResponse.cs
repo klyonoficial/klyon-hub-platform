@@ -22,6 +22,9 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
 
     public class AsaasPixAutomaticImmediateQrCodeResponse
     {
+        [JsonPropertyName("payload")]
+        public string? Payload { get; set; }
+
         [JsonPropertyName("conciliationIdentifier")]
         public string? ConciliationIdentifier { get; set; }
 

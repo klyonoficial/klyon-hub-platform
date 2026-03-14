@@ -12,6 +12,8 @@ public class PaymentHub : Hub
 {
     public const string PaymentConfirmed = "PaymentConfirmed";
     public const string PaymentCancelled = "PaymentCancelled";
+    /// <summary>Novo código PIX gerado após vencimento (PAYMENT_OVERDUE).</summary>
+    public const string PaymentPixCodeRegenerated = "PaymentPixCodeRegenerated";
 
     /// <summary>
     /// Adiciona a conexão ao grupo do pagamento para receber notificações em tempo real.

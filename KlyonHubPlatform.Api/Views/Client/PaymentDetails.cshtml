@@ -8,7 +8,12 @@
     var isPending = Model.Status == PaymentStatus.Pending;
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
-    var isExpired = Model.PixExpiresAt.HasValue && Model.PixExpiresAt.Value < DateTime.UtcNow;
+    // PIX único: código e expiração em Payments (PixCode, PixExpiresAt). PIX Automático: em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
+    var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
+    var effectivePixCode = isPixAnnual ? (Model.Subscription?.PixAutomaticPayload) : Model.PixCode;
+    var effectivePixExpiresAt = isPixAnnual ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt;
+    var pixExpiresAtUtc = effectivePixExpiresAt.HasValue ? (effectivePixExpiresAt.Value.Kind == DateTimeKind.Utc ? effectivePixExpiresAt.Value : DateTime.SpecifyKind(effectivePixExpiresAt.Value, DateTimeKind.Utc)) : (DateTime?)null;
+    var isExpired = pixExpiresAtUtc.HasValue && pixExpiresAtUtc.Value < DateTime.UtcNow;
     var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as IReadOnlySet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
@@ -16,8 +21,15 @@
     var addressHasCard1x = contract?.CoworkingAddress?.CardPrice1x.HasValue == true && contract.CoworkingAddress.CardPrice1x!.Value > 0;
     var addressHasCardMonthly = contract?.CoworkingAddress?.CardPriceMonthly.HasValue == true && contract.CoworkingAddress.CardPriceMonthly!.Value > 0;
     var showCreditCardInDropdown = (addressHasCard1x || addressHasCardMonthly) && (!hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly"));
-    var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
-    var currentMethodValue = isPix ? (isPixAnnual ? "PixAnnual" : "PIX") : Model.Method.ToString();
+    var showCard1x = addressHasCard1x && !hiddenPaymentOptions.Contains("Card1x");
+    var showCardMonthly = addressHasCardMonthly && !hiddenPaymentOptions.Contains("CardMonthly");
+    var showBoletoInDropdown = !hiddenPaymentOptions.Contains("Boleto");
+    // isPixAnnual já definido acima para effectivePixCode/effectivePixExpiresAt
+    var currentPixPlanValue = isPixAnnual ? "PixAnnual" : "PIX";
+    var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
+    // Quando PIX está oculto (HiddenPaymentOptions): não mostrar card PIX; mostrar seção de cartão como única opção
+    var showPixCard = isPending && Model.Method == PaymentMethod.PIX && showPixInDropdown;
+    var showCreditCardSection = Model.Method == PaymentMethod.CreditCard || (Model.Method == PaymentMethod.PIX && !showPixInDropdown && showCreditCardInDropdown);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -108,7 +120,7 @@
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8">
-                        @if (Model.Method == PaymentMethod.CreditCard && isPending)
+                        @if (showCreditCardSection && isPending)
                         {
                             var addrVal = Model.Subscription?.Contract?.CoworkingAddress;
                             var price1xVal = addrVal?.CardPrice1x;
@@ -116,8 +128,9 @@
                             var has1xVal = price1xVal.HasValue && price1xVal.Value > 0;
                             var hasMonthlyVal = priceMonthlyVal.HasValue && priceMonthlyVal.Value > 0;
                             if (!has1xVal && !hasMonthlyVal) { has1xVal = true; price1xVal = Model.Amount; }
-                            var initialVal = has1xVal ? (price1xVal ?? Model.Amount) : (priceMonthlyVal ?? 0);
-                            var initialLabel = has1xVal ? "recorrência anual — equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
+                            var use1xAsInitial = showCard1x;
+                            var initialVal = use1xAsInitial ? (price1xVal ?? Model.Amount) : (priceMonthlyVal ?? 0);
+                            var initialLabel = use1xAsInitial ? "recorrência anual — equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
                             var price1xStr = price1xVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
                             var priceMonthlyStr = priceMonthlyVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
                             <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr">
@@ -163,30 +176,25 @@
                     <dd class="col-sm-8">
                         @if (isPending)
                         {
+                            @if (!showPixInDropdown && !showCreditCardInDropdown && !showBoletoInDropdown)
+                            {
+                                <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
+                            }
+                            else
+                            {
                             <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
                                 <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue">
-                                    @if (showPixAnnualInDropdown)
+                                    @if (showPixInDropdown)
                                     {
-                                        if (currentMethodValue == "PixAnnual")
+                                        if (isPix)
                                         {
-                                            <option value="PixAnnual" selected>PIX (recorrente anual)</option>
+                                            <option value="PIX" selected>PIX</option>
                                         }
                                         else
                                         {
-                                            <option value="PixAnnual">PIX (recorrente anual)</option>
-                                        }
-                                    }
-                                    @if (showPixSingleInDropdown)
-                                    {
-                                        if (currentMethodValue == "PIX")
-                                        {
-                                            <option value="PIX" selected>PIX (pagamento único)</option>
-                                        }
-                                        else
-                                        {
-                                            <option value="PIX">PIX (pagamento único)</option>
+                                            <option value="PIX">PIX</option>
                                         }
                                     }
                                     @if (showCreditCardInDropdown)
@@ -200,9 +208,74 @@
                                             <option value="CreditCard">Cartão de Crédito</option>
                                         }
                                     }
+                                    @if (showBoletoInDropdown)
+                                    {
+                                        if (Model.Method == PaymentMethod.BankTransfer)
+                                        {
+                                            <option value="BankTransfer" selected>Boleto Bancário</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="BankTransfer">Boleto Bancário</option>
+                                        }
+                                    }
                                 </select>
-                                </form>
-                            @if (Model.Method == PaymentMethod.CreditCard)
+                            </form>
+                            @if (Model.Method == PaymentMethod.PIX && (showPixAnnualInDropdown || showPixSingleInDropdown))
+                            {
+                                var pixAmount = Model.Amount;
+                                var pixMonthlyEq = pixAmount / 12m;
+                                <div class="mt-3 pt-2 border-top" id="pagePixPlanOptionWrap" data-current-pix-plan="@currentPixPlanValue">
+                                    <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                                    @if (showPixAnnualInDropdown)
+                                    {
+                                        var checkedAttr = "";
+                                        if (showPixSingleInDropdown)
+                                        {
+                                            // As duas opções visíveis: respeitar o plano atual
+                                            if (isPixAnnual)
+                                            {
+                                                checkedAttr = "checked";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Só anual visível
+                                            checkedAttr = "checked";
+                                        }
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @checkedAttr>
+                                            <label class="form-check-label" for="pagePixPlanAnnual">
+                                                PIX recorrente anual — PIX Automático — débito todo ano na mesma data; autorize uma vez e pague automaticamente — R$ @pixAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                            </label>
+                                        </div>
+                                    }
+                                    @if (showPixSingleInDropdown)
+                                    {
+                                        var checkedAttrSingle = "";
+                                        if (showPixAnnualInDropdown)
+                                        {
+                                            // As duas opções visíveis: respeitar o plano atual
+                                            if (!isPixAnnual)
+                                            {
+                                                checkedAttrSingle = "checked";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Só pagamento único visível
+                                            checkedAttrSingle = "checked";
+                                        }
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @checkedAttrSingle>
+                                            <label class="form-check-label" for="pagePixPlanSingle">
+                                                PIX (pagamento único) — Pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma — R$ @pixAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            @if (showCreditCardSection)
                             {
                                 var pageAddr = Model.Subscription?.Contract?.CoworkingAddress;
                                 var pagePrice1x = pageAddr?.CardPrice1x;
@@ -210,25 +283,42 @@
                                 var pageHas1x = pagePrice1x.HasValue && pagePrice1x.Value > 0;
                                 var pageHasMonthly = pagePriceMonthly.HasValue && pagePriceMonthly.Value > 0;
                                 if (!pageHas1x && !pageHasMonthly) { pageHas1x = true; pagePrice1x = Model.Amount; }
+                                // Quando já está em Cartão de Crédito, exibir sempre as opções 1x/mensal (fallback se endereço sem preços ou não carregado)
+                                var pageShowCard1x = (showCard1x && pageHas1x) || (Model.Method == PaymentMethod.CreditCard && pageHas1x);
+                                var pageShowCardMonthly = (showCardMonthly && pageHasMonthly) || (Model.Method == PaymentMethod.CreditCard && pageHasMonthly);
+                                if (Model.Method == PaymentMethod.CreditCard && !pageShowCard1x && !pageShowCardMonthly)
+                                {
+                                    pageShowCard1x = true;
+                                    pagePrice1x = Model.Amount;
+                                }
+                                var pageCardFirstChecked = pageShowCard1x ? "1x" : (pageShowCardMonthly ? "monthly" : "");
                                 <div class="mt-3 pt-2 border-top" id="pageCardPlanOptionWrap">
-                                    <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
-                                    <div id="pageCardPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Selecione a forma de cobrança antes de clicar em "Pagar com cartão".</div>
-                                    @if (pageHas1x)
+                                    @if (!pageShowCard1x && !pageShowCardMonthly)
                                     {
-                                        var pageMonthly1x = ((pagePrice1x ?? Model.Amount) / 12m);
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" checked>
-                                            <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @((pagePrice1x ?? Model.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
-                                        </div>
+                                        <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
                                     }
-                                    @if (pageHasMonthly)
+                                    else
                                     {
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlanMonthly" value="monthly" @(pageHas1x ? "" : "checked")>
-                                            <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @((pagePriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
-                                        </div>
+                                        <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                                        <div id="pageCardPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Selecione a forma de cobrança antes de clicar em "Pagar com cartão".</div>
+                                        @if (pageShowCard1x)
+                                        {
+                                            var pageMonthly1x = ((pagePrice1x ?? Model.Amount) / 12m);
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" @(pageCardFirstChecked == "1x" ? "checked" : "")>
+                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @((pagePrice1x ?? Model.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                                            </div>
+                                        }
+                                        @if (pageShowCardMonthly)
+                                        {
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlanMonthly" value="monthly" @(pageCardFirstChecked == "monthly" ? "checked" : "")>
+                                                <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @((pagePriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
+                                            </div>
+                                        }
                                     }
                                 </div>
+                            }
                             }
                         }
                         else
@@ -337,7 +427,7 @@
 
         @if (isPending)
         {
-            @if (Model.Method == PaymentMethod.PIX)
+            @if (showPixCard)
             {
                 <div class="card mb-4" id="pixPaymentCard">
                     <div class="card-header bg-primary text-white">
@@ -347,10 +437,19 @@
                         @if (isExpired)
                         {
                             <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> Este código PIX expirou. Um novo código será gerado ao confirmar o pagamento.
+                                <i class="bi bi-exclamation-triangle"></i> <strong>Este código PIX expirou.</strong>
+                                <p class="mb-2 mt-2">Clique no botão abaixo para gerar um novo código e realizar o pagamento.</p>
+                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-qr-code"></i> Gerar novo código PIX
+                                    </button>
+                                </form>
                             </div>
                         }
-                        else if (!string.IsNullOrEmpty(Model.PixCode))
+                        else if (!string.IsNullOrEmpty(effectivePixCode))
                         {
                             <div class="mb-3">
                                 <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
@@ -358,7 +457,7 @@
                             <div class="mb-3">
                                 <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="pixCode" value="@Model.PixCode" readonly>
+                                    <input type="text" class="form-control" id="pixCode" value="@effectivePixCode" readonly>
                                     <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode()">
                                         <i class="bi bi-clipboard"></i> Copiar
                                     </button>
@@ -366,9 +465,9 @@
                             </div>
                             <p class="text-muted">
                                 <i class="bi bi-info-circle"></i> 
-                                @if (Model.PixExpiresAt.HasValue)
+                                @if (effectivePixExpiresAt.HasValue)
                                 {
-                                    <text>Este código expira em: @Model.PixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
+                                    <text>Este código expira em: @effectivePixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
                                 }
                                 else
                                 {
@@ -382,9 +481,10 @@
                                 <i class="bi bi-exclamation-triangle"></i> 
                                 <strong>Código PIX não gerado.</strong>
                                 <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
-                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline">
+                                <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
                                     <button type="submit" class="btn btn-primary">
                                         <i class="bi bi-qr-code"></i> Gerar Código PIX
                                     </button>
@@ -438,7 +538,7 @@
                     </div>
                 </div>
             }
-            else if (Model.Method == PaymentMethod.CreditCard)
+            else if (showCreditCardSection)
             {
                 <div class="card mb-4" id="creditCardPaymentCard">
                     <div class="card-header bg-info text-white">
@@ -511,6 +611,25 @@
                 </div>
             }
         }
+        @if (Model.Status == PaymentStatus.Cancelled && Model.Method == PaymentMethod.PIX && showPixInDropdown)
+        {
+            <div class="card mb-4" id="pixCancelledRegenerateCard">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX vencido ou cancelado</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Este pagamento PIX venceu ou foi cancelado. Você pode gerar um novo código para realizar o pagamento.</p>
+                    <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-qr-code"></i> Gerar novo código PIX
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
     </div>
 
     <div class="col-md-4">
@@ -521,7 +640,7 @@
             <div class="card-body" id="actionsCardBody">
                 @if (isPending)
                 {
-                    @if (Model.Method == PaymentMethod.PIX || Model.Method == PaymentMethod.BankTransfer)
+                    @if (showPixCard || Model.Method == PaymentMethod.BankTransfer)
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
@@ -537,21 +656,28 @@
                             Após enviar o comprovante, nossa equipe fará a validação manual do pagamento. Assim que aprovado, seu contrato será ativado.
                         </p>
                     }
-                    else if (Model.Method == PaymentMethod.CreditCard)
+                    else if (showCreditCardSection)
                     {
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> 
-                            Seu contrato será ativado assim que o pagamento for aprovado.
-                        </div>
+                        @if (showCard1x || showCardMonthly)
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                Seu contrato será ativado assim que o pagamento for aprovado.
+                            </div>
 
-                        <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
-                            <i class="bi bi-credit-card"></i> Pagar com cartão
-                        </button>
+                            <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
+                                <i class="bi bi-credit-card"></i> Pagar com cartão
+                            </button>
 
-                        <p class="text-muted small mt-3">
-                            <i class="bi bi-info-circle"></i> 
-                            O pagamento é processado na hora pelo Asaas. Cartões cadastrados têm nome e validade preenchidos automaticamente no modal; informe apenas número e CVV.
-                        </p>
+                            <p class="text-muted small mt-3">
+                                <i class="bi bi-info-circle"></i> 
+                                O pagamento é processado na hora pelo Asaas. Cartões cadastrados têm nome e validade preenchidos automaticamente no modal; informe apenas número e CVV.
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
+                        }
                     }
                 }
                 else if (isAwaitingValidation)
@@ -886,7 +1012,7 @@
     </div>
 </div>
 
-@if (isPending && Model.Method == PaymentMethod.CreditCard)
+@if (isPending && showCreditCardSection)
 {
     var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
     var addressCard = Model.Subscription?.Contract?.CoworkingAddress;
@@ -931,7 +1057,7 @@
                 <div class="mb-3" id="payModalPlanOptionWrap">
                     <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
                     <div id="payModalPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Campo obrigatório.</div>
-                    @if (has1x)
+                    @if (has1x && showCard1x)
                     {
                         var modalMonthly1x = ((cardPrice1x ?? totalAmountForCard) / 12m);
                         <div class="form-check">
@@ -939,10 +1065,10 @@
                             <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual) — R$ @((cardPrice1x ?? totalAmountForCard).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
                         </div>
                     }
-                    @if (hasMonthly)
+                    @if (hasMonthly && showCardMonthly)
                     {
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(has1x ? "" : "checked")>
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(!showCard1x ? "checked" : "")>
                             <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal) — R$ @((cardPriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
                         </div>
                     }
@@ -1054,12 +1180,12 @@
             }, 2000);
         }
 
-        @if (isPending && Model.Method == PaymentMethod.PIX && !string.IsNullOrEmpty(Model.PixCode) && !isExpired)
+        @if (isPending && showPixCard && !string.IsNullOrEmpty(effectivePixCode) && !isExpired)
         {
             <text>
-            // Gerar QR Code
+            // Gerar QR Code (só quando o card PIX está visível) — PIX único: Payment.PixCode; PIX Automático: Subscription.PixAutomaticPayload
             new QRCode(document.getElementById("qrcode"), {
-                text: "@Model.PixCode",
+                text: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(effectivePixCode)),
                 width: 200,
                 height: 200
             });
@@ -1109,6 +1235,8 @@
         window.updatePaymentMethod = async function(selectElement) {
             // Valor atual (antes da alteração): ao mudar o option, value já é o novo; usar data-previous-value da página
             const previousValue = (selectElement.dataset.previousValue || selectElement.value || '').trim();
+            const pixPreviousPlan = selectElement.dataset.pixPreviousPlan || '';
+            const pixNewPlan = selectElement.dataset.pixNewPlan || '';
             
             const confirmed = await showConfirm(
                 'Deseja alterar o método de pagamento? Isso pode gerar um novo código de pagamento dependendo do método selecionado.',
@@ -1120,6 +1248,14 @@
                 // Preparar dados do formulário (usar data-action-url para evitar action relativa após innerHTML)
                 const form = selectElement.form;
                 const formData = new FormData(form);
+                // Se o usuário escolheu PIX no select, enviar também o tipo explícito de PIX (PixAnnual ou PIX)
+                if (selectElement && selectElement.value && selectElement.value === 'PIX') {
+                    const pixPlanRadio = document.querySelector('input[name="pagePixPlanOption"]:checked');
+                    if (pixPlanRadio && pixPlanRadio.value) {
+                        formData.set('method', 'PIX');
+                        formData.set('pixPlanType', pixPlanRadio.value);
+                    }
+                }
                 let actionUrl = form.getAttribute('data-action-url') || form.action;
                 if (actionUrl && actionUrl.startsWith('/')) {
                     actionUrl = window.location.origin + actionUrl;
@@ -1145,14 +1281,54 @@
                         redirect: 'manual'
                     });
                     
-                    if (response.ok || response.type === 'opaqueredirect' || response.status === 0 || response.redirected) {
-                        await updatePaymentMethodSections();
-                        selectElement.dataset.previousValue = selectElement.value;
+                    const newMethod = (selectElement.value || '').trim();
+                    const isCreditOrBoleto = newMethod === 'CreditCard' || newMethod === 'BankTransfer';
+                    if (response.ok && response.status === 200) {
+                        // Troca entre tipos de PIX: atualizar apenas o card "Código PIX"
+                        if (pixNewPlan) {
+                            await updatePixPaymentCardOnly();
+                            const wrap = document.getElementById('pagePixPlanOptionWrap');
+                            if (wrap) {
+                                const newRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixNewPlan + '"]');
+                                if (newRadio) newRadio.checked = true;
+                                wrap.setAttribute('data-current-pix-plan', pixNewPlan);
+                            }
+                            selectElement.dataset.previousValue = 'PIX';
+                            selectElement.dataset.pixPreviousPlan = pixNewPlan;
+                            selectElement.dataset.pixNewPlan = '';
+                            showToast('Método de pagamento atualizado com sucesso!', 'success');
+                        } else if (isCreditOrBoleto) {
+                            showToast('Método de pagamento atualizado com sucesso!', 'success');
+                            hidePaymentLoading();
+                            var paymentDetailsUrl = '@(Url.Action("PaymentDetails", "Client", new { id = Model.Id }))';
+                            paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+                            setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
+                        } else {
+                            await updatePaymentMethodSections();
+                            selectElement.dataset.previousValue = selectElement.value;
+                            showToast('Método de pagamento atualizado com sucesso!', 'success');
+                        }
+                    } else if ((response.type === 'opaqueredirect' || response.status === 0) && isCreditOrBoleto) {
+                        // Servidor pode ter retornado 302; forçar navegação para PaymentDetails para exibir o método atualizado
                         showToast('Método de pagamento atualizado com sucesso!', 'success');
+                        hidePaymentLoading();
+                        var paymentDetailsUrl = '@(Url.Action("PaymentDetails", "Client", new { id = Model.Id }))';
+                        paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+                        setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
                     } else {
                         // Reverter dropdown para a opção anterior em caso de erro
                         selectElement.value = previousValue;
                         selectElement.dataset.previousValue = previousValue;
+                        // Reverter radio de PIX para o plano anterior, se aplicável
+                        if (pixPreviousPlan) {
+                            const wrap = document.getElementById('pagePixPlanOptionWrap');
+                            if (wrap) {
+                                const prevRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixPreviousPlan + '"]');
+                                if (prevRadio) prevRadio.checked = true;
+                                wrap.setAttribute('data-current-pix-plan', pixPreviousPlan);
+                            }
+                            selectElement.dataset.pixNewPlan = '';
+                        }
                         let errMsg = 'Erro ao atualizar método de pagamento. Por favor, tente novamente.';
                         try {
                             const data = await response.json();
@@ -1164,6 +1340,16 @@
                     // Reverter dropdown para a opção anterior em caso de exceção (rede, etc.)
                     selectElement.value = previousValue;
                     selectElement.dataset.previousValue = previousValue;
+                    // Reverter radio de PIX para o plano anterior, se aplicável
+                    if (pixPreviousPlan) {
+                        const wrap = document.getElementById('pagePixPlanOptionWrap');
+                        if (wrap) {
+                            const prevRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixPreviousPlan + '"]');
+                            if (prevRadio) prevRadio.checked = true;
+                            wrap.setAttribute('data-current-pix-plan', pixPreviousPlan);
+                        }
+                        selectElement.dataset.pixNewPlan = '';
+                    }
                     showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
                     console.error('Erro:', error);
                 } finally {
@@ -1173,6 +1359,54 @@
             } else {
                 // Restaurar valor anterior sem recarregar a página
                 selectElement.value = previousValue;
+                // Usuário cancelou: restaurar radio de PIX para o plano anterior, se aplicável
+                if (pixPreviousPlan) {
+                    const wrap = document.getElementById('pagePixPlanOptionWrap');
+                    if (wrap) {
+                        const prevRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixPreviousPlan + '"]');
+                        if (prevRadio) prevRadio.checked = true;
+                        wrap.setAttribute('data-current-pix-plan', pixPreviousPlan);
+                    }
+                    selectElement.dataset.pixNewPlan = '';
+                }
+            }
+        }
+
+        // Atualiza somente o card de Código PIX, sem recarregar toda a tela
+        async function updatePixPaymentCardOnly() {
+            const timestamp = new Date().getTime();
+            const response = await fetch('@Url.Action("PaymentDetails", "Client", new { id = Model.Id })?_=' + timestamp, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache'
+                }
+            });
+
+            const html = await response.text();
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            const newPixCard = tempDiv.querySelector('#pixPaymentCard');
+            const currentPixCard = document.getElementById('pixPaymentCard');
+            const paymentInfoCard = document.getElementById('paymentInfoCard');
+
+            if (currentPixCard) currentPixCard.remove();
+            if (newPixCard && paymentInfoCard && paymentInfoCard.parentElement) {
+                const clonedPixCard = newPixCard.cloneNode(true);
+                paymentInfoCard.parentElement.insertBefore(clonedPixCard, paymentInfoCard.nextSibling);
+
+                // Reinicializar QR Code do card atualizado
+                const pixCodeInput = clonedPixCard.querySelector('#pixCode');
+                const qrcodeDiv = clonedPixCard.querySelector('#qrcode');
+                if (pixCodeInput && qrcodeDiv && pixCodeInput.value && typeof QRCode !== 'undefined') {
+                    qrcodeDiv.innerHTML = '';
+                    new QRCode(qrcodeDiv, {
+                        text: pixCodeInput.value,
+                        width: 200,
+                        height: 200
+                    });
+                }
             }
         }
 
@@ -1197,102 +1431,77 @@
                 const newBoletoCard = tempDiv.querySelector('#boletoPaymentCard');
                 const newCreditCardCard = tempDiv.querySelector('#creditCardPaymentCard');
                 
+                const newPaymentInfoBody = tempDiv.querySelector('#paymentInfoBody');
+                const currentPaymentInfoBody = document.getElementById('paymentInfoBody');
+                // 1) Atualizar primeiro o bloco de informações (dropdown de método) para refletir o método atual
+                if (newPaymentInfoBody && currentPaymentInfoBody) {
+                    const currentSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
+                    const currentSelectValue = currentSelect ? currentSelect.value : null;
+                    currentPaymentInfoBody.innerHTML = newPaymentInfoBody.innerHTML;
+                    const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
+                    if (updatedSelect) {
+                        if (currentSelectValue)
+                            updatedSelect.value = currentSelectValue;
+                        updatedSelect.dataset.previousValue = updatedSelect.value || '';
+                        updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
+                    }
+                }
+                
                 const currentPixCard = document.getElementById('pixPaymentCard');
                 const currentBoletoCard = document.getElementById('boletoPaymentCard');
                 const currentCreditCardCard = document.getElementById('creditCardPaymentCard');
-                
-                // Remover todos os cards de método de pagamento existentes
                 if (currentPixCard) currentPixCard.remove();
                 if (currentBoletoCard) currentBoletoCard.remove();
                 if (currentCreditCardCard) currentCreditCardCard.remove();
                 
-                // Adicionar o novo card de método de pagamento
                 const paymentInfoCard = document.getElementById('paymentInfoCard');
                 if (paymentInfoCard && paymentInfoCard.parentElement) {
-                    // O paymentInfoCard está dentro de uma col-md-8, então inserimos após ele
+                    let insertAfter = paymentInfoCard.nextSibling;
                     if (newPixCard) {
                         const clonedPixCard = newPixCard.cloneNode(true);
-                        paymentInfoCard.parentElement.insertBefore(clonedPixCard, paymentInfoCard.nextSibling);
-                        // Reinicializar QR Code se for PIX
+                        paymentInfoCard.parentElement.insertBefore(clonedPixCard, insertAfter);
+                        insertAfter = clonedPixCard.nextSibling;
                         setTimeout(() => {
                             const pixCodeInput = clonedPixCard.querySelector('#pixCode');
                             if (pixCodeInput && pixCodeInput.value) {
                                 const qrcodeDiv = clonedPixCard.querySelector('#qrcode');
-                                if (qrcodeDiv) {
+                                if (qrcodeDiv && typeof QRCode !== 'undefined') {
                                     qrcodeDiv.innerHTML = '';
-                                    if (typeof QRCode !== 'undefined') {
-                                        new QRCode(qrcodeDiv, {
-                                            text: pixCodeInput.value,
-                                            width: 200,
-                                            height: 200
-                                        });
-                                    }
+                                    new QRCode(qrcodeDiv, { text: pixCodeInput.value, width: 200, height: 200 });
                                 }
                             }
                         }, 100);
-                    } else if (newBoletoCard) {
+                    }
+                    if (newBoletoCard) {
                         const clonedBoletoCard = newBoletoCard.cloneNode(true);
-                        paymentInfoCard.parentElement.insertBefore(clonedBoletoCard, paymentInfoCard.nextSibling);
-                    } else if (newCreditCardCard) {
+                        paymentInfoCard.parentElement.insertBefore(clonedBoletoCard, insertAfter);
+                        insertAfter = clonedBoletoCard.nextSibling;
+                    }
+                    if (newCreditCardCard) {
                         const clonedCreditCardCard = newCreditCardCard.cloneNode(true);
-                        paymentInfoCard.parentElement.insertBefore(clonedCreditCardCard, paymentInfoCard.nextSibling);
-                        // Inserir modal e script de cartões ao trocar para Cartão de Crédito (podem não existir se veio de PIX)
+                        paymentInfoCard.parentElement.insertBefore(clonedCreditCardCard, insertAfter);
                         const newPayWithCardModal = tempDiv.querySelector('#payWithCardModal');
                         const newPaymentDetailsCreditCards = tempDiv.querySelector('#paymentDetailsCreditCards');
                         const existingModal = document.getElementById('payWithCardModal');
                         const existingCardsScript = document.getElementById('paymentDetailsCreditCards');
-                        if (newPayWithCardModal && !existingModal) {
+                        if (newPayWithCardModal && !existingModal)
                             document.body.appendChild(newPayWithCardModal.cloneNode(true));
-                        } else if (newPayWithCardModal && existingModal) {
+                        else if (newPayWithCardModal && existingModal)
                             existingModal.replaceWith(newPayWithCardModal.cloneNode(true));
-                        }
-                        if (newPaymentDetailsCreditCards && !existingCardsScript) {
+                        if (newPaymentDetailsCreditCards && !existingCardsScript)
                             document.body.appendChild(newPaymentDetailsCreditCards.cloneNode(true));
-                        } else if (newPaymentDetailsCreditCards && existingCardsScript) {
+                        else if (newPaymentDetailsCreditCards && existingCardsScript)
                             existingCardsScript.replaceWith(newPaymentDetailsCreditCards.cloneNode(true));
-                        }
                         var newModal = document.getElementById('payWithCardModal');
-                        if (newModal && typeof window.attachPayWithCardModalOnShow === 'function') {
+                        if (newModal && typeof window.attachPayWithCardModalOnShow === 'function')
                             window.attachPayWithCardModalOnShow(newModal);
-                        }
                     }
                 }
                 
-                // Atualizar card de Ações
                 const newActionsCardBody = tempDiv.querySelector('#actionsCardBody');
                 const currentActionsCardBody = document.getElementById('actionsCardBody');
-                if (newActionsCardBody && currentActionsCardBody) {
+                if (newActionsCardBody && currentActionsCardBody)
                     currentActionsCardBody.innerHTML = newActionsCardBody.innerHTML;
-                }
-                
-                // Atualizar informações do pagamento completamente
-                const newPaymentInfoBody = tempDiv.querySelector('#paymentInfoBody');
-                const currentPaymentInfoBody = document.getElementById('paymentInfoBody');
-                if (newPaymentInfoBody && currentPaymentInfoBody) {
-                    // Salvar o valor atual do select antes de atualizar
-                    const currentSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
-                    const currentSelectValue = currentSelect ? currentSelect.value : null;
-                    
-                    // Atualizar todo o conteúdo do paymentInfoBody
-                    currentPaymentInfoBody.innerHTML = newPaymentInfoBody.innerHTML;
-                    
-                    // Restaurar o valor do select e atualizar o data-previous-value
-                    if (currentSelectValue) {
-                        const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
-                        if (updatedSelect) {
-                            updatedSelect.value = currentSelectValue;
-                            updatedSelect.dataset.previousValue = currentSelectValue;
-                            // Reatachar o event listener para manter a funcionalidade
-                            updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
-                        }
-                    } else {
-                        // Se não havia select antes, ainda precisamos anexar o event listener ao novo select
-                        const updatedSelect = currentPaymentInfoBody.querySelector('select[name="method"]');
-                        if (updatedSelect) {
-                            updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
-                        }
-                    }
-                }
             } catch (error) {
                 console.error('Erro ao atualizar seções:', error);
                 showToast('Erro ao atualizar informações. Por favor, recarregue a página.', 'error');
@@ -1386,6 +1595,35 @@
                 if (e.target && e.target.name === 'pageCardPlanOption') {
                     clearPagePlanHighlight();
                     updatePaymentInfoValor();
+                }
+                if (e.target && e.target.name === 'pagePixPlanOption') {
+                    // Sincronizar hidden dos formulários "Gerar código PIX" com a forma de cobrança selecionada
+                    var planInputs = document.querySelectorAll('.generate-pix-plan-input');
+                    if (planInputs.length && e.target.value) {
+                        planInputs.forEach(function(inp) { inp.value = e.target.value; });
+                    }
+                    // Ao trocar o tipo de PIX, atualizar o método no backend (gera o código PIX correspondente)
+                    var select = document.querySelector('select[name="method"]');
+                    var wrap = document.getElementById('pagePixPlanOptionWrap');
+                    if (select && wrap) {
+                        var currentPlan = wrap.getAttribute('data-current-pix-plan') || '';
+                        var newPlan = e.target.value || '';
+                        select.dataset.pixPreviousPlan = currentPlan;
+                        select.dataset.pixNewPlan = newPlan;
+                        // Garante que o método atual seja tratado como PIX no backend
+                        select.value = 'PIX';
+                        window.updatePaymentMethod(select);
+                    }
+                }
+            });
+            // Ao enviar qualquer formulário "Gerar código PIX", enviar a forma de cobrança atualmente selecionada (funciona mesmo após atualização do card via AJAX)
+            document.body.addEventListener('submit', function(e) {
+                if (e.target && e.target.classList && e.target.classList.contains('generate-pix-form')) {
+                    var radio = document.querySelector('input[name="pagePixPlanOption"]:checked');
+                    var input = e.target.querySelector('input[name="pixPlanType"]');
+                    if (radio && radio.value && input) {
+                        input.value = radio.value;
+                    }
                 }
             });
             updatePaymentInfoValor();
@@ -2016,25 +2254,38 @@
             (function() {
                 var paymentIdForHub = @Model.Id;
                 var hubUrl = '@Url.Content("~/hubs/payment")';
+                function isMyPayment(data) {
+                    if (!data) return false;
+                    var id = data.paymentId ?? data.PaymentId;
+                    return id == paymentIdForHub || Number(id) === Number(paymentIdForHub);
+                }
                 if (typeof signalR !== 'undefined') {
                     var connection = new signalR.HubConnectionBuilder()
-                        .withUrl(hubUrl)
+                        .withUrl(hubUrl, { withCredentials: true })
                         .withAutomaticReconnect()
                         .build();
                     connection.on('PaymentConfirmed', function(data) {
-                        if (data && data.paymentId === paymentIdForHub) {
+                        if (isMyPayment(data)) {
                             if (typeof showToast === 'function') showToast('Pagamento confirmado! Atualizando página...', 'success', 5000);
                             setTimeout(function() { window.location.reload(); }, 1000);
                         }
                     });
                     connection.on('PaymentCancelled', function(data) {
-                        if (data && data.paymentId === paymentIdForHub) {
+                        if (isMyPayment(data)) {
                             if (typeof showToast === 'function') showToast('Pagamento cancelado ou vencido. Atualizando página...', 'info', 5000);
+                            setTimeout(function() { window.location.reload(); }, 1000);
+                        }
+                    });
+                    connection.on('PaymentPixCodeRegenerated', function(data) {
+                        if (isMyPayment(data)) {
+                            if (typeof showToast === 'function') showToast('Código PIX vencido: novo código gerado. Atualizando página...', 'success', 5000);
                             setTimeout(function() { window.location.reload(); }, 1000);
                         }
                     });
                     connection.start().then(function() {
                         return connection.invoke('JoinPaymentGroup', paymentIdForHub);
+                    }).then(function() {
+                        console.info('SignalR PaymentHub: conectado ao grupo payment_' + paymentIdForHub);
                     }).catch(function(err) {
                         console.warn('SignalR PaymentHub:', err);
                     });

@@ -12,7 +12,13 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
         /// <summary>Altera o método de pagamento. Para PIX, use pixPlanType: PixAnnual (recorrente anual) ou None (pagamento único) para gerar o QR correto.</summary>
         Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method, ContractCardPlanType? pixPlanType = null);
-        Task<string> GeneratePixCodeAsync(int paymentId);
+        Task<string> GeneratePixCodeAsync(int paymentId, ContractCardPlanType? pixPlanType = null);
+        /// <summary>Reabre um pagamento PIX cancelado/vencido para permitir gerar novo código (ex.: após PAYMENT_OVERDUE).</summary>
+        Task ReopenCancelledPixPaymentAsync(int paymentId);
+        /// <summary>Trata vencimento (PAYMENT_OVERDUE) de pagamento PIX: limpa códigos e gera novo via Asaas (PIX único e PIX Automático). A data de vencimento na base passa a ser a data real do novo código retornada pelo Asaas. Garante que, ao expirar ou receber mensagem de vencido/cancelado, seja gerado outro código para o cliente pagar.</summary>
+        Task HandlePixPaymentOverdueAsync(int paymentId);
+        /// <summary>Verifica se o código PIX (único ou recorrente anual) está vencido; se sim, faz nova requisição ao Asaas para obter novo(s) código(s) e persiste na base. Deve ser chamado ao exibir/uso do pagamento para garantir código válido.</summary>
+        Task EnsurePixCodeValidAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
         Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null);
         /// <summary>Cobra o pagamento usando um cartão já tokenizado (AsaasToken).</summary>

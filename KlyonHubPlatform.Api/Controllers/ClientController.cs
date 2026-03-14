@@ -1005,21 +1005,29 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[TempDataKeys.Info] = InfoMessages.CompleteRegistrationForContract;
                 return RedirectToAction(ActionNames.RegisterClient, new { id = client.Id, returnUrl = returnUrlComplete });
             }
-            return RedirectToAction(ActionNames.SelectPaymentPlan, new { coworkingAddressId });
+            return RedirectToAction(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
         }
+        /// <summary>Redireciona para criação de contrato com forma padrão e PaymentDetails (página SelectPaymentPlan removida).</summary>
         [HttpGet]
         public async Task<IActionResult> SelectPaymentPlan(int coworkingAddressId, CancellationToken cancellationToken = default)
         {
+            return RedirectToAction(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
+        }
+
+        /// <summary>Cria o contrato com a primeira forma de pagamento disponível (não oculta) e redireciona para PaymentDetails.</summary>
+        [HttpGet]
+        public async Task<IActionResult> CreateContractAndGoToPayment(int coworkingAddressId, CancellationToken cancellationToken = default)
+        {
             if (User?.Identity?.IsAuthenticated != true)
             {
-                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
             }
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
             if (client == null)
             {
                 TempData[TempDataKeys.Info] = InfoMessages.CompleteRegistrationForFiscalAddress;
-                return RedirectToAction(ActionNames.RegisterClient, new { returnUrl = Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.RegisterClient, new { returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
             }
             var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
             var missingRequired = !hasDocument || string.IsNullOrWhiteSpace(client.ContactName)
@@ -1027,23 +1035,128 @@ namespace KlyonHubPlatform.Api.Controllers
             if (missingRequired)
             {
                 TempData[TempDataKeys.Info] = InfoMessages.CompleteRegistrationForContract;
-                return RedirectToAction(ActionNames.RegisterClient, new { id = client.Id, returnUrl = Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.RegisterClient, new { id = client.Id, returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
             }
-            var address = await _clientAppService.GetCoworkingAddressWithDetailsAsync(coworkingAddressId, cancellationToken);
-            if (address == null)
+            var addressEntity = await _clientAppService.GetCoworkingAddressWithDetailsAsync(coworkingAddressId, cancellationToken);
+            if (addressEntity == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotFound;
                 return RedirectToAction(ActionNames.ChooseLocation);
             }
-            if (!address.Coworking.IsActive || address.AddressStatus != AddressStatus.Active || !address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
+            if (!addressEntity.Coworking.IsActive || addressEntity.AddressStatus != AddressStatus.Active || !addressEntity.IsAvailable || addressEntity.CurrentContracts >= addressEntity.MaxContracts)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotAvailableForContract;
                 return RedirectToAction(ActionNames.ChooseLocation);
             }
+            var existingContractForAddress = await _clientAppService.GetExistingContractForAddressAsync(client.Id, coworkingAddressId, cancellationToken);
+            if (existingContractForAddress != null)
+            {
+                var statusMsg = existingContractForAddress.Status.ToDisplayStringLower();
+                var msg = $"Você já possui um contrato {statusMsg} para este endereço. Número do contrato: {existingContractForAddress.ContractNumber}";
+                TempData[ErrorMessages.TempDataKey] = msg;
+                return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
+            }
+            if (await _clientMenuService.ClientHasActiveContractAsync(userId))
+            {
+                var activeContractIdVal = await _clientAppService.GetActiveContractIdByClientIdAsync(client.Id, cancellationToken);
+                var activeContract = activeContractIdVal ?? 0;
+                var contractDetailsUrl = activeContract != 0
+                    ? Url.Action(ActionNames.ContractDetails, new { id = activeContract })
+                    : Url.Action(ActionNames.MyContracts);
+                var msg = "Você já possui um endereço fiscal ativo. Para adicionar outro, cancele ou encerre o contrato atual no menu <strong><a href=\"" + contractDetailsUrl + "\" class=\"alert-link text-white text-decoration-underline\">Contrato de Endereço Fiscal</a></strong>.";
+                TempData[TempDataKeys.Info] = InfoMessages.Generic(msg);
+                return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
+            }
+            var existingContractInLocation = await _clientAppService.GetExistingContractInLocationAsync(client.Id, addressEntity.LocationId, cancellationToken);
+            if (existingContractInLocation != null)
+            {
+                var locationInfo = existingContractInLocation.CoworkingAddress?.Location != null
+                    ? $"{existingContractInLocation.CoworkingAddress.Location.City}/{existingContractInLocation.CoworkingAddress.Location.State}"
+                    : $"{addressEntity.City}/{addressEntity.State}";
+                var statusLower = existingContractInLocation.Status.ToDisplayStringLower();
+                var msg = $"Você já possui um contrato {statusLower} nesta localidade ({locationInfo}). Número do contrato: {existingContractInLocation.ContractNumber}";
+                TempData[ErrorMessages.TempDataKey] = msg;
+                return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
+            }
             var hiddenRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
             var hiddenSet = (hiddenRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            ViewBag.HiddenPaymentOptions = hiddenSet;
-            return View(address);
+            var hasCard1x = addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0;
+            var hasCardMonthly = addressEntity.CardPriceMonthly.HasValue && addressEntity.CardPriceMonthly.Value > 0;
+            string option;
+            if (!hiddenSet.Contains("PixAnnual"))
+                option = "PixAnnual";
+            else if (!hiddenSet.Contains("PIX"))
+                option = "PIX";
+            else if (hasCard1x && !hiddenSet.Contains("Card1x"))
+                option = "Card1x";
+            else if (hasCardMonthly && !hiddenSet.Contains("CardMonthly"))
+                option = "CardMonthly";
+            else
+                option = "PIX";
+            decimal monthlyValueForContract;
+            PaymentMethod? initialPaymentMethod = null;
+            ContractCardPlanType? cardPlanType = null;
+            if (option == "Card1x")
+            {
+                monthlyValueForContract = addressEntity.CardPrice1x!.Value;
+                initialPaymentMethod = PaymentMethod.CreditCard;
+                cardPlanType = ContractCardPlanType.Card1x;
+            }
+            else if (option == "CardMonthly")
+            {
+                monthlyValueForContract = addressEntity.CardPriceMonthly!.Value;
+                initialPaymentMethod = PaymentMethod.CreditCard;
+                cardPlanType = ContractCardPlanType.CardMonthly;
+            }
+            else if (option == "PixAnnual")
+            {
+                monthlyValueForContract = addressEntity.BasePrice;
+                initialPaymentMethod = PaymentMethod.PIX;
+                cardPlanType = ContractCardPlanType.PixAnnual;
+            }
+            else
+            {
+                monthlyValueForContract = addressEntity.BasePrice;
+                initialPaymentMethod = PaymentMethod.PIX;
+                cardPlanType = ContractCardPlanType.None;
+            }
+            try
+            {
+                var contract = await _contractService.CreateContractAsync(
+                    client.Id,
+                    coworkingAddressId,
+                    monthlyValueForContract,
+                    assistedSaleAdminId: null,
+                    initialPaymentMethod,
+                    cardPlanType
+                );
+                var subscription = await _clientAppService.GetSubscriptionByContractIdAsync(contract.Id, cancellationToken);
+                if (subscription != null)
+                {
+                    var payment = await _clientAppService.GetFirstPaymentBySubscriptionIdAsync(subscription.Id, cancellationToken);
+                    if (payment != null)
+                    {
+                        var history = new PaymentHistory
+                        {
+                            PaymentId = payment.Id,
+                            Action = PaymentHistoryActions.ContractCreated,
+                            ActionBy = userId,
+                            ActionAt = DateTimeHelper.GetBrazilianTime()
+                        };
+                        await _clientAppService.AddPaymentHistoryAsync(history, cancellationToken);
+                        TempData[SuccessMessage.TempDataKey] = SuccessMessage.ContractCreated;
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = payment.Id });
+                    }
+                }
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.ContractCreated;
+                return RedirectToAction(ActionNames.ContractDetails, new { id = contract.Id });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CreateContractAndGoToPayment falhou. CoworkingAddressId: {CoworkingAddressId}", coworkingAddressId);
+                TempData[ErrorMessages.TempDataKey] = $"Erro ao criar contrato: {ex.Message}";
+                return RedirectToAction(ActionNames.ChooseLocation);
+            }
         }
         [AllowAnonymous]
         [HttpPost]
@@ -1052,7 +1165,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (User?.Identity?.IsAuthenticated != true)
             {
-                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
             }
             var isAjax = string.Equals(Request.Headers[HttpHeaderNames.XRequestedWith], HttpHeaderNames.XRequestedWithValue, StringComparison.OrdinalIgnoreCase);
             try
@@ -1141,7 +1254,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (hiddenSet.Count > 0 && (string.IsNullOrEmpty(option) || hiddenSet.Contains(option)))
                 {
                     TempData[ErrorMessages.TempDataKey] = "A forma de pagamento selecionada não está disponível. Escolha outra opção na tela anterior.";
-                    return RedirectToAction(ActionNames.SelectPaymentPlan, new { coworkingAddressId });
+                    return RedirectToAction(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
                 }
                 decimal monthlyValueForContract;
                 PaymentMethod? initialPaymentMethod = null;
@@ -1163,6 +1276,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     monthlyValueForContract = addressEntity.BasePrice;
                     initialPaymentMethod = PaymentMethod.PIX;
                     cardPlanType = ContractCardPlanType.PixAnnual;
+                }
+                else if (option == "PIX")
+                {
+                    monthlyValueForContract = addressEntity.BasePrice;
+                    initialPaymentMethod = PaymentMethod.PIX;
+                    cardPlanType = ContractCardPlanType.None;
                 }
                 else
                 {
@@ -1685,9 +1804,12 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 try
                 {
-                    if (payment.Method == PaymentMethod.PIX && string.IsNullOrEmpty(payment.PixCode))
+                    if (payment.Method == PaymentMethod.PIX)
                     {
-                        await _paymentService.GeneratePixCodeAsync(payment.Id);
+                        // Mesma lógica do PIX Automático: garantir 1 código válido (reaproveitar se válido, gerar 1 vez se não houver ou expirado). Único ponto que dispara geração ao exibir a tela; UpdatePaymentMethod só atualiza método/contrato.
+                        var contract = payment.Subscription?.Contract;
+                        var pixPlanType = contract?.CardPlanType ?? ContractCardPlanType.None;
+                        await _paymentService.GeneratePixCodeAsync(payment.Id, pixPlanType);
                         payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
                     }
                     else if (payment.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(payment.BoletoCode))
@@ -1718,37 +1840,10 @@ namespace KlyonHubPlatform.Api.Controllers
             var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
             var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             ViewBag.HiddenPaymentOptions = hiddenPaymentSet;
-            if (payment.Status == PaymentStatus.Pending)
-            {
-                try
-                {
-                    if (payment.Method == PaymentMethod.PIX && string.IsNullOrEmpty(payment.PixCode))
-                    {
-                        await _paymentService.GeneratePixCodeAsync(payment.Id);
-                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
-                    }
-                    else if (payment.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(payment.BoletoCode))
-                    {
-                        await _paymentService.GenerateBoletoCodeAsync(payment.Id);
-                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
-                    }
-                }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
-                {
-                    TempData[TempDataKeys.Warning] = WarningMessages.PaymentSystemNotConfiguredConfigureAsaasShort;
-                }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("não informado") || ex.Message.Contains("inválido") || ex.Message.Contains("Complete seu cadastro"))
-                {
-                    TempData[ErrorMessages.TempDataKey] = ex.Message;
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Falha ao gerar código PIX/Boleto automaticamente no PaymentDetails. PaymentId: {PaymentId}", id);
-                    TempData[TempDataKeys.Warning] = WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
-                }
-            }
-            if (payment.Method == PaymentMethod.CreditCard && client != null)
+            var showPixInDropdownCore = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
+            var addressHasCardPrices = payment.Subscription?.Contract?.CoworkingAddress is { } addr && ((addr.CardPrice1x.HasValue && addr.CardPrice1x.Value > 0) || (addr.CardPriceMonthly.HasValue && addr.CardPriceMonthly.Value > 0));
+            var showCreditCardSectionCore = payment.Method == PaymentMethod.CreditCard || (payment.Method == PaymentMethod.PIX && !showPixInDropdownCore && addressHasCardPrices);
+            if (showCreditCardSectionCore && client != null)
             {
                 var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(client.Id, cancellationToken);
                 ViewBag.CreditCards = creditCards;
@@ -1863,7 +1958,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method, [FromForm(Name = "pixPlanType")] string? pixPlanSelection, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1908,13 +2003,32 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (string.Equals(method, "PIX", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (hiddenUpdateSet.Contains("PIX"))
-                    {
-                        TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX (pagamento único) não está disponível.";
-                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
-                    }
                     paymentMethod = PaymentMethod.PIX;
-                    pixPlanType = ContractCardPlanType.None;
+                    // Forma de cobrança: explícito no form (pixPlanType) ou do contrato; PixAnnual -> /pix/automatic/authorizations, único -> /payments
+                    ContractCardPlanType requestedPixPlan;
+                    if (string.Equals(pixPlanSelection, "PixAnnual", StringComparison.OrdinalIgnoreCase))
+                        requestedPixPlan = ContractCardPlanType.PixAnnual;
+                    else if (string.Equals(pixPlanSelection, "PIX", StringComparison.OrdinalIgnoreCase))
+                        requestedPixPlan = ContractCardPlanType.None; // PIX (pagamento único) -> POST /payments
+                    else
+                        requestedPixPlan = contract?.CardPlanType ?? ContractCardPlanType.PixAnnual; // Sem tipo no form: usar contrato ou padrão anual
+                    if (requestedPixPlan == ContractCardPlanType.PixAnnual)
+                    {
+                        if (hiddenUpdateSet.Contains("PixAnnual"))
+                        {
+                            TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX recorrente anual não está disponível.";
+                            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                        }
+                    }
+                    else
+                    {
+                        if (hiddenUpdateSet.Contains("PIX"))
+                        {
+                            TempData[ErrorMessages.TempDataKey] = "A forma de pagamento PIX (pagamento único) não está disponível.";
+                            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                        }
+                    }
+                    pixPlanType = requestedPixPlan;
                 }
                 else if (!Enum.TryParse<PaymentMethod>(method, out paymentMethod))
                 {
@@ -1948,7 +2062,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                     }
                 }
-                if (paymentMethod == PaymentMethod.BankTransfer)
+                if (paymentMethod == PaymentMethod.BankTransfer && hiddenUpdateSet.Contains("Boleto"))
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.BoletoNoLongerAvailable;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
@@ -1969,7 +2083,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> GeneratePixCode(int paymentId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> GeneratePixCode(int paymentId, [FromForm(Name = "pixPlanType")] string? pixPlanSelection, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1993,17 +2107,29 @@ namespace KlyonHubPlatform.Api.Controllers
                         return Forbid();
                     }
                 }
-                if (payment.Status != PaymentStatus.Pending)
-                {
-                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanGeneratePix;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
-                }
                 if (payment.Method != PaymentMethod.PIX)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ThisPaymentIsNotPix;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
-                await _paymentService.GeneratePixCodeAsync(paymentId);
+                if (payment.Status == PaymentStatus.Cancelled)
+                {
+                    await _paymentService.ReopenCancelledPixPaymentAsync(paymentId);
+                }
+                else if (payment.Status != PaymentStatus.Pending)
+                {
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanGeneratePix;
+                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                // Forma de cobrança escolhida pelo usuário na tela (PixAnnual ou PIX = único); se não enviada, usa a do contrato
+                ContractCardPlanType? requestedPixPlan = null;
+                if (string.Equals(pixPlanSelection, "PixAnnual", StringComparison.OrdinalIgnoreCase))
+                    requestedPixPlan = ContractCardPlanType.PixAnnual;
+                else if (string.Equals(pixPlanSelection, "PIX", StringComparison.OrdinalIgnoreCase))
+                    requestedPixPlan = ContractCardPlanType.None;
+                if (!requestedPixPlan.HasValue)
+                    requestedPixPlan = payment.Subscription?.Contract?.CardPlanType;
+                await _paymentService.GeneratePixCodeAsync(paymentId, requestedPixPlan);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PixCodeGenerated;
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }

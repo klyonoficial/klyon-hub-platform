@@ -1061,7 +1061,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     paidAt = payment.PaidAt?.ToString(DateFormatConstants.DisplayDateAndTime),
                     createdAt = payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime),
                     externalPaymentId = payment.ExternalPaymentId,
-                    pixCode = payment.PixCode,
+                    pixCode = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode,
                     boletoCode = payment.BoletoCode,
                     transactionId = payment.TransactionId,
                     subscription = payment.Subscription != null ? new
@@ -4237,8 +4237,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 return RedirectToAction(ActionNames.Contracts, ControllerNames.Admin);
             }
             ViewBag.Payment = payment;
-            ViewBag.PixCode = payment.PixCode;
-            ViewBag.PixExpiresAt = payment.PixExpiresAt;
+            // PIX único: Payment.PixCode/PixExpiresAt; PIX Automático: Subscription.PixAutomaticPayload/PixAutomaticPayloadExpiresAt
+            var isPixAnnual = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual;
+            ViewBag.PixCode = isPixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode;
+            ViewBag.PixExpiresAt = isPixAnnual ? payment.Subscription?.PixAutomaticPayloadExpiresAt : payment.PixExpiresAt;
             return View();
         }
         private static string? FormatAddress(CoworkingAddress? addr)

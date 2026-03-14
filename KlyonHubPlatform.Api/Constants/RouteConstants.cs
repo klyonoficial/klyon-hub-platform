@@ -38,6 +38,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string GetLogo = "GetLogo";
         public const string CheckDocumentExists = "CheckDocumentExists";
         public const string CreateContract = "CreateContract";
+        /// <summary>Cria contrato com forma de pagamento padrão e redireciona para PaymentDetails (substitui fluxo SelectPaymentPlan).</summary>
+        public const string CreateContractAndGoToPayment = "CreateContractAndGoToPayment";
         public const string GenerateDeclaration = "GenerateDeclaration";
         public const string DownloadDeclaration = "DownloadDeclaration";
         public const string Declarations = "Declarations";

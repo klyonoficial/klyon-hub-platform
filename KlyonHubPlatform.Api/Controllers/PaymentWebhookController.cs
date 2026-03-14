@@ -192,18 +192,59 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 else if (eventType == AsaasWebhookEvents.PaymentDeleted || eventType == AsaasWebhookEvents.PaymentOverdue)
                 {
+                    if (eventType == AsaasWebhookEvents.PaymentOverdue)
+                        _logger.LogInformation("Webhook Asaas PAYMENT_OVERDUE recebido: asaasPaymentId={AsaasPaymentId}, externalRef={ExternalRef}. Buscando pagamento e gerando novo código PIX se for PIX pendente.", paymentId, externalRef);
                     var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId, externalRef);
-                    if (payment != null && payment.Status == PaymentStatus.Pending)
+                    if (payment == null && !string.IsNullOrEmpty(pixQrCodeId))
+                        payment = await _paymentRepository.GetByPixConciliationIdentifierAsync(pixQrCodeId, cancellationToken);
+                    if (payment == null)
                     {
-                        await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
-                        _logger.LogInformation("Pagamento {PaymentId} cancelado/vencido via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
-                        try
+                        if (eventType == AsaasWebhookEvents.PaymentOverdue)
+                            _logger.LogWarning("Webhook Asaas PAYMENT_OVERDUE: pagamento não encontrado para asaasPaymentId={AsaasPaymentId}, externalRef={ExternalRef}. Verifique se ExternalPaymentId ou referência está correto na base.", paymentId, externalRef);
+                    }
+                    else if (payment.Status == PaymentStatus.Pending)
+                    {
+                        if (eventType == AsaasWebhookEvents.PaymentOverdue && payment.Method == PaymentMethod.PIX)
                         {
-                            await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
+                            try
+                            {
+                                await _paymentService.HandlePixPaymentOverdueAsync(payment.Id);
+                                _logger.LogInformation("Pagamento PIX {PaymentId} vencido: data de vencimento atualizada e novo código gerado via Asaas (api/PaymentWebhook/asaas)", payment.Id);
+                                try
+                                {
+                                    await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentPixCodeRegenerated, new { paymentId = payment.Id });
+                                }
+                                catch (Exception exHub)
+                                {
+                                    _logger.LogWarning(exHub, "Falha ao notificar SignalR (PIX regenerado) para pagamento {PaymentId}", payment.Id);
+                                }
+                            }
+                            catch (Exception exPix)
+                            {
+                                _logger.LogError(exPix, "Erro ao tratar vencimento PIX do pagamento {PaymentId}; cancelando.", payment.Id);
+                                await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
+                                try
+                                {
+                                    await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
+                                }
+                                catch (Exception exHub)
+                                {
+                                    _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
+                                }
+                            }
                         }
-                        catch (Exception exHub)
+                        else
                         {
-                            _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
+                            await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
+                            _logger.LogInformation("Pagamento {PaymentId} cancelado/vencido via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
+                            try
+                            {
+                                await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
+                            }
+                            catch (Exception exHub)
+                            {
+                                _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
+                            }
                         }
                     }
                 }

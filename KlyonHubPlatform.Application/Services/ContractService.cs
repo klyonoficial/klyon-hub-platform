@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Application.DTOs.PagBank;
 using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
@@ -132,24 +133,29 @@ namespace KlyonHubPlatform.Application.Services
                         monthlyValue,
                         cardPlanType
                     );
-                    var isPixAnnual = cardPlanType == ContractCardPlanType.PixAnnual;
-                    var firstPaymentAmount = isPixAnnual ? monthlyValue : monthlyValue;
+
                     var payment = await _paymentService.CreatePaymentAsync(
                         subscription.Id,
-                        firstPaymentAmount,
-                        isPixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX)
+                        monthlyValue,
+                        cardPlanType == ContractCardPlanType.PixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX)
                     );
-                    if (isPixAnnual)
+
+                    //if (cardPlanType == ContractCardPlanType.PixAnnual)
+                    //{
+                    var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == createdContract.ClientId);
+                    if (client != null)
                     {
-                        var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == createdContract.ClientId);
-                        if (client != null)
+                        var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
+                        var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
+                        var clientTaxId = client.CPF ?? client.CNPJ ?? "";
+                        var clientPhone = client.ContactPhone;
+                        if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(clientEmail) || string.IsNullOrWhiteSpace(clientTaxId))
+                            throw new InvalidOperationException("Cliente sem nome, e-mail ou CPF/CNPJ. Complete o cadastro em Meu Perfil.");
+
+                        if (cardPlanType == ContractCardPlanType.PixAnnual)
                         {
-                            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
-                            var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
-                            var clientTaxId = client.CPF ?? client.CNPJ ?? "";
-                            var clientPhone = client.ContactPhone;
-                            if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(clientEmail) || string.IsNullOrWhiteSpace(clientTaxId))
-                                throw new InvalidOperationException("Cliente sem nome, e-mail ou CPF/CNPJ. Complete o cadastro em Meu Perfil.");
+
+
                             var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, null, $"client_{client.Id}");
                             var annualValue = monthlyValue;
                             // contractId único (ContractNumber + Id) para evitar "Já existe autorização" ao reutilizar número
@@ -163,11 +169,16 @@ namespace KlyonHubPlatform.Application.Services
                             );
                             if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
                             {
-                                payment.PixCode = authResponse.Payload;
-                                payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                                payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+                                var payload = !string.IsNullOrEmpty(authResponse.ImmediateQrCode?.Payload) ? authResponse.ImmediateQrCode.Payload : authResponse.Payload;
+                                if (string.IsNullOrEmpty(payload))
+                                    throw new InvalidOperationException("Asaas PIX Automático retornou autorização sem payload do QR Code.");
+                                var expiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+
                                 subscription.PixAutomaticAuthorizationId = authResponse.Id;
-                                _context.Payments.Update(payment);
+                                subscription.PixAutomaticPayload = payload;
+                                subscription.PixAutomaticPayloadExpiresAt = expiresAt;
+                                subscription.PixAutomaticConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+
                                 _context.Subscriptions.Update(subscription);
                                 await _context.SaveChangesAsync();
                             }
@@ -175,7 +186,66 @@ namespace KlyonHubPlatform.Application.Services
                                 throw new InvalidOperationException(
                                     "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade PIX Automático está habilitada e se a API retornou erro (veja os logs da aplicação).");
                         }
+                        else if (cardPlanType == ContractCardPlanType.None)
+                        {
+                            // PIX (pagamento único): criar cobrança via POST /payments e obter QR Code
+                            var clientTaxIdNormalized = (client.CPF ?? client.CNPJ ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                            if (string.IsNullOrWhiteSpace(clientTaxIdNormalized) || clientTaxIdNormalized.Length < 11)
+                                throw new InvalidOperationException("CPF ou CNPJ do cliente inválido. Complete o cadastro em Meu Perfil.");
+                            string GetVal(string? value, string fallback = "S/N") => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+                            var regionCode = "SP";
+                            if (!string.IsNullOrWhiteSpace(client.State))
+                            {
+                                var stateTrim = client.State.Trim().ToUpperInvariant();
+                                if (stateTrim.Length >= 2 && BrazilianUfs.All.Contains(stateTrim.Substring(0, 2)))
+                                    regionCode = stateTrim.Substring(0, 2);
+                            }
+                            var postalCode = "00000000";
+                            if (!string.IsNullOrWhiteSpace(client.ZipCode))
+                            {
+                                var zip = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
+                                if (zip.Length >= 8 && zip.All(char.IsDigit))
+                                    postalCode = zip.Length > 8 ? zip.Substring(0, 8) : zip;
+                                else if (zip.Length > 0 && zip.All(char.IsDigit))
+                                    postalCode = zip.PadLeft(8, '0');
+                            }
+                            var clientAddress = new PagBankAddress
+                            {
+                                Street = GetVal(client.Address, DefaultDisplayStrings.NaoInformado),
+                                Number = GetVal(client.AddressNumber, "S/N"),
+                                Complement = null,
+                                Locality = GetVal(client.Neighborhood, DefaultDisplayStrings.NaoInformado),
+                                City = GetVal(client.City, DefaultDisplayStrings.NaoInformado),
+                                RegionCode = regionCode,
+                                Country = "BRA",
+                                PostalCode = postalCode
+                            };
+                            var pixReferenceId = $"pix_{payment.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}";
+                            var orderResponse = await _asaasService.CreateOrderAsync(
+                                referenceId: pixReferenceId,
+                                amount: payment.Amount,
+                                method: PaymentMethod.PIX,
+                                clientName: clientName,
+                                clientEmail: clientEmail,
+                                clientTaxId: clientTaxIdNormalized,
+                                clientPhone: clientPhone,
+                                clientAddress: clientAddress,
+                                customerExternalReference: $"client_{client.Id}"
+                            );
+                            payment.ExternalPaymentId = orderResponse.Id ?? "";
+                            if (orderResponse.QrCodes != null && orderResponse.QrCodes.Any())
+                            {
+                                var qrCode = orderResponse.QrCodes.First();
+                                payment.PixCode = qrCode.Text;
+                                payment.PixExpiresAt = qrCode.ExpirationDate;
+                                if (qrCode.ExpirationDate.HasValue)
+                                    payment.DueDate = qrCode.ExpirationDate.Value;
+                            }
+                            _context.Payments.Update(payment);
+                            await _context.SaveChangesAsync();
+                        }
                     }
+
                     try
                     {
                         await _documentService.GenerateContractDocumentAsync(createdContract.Id);
@@ -195,7 +265,8 @@ namespace KlyonHubPlatform.Application.Services
                             "Contract",
                             createdContract.Id,
                             null,
-                            new { 
+                            new
+                            {
                                 ContractNumber = createdContract.ContractNumber,
                                 ClientId = clientId,
                                 CoworkingAddressId = coworkingAddressId,

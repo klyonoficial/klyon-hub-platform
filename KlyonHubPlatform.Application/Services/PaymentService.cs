@@ -230,8 +230,8 @@ namespace KlyonHubPlatform.Application.Services
                             if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                             {
                                 var previousPaidPayments = await _context.Payments
-                                    .Where(p => p.SubscriptionId == subscription.Id && 
-                                               p.Id != paymentId && 
+                                    .Where(p => p.SubscriptionId == subscription.Id &&
+                                               p.Id != paymentId &&
                                                p.Status == PaymentStatus.Paid)
                                     .CountAsync();
                                 if (previousPaidPayments == 0)
@@ -327,50 +327,68 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Pagamento não encontrado");
             if (payment.Status != PaymentStatus.Pending)
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ter o método alterado");
+            Subscription? subscription = null;
+            Contract? contract = null;
+            if (payment.SubscriptionId.HasValue)
+            {
+                subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                if (subscription != null)
+                    contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
+            }
             // Ao sair de PIX: preservar PixCode/PixConciliationIdentifier se for PIX recorrente anual para reaproveitar ao voltar (evita criar várias autorizações no Asaas)
             var preservePixForReuse = false;
-            if (method != PaymentMethod.PIX && payment.SubscriptionId.HasValue)
+            if (method != PaymentMethod.PIX)
             {
-                var sub = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
-                if (sub != null)
-                {
-                    var c = await _contractRepository.GetByIdAsync(sub.ContractId);
-                    if (c?.CardPlanType == ContractCardPlanType.PixAnnual)
-                        preservePixForReuse = true;
-                }
+                if (contract?.CardPlanType == ContractCardPlanType.PixAnnual)
+                    preservePixForReuse = true;
+            }
+            // Ao manter PIX recorrente anual e payload ainda válido na Subscription, reaproveitar
+            if (method == PaymentMethod.PIX && pixPlanType == ContractCardPlanType.PixAnnual && contract?.CardPlanType == ContractCardPlanType.PixAnnual && subscription != null)
+            {
+                var subExpUtc = subscription.PixAutomaticPayloadExpiresAt.HasValue
+                    ? (subscription.PixAutomaticPayloadExpiresAt.Value.Kind == DateTimeKind.Utc ? subscription.PixAutomaticPayloadExpiresAt.Value : DateTime.SpecifyKind(subscription.PixAutomaticPayloadExpiresAt.Value, DateTimeKind.Utc))
+                    : (DateTime?)null;
+                var isAnnualValid = !string.IsNullOrEmpty(subscription.PixAutomaticPayload) &&
+                                    (!subExpUtc.HasValue || subExpUtc.Value > DateTime.UtcNow);
+                if (isAnnualValid)
+                    preservePixForReuse = true;
+            }
+            // PIX único (None): se já existir código PIX único válido no payment, preservar para reutilizar em GeneratePixCodeAsync (não apagar)
+            if (method == PaymentMethod.PIX && (pixPlanType == ContractCardPlanType.None || !pixPlanType.HasValue))
+            {
+                var expiresAtUtc = payment.PixExpiresAt.HasValue
+                    ? (payment.PixExpiresAt.Value.Kind == DateTimeKind.Utc ? payment.PixExpiresAt.Value : DateTime.SpecifyKind(payment.PixExpiresAt.Value, DateTimeKind.Utc))
+                    : (DateTime?)null;
+                var isPixSingleValid = !string.IsNullOrEmpty(payment.PixCode) && 
+                                       (!expiresAtUtc.HasValue || expiresAtUtc.Value > DateTime.UtcNow);
+                if (isPixSingleValid)
+                    preservePixForReuse = true;
             }
             payment.Method = method;
-            if (!preservePixForReuse)
+            if (!preservePixForReuse && (pixPlanType == ContractCardPlanType.None || method != PaymentMethod.PIX))
             {
                 payment.PixCode = null;
                 payment.PixExpiresAt = null;
                 payment.PixConciliationIdentifier = null;
+                if (method == PaymentMethod.PIX && pixPlanType == ContractCardPlanType.None)
+                    payment.ExternalPaymentId = string.Empty;
             }
-            payment.BoletoCode = null;
-            payment.BoletoBarcode = null;
-            payment.BoletoExpiresAt = null;
-            if (method == PaymentMethod.PIX && payment.SubscriptionId.HasValue)
-            {
-                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
-                if (subscription != null)
-                {
-                    var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
-                    if (contract != null && pixPlanType.HasValue)
-                    {
-                        contract.CardPlanType = pixPlanType.Value;
-                        await _contractRepository.UpdateAsync(contract);
-                        if (pixPlanType.Value != ContractCardPlanType.PixAnnual)
-                        {
-                            subscription.PixAutomaticAuthorizationId = null;
-                            await _subscriptionRepository.UpdateAsync(subscription);
-                        }
-                    }
-                }
-            }
+            // Sempre persistir a alteração de método (ex.: para CreditCard/Boleto a condição acima não chama UpdateAsync)
             await _paymentRepository.UpdateAsync(payment);
+
+            if (method == PaymentMethod.PIX && subscription != null && contract != null && pixPlanType.HasValue)
+            {
+                contract.CardPlanType = pixPlanType.Value;
+                await _contractRepository.UpdateAsync(contract);
+                // Importante: não limpar PixAutomaticAuthorizationId aqui.
+                // Isso permite reaproveitar a autorização PIX Automático existente
+                // mesmo que o usuário alterne temporariamente o tipo de PIX.
+            }
+            
+            // PIX: gerar código na mesma requisição ao trocar forma (único ou recorrente anual), para o card exibir o QR ao clicar no radio; GET só reutiliza se já houver código válido.
             if (method == PaymentMethod.PIX)
             {
-                await GeneratePixCodeAsync(paymentId);
+                await GeneratePixCodeAsync(paymentId, pixPlanType);
             }
             else if (method == PaymentMethod.BankTransfer)
             {
@@ -378,8 +396,141 @@ namespace KlyonHubPlatform.Application.Services
             }
             return await _paymentRepository.GetByIdAsync(paymentId) ?? payment;
         }
-        public async Task<string> GeneratePixCodeAsync(int paymentId)
+        public async Task ReopenCancelledPixPaymentAsync(int paymentId)
         {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+            if (payment.Method != PaymentMethod.PIX)
+                throw new InvalidOperationException("Apenas pagamentos PIX podem ser reabertos para novo código.");
+            if (payment.Status != PaymentStatus.Cancelled)
+                return;
+            payment.Status = PaymentStatus.Pending;
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = null;
+            if (payment.SubscriptionId.HasValue)
+            {
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+                var contract = subscription != null ? await _contractRepository.GetByIdAsync(subscription.ContractId) : null;
+                if (contract?.CardPlanType == ContractCardPlanType.PixAnnual && subscription != null)
+                {
+                    subscription.PixAutomaticPayload = null;
+                    subscription.PixAutomaticPayloadExpiresAt = null;
+                    subscription.PixAutomaticConciliationIdentifier = null;
+                    await _subscriptionRepository.UpdateAsync(subscription);
+                }
+            }
+            await _paymentRepository.UpdateAsync(payment);
+        }
+
+        public async Task HandlePixPaymentOverdueAsync(int paymentId)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("Pagamento não encontrado");
+            if (payment.Method != PaymentMethod.PIX)
+                throw new InvalidOperationException("Apenas pagamentos PIX podem ser tratados no vencimento.");
+            var subscription = payment.Subscription;
+            var contract = subscription?.Contract;
+            if (subscription == null || contract == null)
+                throw new InvalidOperationException("Pagamento sem assinatura ou contrato associado.");
+            // Limpar códigos antigos; a data de vencimento será a data real do novo código retornada pelo Asaas em GeneratePixCodeAsync
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = null;
+            if (contract.CardPlanType != ContractCardPlanType.PixAnnual)
+            {
+                // PIX único: limpar id externo para que seja criada nova cobrança no Asaas
+                payment.ExternalPaymentId = string.Empty;
+            }
+            else
+            {
+                // PIX Automático: invalidar payload armazenado na assinatura para forçar nova requisição de QR ao Asaas
+                subscription.PixAutomaticPayload = null;
+                subscription.PixAutomaticPayloadExpiresAt = null;
+                subscription.PixAutomaticConciliationIdentifier = null;
+                await _subscriptionRepository.UpdateAsync(subscription);
+            }
+            await _paymentRepository.UpdateAsync(payment);
+            await GeneratePixCodeAsync(paymentId, contract.CardPlanType);
+        }
+
+        public async Task EnsurePixCodeValidAsync(int paymentId)
+        {
+            var payment = await _paymentRepository.GetByIdAsync(paymentId);
+            if (payment == null || payment.Method != PaymentMethod.PIX || payment.Status != PaymentStatus.Pending)
+                return;
+            var subscription = payment.Subscription;
+            var contract = subscription?.Contract;
+            if (subscription == null || contract == null)
+                return;
+            // PIX único: expiração em Payments.PixExpiresAt | PIX Automático: expiração em Subscriptions.PixAutomaticPayloadExpiresAt
+            DateTime? expiresAt;
+            if (contract.CardPlanType == ContractCardPlanType.PixAnnual)
+            {
+                expiresAt = subscription.PixAutomaticPayloadExpiresAt;
+            }
+            else
+            {
+                expiresAt = payment.PixExpiresAt;
+            }
+            var shouldRegenerate = !expiresAt.HasValue;
+            if (!shouldRegenerate)
+            {
+                var exp = expiresAt!.Value;
+                var expAsUtc = exp.Kind == DateTimeKind.Utc ? exp : DateTime.SpecifyKind(exp, DateTimeKind.Utc);
+                var nowUtc = DateTime.UtcNow;
+                shouldRegenerate = expAsUtc < nowUtc || (expAsUtc - nowUtc).TotalDays >= 365;
+            }
+            if (!shouldRegenerate)
+                return;
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = null;
+            // PIX único: sempre limpar ExternalPaymentId para forçar nova cobrança no Asaas. Também limpar quando não tem PixConciliationIdentifier (cobrança era única, não automática).
+            var isSinglePix = contract.CardPlanType != ContractCardPlanType.PixAnnual || string.IsNullOrEmpty(payment.PixConciliationIdentifier);
+            if (isSinglePix)
+                payment.ExternalPaymentId = string.Empty;
+            else
+            {
+                subscription.PixAutomaticPayload = null;
+                subscription.PixAutomaticPayloadExpiresAt = null;
+                subscription.PixAutomaticConciliationIdentifier = null;
+                await _subscriptionRepository.UpdateAsync(subscription);
+            }
+            await _paymentRepository.UpdateAsync(payment);
+            // Usar o tipo do contrato para decidir o endpoint: PixAnnual -> /pix/automatic/authorizations; caso contrário -> /payments (PIX único). Não inferir pelo estado antigo do payment (ex.: usuário acabou de trocar para PIX recorrente anual).
+            var planForRegeneration = contract.CardPlanType == ContractCardPlanType.PixAnnual ? ContractCardPlanType.PixAnnual : ContractCardPlanType.None;
+            await GeneratePixCodeAsync(paymentId, planForRegeneration);
+        }
+
+        public async Task<string> GeneratePixCodeAsync(int paymentId, ContractCardPlanType? pixPlanType = null)
+        {
+            // Leitura direta do banco (AsNoTracking) para reuso: se já existir PixCode válido na tabela Payments, retornar sem chamar API.
+            var pixFromDb = await _context.Payments
+                .AsNoTracking()
+                .Where(p => p.Id == paymentId)
+                .Select(p => new { p.PixCode, p.PixExpiresAt, p.PixConciliationIdentifier, p.Subscription })
+                .FirstOrDefaultAsync();
+            if (pixPlanType != null && pixPlanType == ContractCardPlanType.None && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.PixCode))
+            {
+                var expiresAtUtc = pixFromDb.PixExpiresAt.HasValue
+                    ? (pixFromDb.PixExpiresAt.Value.Kind == DateTimeKind.Utc ? pixFromDb.PixExpiresAt.Value : DateTime.SpecifyKind(pixFromDb.PixExpiresAt.Value, DateTimeKind.Utc))
+                    : (DateTime?)null;
+                if (!expiresAtUtc.HasValue || expiresAtUtc.Value > DateTime.UtcNow)
+                    return pixFromDb.PixCode;
+            }
+            // PIX recorrente anual: código e expiração vêm somente de Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
+            else if (pixPlanType != null && pixPlanType == ContractCardPlanType.PixAnnual && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.Subscription?.PixAutomaticPayload))
+            {
+                var expiresAtUtc = pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.HasValue
+                    ? (pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value.Kind == DateTimeKind.Utc ? pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value : DateTime.SpecifyKind(pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value, DateTimeKind.Utc))
+                    : (DateTime?)null;
+                if (!expiresAtUtc.HasValue || expiresAtUtc.Value > DateTime.UtcNow)
+                    return pixFromDb.Subscription.PixAutomaticPayload;
+            }
+
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
@@ -460,19 +611,37 @@ namespace KlyonHubPlatform.Application.Services
                 PostalCode = postalCode
             };
 
-            // PIX recorrente anual: usar autorização PIX Automático (não criar cobrança PIX comum)
-            if (contract.CardPlanType == ContractCardPlanType.PixAnnual)
+            // Decisão explícita: PIX recorrente anual -> POST /api/v3/pix/automatic/authorizations | PIX (pagamento único) -> POST /api/v3/payments
+            var effectivePixPlan = pixPlanType.HasValue ? pixPlanType.Value : (contract.CardPlanType ?? ContractCardPlanType.None);
+            var usePixAutomatic = effectivePixPlan == ContractCardPlanType.PixAnnual;
+
+            if (usePixAutomatic)
             {
-                if (!string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId) && !string.IsNullOrEmpty(payment.PixCode))
+                // Reaproveitar só se for realmente payload de PIX Automático (tem conciliação) e ainda válido
+                // PIX Automático: código e expiração vêm somente de Subscriptions; não gravar em Payments.PixCode
+                var hasValidStoredPayload = !string.IsNullOrEmpty(subscription.PixAutomaticPayload) &&
+                    subscription.PixAutomaticPayloadExpiresAt.HasValue &&
+                    subscription.PixAutomaticPayloadExpiresAt.Value > DateTime.UtcNow;
+                if (hasValidStoredPayload)
                 {
-                    // Já tem autorização e QR (ex.: primeira vez na tela ou reaproveitado ao voltar de cartão)
-                    return payment.PixCode;
+                    if (subscription.PixAutomaticPayloadExpiresAt.HasValue)
+                    {
+                        payment.DueDate = subscription.PixAutomaticPayloadExpiresAt.Value;
+                        payment.PixCode = null;
+                        payment.PixExpiresAt = null;
+                        await _paymentRepository.UpdateAsync(payment);
+                    }
+                    return subscription.PixAutomaticPayload;
                 }
                 var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
                     clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
                 var baseContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
                 if (baseContractId.Length > 35)
                     baseContractId = baseContractId[..35];
+                
+                // Garantir que o payment não carrega referência de cobrança PIX único (evita exibir/uso errado depois)
+                //payment.ExternalPaymentId = string.Empty;
+                
                 // Tentar com contractId padrão primeiro (reaproveitar autorização existente no Asaas)
                 try
                 {
@@ -484,13 +653,24 @@ namespace KlyonHubPlatform.Application.Services
                         86400);
                     if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
                     {
-                        payment.PixCode = authResponse.Payload;
-                        payment.PixExpiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                        payment.PixConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+                        var expiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                        var payload = !string.IsNullOrEmpty(authResponse.ImmediateQrCode?.Payload)
+                            ? authResponse.ImmediateQrCode.Payload
+                            : authResponse.Payload;
+                        if (string.IsNullOrEmpty(payload))
+                            throw new InvalidOperationException("Asaas PIX Automático retornou autorização sem payload do QR Code. Verifique a resposta da API.");
+                        // PIX Automático: gravar somente em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt); não gravar em Payments.PixCode
                         subscription.PixAutomaticAuthorizationId = authResponse.Id;
+                        subscription.PixAutomaticPayload = payload;
+                        subscription.PixAutomaticPayloadExpiresAt = expiresAt;
+                        subscription.PixAutomaticConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
                         await _subscriptionRepository.UpdateAsync(subscription);
+                        payment.PixCode = null;
+                        payment.PixExpiresAt = null;
+                        payment.PixConciliationIdentifier = null;
+                        payment.DueDate = expiresAt;
                         await _paymentRepository.UpdateAsync(payment);
-                        return payment.PixCode ?? "";
+                        return subscription.PixAutomaticPayload;
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("Já existe uma autorização", StringComparison.OrdinalIgnoreCase))
@@ -506,13 +686,16 @@ namespace KlyonHubPlatform.Application.Services
                         86400);
                     if (retryAuth != null && !string.IsNullOrEmpty(retryAuth.Id))
                     {
-                        payment.PixCode = retryAuth.Payload;
-                        payment.PixExpiresAt = AsaasDateParser.TryParse(retryAuth.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                        payment.PixConciliationIdentifier = retryAuth.ImmediateQrCode?.ConciliationIdentifier;
+                        var expiresAtRetry = AsaasDateParser.TryParse(retryAuth.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
+                        var payloadRetry = !string.IsNullOrEmpty(retryAuth.ImmediateQrCode?.Payload) ? retryAuth.ImmediateQrCode.Payload : retryAuth.Payload;
+                        if (string.IsNullOrEmpty(payloadRetry))
+                            throw new InvalidOperationException("Asaas PIX Automático (retry) retornou autorização sem payload do QR Code.");
                         subscription.PixAutomaticAuthorizationId = retryAuth.Id;
+                        subscription.PixAutomaticPayload = payloadRetry;
+                        subscription.PixAutomaticPayloadExpiresAt = expiresAtRetry;
+                        subscription.PixAutomaticConciliationIdentifier = retryAuth.ImmediateQrCode?.ConciliationIdentifier;
                         await _subscriptionRepository.UpdateAsync(subscription);
-                        await _paymentRepository.UpdateAsync(payment);
-                        return payment.PixCode ?? "";
+                        return subscription.PixAutomaticPayload;
                     }
                     throw new InvalidOperationException(
                         "Já existe uma autorização PIX recorrente para este contrato. O código anterior pode ter expirado. Entre em contato com o suporte para gerar um novo código se necessário.");
@@ -521,21 +704,32 @@ namespace KlyonHubPlatform.Application.Services
                     "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade está habilitada e os logs da aplicação.");
             }
 
-            // Reaproveitar cobrança PIX já existente no Asaas (evita acumular muitas cobranças no sandbox)
+            // PIX único: reuso do banco já feito no início do método; daqui em diante só quando expirou ou não tem código. Opcional: tentar Asaas por ExternalPaymentId antes de criar nova cobrança.
+            // Reaproveitar cobrança PIX já existente no Asaas só se tiver ExternalPaymentId e QR ainda válido
             if (!string.IsNullOrEmpty(payment.ExternalPaymentId))
             {
                 var existingQr = await _asaasService.GetPixQrCodeAsync(payment.ExternalPaymentId);
                 if (existingQr != null && !string.IsNullOrEmpty(existingQr.Payload))
                 {
-                    payment.PixCode = existingQr.Payload;
                     if (!string.IsNullOrEmpty(existingQr.ExpirationDate) && DateTime.TryParse(existingQr.ExpirationDate, out var exp))
+                    {
                         payment.PixExpiresAt = exp;
-                    await _paymentRepository.UpdateAsync(payment);
-                    return payment.PixCode;
+                        payment.DueDate = exp;
+                        if (exp > DateTime.UtcNow)
+                        {
+                            payment.PixCode = existingQr.Payload;
+                            await _paymentRepository.UpdateAsync(payment);
+                            return payment.PixCode;
+                        }
+                    }
                 }
             }
+            // PIX (pagamento único): POST /api/v3/payments — só chega aqui quando usePixAutomatic é false
+            var pixReferenceId = !string.IsNullOrEmpty(payment.ExternalPaymentId)
+                ? payment.ExternalPaymentId
+                : $"pix_{payment.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}";
             var orderResponse = await _asaasService.CreateOrderAsync(
-                referenceId: payment.ExternalPaymentId,
+                referenceId: pixReferenceId,
                 amount: payment.Amount,
                 method: PaymentMethod.PIX,
                 clientName: clientName,
@@ -550,7 +744,10 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var qrCode = orderResponse.QrCodes.First();
                 payment.PixCode = qrCode.Text;
+                // Data de vencimento do PIX único: vem do Asaas (GetPixQrCodeAsync após POST /payments) em AsaasService.CreateOrderAsync
                 payment.PixExpiresAt = qrCode.ExpirationDate;
+                if (qrCode.ExpirationDate.HasValue)
+                    payment.DueDate = qrCode.ExpirationDate.Value;
             }
             await _paymentRepository.UpdateAsync(payment);
             return payment.PixCode ?? "";
@@ -786,8 +983,8 @@ namespace KlyonHubPlatform.Application.Services
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
             {
                 var charge = orderResponse.Charges.First();
-                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid : 
-                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed : 
+                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid :
+                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed :
                                  PaymentStatus.Processing;
                 if (charge.PaidAt.HasValue)
                 {
@@ -1002,8 +1199,8 @@ namespace KlyonHubPlatform.Application.Services
                             if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
                             {
                                 var previousPaidPayments = await _context.Payments
-                                    .Where(p => p.SubscriptionId == subscription.Id && 
-                                               p.Id != paymentId && 
+                                    .Where(p => p.SubscriptionId == subscription.Id &&
+                                               p.Id != paymentId &&
                                                p.Status == PaymentStatus.Paid)
                                     .CountAsync();
                                 if (previousPaidPayments == 0)

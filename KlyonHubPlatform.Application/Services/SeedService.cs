@@ -733,7 +733,7 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Key = PaymentConfigKey.HiddenPaymentOptions.ToConfigKey(),
                         Value = "",
-                        Description = "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixAnnual, PIX, Card1x, CardMonthly. Ex.: PIX oculta apenas PIX (pagamento único); PIX,PixAnnual oculta ambos.",
+                        Description = "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixAnnual, PIX, Card1x, CardMonthly, Boleto. Ex.: Boleto oculta boleto bancário; PIX oculta PIX (pagamento único).",
                         Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
