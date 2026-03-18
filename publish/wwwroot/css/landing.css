@@ -1,0 +1,960 @@
+/* ============================================
+   Klyon Landing — Design System
+   Premium, tech, marketplace
+   ============================================ */
+
+:root {
+    --lp-primary: #051323;
+    --lp-primary-dark: #030a15;
+    --lp-primary-light: #0a1f3a;
+    --lp-accent: #1a4d7a;
+    --lp-accent-light: #2d6ba3;
+    --lp-accent-glow: rgba(45, 107, 163, 0.35);
+    --lp-surface: rgba(255, 255, 255, 0.03);
+    --lp-surface-card: rgba(255, 255, 255, 0.06);
+    --lp-border: rgba(255, 255, 255, 0.08);
+    --lp-text: #f8fafc;
+    --lp-text-muted: #94a3b8;
+    --lp-success: #10b981;
+    --lp-info: #0ea5e9;
+    --lp-radius: 16px;
+    --lp-radius-sm: 10px;
+    --lp-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    --lp-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base */
+.landing-body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--lp-primary);
+    color: var(--lp-text);
+    overflow-x: hidden;
+}
+
+.landing-body main {
+    padding-top: 72px;
+}
+
+/* Navbar landing */
+.landing-nav {
+    background: rgba(5, 19, 35, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--lp-border);
+    transition: var(--lp-transition);
+}
+
+.landing-nav .nav-link {
+    color: var(--lp-text-muted) !important;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: var(--lp-radius-sm);
+    transition: var(--lp-transition);
+}
+
+.landing-nav .nav-link:hover {
+    color: #c69844 !important;
+    background: var(--lp-surface);
+}
+
+.landing-nav .btn-outline-light {
+    border-color: var(--lp-border);
+    color: var(--lp-text);
+}
+
+.landing-nav .btn-outline-light:hover {
+    background: var(--lp-surface);
+    border-color: #c69844;
+    color: #c69844;
+}
+
+.landing-nav .btn-primary {
+    background: linear-gradient(135deg, var(--lp-accent) 0%, var(--lp-accent-light) 100%);
+    border: none;
+    box-shadow: 0 4px 14px var(--lp-accent-glow);
+}
+
+.landing-nav .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px var(--lp-accent-glow);
+}
+
+/* Hero */
+.lp-hero {
+    position: relative;
+    min-height: calc(100vh - 72px);
+    display: flex;
+    align-items: center;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+.lp-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, var(--lp-accent-glow), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 50%, rgba(26, 77, 122, 0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 0% 50%, rgba(26, 77, 122, 0.1), transparent);
+    pointer-events: none;
+}
+
+.lp-hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+.lp-hero h1 {
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.25rem;
+}
+
+.lp-hero .lead {
+    font-size: 1.2rem;
+    color: var(--lp-text-muted);
+    max-width: 540px;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.lp-hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.lp-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.75rem;
+    font-weight: 600;
+    font-size: 1rem;
+    border-radius: var(--lp-radius-sm);
+    background: linear-gradient(135deg, var(--lp-accent) 0%, var(--lp-accent-light) 100%);
+    border: none;
+    color: #fff;
+    box-shadow: 0 4px 20px var(--lp-accent-glow);
+    transition: var(--lp-transition);
+}
+
+.lp-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px var(--lp-accent-glow);
+    color: #fff;
+}
+
+.lp-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.75rem;
+    font-weight: 600;
+    font-size: 1rem;
+    border-radius: var(--lp-radius-sm);
+    background: var(--lp-surface);
+    border: 1px solid var(--lp-border);
+    color: var(--lp-text);
+    transition: var(--lp-transition);
+}
+
+.lp-btn-secondary:hover {
+    background: var(--lp-surface-card);
+    border-color: var(--lp-accent);
+    color: var(--lp-accent-light);
+}
+
+/* Section titles */
+.lp-section {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+}
+
+.lp-section-title {
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.lp-section-subtitle {
+    color: var(--lp-text-muted);
+    font-size: 1.1rem;
+    max-width: 560px;
+    margin-bottom: 1.5rem;
+}
+
+/* Como Funciona */
+.lp-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 2rem;
+}
+
+.lp-step {
+    position: relative;
+    padding: 2rem;
+    background: var(--lp-surface-card);
+    border: 1px solid var(--lp-border);
+    border-radius: var(--lp-radius);
+    backdrop-filter: blur(8px);
+    transition: var(--lp-transition);
+}
+
+.lp-step:hover {
+    border-color: var(--lp-accent);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
+    transform: translateY(-4px);
+}
+
+.lp-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--lp-accent) 0%, var(--lp-accent-light) 100%);
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.lp-step h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.lp-step p {
+    color: var(--lp-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Soluções - Cards */
+.lp-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.lp-card {
+    background: var(--lp-surface-card);
+    border: 1px solid var(--lp-border);
+    border-radius: var(--lp-radius);
+    padding: 2rem;
+    backdrop-filter: blur(8px);
+    transition: var(--lp-transition);
+}
+
+.lp-card:hover {
+    border-color: var(--lp-accent);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
+    transform: translateY(-4px);
+}
+
+.lp-card-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--lp-accent) 0%, var(--lp-accent-light) 100%);
+    border-radius: 14px;
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.lp-card h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.lp-card p {
+    color: var(--lp-text-muted);
+    font-size: 0.95rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Benefícios */
+.lp-benefits {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+.lp-benefit {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.lp-benefit-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--lp-surface-card);
+    border: 1px solid var(--lp-border);
+    border-radius: 12px;
+    color: var(--lp-accent-light);
+}
+
+.lp-benefit h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.lp-benefit p {
+    color: var(--lp-text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Para Parceiros */
+.lp-partners {
+    background: linear-gradient(180deg, var(--lp-primary-light) 0%, var(--lp-primary) 50%);
+    border-top: 1px solid var(--lp-border);
+    border-bottom: 1px solid var(--lp-border);
+}
+
+.lp-partners-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: center;
+}
+
+@media (min-width: 992px) {
+    .lp-partners-content {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.lp-partners-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lp-partners-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    color: var(--lp-text-muted);
+}
+
+.lp-partners-list li i {
+    color: var(--lp-success);
+    font-size: 1.1rem;
+}
+
+/* Prova de Confiança */
+.lp-trust {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2rem;
+    align-items: center;
+}
+
+.lp-trust-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: var(--lp-surface-card);
+    border: 1px solid var(--lp-border);
+    border-radius: var(--lp-radius-sm);
+    color: var(--lp-text-muted);
+    font-weight: 500;
+    transition: var(--lp-transition);
+}
+
+.lp-trust-badge:hover {
+    border-color: var(--lp-accent);
+    color: var(--lp-text);
+}
+
+.lp-trust-badge i {
+    font-size: 1.5rem;
+    color: var(--lp-success);
+}
+
+/* Texto secundário (landing) */
+.lp-text-muted {
+    color: var(--lp-text-muted);
+}
+
+/* Footer landing */
+.landing-footer {
+    background: var(--lp-primary-dark);
+    border-top: 1px solid var(--lp-border);
+    padding-top: 3rem;
+    padding-bottom: 2rem;
+}
+
+.landing-footer a {
+    color: var(--lp-text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.landing-footer a:hover {
+    color: #c69844;
+}
+
+.landing-footer .footer-brand {
+    font-weight: 700;
+    color: var(--lp-text);
+}
+
+.landing-footer .social-links a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--lp-surface);
+    border: 1px solid var(--lp-border);
+    margin-right: 0.5rem;
+}
+
+.landing-footer .social-links a:hover {
+    background: #c69844;
+    border-color: #c69844;
+    color: #fff;
+}
+
+/* Scroll reveal (opcional) */
+.lp-reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.lp-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ========== Página principal: escolha (Endereço Fiscal vs Salas) ========== */
+.lp-choice-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10rem 0 2.5rem;
+    position: relative;
+}
+
+.lp-choice-section-alive {
+    overflow: hidden;
+}
+
+.lp-choice-bg-glow {
+    position: absolute;
+    inset: 0;
+    background: 
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(26, 77, 122, 0.25) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 80% at 20% 80%, rgba(45, 107, 163, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 80% at 80% 80%, rgba(45, 107, 163, 0.12) 0%, transparent 50%);
+    pointer-events: none;
+    animation: lp-bg-pulse 8s ease-in-out infinite;
+}
+
+@keyframes lp-bg-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+}
+
+.lp-choice-header {
+    margin-bottom: 2.5rem;
+}
+
+.lp-choice-title {
+    font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+.lp-choice-subtitle {
+    color: var(--lp-text-muted);
+    text-align: center;
+    margin-bottom: 0;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 1.05rem;
+}
+
+.lp-choice-cards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.75rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+    .lp-choice-cards {
+        gap: 2.5rem;
+    }
+}
+
+.lp-choice-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+}
+
+@media (min-width: 768px) {
+    .lp-choice-card {
+        flex: 1 1 calc(50% - 1.25rem);
+        max-width: 480px;
+    }
+}
+
+@media (min-width: 992px) {
+    .lp-choice-card {
+        flex: 1 1 calc(33.333% - 1.67rem);
+        max-width: 380px;
+    }
+}
+
+.lp-choice-card {
+    position: relative;
+    display: block;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 2px solid var(--lp-border);
+    text-decoration: none;
+    color: #fff;
+    min-height: 380px;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+    box-shadow: 0 12px 40px -16px rgba(0, 0, 0, 0.5);
+}
+
+.lp-choice-card:hover {
+    border-color: #c69844;
+    transform: translateY(-12px) scale(1.03);
+    box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(198, 152, 68, 0.4);
+}
+
+.lp-choice-card-slides {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    transition: transform 0.6s ease;
+}
+
+.lp-choice-card:hover .lp-choice-card-slides {
+    transform: scale(1.08);
+}
+
+.lp-choice-card-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+}
+
+.lp-choice-card-fiscal .lp-choice-slide-1 { animation: lp-fade-1 12s ease-in-out infinite; }
+.lp-choice-card-fiscal .lp-choice-slide-2 { animation: lp-fade-2 12s ease-in-out infinite; }
+.lp-choice-card-fiscal .lp-choice-slide-3 { animation: lp-fade-3 12s ease-in-out infinite; }
+.lp-choice-card-salas .lp-choice-slide-1 { animation: lp-fade-1 12s ease-in-out infinite; }
+.lp-choice-card-salas .lp-choice-slide-2 { animation: lp-fade-2 12s ease-in-out infinite; }
+.lp-choice-card-salas .lp-choice-slide-3 { animation: lp-fade-3 12s ease-in-out infinite; }
+.lp-choice-card-parceiro .lp-choice-slide-1 { animation: lp-fade-1 12s ease-in-out infinite; }
+.lp-choice-card-parceiro .lp-choice-slide-2 { animation: lp-fade-2 12s ease-in-out infinite; }
+.lp-choice-card-parceiro .lp-choice-slide-3 { animation: lp-fade-3 12s ease-in-out infinite; }
+
+@keyframes lp-fade-1 {
+    0%, 30% { opacity: 1; }
+    33%, 100% { opacity: 0; }
+}
+
+@keyframes lp-fade-2 {
+    0%, 30% { opacity: 0; }
+    33%, 63% { opacity: 1; }
+    66%, 100% { opacity: 0; }
+}
+
+@keyframes lp-fade-3 {
+    0%, 63% { opacity: 0; }
+    66%, 97% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.lp-choice-card-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(to top, rgba(5, 19, 35, 0.97) 0%, rgba(5, 19, 35, 0.85) 35%, rgba(5, 19, 35, 0.5) 55%, rgba(5, 19, 35, 0.15) 75%, transparent 100%);
+    pointer-events: none;
+}
+
+.lp-choice-card-content {
+    position: relative;
+    z-index: 2;
+    padding: 2rem 1.75rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* Sombras em camadas para legibilidade em qualquer fundo */
+.lp-choice-card h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #fff;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.8),
+        0 2px 4px rgba(0, 0, 0, 0.7),
+        0 4px 8px rgba(0, 0, 0, 0.6),
+        0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.lp-choice-card-desc {
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    line-height: 1.45;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 2px 6px rgba(0, 0, 0, 0.7),
+        0 0 16px rgba(0, 0, 0, 0.5);
+}
+
+.lp-choice-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+}
+
+.lp-choice-card-tag {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.65rem;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    color: #fff;
+    transition: var(--lp-transition);
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 2px 4px rgba(0, 0, 0, 0.7);
+}
+
+.lp-choice-card:hover .lp-choice-card-tag {
+    border-color: #c69844;
+    background: rgba(198, 152, 68, 0.4);
+    color: #fff;
+}
+
+.lp-choice-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    transition: var(--lp-transition);
+    font-size: 1rem;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 2px 6px rgba(0, 0, 0, 0.7),
+        0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+.lp-choice-card:hover .lp-choice-cta {
+    color: #c69844;
+    transform: translateX(6px);
+}
+
+/* Páginas comerciais (FiscalAddress / Salas / Parceiro) - hero + busca */
+.lp-commercial-hero {
+    min-height: 50vh;
+    display: flex;
+    align-items: flex-start;
+    padding: 10rem 0 2rem;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.lp-commercial-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 50% at 50% 0%, var(--lp-accent-glow), transparent);
+    pointer-events: none;
+}
+
+.lp-search-bar {
+    background: var(--lp-surface-card);
+    border: 1px solid var(--lp-border);
+    border-radius: var(--lp-radius);
+    padding: 1.25rem 1.5rem;
+    max-width: 720px;
+    margin: 0 auto 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+
+.lp-search-bar .form-control,
+.lp-search-bar .form-select {
+    background: var(--lp-primary-light);
+    border: 1px solid var(--lp-border);
+    color: var(--lp-text);
+    border-radius: var(--lp-radius-sm);
+}
+
+.lp-search-bar .form-control:focus,
+.lp-search-bar .form-select:focus {
+    border-color: var(--lp-accent);
+    box-shadow: 0 0 0 3px var(--lp-accent-glow);
+}
+
+.lp-search-bar .form-control::placeholder {
+    color: var(--lp-text-muted);
+}
+
+/* Logo Klyon no navbar/footer */
+.landing-nav .navbar-brand img {
+    height: 40px;
+    width: auto;
+    max-width: 200px;
+    object-fit: contain;
+}
+
+.landing-footer .footer-brand img {
+    height: 48px;
+    width: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 575.98px) {
+    .landing-nav .navbar-brand img { height: 32px; max-width: 140px; }
+}
+
+@media (max-width: 575.98px) {
+    .lp-choice-section { padding: 10rem 0 3rem; }
+    .lp-choice-card { min-height: 340px; }
+    .lp-choice-card-content { padding: 1.5rem 1.25rem; }
+    .lp-choice-card h2 { font-size: 1.35rem; }
+}
+
+/* Utils */
+.lp-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--lp-accent-light) 0%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Chat Endereço Fiscal - seção na home (tela principal) */
+.lp-home-chat-section {
+    padding-bottom: 4rem;
+}
+.lp-home-chat-wrapper {
+    max-width: 560px;
+    margin: 0 auto;
+}
+.lp-home-chat-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--lp-text);
+    margin-bottom: 0.5rem;
+}
+.lp-home-chat-subtitle {
+    font-size: 0.95rem;
+    color: var(--lp-text-muted);
+    margin-bottom: 1.25rem;
+}
+.lp-home-chat-box {
+    background: #fff;
+    border-radius: var(--lp-radius);
+    box-shadow: var(--lp-shadow);
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 420px;
+}
+.lp-home-chat-box .fiscal-chat-header {
+    background: linear-gradient(135deg, #1a4d7a 0%, #0a1f3a 100%);
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.lp-home-chat-box .fiscal-chat-header-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+.lp-home-chat-box .fiscal-chat-header-text { flex: 1; }
+.lp-home-chat-box .fiscal-chat-header-title { font-weight: 600; font-size: 1rem; }
+.lp-home-chat-box .fiscal-chat-header-sub { font-size: 0.8rem; opacity: 0.9; }
+.lp-home-chat-box .lp-home-chat-messages {
+    flex: 1;
+    min-height: 260px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #f8f9fa;
+}
+.lp-home-chat-box .fiscal-chat-msg {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+.lp-home-chat-box .fiscal-chat-msg.bot {
+    align-self: flex-start;
+    background: #e9ecef;
+    color: #212529;
+    border-bottom-left-radius: 4px;
+}
+.lp-home-chat-box .fiscal-chat-msg.user {
+    align-self: flex-end;
+    background: #1a4d7a;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+.lp-home-chat-box .fiscal-chat-msg.typing {
+    align-self: flex-start;
+    background: #e9ecef;
+    padding: 12px 18px;
+}
+.lp-home-chat-box .fiscal-chat-typing-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6c757d;
+    margin: 0 2px;
+    animation: lp-chat-bounce 1.4s ease-in-out infinite both;
+}
+.lp-home-chat-box .fiscal-chat-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.lp-home-chat-box .fiscal-chat-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lp-chat-bounce {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+    40% { transform: scale(1.2); opacity: 1; }
+}
+.lp-home-chat-box .fiscal-chat-input-wrap {
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #e9ecef;
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+.lp-home-chat-box .fiscal-chat-input-wrap textarea {
+    flex: 1;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    resize: none;
+    min-height: 42px;
+    max-height: 100px;
+    font-family: inherit;
+}
+.lp-home-chat-box .fiscal-chat-input-wrap textarea:focus {
+    outline: none;
+    border-color: #1a4d7a;
+}
+.lp-home-chat-box .fiscal-chat-send {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #1a4d7a;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+.lp-home-chat-box .fiscal-chat-send:hover { background: #0a1f3a; }
+.lp-home-chat-box .fiscal-chat-send:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Bolhas do chat no card (estilo Login) */
+#fiscal-chat-messages-home .fiscal-chat-msg {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+#fiscal-chat-messages-home .fiscal-chat-msg.bot {
+    align-self: flex-start;
+    background: #e9ecef;
+    color: #212529;
+}
+#fiscal-chat-messages-home .fiscal-chat-msg.user {
+    align-self: flex-end;
+    background: var(--lp-accent);
+    color: #fff;
+}
+#fiscal-chat-messages-home .fiscal-chat-msg.typing {
+    align-self: flex-start;
+    background: #e9ecef;
+    padding: 10px 14px;
+}
+#fiscal-chat-messages-home .fiscal-chat-typing-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6c757d;
+    margin: 0 2px;
+    animation: lp-chat-bounce 1.4s ease-in-out infinite both;
+}
+#fiscal-chat-messages-home .fiscal-chat-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+#fiscal-chat-messages-home .fiscal-chat-typing-dots span:nth-child(3) { animation-delay: 0.4s; }

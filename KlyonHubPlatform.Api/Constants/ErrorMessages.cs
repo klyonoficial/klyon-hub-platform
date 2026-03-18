@@ -13,6 +13,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CnpjRequiredForPj = "O CNPJ é obrigatório para Pessoa Jurídica.";
         public const string CompanyNameRequiredForPj = "A Razão Social é obrigatória para Pessoa Jurídica.";
         public const string CpfRequiredForPf = "O CPF é obrigatório para Pessoa Física.";
+        public const string CpfResponsavelRequiredForPj = "O CPF do responsável é obrigatório para Pessoa Jurídica.";
         public const string AddressNotFound = "Endereço não encontrado.";
         public const string AddressNotAvailableForContract = "Este endereço não está disponível para contratação no momento.";
         public const string InvalidLocation = "Localidade inválida.";

@@ -1,0 +1,499 @@
+/**
+ * KlyonBoot - Estilos do Widget de Chat
+ * Cores: Roxo #6C5CE7 (Primary), Branco #FFFFFF, Cinza #F5F5F5
+ */
+
+/* Reset e variáveis */
+:root {
+    --klyonboot-primary: #6C5CE7;
+    --klyonboot-primary-hover: #5B4BC9;
+    --klyonboot-secondary: #A29BFE;
+    --klyonboot-success: #00B894;
+    --klyonboot-danger: #FF7675;
+    --klyonboot-light: #F5F5F5;
+    --klyonboot-dark: #2D3436;
+    --klyonboot-text: #2D3436;
+    --klyonboot-text-light: #636E72;
+    --klyonboot-border: #DFE6E9;
+    --klyonboot-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    --klyonboot-radius: 12px;
+    --klyonboot-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Container principal */
+.klyonboot-widget {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+}
+
+@media (max-width: 768px) {
+    .klyonboot-widget {
+        bottom: 16px;
+        right: 16px;
+    }
+}
+
+/* Botão flutuante */
+.klyonboot-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--klyonboot-primary), var(--klyonboot-secondary));
+    border: none;
+    color: white;
+    cursor: pointer;
+    box-shadow: var(--klyonboot-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--klyonboot-transition);
+    position: relative;
+}
+
+.klyonboot-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 25px rgba(108, 92, 231, 0.4);
+}
+
+.klyonboot-toggle:active {
+    transform: scale(0.95);
+}
+
+.klyonboot-toggle svg {
+    width: 28px;
+    height: 28px;
+}
+
+/* Badge de notificação */
+.klyonboot-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--klyonboot-danger);
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    border: 2px solid white;
+}
+
+/* Janela do chat */
+.klyonboot-window {
+    width: 400px;
+    height: 650px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 100px);
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+@media (max-width: 768px) {
+    .klyonboot-window {
+        width: calc(100vw - 32px);
+        height: calc(100vh - 80px);
+        max-height: calc(100vh - 80px);
+        border-radius: 12px;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Cabeçalho */
+.klyonboot-header {
+    background: linear-gradient(135deg, var(--klyonboot-primary), var(--klyonboot-secondary));
+    color: white;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.klyonboot-header-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.klyonboot-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.klyonboot-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.klyonboot-subtitle {
+    font-size: 13px;
+    opacity: 0.95;
+    margin: 2px 0 0 0;
+    line-height: 1.3;
+}
+
+.klyonboot-close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--klyonboot-transition);
+}
+
+.klyonboot-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+/* Área de mensagens */
+.klyonboot-messages {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    background: var(--klyonboot-light);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.klyonboot-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.klyonboot-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.klyonboot-messages::-webkit-scrollbar-thumb {
+    background: var(--klyonboot-border);
+    border-radius: 3px;
+}
+
+.klyonboot-messages::-webkit-scrollbar-thumb:hover {
+    background: var(--klyonboot-text-light);
+}
+
+/* Mensagens */
+.klyonboot-message {
+    display: flex;
+    flex-direction: column;
+    max-width: 75%;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.klyonboot-message-user {
+    align-self: flex-end;
+}
+
+.klyonboot-message-bot {
+    align-self: flex-start;
+}
+
+.klyonboot-message-content {
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.klyonboot-message-user .klyonboot-message-content {
+    background: var(--klyonboot-primary);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.klyonboot-message-bot .klyonboot-message-content {
+    background: white;
+    color: var(--klyonboot-text);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--klyonboot-border);
+}
+
+.klyonboot-message-bot.error .klyonboot-message-content {
+    background: #FFF5F5;
+    border-color: var(--klyonboot-danger);
+    color: var(--klyonboot-danger);
+}
+
+.klyonboot-message-time {
+    font-size: 11px;
+    color: var(--klyonboot-text-light);
+    margin-top: 4px;
+    padding: 0 4px;
+}
+
+.klyonboot-message-user .klyonboot-message-time {
+    text-align: right;
+}
+
+/* Links nas mensagens */
+.klyonboot-message-content a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.klyonboot-message-user .klyonboot-message-content a {
+    color: white;
+}
+
+/* Indicador de digitação */
+.klyonboot-typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+}
+
+.klyonboot-typing-indicator span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--klyonboot-text-light);
+    animation: typing 1.4s infinite;
+}
+
+.klyonboot-typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.klyonboot-typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+    30% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Feedback */
+.klyonboot-feedback {
+    padding: 12px 16px;
+    background: white;
+    border-top: 1px solid var(--klyonboot-border);
+}
+
+.klyonboot-feedback p {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: var(--klyonboot-text);
+    text-align: center;
+}
+
+.klyonboot-feedback-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.klyonboot-feedback-buttons button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--klyonboot-transition);
+}
+
+.klyonboot-btn-yes {
+    background: var(--klyonboot-success);
+    color: white;
+}
+
+.klyonboot-btn-yes:hover {
+    background: #00a081;
+    transform: translateY(-2px);
+}
+
+.klyonboot-btn-no {
+    background: var(--klyonboot-danger);
+    color: white;
+}
+
+.klyonboot-btn-no:hover {
+    background: #ff6b6a;
+    transform: translateY(-2px);
+}
+
+/* Input de mensagem */
+.klyonboot-input-container {
+    display: flex;
+    padding: 16px;
+    background: white;
+    border-top: 1px solid var(--klyonboot-border);
+    gap: 10px;
+    align-items: center;
+}
+
+.klyonboot-input {
+    flex: 1;
+    padding: 12px 18px;
+    border: 2px solid var(--klyonboot-border);
+    border-radius: 24px;
+    font-size: 14px;
+    outline: none;
+    transition: var(--klyonboot-transition);
+    background: #F8F9FA;
+    color: var(--klyonboot-text);
+}
+
+.klyonboot-input::placeholder {
+    color: var(--klyonboot-text-light);
+}
+
+.klyonboot-input:focus {
+    border-color: var(--klyonboot-primary);
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    background: white;
+}
+
+.klyonboot-send-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--klyonboot-primary), var(--klyonboot-secondary));
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--klyonboot-transition);
+    box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+}
+
+.klyonboot-send-btn:hover {
+    background: linear-gradient(135deg, var(--klyonboot-primary-hover), var(--klyonboot-primary));
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.4);
+}
+
+.klyonboot-send-btn:active {
+    transform: scale(0.95);
+}
+
+.klyonboot-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Footer */
+.klyonboot-footer {
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--klyonboot-text-light);
+    background: #F8F9FA;
+    border-top: 1px solid var(--klyonboot-border);
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+    .klyonboot-window {
+        width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        bottom: 0;
+        right: 0;
+        border-radius: 0;
+    }
+
+    .klyonboot-widget {
+        bottom: 0;
+        right: 0;
+    }
+}
+
+/* Acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dark mode (opcional) */
+@media (prefers-color-scheme: dark) {
+    .klyonboot-window {
+        background: #1E1E1E;
+    }
+
+    .klyonboot-messages {
+        background: #2D2D2D;
+    }
+
+    .klyonboot-message-bot .klyonboot-message-content {
+        background: #3A3A3A;
+        color: #E0E0E0;
+    }
+
+    .klyonboot-input {
+        background: #3A3A3A;
+        border-color: #4A4A4A;
+        color: #E0E0E0;
+    }
+
+    .klyonboot-feedback,
+    .klyonboot-input-container,
+    .klyonboot-footer {
+        background: #2D2D2D;
+        border-color: #4A4A4A;
+    }
+}

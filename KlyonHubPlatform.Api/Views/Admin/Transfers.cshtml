@@ -143,7 +143,7 @@
                                     }
                                 </td>
                                 <td><strong class="text-success">R$ @t.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
-                                <td>@(t.Description ?? DefaultDisplayStrings.EmptyPlaceholder)</td>
+                                <td>@(t.Description != null && t.Description.Contains("|") ? t.Description.Split('|')[0] : (t.Description ?? DefaultDisplayStrings.EmptyPlaceholder))</td>
                                 <td>
                                     @t.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)<br />
                                     <small class="text-muted">@t.CreatedAt.ToString("HH:mm")</small>
@@ -244,15 +244,6 @@
         }
     </style>
     <script>
-        document.querySelectorAll('.approve-transfer-form').forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                var amount = form.querySelector('button[type="submit"]').getAttribute('data-amount');
-                if (!confirm('Tem certeza que deseja aprovar o repasse de R$ ' + amount + '?')) {
-                    e.preventDefault();
-                }
-            });
-        });
-
         document.querySelectorAll('.clickable-row').forEach(function(row) {
             row.addEventListener('click', function(e) {
                 var href = row.getAttribute('data-href');

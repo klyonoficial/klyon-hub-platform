@@ -232,7 +232,9 @@ namespace KlyonHubPlatform.Application.Services
             };
             var includedIds = commissions.Select(c => c.Id).ToList();
             var commissionIdsStr = string.Join(",", includedIds);
-            transfer.Description = $"Repasse de {commissions.Count}|CommissionIds:{commissionIdsStr}";
+            var count = commissions.Count;
+            var comissaoLabel = count == 1 ? "1 comissão" : $"{count} comissões";
+            transfer.Description = $"Repasse referente a {comissaoLabel}|CommissionIds:{commissionIdsStr}";
             _context.Transfers.Add(transfer);
             await _context.SaveChangesAsync();
             return transfer;

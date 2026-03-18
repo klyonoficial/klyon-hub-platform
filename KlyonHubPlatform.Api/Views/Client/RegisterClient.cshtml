@@ -38,16 +38,15 @@
                 </div>
             </div>
 
-            <div id="campos-fisica" class="@(personType == "Juridica" ? "d-none" : "")">
+            <div id="campos-cpf" class="">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label for="CPF" class="form-label">CPF <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" data-document-check="CPF" aria-describedby="CPF-feedback" @(personType == "Juridica" ? "" : "required")>
+                        <label for="CPF" class="form-label" id="labelCPF">@(personType == "Juridica" ? "CPF do responsável" : "CPF") <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="CPF" name="CPF" placeholder="000.000.000-00" maxlength="14" value="@client.CPF" data-document-check="CPF" aria-describedby="CPF-feedback" required>
                         <div class="invalid-feedback d-block text-danger" id="CPF-feedback" role="alert" style="display: none;"></div>
                     </div>
                 </div>
             </div>
-
             <div id="campos-juridica" class="@(personType == "Fisica" ? "d-none" : "")">
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -188,9 +187,9 @@
     var personTypeInput = document.getElementById('PersonType');
     var personFisica = document.getElementById('personFisica');
     var personJuridica = document.getElementById('personJuridica');
-    var camposFisica = document.getElementById('campos-fisica');
     var camposJuridica = document.getElementById('campos-juridica');
     var camposNomeCompleto = document.getElementById('campos-nome-completo');
+    var labelCPF = document.getElementById('labelCPF');
     var inputCPF = document.getElementById('CPF');
     var inputCNPJ = document.getElementById('CNPJ');
     var inputRazaoSocial = document.getElementById('RazaoSocial');
@@ -273,8 +272,8 @@
 
     function setPersonType(value) {
         personTypeInput.value = value;
+        if (labelCPF) labelCPF.innerHTML = value === 'Juridica' ? 'CPF do responsável <span class="text-danger">*</span>' : 'CPF <span class="text-danger">*</span>';
         if (value === 'Fisica') {
-            camposFisica.classList.remove('d-none');
             camposJuridica.classList.add('d-none');
             if (camposNomeCompleto) camposNomeCompleto.classList.remove('d-none');
             if (inputContactName) inputContactName.setAttribute('required', 'required');
@@ -283,11 +282,10 @@
             inputRazaoSocial.removeAttribute('required');
             setDocumentFeedback(inputCNPJ, document.getElementById('CNPJ-feedback'), false);
         } else {
-            camposFisica.classList.add('d-none');
             camposJuridica.classList.remove('d-none');
             if (camposNomeCompleto) camposNomeCompleto.classList.add('d-none');
             if (inputContactName) inputContactName.removeAttribute('required');
-            inputCPF.removeAttribute('required');
+            inputCPF.setAttribute('required', 'required');
             inputCNPJ.setAttribute('required', 'required');
             inputRazaoSocial.setAttribute('required', 'required');
             setDocumentFeedback(inputCPF, document.getElementById('CPF-feedback'), false);

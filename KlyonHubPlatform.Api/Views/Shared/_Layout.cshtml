@@ -979,6 +979,21 @@
             });
         }
         
+        // Formulários de aprovação de repasse: usar modal de confirmação em vez de alert
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.approve-transfer-form').forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    var amount = form.querySelector('[data-amount]') && form.querySelector('[data-amount]').getAttribute('data-amount');
+                    var msg = 'Tem certeza que deseja aprovar o repasse de R$ ' + (amount || '') + '?';
+                    var formRef = form;
+                    showConfirm(msg, 'Confirmar aprovação', 'success').then(function(ok) {
+                        if (ok) formRef.submit();
+                    });
+                });
+            });
+        });
+        
         // Substituir confirm padrão do JavaScript por showConfirm elegante
         // NOTA: Como confirm() é síncrono/bloqueante e showConfirm() é assíncrono,
         // não podemos substituir diretamente. O código deve usar showConfirm() explicitamente.

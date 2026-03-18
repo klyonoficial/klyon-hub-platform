@@ -528,11 +528,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var isAdmin = User.IsInRole(Administrator);
                 var personType = (PersonType ?? "").Trim();
                 ViewBag.PersonType = string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase) ? "Juridica" : "Fisica";
-                if (string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase))
-                {
-                    client.CPF = null;
-                }
-                else
+                if (!string.Equals(personType, "Juridica", StringComparison.OrdinalIgnoreCase))
                 {
                     client.CNPJ = null;
                     client.RazaoSocial = null;
@@ -638,6 +634,12 @@ namespace KlyonHubPlatform.Api.Controllers
                         if (string.IsNullOrWhiteSpace(existingClient.CNPJ))
                         {
                             TempData[ErrorMessages.TempDataKey] = ErrorMessages.CnpjRequiredForPj;
+                            ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
+                            return View(existingClient);
+                        }
+                        if (string.IsNullOrWhiteSpace(existingClient.CPF))
+                        {
+                            TempData[ErrorMessages.TempDataKey] = ErrorMessages.CpfResponsavelRequiredForPj;
                             ViewBag.UserEmail = existingClient.ContactEmail ?? userEmail;
                             return View(existingClient);
                         }
@@ -759,6 +761,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (string.IsNullOrWhiteSpace(client.CNPJ))
                     {
                         TempData[ErrorMessages.TempDataKey] = ErrorMessages.CnpjRequiredForPj;
+                        ViewBag.UserEmail = userEmail;
+                        return View(client);
+                    }
+                    if (string.IsNullOrWhiteSpace(client.CPF))
+                    {
+                        TempData[ErrorMessages.TempDataKey] = ErrorMessages.CpfResponsavelRequiredForPj;
                         ViewBag.UserEmail = userEmail;
                         return View(client);
                     }
