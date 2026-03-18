@@ -51,8 +51,18 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         {
             return await _context.Subscriptions
                 .Include(s => s.Contract)
+                    .ThenInclude(c => c!.Client)
+                        .ThenInclude(cl => cl!.User)
                 .Where(s => s.Status == SubscriptionStatus.Active && s.NextBillingDate <= date)
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<Subscription?> GetByPixAutomaticAuthorizationIdAsync(string pixAutomaticAuthorizationId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(pixAutomaticAuthorizationId)) return null;
+            return await _context.Subscriptions
+                .Include(s => s.Payments)
+                .FirstOrDefaultAsync(s => s.PixAutomaticAuthorizationId == pixAutomaticAuthorizationId, cancellationToken);
         }
     }
 }

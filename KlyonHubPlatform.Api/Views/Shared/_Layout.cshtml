@@ -936,16 +936,20 @@
                 confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
                 cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
                 
-                // Adicionar novos listeners
+                // Flag para não resolver false quando o usuário clicou em Confirmar (o onHidden resolve true)
+                let userConfirmed = false;
+                // Adicionar novos listeners: ao confirmar, fechar o modal e só depois exibir o loading (para o loading não ser bloqueado por isConfirmModalOpen)
                 newConfirmBtn.addEventListener('click', () => {
-                    modalInstance.hide();
-                    // Remover marcação imediatamente ao confirmar
+                    userConfirmed = true;
                     modal.removeAttribute('data-confirm-open');
-                    // Mostrar loading automaticamente após confirmação
-                    if (window.KlyonLoading) {
-                        window.KlyonLoading.show();
-                    }
-                    resolve(true);
+                    const onHidden = () => {
+                        if (window.KlyonLoading && window.KlyonLoading.show) {
+                            window.KlyonLoading.show();
+                        }
+                        resolve(true);
+                    };
+                    modal.addEventListener('hidden.bs.modal', onHidden, { once: true });
+                    modalInstance.hide();
                 });
                 
                 newCancelBtn.addEventListener('click', () => {
@@ -953,9 +957,9 @@
                     resolve(false);
                 });
                 
-                // Fechar ao clicar no X ou fora do modal
+                // Fechar ao clicar no X ou fora do modal (só resolve false se não foi Confirmar)
                 const handleHidden = () => {
-                    resolve(false);
+                    if (!userConfirmed) resolve(false);
                 };
                 modal.addEventListener('hidden.bs.modal', handleHidden, { once: true });
                 

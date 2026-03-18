@@ -488,7 +488,11 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!result.Success)
             {
                 TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
-                return result.RedirectToDashboard ? RedirectToAction(ActionNames.Dashboard) : RedirectToAction(ActionNames.Coworkings);
+                if (result.RedirectToDashboard)
+                    return RedirectToAction(ActionNames.Dashboard);
+                if (result.RedirectCoworkingId.HasValue)
+                    return RedirectToAction(ActionNames.ViewCoworking, new { id = result.RedirectCoworkingId.Value });
+                return RedirectToAction(ActionNames.Coworkings);
             }
             TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
             if (page.HasValue || !string.IsNullOrEmpty(search) || !string.IsNullOrEmpty(status) || !string.IsNullOrEmpty(isPartner) || !string.IsNullOrEmpty(approvalStatus))
@@ -1057,7 +1061,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     paidAt = payment.PaidAt?.ToString(DateFormatConstants.DisplayDateAndTime),
                     createdAt = payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime),
                     externalPaymentId = payment.ExternalPaymentId,
-                    pixCode = payment.PixCode,
+                    pixCode = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode,
                     boletoCode = payment.BoletoCode,
                     transactionId = payment.TransactionId,
                     subscription = payment.Subscription != null ? new
@@ -1230,7 +1234,7 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditSystemConfiguration(int id, string value, string? description, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> EditSystemConfiguration(int id, string? value, string? description, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1240,7 +1244,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ConfigNotFound;
                     return RedirectToAction(ActionNames.SystemConfigurations);
                 }
-                configuration.Value = value;
+                configuration.Value = value ?? "";
                 configuration.Description = description ?? configuration.Description;
                 configuration.UpdatedBy = User.Identity?.Name;
                 await _systemConfigurationService.UpdateAsync(configuration, User.Identity?.Name);
@@ -4233,8 +4237,10 @@ CREATE TABLE IF NOT EXISTS Reservations (
                 return RedirectToAction(ActionNames.Contracts, ControllerNames.Admin);
             }
             ViewBag.Payment = payment;
-            ViewBag.PixCode = payment.PixCode;
-            ViewBag.PixExpiresAt = payment.PixExpiresAt;
+            // PIX único: Payment.PixCode/PixExpiresAt; PIX Automático: Subscription.PixAutomaticPayload/PixAutomaticPayloadExpiresAt
+            var isPixAnnual = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual;
+            ViewBag.PixCode = isPixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode;
+            ViewBag.PixExpiresAt = isPixAnnual ? payment.Subscription?.PixAutomaticPayloadExpiresAt : payment.PixExpiresAt;
             return View();
         }
         private static string? FormatAddress(CoworkingAddress? addr)

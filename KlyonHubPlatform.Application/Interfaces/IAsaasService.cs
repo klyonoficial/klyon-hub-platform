@@ -18,6 +18,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<string> GetOrCreateAsaasCustomerIdAsync(string clientName, string clientEmail, string clientTaxId, string? clientPhone, PagBankAddress? clientAddress, string externalReference);
         /// <summary>Tokeniza um cartão no Asaas para cobranças com cartão salvo. Retorna o token ou null em caso de erro.</summary>
         Task<string?> TokenizeCreditCardAsync(string asaasCustomerId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string email, string cpfCnpj, string postalCode, string addressNumber, string? phone, string remoteIp);
+        /// <param name="customerExternalReference">Referência estável do cliente no Asaas (ex: "client_8"). Quando informada, reutiliza o mesmo cadastro para todas as cobranças desse cliente. Se omitida, usa referenceId (pode criar duplicatas).</param>
         Task<OrderResponse> CreateOrderAsync(
             string referenceId,
             decimal amount,
@@ -30,9 +31,17 @@ namespace KlyonHubPlatform.Application.Interfaces
             int? installments = null,
             PagBankAddress? clientAddress = null,
             string? creditCardToken = null,
-            string? asaasCustomerIdForToken = null);
+            string? asaasCustomerIdForToken = null,
+            string? remoteIp = null,
+            string? customerExternalReference = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
+        /// <summary>Obtém o QR Code PIX de uma cobrança já existente no Asaas (para reutilizar em vez de criar nova).</summary>
+        Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string asaasPaymentId);
         Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null);
+        /// <summary>Cria autorização PIX Automático recorrência anual. Retorna id, payload do QR Code e expiração.</summary>
+        Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(string asaasCustomerId, string contractId, decimal annualValue, string description, int immediateExpirationSeconds = 86400);
+        /// <summary>Cria cobrança PIX vinculada à autorização (débito automático na data).</summary>
+        Task<OrderResponse?> CreatePaymentWithPixAutomaticAuthorizationAsync(string asaasCustomerId, string pixAutomaticAuthorizationId, decimal value, DateTime dueDate, string externalReference, string description);
         Task<bool> ValidateWebhookSignatureAsync(string payload, string signature);
         Task<PixTransferResult> CreatePixTransferAsync(
             string referenceId,

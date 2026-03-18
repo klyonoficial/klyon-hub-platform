@@ -57,6 +57,19 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
     options.RequestCultureProviders.Clear();
 });
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var envName = builder.Environment.EnvironmentName;
+var connHint = "(vazio)";
+if (!string.IsNullOrEmpty(connectionString))
+{
+    try
+    {
+        var parts = connectionString.Split(';').Select(p => p.Trim())
+            .Where(p => p.StartsWith("Server=", StringComparison.OrdinalIgnoreCase) || p.StartsWith("Database=", StringComparison.OrdinalIgnoreCase));
+        connHint = string.Join("; ", parts);
+    }
+    catch { connHint = "(não foi possível extrair)"; }
+}
+Console.WriteLine($"[Klyon] ASPNETCORE_ENVIRONMENT = {envName} | Connection: {connHint}");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.Parse("10.5.29-mariadb"), 
         mySqlOptions => 
@@ -168,6 +181,7 @@ builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 builder.Services.AddHostedService<MonthlySettlementBackgroundService>();
 builder.Services.AddAutoMapper(typeof(Program), typeof(KlyonHubPlatform.Application.Mappers.ApplicationMappingProfile));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -198,6 +212,7 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapHub<KlyonHubPlatform.Api.Hubs.PaymentHub>("/hubs/payment");
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

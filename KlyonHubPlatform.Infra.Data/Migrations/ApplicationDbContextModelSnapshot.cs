@@ -726,6 +726,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("CardPlanType")
+                        .HasColumnType("int");
+
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 
@@ -1581,6 +1584,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("LastFourDigits")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Nickname")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -2559,6 +2565,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(65,30)");
 
+                    b.Property<string>("BankSlipUrl")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("BoletoBarcode")
                         .HasColumnType("longtext");
 
@@ -2594,6 +2603,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("PixCode")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PixConciliationIdentifier")
                         .HasColumnType("longtext");
 
                     b.Property<DateTime?>("PixExpiresAt")
@@ -3018,6 +3030,18 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("decimal(65,30)");
 
                     b.Property<DateTime>("NextBillingDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PixAutomaticAuthorizationId")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PixAutomaticConciliationIdentifier")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PixAutomaticPayload")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("PixAutomaticPayloadExpiresAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("Status")

@@ -7,6 +7,8 @@ namespace KlyonHubPlatform.Domain.Core.Constants
         public const string PaymentReceivedInCash = "PAYMENT_RECEIVED_IN_CASH";
         public const string PaymentDeleted = "PAYMENT_DELETED";
         public const string PaymentOverdue = "PAYMENT_OVERDUE";
+        public const string PixAutomaticAuthorizationActivated = "PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED";
+        public const string PixAutomaticPaymentInstructionRefused = "PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_REFUSED";
     }
     public static class AsaasPaymentStatus
     {

@@ -16,6 +16,7 @@ using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Api.Dtos;
 using KlyonHubPlatform.Api.Dtos.Coworking;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 namespace KlyonHubPlatform.Api.Controllers
 {
     [Authorize(Roles = RoleNames.CoworkingPartner + "," + RoleNames.Administrator)]
@@ -525,6 +526,10 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.ActiveContractsByAddress = activeContractsByAddress;
             var hasFiscalAddress = await _coworkingAppService.HasFiscalAddressAsync(coworkingEntity.Id);
             ViewBag.CanAddAddress = !hasFiscalAddress;
+            ViewBag.CoworkingApprovalStatus = coworkingEntity.ApprovalStatus;
+            ViewBag.CoworkingRejectionReason = coworkingEntity.RejectionReason;
+            var cardPriceRejectionReasons = await _coworkingAppService.GetCardPriceRejectionReasonsByAddressIdsAsync(addressIds, cancellationToken);
+            ViewBag.CardPriceRejectionReasonByAddress = cardPriceRejectionReasons;
             return View(addresses);
         }
         [HttpGet]
@@ -655,23 +660,42 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!id.HasValue || id.Value <= 0)
             {
                 TempData[ErrorMessages.TempDataKey] = "ID do endereço inválido.";
+                if (User.IsInRole(RoleNames.Administrator))
+                    return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
                 return RedirectToAction(ActionNames.MyAddresses);
             }
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
-            var coworkingEntity = coworking.FirstOrDefault();
-            if (coworkingEntity == null)
+            Coworking? coworkingEntity;
+            CoworkingAddress? address;
+            if (User.IsInRole(RoleNames.Administrator))
             {
-                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                return RedirectToAction(ActionNames.Register);
+                address = await _coworkingAppService.GetAddressWithLocationAndCapacityRequestsByAddressIdAsync(id.Value, cancellationToken);
+                if (address == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado.";
+                    return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
+                }
+                coworkingEntity = address.Coworking;
             }
-            var address = await _coworkingAppService.GetAddressWithLocationAndCapacityRequestsAsync(id.Value, coworkingEntity.Id);
+            else
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                coworkingEntity = coworking.FirstOrDefault();
+                if (coworkingEntity == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction(ActionNames.Register);
+                }
+                address = await _coworkingAppService.GetAddressWithLocationAndCapacityRequestsAsync(id.Value, coworkingEntity.Id);
+            }
             if (address == null)
             {
                 TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                if (User.IsInRole(RoleNames.Administrator))
+                    return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
                 return RedirectToAction(ActionNames.MyAddresses);
             }
-            var hasRoomRental = await _coworkingAppService.HasRoomRentalAsync(coworkingEntity.Id);
+            var hasRoomRental = await _coworkingAppService.HasRoomRentalAsync(coworkingEntity!.Id);
             var hasActiveContracts = await _coworkingAppService.HasActiveContractsForAddressAsync(address.Id);
             ViewBag.HasActiveContracts = hasActiveContracts;
             var locations = await _coworkingAppService.GetActiveLocationsAsync();
@@ -683,19 +707,35 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditAddress(int id, int locationId, string address, string number, string? complement,
-            string neighborhood, string city, string state, string zipCode, int maxContracts, bool isAvailable)
+            string neighborhood, string city, string state, string zipCode, int maxContracts, bool isAvailable, CancellationToken cancellationToken = default)
         {
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var coworking = await _coworkingService.GetByUserIdAsync(userId);
-                var coworkingEntity = coworking.FirstOrDefault();
-                if (coworkingEntity == null)
+                Coworking? coworkingEntity;
+                CoworkingAddress? existingAddress;
+                if (User.IsInRole(RoleNames.Administrator))
                 {
-                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                    return RedirectToAction(ActionNames.Register);
+                    var addressById = await _coworkingAppService.GetAddressWithLocationAndCapacityRequestsByAddressIdAsync(id, cancellationToken);
+                    if (addressById == null)
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado.";
+                        return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
+                    }
+                    coworkingEntity = addressById.Coworking;
+                    existingAddress = await _coworkingAppService.GetExistingAddressWithCapacityRequestsAsync(id, coworkingEntity.Id);
                 }
-                var existingAddress = await _coworkingAppService.GetExistingAddressWithCapacityRequestsAsync(id, coworkingEntity.Id);
+                else
+                {
+                    var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                    coworkingEntity = coworking.FirstOrDefault();
+                    if (coworkingEntity == null)
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                        return RedirectToAction(ActionNames.Register);
+                    }
+                    existingAddress = await _coworkingAppService.GetExistingAddressWithCapacityRequestsAsync(id, coworkingEntity.Id);
+                }
                 if (existingAddress == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
@@ -741,6 +781,54 @@ namespace KlyonHubPlatform.Api.Controllers
                     ViewBag.HasRoomRental = hasRoomRental;
                     return View(existingAddress);
                 }
+                var oldAddr = new Dictionary<string, object?>
+                {
+                    ["AddressId"] = existingAddress.Id,
+                    ["LocationId"] = existingAddress.LocationId,
+                    ["Address"] = existingAddress.Address ?? "",
+                    ["Number"] = existingAddress.Number ?? "",
+                    ["Complement"] = existingAddress.Complement ?? "",
+                    ["Neighborhood"] = existingAddress.Neighborhood ?? "",
+                    ["City"] = existingAddress.City ?? "",
+                    ["State"] = existingAddress.State ?? "",
+                    ["ZipCode"] = existingAddress.ZipCode ?? "",
+                    ["BasePrice"] = existingAddress.BasePrice,
+                    ["MaxContracts"] = existingAddress.MaxContracts
+                };
+                var newAddr = new Dictionary<string, object?>
+                {
+                    ["AddressId"] = existingAddress.Id,
+                    ["LocationId"] = locationId,
+                    ["Address"] = address ?? "",
+                    ["Number"] = number ?? "",
+                    ["Complement"] = complement ?? "",
+                    ["Neighborhood"] = neighborhood ?? "",
+                    ["City"] = city ?? "",
+                    ["State"] = state ?? "",
+                    ["ZipCode"] = zipCode ?? "",
+                    ["BasePrice"] = basePrice,
+                    ["MaxContracts"] = maxContracts
+                };
+                var changedOld = new Dictionary<string, object?>();
+                var changedNew = new Dictionary<string, object?>();
+                foreach (var key in oldAddr.Keys.ToList())
+                {
+                    if (key == "AddressId") continue;
+                    var o = oldAddr[key];
+                    var n = newAddr[key];
+                    var oStr = o is decimal d ? d.ToString(System.Globalization.CultureInfo.InvariantCulture) : (o?.ToString() ?? "");
+                    var nStr = n is decimal d2 ? d2.ToString(System.Globalization.CultureInfo.InvariantCulture) : (n?.ToString() ?? "");
+                    if (oStr != nStr)
+                    {
+                        changedOld[key] = o;
+                        changedNew[key] = n;
+                    }
+                }
+                if (changedOld.Count > 0)
+                {
+                    changedOld["AddressId"] = existingAddress.Id;
+                    changedNew["AddressId"] = existingAddress.Id;
+                }
                 existingAddress.LocationId = locationId;
                 existingAddress.Address = address;
                 existingAddress.Number = number;
@@ -751,12 +839,23 @@ namespace KlyonHubPlatform.Api.Controllers
                 existingAddress.ZipCode = zipCode;
                 existingAddress.BasePrice = basePrice;
                 existingAddress.MaxContracts = maxContracts;
-                existingAddress.IsAvailable = false;
-                existingAddress.AddressStatus = AddressStatus.PendingApproval;
+                if (!User.IsInRole(RoleNames.Administrator))
+                {
+                    existingAddress.IsAvailable = false;
+                    existingAddress.AddressStatus = AddressStatus.PendingApproval;
+                    await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço atualizado");
+                }
                 existingAddress.UpdatedAt = DateTime.UtcNow;
-                await ReturnToReviewIfApprovedAsync(coworkingEntity, userId, "Endereço atualizado");
                 await _coworkingService.UpdateAddressAsync(existingAddress);
+                if (!User.IsInRole(RoleNames.Administrator) && changedOld.Count > 0)
+                {
+                    var oldJson = JsonSerializer.Serialize(changedOld);
+                    var newJson = JsonSerializer.Serialize(changedNew);
+                    await _auditService.LogActionAsync(userId, CoworkingHistoryActionLabels.AddressUpdated, "Coworking", coworkingEntity.Id, oldJson, newJson, cancellationToken: cancellationToken);
+                }
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.AddressUpdated;
+                if (User.IsInRole(RoleNames.Administrator))
+                    return RedirectToAction(ActionNames.EditCoworking, ControllerNames.Admin, new { id = coworkingEntity.Id });
                 return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
@@ -780,20 +879,32 @@ namespace KlyonHubPlatform.Api.Controllers
             if (!id.HasValue || id.Value <= 0)
             {
                 TempData[ErrorMessages.TempDataKey] = "ID do endereço inválido.";
+                if (User.IsInRole(RoleNames.Administrator))
+                    return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
                 return RedirectToAction(ActionNames.MyAddresses);
             }
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var coworking = await _coworkingService.GetByUserIdAsync(userId);
-            var coworkingEntity = coworking.FirstOrDefault();
-            if (coworkingEntity == null)
+            CoworkingAddress? address;
+            if (User.IsInRole(RoleNames.Administrator))
             {
-                TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
-                return RedirectToAction(ActionNames.Register);
+                address = await _coworkingAppService.GetAddressWithCardPriceRequestsByAddressIdAsync(id.Value, cancellationToken);
             }
-            var address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id.Value, coworkingEntity.Id);
+            else
+            {
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                var coworkingEntity = coworking.FirstOrDefault();
+                if (coworkingEntity == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado. Complete seu cadastro primeiro.";
+                    return RedirectToAction(ActionNames.Register);
+                }
+                address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id.Value, coworkingEntity.Id);
+            }
             if (address == null)
             {
                 TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
+                if (User.IsInRole(RoleNames.Administrator))
+                    return RedirectToAction(ActionNames.Coworkings, ControllerNames.Admin);
                 return RedirectToAction(ActionNames.MyAddresses);
             }
             return View(address);
@@ -805,36 +916,55 @@ namespace KlyonHubPlatform.Api.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var coworking = await _coworkingService.GetByUserIdAsync(userId);
-                var coworkingEntity = coworking.FirstOrDefault();
-                if (coworkingEntity == null)
+                CoworkingAddress? address;
+                if (User.IsInRole(RoleNames.Administrator))
                 {
-                    TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
-                    return RedirectToAction(ActionNames.MyAddresses);
+                    address = await _coworkingAppService.GetAddressWithCardPriceRequestsByAddressIdAsync(id, cancellationToken);
                 }
-                var address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, coworkingEntity.Id);
+                else
+                {
+                    var coworking = await _coworkingService.GetByUserIdAsync(userId);
+                    var coworkingEntity = coworking.FirstOrDefault();
+                    if (coworkingEntity == null)
+                    {
+                        TempData[ErrorMessages.TempDataKey] = "Coworking não encontrado.";
+                        return RedirectToAction(ActionNames.MyAddresses);
+                    }
+                    address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, coworkingEntity.Id);
+                }
                 if (address == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Endereço não encontrado ou você não tem permissão para editá-lo.";
                     return RedirectToAction(ActionNames.MyAddresses);
                 }
-                if (address.CardPricesApprovalStatus == CapacityApprovalStatus.Pending)
+                if (!User.IsInRole(RoleNames.Administrator) && address.CardPricesApprovalStatus == CapacityApprovalStatus.Pending)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Já existe uma solicitação de alteração de preços no cartão pendente para este endereço. Aguarde a aprovação administrativa.";
                     return RedirectToAction(ActionNames.CardPrices, new { id });
                 }
                 decimal? cardPrice1x = decimal.TryParse(Request.Form["CardPrice1x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v1) ? v1 : (decimal?)null;
                 decimal? cardPriceMonthly = decimal.TryParse(Request.Form["CardPriceMonthly"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v2) ? v2 : (decimal?)null;
-                decimal? cardPrice12x = decimal.TryParse(Request.Form["CardPrice12x"].ToString().Trim().Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var v3) ? v3 : (decimal?)null;
                 if (cardPrice1x.HasValue && cardPrice1x.Value < 0) cardPrice1x = null;
                 if (cardPriceMonthly.HasValue && cardPriceMonthly.Value < 0) cardPriceMonthly = null;
-                if (cardPrice12x.HasValue && cardPrice12x.Value < 0) cardPrice12x = null;
+
+                if (User.IsInRole(RoleNames.Administrator))
+                {
+                    // Admin altera os valores diretamente; não altera status de aprovação do endereço nem do coworking. Opção 12x removida (apenas 1x e mensal).
+                    address.CardPrice1x = cardPrice1x;
+                    address.CardPriceMonthly = cardPriceMonthly;
+                    address.CardPrice12x = null;
+                    address.UpdatedAt = DateTime.UtcNow;
+                    await _coworkingAppService.SaveChangesAsync();
+                    TempData[SuccessMessage.TempDataKey] = "Preços no cartão atualizados pelo administrador.";
+                    return RedirectToAction(ActionNames.EditCoworking, ControllerNames.Admin, new { id = address.CoworkingId });
+                }
+
                 var request = new CardPriceChangeRequest
                 {
                     CoworkingAddressId = address.Id,
                     RequestedCardPrice1x = cardPrice1x,
                     RequestedCardPriceMonthly = cardPriceMonthly,
-                    RequestedCardPrice12x = cardPrice12x,
+                    RequestedCardPrice12x = null,
                     PreviousCardPrice1x = address.CardPrice1x,
                     PreviousCardPriceMonthly = address.CardPriceMonthly,
                     PreviousCardPrice12x = address.CardPrice12x,
@@ -844,17 +974,34 @@ namespace KlyonHubPlatform.Api.Controllers
                 _coworkingAppService.AddCardPriceChangeRequest(request);
                 address.CardPricesApprovalStatus = CapacityApprovalStatus.Pending;
                 address.UpdatedAt = DateTime.UtcNow;
+
+                // Parceiro: coloca o coworking em "Em análise" se estiver aprovado (para o admin aprovar os preços no cartão).
+                var cowForReview = await _coworkingAppService.DbContext.Coworkings.FindAsync(new object[] { address.CoworkingId }, cancellationToken);
+                if (cowForReview != null)
+                    await ReturnToReviewIfApprovedAsync(cowForReview, userId, "Preços no cartão alterados");
+
                 await _coworkingAppService.SaveChangesAsync();
+
+                var oldPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = address.CardPrice1x, CardPriceMonthly = address.CardPriceMonthly });
+                var newPricesJson = System.Text.Json.JsonSerializer.Serialize(new { CardPrice1x = cardPrice1x, CardPriceMonthly = cardPriceMonthly, Status = "PendingApproval" });
+                await _auditService.LogActionAsync(userId, "CardPricesSubmitted", "Coworking", address.CoworkingId, oldPricesJson, newPricesJson);
+
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardPriceChangeRequestSent;
                 return RedirectToAction(ActionNames.MyAddresses);
             }
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao salvar: {ex.Message}";
-                var userIdCatch = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var coworkingCatch = await _coworkingService.GetByUserIdAsync(userIdCatch);
-                var coworkingEntityCatch = coworkingCatch.FirstOrDefault();
-                var address = await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, coworkingEntityCatch?.Id ?? 0);
+                CoworkingAddress? address;
+                if (User.IsInRole(RoleNames.Administrator))
+                    address = await _coworkingAppService.GetAddressWithCardPriceRequestsByAddressIdAsync(id, cancellationToken);
+                else
+                {
+                    var userIdCatch = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                    var cowCatch = await _coworkingService.GetByUserIdAsync(userIdCatch);
+                    var cowEntityCatch = cowCatch.FirstOrDefault();
+                    address = cowEntityCatch != null ? await _coworkingAppService.GetAddressWithCardPriceRequestsAsync(id, cowEntityCatch.Id) : null;
+                }
                 return address != null ? View(address) : RedirectToAction(ActionNames.MyAddresses);
             }
         }
@@ -2476,10 +2623,11 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.PendingPayments);
                 }
                 payment.Status = PaymentStatus.Paid;
-                payment.PaidAt = DateTime.UtcNow;
+                var validatedAtBr = DateTimeHelper.GetBrazilianTime();
+                payment.PaidAt = validatedAtBr;
                 payment.ValidatedBy = userId;
-                payment.ValidatedAt = DateTime.UtcNow;
-                payment.UpdatedAt = DateTime.UtcNow;
+                payment.ValidatedAt = validatedAtBr;
+                payment.UpdatedAt = validatedAtBr;
                 _coworkingAppService.DbContext.PaymentHistories.Add(new PaymentHistory
                 {
                     PaymentId = paymentId,

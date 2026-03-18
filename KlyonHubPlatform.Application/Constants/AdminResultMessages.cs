@@ -24,6 +24,7 @@ namespace KlyonHubPlatform.Application.Constants
         public static string MaxContractsApproved(int quantity) => $"Quantidade máxima de contratos aprovada. Nova quantidade: {quantity}";
         public const string CardPricesApprovedSuccess = "Preços no cartão aprovados. Os valores já estão visíveis aos clientes.";
         public const string CoworkingNotFound = "Coworking não encontrado.";
+        public const string CoworkingCannotApproveWithPendingCardPrices = "Não é possível aprovar o cadastro enquanto houver preços no cartão aguardando aprovação. Aprove ou reprove as solicitações na seção \"Preços no cartão\" acima.";
         public static string CoworkingUpdated(string name) => $"Coworking '{name}' atualizado com sucesso.";
         public static string CoworkingApproved(string name) => $"Cadastro do coworking '{name}' aprovado com sucesso.";
         public const string CoworkingRejected = "Cadastro do coworking reprovado. O parceiro foi notificado.";

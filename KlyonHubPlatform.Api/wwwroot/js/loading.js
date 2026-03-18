@@ -253,7 +253,8 @@
             urlString.includes('/start?') || 
             urlString.includes('/connect?') ||
             urlString.includes('transport=webSockets') ||
-            urlString.includes('clientProtocol=')) {
+            urlString.includes('clientProtocol=') ||
+            urlString.includes('/hubs')) {
             return false;
         }
         if (urlString.includes('browserLink') || 
@@ -263,7 +264,7 @@
             return false;
         }
         const isStaticFile = urlString.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|mp3)(\?|$)/i);
-        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account|Parceiro)\
+        const isControllerAction = urlString.match(/\/(Client|Admin|Coworking|Home|Account|Parceiro)\//);
         if (isStaticFile && !isControllerAction) {
             return false;
         }

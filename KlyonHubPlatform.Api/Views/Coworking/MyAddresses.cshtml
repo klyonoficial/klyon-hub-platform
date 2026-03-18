@@ -23,6 +23,12 @@
 </div>
 
 @{
+    var coworkingApprovalStatus = ViewBag.CoworkingApprovalStatus as KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus?;
+    var isCoworkingFullyApproved = coworkingApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved;
+    var coworkingRejectionReason = ViewBag.CoworkingRejectionReason as string;
+    var isAwaitingAdjustment = coworkingApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment;
+    var cardPriceRejectionByAddress = ViewBag.CardPriceRejectionReasonByAddress as Dictionary<int, string> ?? new Dictionary<int, string>();
+
     // Verificar endereços que estão próximos do limite (faltando 10% ou menos)
     var addressesNearLimit = Model.Where(a => 
         a.MaxContracts > 0 && 
@@ -30,6 +36,21 @@
         a.CurrentContracts < a.MaxContracts &&
         a.AddressStatus == AddressStatus.Active
     ).ToList();
+}
+
+@if (isAwaitingAdjustment)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> Cadastro Aguardando Ajustes</h5>
+        <p class="mb-0">Seu cadastro foi reprovado. Corrija os itens indicados e reenvie para análise pelo menu <a href="/Parceiro/Profile" class="alert-link">Meu Perfil</a>.</p>
+        @if (!string.IsNullOrWhiteSpace(coworkingRejectionReason))
+        {
+            <hr class="my-2">
+            <p class="mb-0"><strong>Motivo da reprovação / Itens a corrigir:</strong></p>
+            <p class="mb-0 mt-1">@coworkingRejectionReason</p>
+        }
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
 }
 
 @if (addressesNearLimit.Any())
@@ -133,18 +154,21 @@
                     <tbody>
                         @foreach (var address in Model)
                         {
+                            var hasPendingCardPrices = address.CardPricesApprovalStatus == CapacityApprovalStatus.Pending;
+                            var hasRejectedCardPrices = address.CardPricesApprovalStatus == CapacityApprovalStatus.Rejected;
+                            var canShowDisponivel = isCoworkingFullyApproved && !hasPendingCardPrices && address.IsAvailable;
                             var addressStatusLabel = address.AddressStatus switch
                             {
-                                AddressStatus.PendingApproval => "Em análise",
-                                AddressStatus.Active => address.IsAvailable ? "Disponível" : "Indisponível",
+                                AddressStatus.PendingApproval => isAwaitingAdjustment ? "Aguardando Ajustes" : "Em análise",
+                                AddressStatus.Active => (isCoworkingFullyApproved && !hasPendingCardPrices) ? (address.IsAvailable ? "Disponível" : "Indisponível") : (isAwaitingAdjustment ? "Aguardando Ajustes" : "Em análise"),
                                 AddressStatus.Suspended => "Suspenso",
                                 AddressStatus.Removed => "Removido",
                                 _ => "Indisponível"
                             };
                             var addressStatusBadge = address.AddressStatus switch
                             {
-                                AddressStatus.PendingApproval => "warning",
-                                AddressStatus.Active => address.IsAvailable ? "success" : "danger",
+                                AddressStatus.PendingApproval => isAwaitingAdjustment ? "danger" : "warning",
+                                AddressStatus.Active => canShowDisponivel ? "success" : (address.AddressStatus == AddressStatus.Active && !address.IsAvailable ? "danger" : (isAwaitingAdjustment ? "danger" : "warning")),
                                 AddressStatus.Suspended => "warning",
                                 AddressStatus.Removed => "secondary",
                                 _ => "danger"
@@ -178,7 +202,6 @@
                                 data-private-seats="@(address.PrivateRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-card-1x="@(address.CardPrice1x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-card-monthly="@(address.CardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
-                                data-card-12x="@(address.CardPrice12x?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-location="@(address.Location != null ? $"{address.Location.City}/{address.Location.State}" : DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-created-at="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
                                 data-updated-at="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)"
@@ -221,13 +244,28 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-@addressStatusBadge" title="@(address.AddressStatus == AddressStatus.PendingApproval ? "Aguardando aprovação do administrador" : "")">
-                                        @if (address.AddressStatus == AddressStatus.PendingApproval)
+                                    @{
+                                        var statusTitle = isAwaitingAdjustment ? "Cadastro reprovado: corrija os itens e reenvie para análise"
+                                            : address.AddressStatus == AddressStatus.PendingApproval ? "Aguardando aprovação do administrador"
+                                            : hasPendingCardPrices ? "Preços no cartão aguardando aprovação"
+                                            : hasRejectedCardPrices ? "Preços no cartão reprovados — ver motivo abaixo"
+                                            : !isCoworkingFullyApproved && address.AddressStatus == AddressStatus.Active ? "Cadastro ainda não totalmente aprovado pelo administrador"
+                                            : "";
+                                        var cardPriceRejectionReason = cardPriceRejectionByAddress.TryGetValue(address.Id, out var reason) ? reason : null;
+                                    }
+                                    <span class="badge bg-@addressStatusBadge" title="@statusTitle">
+                                        @if (address.AddressStatus == AddressStatus.PendingApproval || hasPendingCardPrices || hasRejectedCardPrices || (address.AddressStatus == AddressStatus.Active && !isCoworkingFullyApproved))
                                         {
                                             <i class="bi bi-clock-history"></i>
                                         }
                                         @addressStatusLabel
                                     </span>
+                                    @if (hasRejectedCardPrices && !string.IsNullOrWhiteSpace(cardPriceRejectionReason))
+                                    {
+                                        <div class="small text-danger mt-1" title="Motivo da reprovação dos preços no cartão">
+                                            <i class="bi bi-info-circle"></i> Preços no cartão reprovados: @(cardPriceRejectionReason.Length > 60 ? cardPriceRejectionReason.Substring(0, 60) + "…" : cardPriceRejectionReason)
+                                        </div>
+                                    }
                                 </td>
                                 <td>
                                     @{
@@ -436,10 +474,6 @@
                         <label class="form-label fw-bold text-muted small">Mensal</label>
                         <p class="mb-0" id="viewAddrCardMonthly">—</p>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">12x</label>
-                        <p class="mb-0" id="viewAddrCard12x">—</p>
-                    </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
@@ -511,10 +545,8 @@
                 document.getElementById('viewAddrMaxContractsApproval').textContent = val('data-max-contracts-approval-status');
                 var card1x = val('data-card-1x');
                 var cardMon = val('data-card-monthly');
-                var card12x = val('data-card-12x');
                 document.getElementById('viewAddrCard1x').textContent = card1x !== '—' ? 'R$ ' + card1x : '—';
                 document.getElementById('viewAddrCardMonthly').textContent = cardMon !== '—' ? 'R$ ' + cardMon : '—';
-                document.getElementById('viewAddrCard12x').textContent = card12x !== '—' ? 'R$ ' + card12x : '—';
                 var shared = val('data-shared-room');
                 var sharedPrice = val('data-shared-price');
                 var sharedSeats = val('data-shared-seats');

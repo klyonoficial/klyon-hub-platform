@@ -134,15 +134,25 @@
                     .Where(r => r.Status == CapacityApprovalStatus.Pending)
                     .Select(r => new { Address = a, Request = r }))
                 .ToList();
+            var hasPendingCardPrices = pendingCardPriceRequests.Any();
         }
-        @if (pendingCardPriceRequests.Any())
-        {
-            <div class="card mb-3 border-warning">
-                <div class="card-header bg-warning bg-opacity-25">
-                    <h5 class="mb-0"><i class="bi bi-credit-card"></i> Preços no cartão — Aguardando aprovação</h5>
-                </div>
+        <div class="card mb-3" id="precos-cartao-pendentes">
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#precosCartaoBody" aria-expanded="@(hasPendingCardPrices ? "true" : "false")" aria-controls="precosCartaoBody">
+                <h5 class="mb-0">
+                    <i class="bi bi-credit-card"></i> Preços no cartão
+                    @if (hasPendingCardPrices)
+                    {
+                        <span class="badge bg-warning text-dark ms-2">Aguardando Aprovação</span>
+                    }
+                    <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+            </div>
+            <div class="collapse@(hasPendingCardPrices ? " show" : "")" id="precosCartaoBody">
                 <div class="card-body">
-                    <p class="text-muted small">O parceiro solicitou alteração dos preços de venda no cartão. Os valores só serão exibidos aos clientes após sua aprovação.</p>
+                    @if (hasPendingCardPrices)
+                    {
+                        <p class="text-muted small mb-3">O parceiro solicitou alteração dos preços de venda no cartão. Os valores só serão exibidos aos clientes após sua aprovação.</p>
+                    }
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
@@ -150,38 +160,55 @@
                                     <th>Endereço</th>
                                     <th>Valores solicitados</th>
                                     <th>Valores atuais</th>
-                                    <th class="text-end">Ações</th>
+                                    @if (hasPendingCardPrices)
+                                    {
+                                        <th class="text-end">Ações</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var item in pendingCardPriceRequests)
+                                @foreach (var addr in (Model.Addresses ?? new List<CoworkingAddress>()))
                                 {
-                                    var req = item.Request;
-                                    var addr = item.Address;
+                                    var pendingReq = addr.CardPriceChangeRequests?.FirstOrDefault(r => r.Status == CapacityApprovalStatus.Pending);
                                     <tr>
                                         <td>@addr.Address, @addr.Number — @addr.City/@addr.State</td>
                                         <td>
-                                            @if (req.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @req.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (req.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @req.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (req.RequestedCardPrice12x.HasValue) { <span class="badge bg-info">12x: R$ @req.RequestedCardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (!req.RequestedCardPrice1x.HasValue && !req.RequestedCardPriceMonthly.HasValue && !req.RequestedCardPrice12x.HasValue) { <span class="text-muted">—</span> }
+                                            @if (pendingReq != null)
+                                            {
+                                                @if (pendingReq.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @pendingReq.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                                @if (pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @pendingReq.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                                @if (!pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">—</span> }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
                                         </td>
                                         <td>
                                             @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                             @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (addr.CardPrice12x.HasValue) { <span class="badge bg-secondary">12x: R$ @addr.CardPrice12x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue && !addr.CardPrice12x.HasValue) { <span class="text-muted">Nenhum</span> }
+                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue) { <span class="text-muted">Nenhum</span> }
                                         </td>
-                                        <td class="text-end">
-                                            <form asp-action="ApproveCardPriceChange" asp-controller="Admin" method="post" class="d-inline">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="requestId" value="@req.Id" />
-                                                <button type="submit" class="btn btn-sm btn-success" title="Aprovar preços"><i class="bi bi-check-circle"></i> Aprovar</button>
-                                            </form>
-                                            <button type="button" class="btn btn-sm btn-danger" title="Reprovar" data-bs-toggle="modal" data-bs-target="#modalReprovarCardPrice" data-request-id="@req.Id">
-                                                <i class="bi bi-x-octagon"></i> Reprovar
-                                            </button>
-                                        </td>
+                                        @if (hasPendingCardPrices)
+                                        {
+                                            <td class="text-end">
+                                                @if (pendingReq != null)
+                                                {
+                                                    <form asp-action="ApproveCardPriceChange" asp-controller="Admin" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="requestId" value="@pendingReq.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-success" title="Aprovar preços"><i class="bi bi-check-circle"></i> Aprovar</button>
+                                                    </form>
+                                                    <button type="button" class="btn btn-sm btn-danger" title="Reprovar" data-bs-toggle="modal" data-bs-target="#modalReprovarCardPrice" data-request-id="@pendingReq.Id">
+                                                        <i class="bi bi-x-octagon"></i> Reprovar
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">—</span>
+                                                }
+                                            </td>
+                                        }
                                     </tr>
                                 }
                             </tbody>
@@ -189,42 +216,42 @@
                     </div>
                 </div>
             </div>
-            <!-- Modal Reprovar Preços no Cartão -->
-            <div class="modal fade" id="modalReprovarCardPrice" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <form asp-action="RejectCardPriceChange" asp-controller="Admin" method="post" id="formRejectCardPrice">
-                            <input type="hidden" name="requestId" id="rejectCardPriceRequestId" value="" />
-                            @Html.AntiForgeryToken()
-                            <div class="modal-header">
-                                <h5 class="modal-title">Reprovar preços no cartão</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Informe o <strong>motivo da reprovação</strong>. O parceiro verá esta mensagem.</p>
-                                <textarea name="rejectionReason" class="form-control" rows="4" required placeholder="Ex.: Valores fora do padrão de mercado. Sugerimos revisar os preços."></textarea>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
-                            </div>
-                        </form>
-                    </div>
+        </div>
+        <!-- Modal Reprovar Preços no Cartão -->
+        <div class="modal fade" id="modalReprovarCardPrice" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="RejectCardPriceChange" asp-controller="Admin" method="post" id="formRejectCardPrice">
+                        <input type="hidden" name="requestId" id="rejectCardPriceRequestId" value="" />
+                        @Html.AntiForgeryToken()
+                        <div class="modal-header">
+                            <h5 class="modal-title">Reprovar preços no cartão</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Informe o <strong>motivo da reprovação</strong>. O parceiro verá esta mensagem.</p>
+                            <textarea name="rejectionReason" class="form-control" rows="4" required placeholder="Ex.: Valores fora do padrão de mercado. Sugerimos revisar os preços."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger"><i class="bi bi-x-octagon"></i> Reprovar</button>
+                        </div>
+                    </form>
                 </div>
             </div>
-            <script>
-                document.getElementById('modalReprovarCardPrice')?.addEventListener('show.bs.modal', function (e) {
-                    var btn = e.relatedTarget;
-                    var reqId = btn?.getAttribute('data-request-id');
-                    var inp = document.getElementById('rejectCardPriceRequestId');
-                    if (inp && reqId) inp.value = reqId;
-                });
-            </script>
-        }
+        </div>
+        <script>
+            document.getElementById('modalReprovarCardPrice')?.addEventListener('show.bs.modal', function (e) {
+                var btn = e.relatedTarget;
+                var reqId = btn?.getAttribute('data-request-id');
+                var inp = document.getElementById('rejectCardPriceRequestId');
+                if (inp && reqId) inp.value = reqId;
+            });
+        </script>
 
         <div class="card mb-3" id="enderecos">
             <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecosBody" aria-expanded="false" aria-controls="enderecosBody">
-                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereços (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço Fiscal (@(Model.Addresses?.Count ?? 0)) <i class="bi bi-chevron-down float-end"></i></h5>
             </div>
             <div class="card-body collapse" id="enderecosBody">
                 @if (Model.Addresses != null && Model.Addresses.Any())
@@ -584,29 +611,6 @@
             });
         </script>
 
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <a href="@Url.Action(ActionNames.CoworkingHistory, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
-                <i class="bi bi-clock-history"></i> Histórico
-            </a>
-            @if (Model.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview)
-            {
-                <form asp-action="ApproveCoworking" asp-controller="Admin" method="post" class="d-inline">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="id" value="@Model.Id" />
-                    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar</button>
-                </form>
-                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalReprovar">
-                    <i class="bi bi-x-octagon"></i> Reprovar
-                </button>
-            }
-            <a href="@Url.Action(ActionNames.EditCoworking, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-warning">
-                <i class="bi bi-pencil"></i> Editar
-            </a>
-            <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Voltar
-            </a>
-        </div>
-
         <!-- Modal Reprovar -->
         <div class="modal fade" id="modalReprovar" tabindex="-1">
             <div class="modal-dialog">
@@ -717,6 +721,40 @@
                     </div>
                 }
             </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-4 mb-3">
+            <a href="@Url.Action(ActionNames.CoworkingHistory, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-outline-secondary" title="Histórico de alterações">
+                <i class="bi bi-clock-history"></i> Histórico
+            </a>
+            @if (Model.ApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.UnderReview)
+            {
+                if (pendingCardPriceRequests.Any())
+                {
+                    <div class="alert alert-warning mb-0 py-2 px-3 d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span>Aprove ou reprove as solicitações de <strong>Preços no cartão</strong> (seção acima) antes de aprovar o cadastro.</span>
+                        <a href="#precos-cartao-pendentes" class="btn btn-sm btn-warning ms-2">Ir para Preços no cartão</a>
+                    </div>
+                }
+                else
+                {
+                    <form asp-action="ApproveCoworking" asp-controller="Admin" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar</button>
+                    </form>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalReprovar">
+                        <i class="bi bi-x-octagon"></i> Reprovar
+                    </button>
+                }
+            }
+            <a href="@Url.Action(ActionNames.EditCoworking, ControllerNames.Admin, new { id = Model.Id })" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <a href="@Url.Action(ActionNames.Coworkings, ControllerNames.Admin)" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
         </div>
     </div>
 </div>

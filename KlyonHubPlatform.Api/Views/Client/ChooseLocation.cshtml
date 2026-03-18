@@ -225,7 +225,7 @@
                                 }
                                 else
                                 {
-                                    <a href="@Url.Action(ActionNames.SelectPaymentPlan, ControllerNames.Client, new { coworkingAddressId = address.Id })" class="btn btn-primary rounded-pill px-4 contract-btn">
+                                    <a href="@Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId = address.Id })" class="btn btn-primary rounded-pill px-4 contract-btn">
                                         <i class="bi bi-file-earmark-text me-1"></i> Contratar
                                     </a>
                                 }

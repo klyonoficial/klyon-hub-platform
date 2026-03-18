@@ -292,6 +292,7 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
                 .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
         }
 

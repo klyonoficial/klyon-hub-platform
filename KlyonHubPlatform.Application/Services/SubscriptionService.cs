@@ -8,22 +8,30 @@ namespace KlyonHubPlatform.Application.Services
     {
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IPaymentService _paymentService;
+        private readonly IAsaasService _asaasService;
+        private readonly IPaymentRepository _paymentRepository;
+
         public SubscriptionService(
             ISubscriptionRepository subscriptionRepository,
-            IPaymentService paymentService)
+            IPaymentService paymentService,
+            IAsaasService asaasService,
+            IPaymentRepository paymentRepository)
         {
             _subscriptionRepository = subscriptionRepository;
             _paymentService = paymentService;
+            _asaasService = asaasService;
+            _paymentRepository = paymentRepository;
         }
-        public async Task<Subscription> CreateSubscriptionAsync(int contractId, decimal monthlyAmount)
+        public async Task<Subscription> CreateSubscriptionAsync(int contractId, decimal monthlyAmount, ContractCardPlanType? cardPlanType = null)
         {
+            var isAnnual = cardPlanType == ContractCardPlanType.Card1x || cardPlanType == ContractCardPlanType.PixAnnual;
             var subscription = new Subscription
             {
                 ContractId = contractId,
                 MonthlyAmount = monthlyAmount,
-                BillingCycle = "Monthly",
+                BillingCycle = isAnnual ? "Yearly" : "Monthly",
                 Status = SubscriptionStatus.Active,
-                NextBillingDate = DateTime.UtcNow.AddMonths(1),
+                NextBillingDate = isAnnual ? DateTime.UtcNow.AddYears(1) : DateTime.UtcNow.AddMonths(1),
                 ExternalSubscriptionId = Guid.NewGuid().ToString()
             };
             return await _subscriptionRepository.CreateAsync(subscription);
@@ -46,13 +54,58 @@ namespace KlyonHubPlatform.Application.Services
             {
                 try
                 {
-                    var payment = await _paymentService.CreatePaymentAsync(
-                        subscription.Id,
-                        subscription.MonthlyAmount,
-                        PaymentMethod.CreditCard
-                    );
-                    await _paymentService.ProcessPaymentAsync(payment.Id);
-                    processed.Add(subscription);
+                    var isPixAnnual = subscription.Contract?.CardPlanType == ContractCardPlanType.PixAnnual
+                        && !string.IsNullOrEmpty(subscription.PixAutomaticAuthorizationId);
+
+                    if (isPixAnnual)
+                    {
+                        var payment = await _paymentService.CreatePaymentAsync(
+                            subscription.Id,
+                            subscription.MonthlyAmount,
+                            PaymentMethod.PIX
+                        );
+                        var contract = subscription.Contract;
+                        var client = contract?.Client;
+                        if (client != null && contract != null)
+                        {
+                            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
+                            var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
+                            var clientTaxId = client.CPF ?? client.CNPJ ?? "";
+                            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId ?? "", client.ContactPhone, null, $"client_{client.Id}");
+                            var order = await _asaasService.CreatePaymentWithPixAutomaticAuthorizationAsync(
+                                asaasCustomerId,
+                                subscription.PixAutomaticAuthorizationId!,
+                                subscription.MonthlyAmount,
+                                subscription.NextBillingDate,
+                                payment.Id.ToString(),
+                                $"Contrato {contract.ContractNumber} - renovação anual PIX"
+                            );
+                            if (order != null)
+                            {
+                                payment.ExternalPaymentId = order.Id;
+                                await _paymentRepository.UpdateAsync(payment);
+                                subscription.LastBillingDate = DateTime.UtcNow;
+                                subscription.NextBillingDate = DateTime.UtcNow.AddYears(1);
+                                await _subscriptionRepository.UpdateAsync(subscription);
+                                processed.Add(subscription);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var payment = await _paymentService.CreatePaymentAsync(
+                            subscription.Id,
+                            subscription.MonthlyAmount,
+                            PaymentMethod.CreditCard
+                        );
+                        await _paymentService.ProcessPaymentAsync(payment.Id);
+                        subscription.LastBillingDate = DateTime.UtcNow;
+                        subscription.NextBillingDate = subscription.Contract?.CardPlanType == ContractCardPlanType.Card1x || subscription.Contract?.CardPlanType == ContractCardPlanType.PixAnnual
+                            ? DateTime.UtcNow.AddYears(1)
+                            : DateTime.UtcNow.AddMonths(1);
+                        await _subscriptionRepository.UpdateAsync(subscription);
+                        processed.Add(subscription);
+                    }
                 }
                 catch (Exception)
                 {

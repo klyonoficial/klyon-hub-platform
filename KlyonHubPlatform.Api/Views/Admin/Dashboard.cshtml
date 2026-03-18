@@ -1071,7 +1071,6 @@ async function loadCardPricePendingList() {
             const req = [];
             if (item.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(item.requestedCardPrice1x).toFixed(2).replace('.', ','));
             if (item.requestedCardPriceMonthly != null) req.push('Mensal: R$ ' + parseFloat(item.requestedCardPriceMonthly).toFixed(2).replace('.', ','));
-            if (item.requestedCardPrice12x != null) req.push('12x: R$ ' + parseFloat(item.requestedCardPrice12x).toFixed(2).replace('.', ','));
             const reqText = req.length ? req.join(' · ') : '—';
             html += '<tr class="card-price-row align-middle" data-request-id="' + item.id + '" style="cursor: pointer;">';
             html += '<td>' + (item.coworkingName || '—') + '</td>';
@@ -1118,10 +1117,8 @@ async function loadCardPriceDetail(requestId) {
         const req = [], prev = [];
         if (d.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(d.requestedCardPrice1x).toFixed(2).replace('.', ','));
         if (d.requestedCardPriceMonthly != null) req.push('Mensal: R$ ' + parseFloat(d.requestedCardPriceMonthly).toFixed(2).replace('.', ','));
-        if (d.requestedCardPrice12x != null) req.push('12x: R$ ' + parseFloat(d.requestedCardPrice12x).toFixed(2).replace('.', ','));
         if (d.previousCardPrice1x != null) prev.push('1x: R$ ' + parseFloat(d.previousCardPrice1x).toFixed(2).replace('.', ','));
         if (d.previousCardPriceMonthly != null) prev.push('Mensal: R$ ' + parseFloat(d.previousCardPriceMonthly).toFixed(2).replace('.', ','));
-        if (d.previousCardPrice12x != null) prev.push('12x: R$ ' + parseFloat(d.previousCardPrice12x).toFixed(2).replace('.', ','));
         let html = '<div class="mb-3"><strong>Coworking</strong><br>' + (d.coworkingName || '—') + '</div>';
         html += '<div class="mb-3"><strong>Endereço</strong><br>' + (d.addressLabel || '—') + '</div>';
         html += '<div class="mb-3"><strong>Valores atuais (antes da solicitação)</strong><br><span class="text-muted">' + (prev.length ? prev.join(' · ') : 'Nenhum') + '</span></div>';
