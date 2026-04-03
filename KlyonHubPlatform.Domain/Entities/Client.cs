@@ -1,3 +1,5 @@
+using KlyonHubPlatform.Domain.Core.Enums;
+
 namespace KlyonHubPlatform.Domain.Entities
 {
     public class Client
@@ -20,6 +22,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? ZipCode { get; set; }
         public string? LogoPath { get; set; }
         public bool IsActive { get; set; } = true;
+        /// <summary>Quando preenchido, indica evolução no fluxo de onboarding fiscal pós-adesão.</summary>
+        public ClientFiscalOnboardingStatus? FiscalOnboardingStatus { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public virtual User User { get; set; } = null!;

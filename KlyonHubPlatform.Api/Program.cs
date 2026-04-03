@@ -130,6 +130,8 @@ builder.Services.AddScoped<ICoworkingService, CoworkingService>();
 builder.Services.AddScoped<ICoworkingAppService, CoworkingAppService>();
 builder.Services.AddScoped<IContractService, ContractService>();
 builder.Services.AddScoped<ICorrespondenceService, CorrespondenceService>();
+builder.Services.AddScoped<IFiscalOnboardingService, FiscalOnboardingService>();
+builder.Services.AddScoped<IKlyonOnboardingPublicDocumentService, KlyonOnboardingPublicDocumentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
@@ -157,6 +159,12 @@ builder.Services.AddScoped<IAIIntentionService, AIIntentionService>();
 builder.Services.Configure<FiscalAddressChatOptions>(builder.Configuration.GetSection(FiscalAddressChatOptions.SectionName));
 builder.Services.AddScoped<IFiscalAddressChatService, FiscalAddressChatService>();
 builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
+builder.Services.AddHttpClient<IOpenCnpjQueryService, OpenCnpjQueryService>(c =>
+{
+    c.BaseAddress = new Uri("https://api.opencnpj.org/");
+    c.Timeout = TimeSpan.FromSeconds(20);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("KlyonHubPlatform/1.0");
+});
 builder.Services.AddHttpClient<IAsaasService, AsaasService>();
 builder.Services.AddHttpClient<IAsaasInvoiceService, AsaasInvoiceService>();
 builder.Services.AddHttpClient<PagBankService>();

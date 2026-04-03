@@ -40,6 +40,12 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreateContract = "CreateContract";
         /// <summary>Cria contrato com forma de pagamento padrão e redireciona para PaymentDetails (substitui fluxo SelectPaymentPlan).</summary>
         public const string CreateContractAndGoToPayment = "CreateContractAndGoToPayment";
+        /// <summary>Fluxo CNPJ primeiro: formulário rápido antes do PIX de adesão.</summary>
+        public const string FiscalOnboarding = "FiscalOnboarding";
+        public const string FiscalOnboardingPayment = "FiscalOnboardingPayment";
+        /// <summary>Download de PDF institucional da Klyon para cliente em onboarding fiscal (pós-pagamento).</summary>
+        public const string DownloadKlyonOnboardingDocument = "DownloadKlyonOnboardingDocument";
+        public const string AutoLogin = "AutoLogin";
         public const string GenerateDeclaration = "GenerateDeclaration";
         public const string DownloadDeclaration = "DownloadDeclaration";
         public const string Declarations = "Declarations";

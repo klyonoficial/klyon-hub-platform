@@ -12,13 +12,65 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
+        private readonly IFiscalOnboardingService _fiscalOnboardingService;
 
-        public AuthController(IAuthService authService, IEmailService emailService, IConfiguration configuration)
+        public AuthController(
+            IAuthService authService,
+            IEmailService emailService,
+            IConfiguration configuration,
+            IFiscalOnboardingService fiscalOnboardingService)
         {
             _authService = authService;
             _emailService = emailService;
             _configuration = configuration;
+            _fiscalOnboardingService = fiscalOnboardingService;
         }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> AutoLogin(string? token, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                TempData[ErrorMessages.TempDataKey] = "Link inválido.";
+                return RedirectToAction(ActionNames.Login);
+            }
+            var user = await _fiscalOnboardingService.TryConsumeMagicLoginTokenAsync(token.Trim(), cancellationToken);
+            if (user == null || !user.IsActive)
+            {
+                TempData[ErrorMessages.TempDataKey] = "Link expirado ou já utilizado.";
+                return RedirectToAction(ActionNames.Login);
+            }
+            var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
+            var jwtToken = await _authService.GenerateTokenAsync(user, roles);
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email ?? ""),
+                new Claim(ClaimTypes.Name, user.FullName ?? ""),
+                new Claim(AuthConstants.TokenClaimType, jwtToken)
+            };
+            foreach (var role in roles)
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            if (roles.Contains(RoleNames.Client) && user.ClientHasCnpj == true)
+                claims.Add(new Claim(AuthConstants.ClientHasCnpjClaimType, "true"));
+            var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
+            var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+            await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
+            HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
+            HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email ?? "");
+            HttpContext.Session.SetString(SessionKeys.UserName, user.FullName ?? "");
+
+            var cwId = await _fiscalOnboardingService.GetCoworkingAddressIdForOnboardedUserAsync(user.Id, cancellationToken);
+            if (cwId.HasValue)
+            {
+                var resume = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId = cwId.Value });
+                if (!string.IsNullOrEmpty(resume))
+                    return Redirect(resume);
+            }
+            return RedirectToAction(ActionNames.DashboardDetails, ControllerNames.Client);
+        }
+
         [HttpGet]
         public IActionResult Login(string? returnUrl = null)
         {

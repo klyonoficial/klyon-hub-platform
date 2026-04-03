@@ -1,0 +1,99 @@
+@using KlyonHubPlatform.Application.DTOs.FiscalOnboarding
+@using KlyonHubPlatform.Api.Constants
+@model FiscalOnboardingPaymentView
+@{
+    Layout = LayoutPaths.Layout;
+    ViewData[ViewDataKeys.Title] = "Pagamento PIX — adesão";
+    var pix = Model.PixCopyPaste ?? "";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <h2 class="mb-3"><i class="bi bi-qr-code"></i> Pagamento PIX — adesão</h2>
+        <p class="text-muted mb-4">Documento: <strong>@Model.TaxIdMasked</strong> · Valor: <strong>@Model.Amount.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</strong></p>
+
+        @if (string.IsNullOrEmpty(pix))
+        {
+            <div class="alert alert-warning">Não foi possível exibir o código PIX. Atualize a página ou entre em contato com o suporte.</div>
+        }
+        else
+        {
+            <div class="card shadow-sm mb-4">
+                <div class="card-body text-center pb-2">
+                    <p class="fw-semibold mb-3">QR Code (PIX)</p>
+                    <div class="d-inline-block p-2 bg-white border rounded shadow-sm" id="pixQrWrapper">
+                        <div id="pixQrHost" class="d-flex justify-content-center align-items-center" style="min-height:280px;min-width:280px;" role="img" aria-label="QR Code para pagamento PIX"></div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">Abra o app do seu banco e escaneie. Se preferir, use o código abaixo (copia e cola).</p>
+                </div>
+                <hr class="my-0" />
+                <div class="card-body">
+                    <p class="fw-semibold mb-2">Copia e cola (PIX)</p>
+                    <textarea class="form-control font-monospace small" rows="4" readonly id="pixPayload">@pix</textarea>
+                    <button type="button" class="btn btn-outline-primary mt-2" id="btnCopyPix"><i class="bi bi-clipboard"></i> Copiar código</button>
+                </div>
+            </div>
+            <div class="alert alert-info">
+                <i class="bi bi-hourglass-split"></i> Aguardando confirmação do pagamento, assim que for validado, você receberá um e-mail de confirmação.
+            </div>
+        }
+
+        <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">Voltar à lista de endereços</a>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+<script>
+    (function () {
+        var btn = document.getElementById('btnCopyPix');
+        var ta = document.getElementById('pixPayload');
+        var host = document.getElementById('pixQrHost');
+        if (host && ta && ta.value) {
+            try {
+                if (typeof QRCode === 'function' && QRCode.CorrectLevel) {
+                    host.innerHTML = '';
+                    new QRCode(host, {
+                        text: ta.value,
+                        width: 280,
+                        height: 280,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    var img = host.querySelector('img');
+                    if (img) {
+                        img.className = 'd-block mx-auto';
+                        img.alt = 'QR Code PIX';
+                    }
+                } else {
+                    host.innerHTML = '<p class="text-muted small px-2 mb-0">Não foi possível carregar o gerador de QR Code. Use o copia e cola abaixo.</p>';
+                }
+            } catch (e) {
+                console.error(e);
+                host.innerHTML = '<p class="text-muted small px-2 mb-0">Não foi possível gerar o QR Code. Use o copia e cola abaixo.</p>';
+            }
+        }
+        if (btn && ta) {
+            btn.addEventListener('click', function () {
+                ta.select();
+                document.execCommand('copy');
+            });
+        }
+        var paymentIdForHub = @Model.PaymentId;
+        var hubUrl = '@Url.Content("~/hubs/payment")';
+        if (typeof signalR !== 'undefined') {
+            var connection = new signalR.HubConnectionBuilder()
+                .withUrl(hubUrl, { withCredentials: true })
+                .withAutomaticReconnect()
+                .build();
+            connection.on('PaymentConfirmed', function (data) {
+                var id = data && (data.paymentId ?? data.PaymentId);
+                if (id == paymentIdForHub || Number(id) === Number(paymentIdForHub)) {
+                    window.location.reload();
+                }
+            });
+            connection.start().then(function () {
+                return connection.invoke('JoinPaymentGroup', paymentIdForHub);
+            }).catch(function () { });
+        }
+    })();
+</script>

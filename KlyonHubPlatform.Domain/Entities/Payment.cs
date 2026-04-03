@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public int Id { get; set; }
         public int? SubscriptionId { get; set; }
         public int? ReservationId { get; set; }
+        /// <summary>PIX de adesão do fluxo CNPJ primeiro (sem assinatura/contrato ainda).</summary>
+        public int? FiscalOnboardingLeadId { get; set; }
         public string ExternalPaymentId { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
@@ -33,6 +35,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? UpdatedAt { get; set; }
         public virtual Subscription? Subscription { get; set; }
         public virtual Reservation? Reservation { get; set; }
+        public virtual FiscalOnboardingLead? FiscalOnboardingLead { get; set; }
         public virtual User? Validator { get; set; }
     }
 }

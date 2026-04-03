@@ -559,6 +559,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("FiscalOnboardingStatus")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
@@ -625,6 +628,39 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("ClientId");
 
                     b.ToTable("ClientCredits");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientMagicLoginToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("FiscalOnboardingLeadId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FiscalOnboardingLeadId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("ClientMagicLoginTokens");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientRegistrationDocument", b =>
@@ -1918,6 +1954,83 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.ToTable("FiscalNoteScriptExecutions");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalOnboardingLead", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("AsaasCustomerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int?>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CnpjCnaePrincipalSnapshot")
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("CnpjRazaoSocialSnapshot")
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("ContactEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<int>("CoworkingAddressId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CoworkingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("DeclaresHasCnpj")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<Guid>("PublicPaymentToken")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TaxIdNormalized")
+                        .IsRequired()
+                        .HasMaxLength(14)
+                        .HasColumnType("varchar(14)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("CoworkingAddressId");
+
+                    b.HasIndex("CoworkingId");
+
+                    b.HasIndex("PublicPaymentToken")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TaxIdNormalized", "CoworkingAddressId", "Status");
+
+                    b.ToTable("FiscalOnboardingLeads");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FocusNFeWebhookLog", b =>
                 {
                     b.Property<int>("Id")
@@ -2590,6 +2703,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("FailureReason")
                         .HasColumnType("longtext");
 
+                    b.Property<int?>("FiscalOnboardingLeadId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("InstallmentCount")
                         .HasColumnType("int");
 
@@ -2639,6 +2755,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FiscalOnboardingLeadId");
 
                     b.HasIndex("ReservationId");
 
@@ -3438,6 +3556,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientMagicLoginToken", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.FiscalOnboardingLead", "FiscalOnboardingLead")
+                        .WithMany("MagicLoginTokens")
+                        .HasForeignKey("FiscalOnboardingLeadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FiscalOnboardingLead");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.ClientRegistrationDocument", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
@@ -3749,6 +3878,39 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("ExecutedByUser");
                 });
 
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalOnboardingLead", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.CoworkingAddress", "CoworkingAddress")
+                        .WithMany()
+                        .HasForeignKey("CoworkingAddressId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
+                        .WithMany()
+                        .HasForeignKey("CoworkingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Coworking");
+
+                    b.Navigation("CoworkingAddress");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FocusNFeWebhookLog", b =>
                 {
                     b.HasOne("KlyonHubPlatform.Domain.Entities.FiscalNote", "FiscalNote")
@@ -3881,6 +4043,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Payment", b =>
                 {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.FiscalOnboardingLead", "FiscalOnboardingLead")
+                        .WithMany("Payments")
+                        .HasForeignKey("FiscalOnboardingLeadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Reservation", "Reservation")
                         .WithMany()
                         .HasForeignKey("ReservationId")
@@ -3895,6 +4062,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ValidatedBy")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("FiscalOnboardingLead");
 
                     b.Navigation("Reservation");
 
@@ -4088,6 +4257,13 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.CoworkingRoom", b =>
                 {
                     b.Navigation("Photos");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.FiscalOnboardingLead", b =>
+                {
+                    b.Navigation("MagicLoginTokens");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Location", b =>

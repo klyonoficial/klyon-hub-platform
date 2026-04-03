@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.DTOs.FiscalOnboarding;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -14,6 +16,7 @@ using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using KlyonHubPlatform.Infra.Data.Context;
 using KlyonHubPlatform.Api.Constants;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Mail;
 using KlyonHubPlatform.Api.Requests;
 using KlyonHubPlatform.Api.Dtos;
 using CreditPurchase = KlyonHubPlatform.Domain.Entities.CreditPurchase;
@@ -42,6 +45,9 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly ICorrespondenceService _correspondenceService;
         private readonly StorageServiceFactory _storageFactory;
         private readonly IOperatingHoursRepository _operatingHoursRepository;
+        private readonly IFiscalOnboardingService _fiscalOnboardingService;
+        private readonly IKlyonOnboardingPublicDocumentService _klyonOnboardingPublicDocumentService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
         public ClientController(
             IContractService contractService,
             ICoworkingService coworkingService,
@@ -61,7 +67,10 @@ namespace KlyonHubPlatform.Api.Controllers
             ApplicationDbContext context,
             ICorrespondenceService correspondenceService,
             StorageServiceFactory storageFactory,
-            IOperatingHoursRepository operatingHoursRepository)
+            IOperatingHoursRepository operatingHoursRepository,
+            IFiscalOnboardingService fiscalOnboardingService,
+            IKlyonOnboardingPublicDocumentService klyonOnboardingPublicDocumentService,
+            IWebHostEnvironment webHostEnvironment)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -82,6 +91,9 @@ namespace KlyonHubPlatform.Api.Controllers
             _correspondenceService = correspondenceService;
             _storageFactory = storageFactory;
             _operatingHoursRepository = operatingHoursRepository;
+            _fiscalOnboardingService = fiscalOnboardingService;
+            _klyonOnboardingPublicDocumentService = klyonOnboardingPublicDocumentService;
+            _webHostEnvironment = webHostEnvironment;
         }
         private async Task<long> GetMaxPhotoSizeBytesAsync()
         {
@@ -833,6 +845,243 @@ namespace KlyonHubPlatform.Api.Controllers
                 return View(client);
             }
         }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> FiscalOnboarding(int coworkingAddressId, CancellationToken cancellationToken = default)
+        {
+            ViewBag.CoworkingAddressId = coworkingAddressId;
+            ViewBag.FiscalAcceptLgpdTerms = false;
+            await TrySetFiscalOnboardingPartnerDisplayAsync(coworkingAddressId, cancellationToken);
+            return View();
+        }
+
+        private async Task TrySetFiscalOnboardingPartnerDisplayAsync(int coworkingAddressId, CancellationToken cancellationToken = default)
+        {
+            if (coworkingAddressId <= 0) return;
+            var addr = await _context.CoworkingAddresses.AsNoTracking()
+                .Include(a => a.Coworking)
+                .FirstOrDefaultAsync(a => a.Id == coworkingAddressId, cancellationToken);
+            if (addr?.Coworking == null) return;
+            var trade = !string.IsNullOrWhiteSpace(addr.Coworking.TradeName) ? addr.Coworking.TradeName : addr.Coworking.Name;
+            ViewBag.PartnerDisplay = $"{trade} · {addr.City}/{addr.State}";
+        }
+
+        /// <summary>Campo oculto <c>declaresHasCnpj</c> no form (true/false). Sem valor = padrão CNPJ (Sim), para compatibilidade.</summary>
+        private static bool ParseDeclaresHasCnpjFromForm(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return true;
+            var v = raw.Trim();
+            if (string.Equals(v, "false", StringComparison.OrdinalIgnoreCase) || v == "0")
+                return false;
+            return true;
+        }
+
+        private static bool IsPlausibleFiscalEmail(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+            try
+            {
+                var trimmed = email.Trim();
+                var addr = new MailAddress(trimmed);
+                return string.Equals(addr.Address, trimmed, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Lista única de pendências para o formulário de adesão fiscal (mesmo padrão no cliente).</summary>
+        private static List<string> BuildFiscalOnboardingValidationIssues(
+            bool declaresHasCnpj,
+            string? taxId,
+            string? contactEmail,
+            string? contactPhone,
+            bool aceiteLgpd)
+        {
+            var issues = new List<string>();
+            var digitsOnly = System.Text.RegularExpressions.Regex.Replace(taxId ?? "", @"[^\d]", "");
+            var phoneDigits = System.Text.RegularExpressions.Regex.Replace(contactPhone ?? "", @"[^\d]", "");
+            var taxLabel = declaresHasCnpj ? "CNPJ" : "CPF";
+
+            if (digitsOnly.Length == 0)
+                issues.Add($"{taxLabel} — não informado");
+            else if (declaresHasCnpj)
+            {
+                if (digitsOnly.Length < 14)
+                    issues.Add("CNPJ — incompleto (14 dígitos)");
+                else if (!DocumentValidator.IsValidCNPJ(digitsOnly))
+                    issues.Add("CNPJ — inválido");
+            }
+            else
+            {
+                if (digitsOnly.Length == 14)
+                    issues.Add("CPF — há 14 dígitos (CNPJ); marque \"Sim\" em Possui CNPJ aberto? ou informe só CPF (11 dígitos)");
+                else if (digitsOnly.Length < 11)
+                    issues.Add("CPF — incompleto (11 dígitos)");
+                else if (!DocumentValidator.IsValidCPF(digitsOnly))
+                    issues.Add("CPF — inválido");
+            }
+
+            if (string.IsNullOrWhiteSpace(contactEmail))
+                issues.Add("E-mail — não informado");
+            else if (!IsPlausibleFiscalEmail(contactEmail))
+                issues.Add("E-mail — inválido");
+
+            if (phoneDigits.Length == 0)
+                issues.Add("Telefone / WhatsApp — não informado");
+            else if (phoneDigits.Length < 10)
+                issues.Add("Telefone / WhatsApp — informe com DDD (mínimo 10 dígitos)");
+
+            if (!aceiteLgpd)
+                issues.Add("Termos de Uso e Política de Privacidade (LGPD) — aceite obrigatório");
+
+            return issues;
+        }
+
+        private async Task<IActionResult> ReturnFiscalOnboardingViewWithValidationAsync(
+            int coworkingAddressId,
+            bool declaresHasCnpjBool,
+            string taxId,
+            string contactEmail,
+            string? contactPhone,
+            bool aceiteLgpd,
+            IReadOnlyList<string> issues,
+            string? validationTitleOverride,
+            CancellationToken cancellationToken)
+        {
+            ViewBag.CoworkingAddressId = coworkingAddressId;
+            await TrySetFiscalOnboardingPartnerDisplayAsync(coworkingAddressId, cancellationToken);
+            ViewBag.DeclaresHasCnpj = declaresHasCnpjBool;
+            ViewBag.TaxId = taxId;
+            ViewBag.ContactEmail = contactEmail;
+            ViewBag.ContactPhone = contactPhone;
+            ViewBag.FiscalAcceptLgpdTerms = aceiteLgpd;
+            ViewBag.FiscalShowLgpdError = issues.Any(static i => i.Contains("LGPD", StringComparison.Ordinal));
+            ViewBag.FiscalValidationIssues = issues.ToList();
+            if (!string.IsNullOrEmpty(validationTitleOverride))
+                ViewBag.FiscalValidationTitle = validationTitleOverride;
+            return View("FiscalOnboarding");
+        }
+
+        private async Task<IActionResult> ReturnFiscalOnboardingBlockedUiAsync(
+            int coworkingAddressId,
+            bool declaresHasCnpjBool,
+            string taxId,
+            string contactEmail,
+            string? contactPhone,
+            bool aceiteLgpd,
+            FiscalOnboardingStartBlockedKind blockedKind,
+            string? message,
+            CancellationToken cancellationToken)
+        {
+            ViewBag.CoworkingAddressId = coworkingAddressId;
+            await TrySetFiscalOnboardingPartnerDisplayAsync(coworkingAddressId, cancellationToken);
+            ViewBag.DeclaresHasCnpj = declaresHasCnpjBool;
+            ViewBag.TaxId = taxId;
+            ViewBag.ContactEmail = contactEmail;
+            ViewBag.ContactPhone = contactPhone;
+            ViewBag.FiscalAcceptLgpdTerms = aceiteLgpd;
+            ViewBag.FiscalShowLgpdError = false;
+            ViewBag.FiscalValidationIssues = null;
+            ViewBag.FiscalOnboardingBlockedKind = blockedKind switch
+            {
+                FiscalOnboardingStartBlockedKind.EmailMismatchForTaxId => "EmailMismatch",
+                FiscalOnboardingStartBlockedKind.AlreadyHasFiscalAddressActive => "AlreadyHasAddress",
+                _ => null
+            };
+            ViewBag.FiscalOnboardingBlockedMessage = message;
+            var profileUrl = Url.Action(ActionNames.Profile, ControllerNames.Client) ?? "/Client/Profile";
+            ViewBag.FiscalOnboardingLoginUrl = Url.Action(ActionNames.Login, ControllerNames.Auth, new { returnUrl = profileUrl });
+            return View("FiscalOnboarding");
+        }
+
+        [AllowAnonymous]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> FiscalOnboarding(
+            int coworkingAddressId,
+            string? declaresHasCnpj,
+            string taxId,
+            string contactEmail,
+            string? contactPhone,
+            string? acceptLgpdTerms = null,
+            CancellationToken cancellationToken = default)
+        {
+            var declaresHasCnpjBool = ParseDeclaresHasCnpjFromForm(declaresHasCnpj);
+            var acceptLgpdRaw = acceptLgpdTerms ?? Request.Form["acceptLgpdTerms"].ToString();
+            var aceiteLgpd = StringBooleanValue.IsTrue(acceptLgpdRaw)
+                || string.Equals(acceptLgpdRaw?.Trim(), "on", StringComparison.OrdinalIgnoreCase);
+
+            var issues = BuildFiscalOnboardingValidationIssues(declaresHasCnpjBool, taxId, contactEmail, contactPhone, aceiteLgpd);
+            if (issues.Count > 0)
+            {
+                return await ReturnFiscalOnboardingViewWithValidationAsync(
+                    coworkingAddressId,
+                    declaresHasCnpjBool,
+                    taxId ?? "",
+                    contactEmail ?? "",
+                    contactPhone,
+                    aceiteLgpd,
+                    issues,
+                    validationTitleOverride: null,
+                    cancellationToken);
+            }
+
+            var req = new FiscalOnboardingStartRequest
+            {
+                CoworkingAddressId = coworkingAddressId,
+                DeclaresHasCnpj = declaresHasCnpjBool,
+                TaxId = taxId ?? "",
+                ContactEmail = contactEmail ?? "",
+                ContactPhone = contactPhone
+            };
+            var result = await _fiscalOnboardingService.StartOnboardingAsync(req, cancellationToken);
+            if (!result.Success)
+            {
+                if (result.BlockedKind != FiscalOnboardingStartBlockedKind.None)
+                {
+                    return await ReturnFiscalOnboardingBlockedUiAsync(
+                        coworkingAddressId,
+                        declaresHasCnpjBool,
+                        taxId ?? "",
+                        contactEmail ?? "",
+                        contactPhone,
+                        aceiteLgpd,
+                        result.BlockedKind,
+                        result.ErrorMessage,
+                        cancellationToken);
+                }
+
+                var businessIssues = new List<string> { result.ErrorMessage ?? "Não foi possível iniciar o pagamento." };
+                return await ReturnFiscalOnboardingViewWithValidationAsync(
+                    coworkingAddressId,
+                    declaresHasCnpjBool,
+                    taxId ?? "",
+                    contactEmail ?? "",
+                    contactPhone,
+                    aceiteLgpd,
+                    businessIssues,
+                    validationTitleOverride: "Não foi possível continuar:",
+                    cancellationToken);
+            }
+            return RedirectToAction(ActionNames.FiscalOnboardingPayment, new { token = result.PublicPaymentToken });
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> FiscalOnboardingPayment(Guid token, CancellationToken cancellationToken = default)
+        {
+            var vm = await _fiscalOnboardingService.GetPaymentViewByPublicTokenAsync(token, cancellationToken);
+            if (vm == null)
+                return NotFound();
+            ViewData[ViewDataKeys.Title] = "Pagamento PIX — adesão";
+            return View(vm);
+        }
+
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> ChooseLocation(string? region = null, string? city = null, string? state = null, int page = 1, CancellationToken cancellationToken = default)
@@ -1017,6 +1266,7 @@ namespace KlyonHubPlatform.Api.Controllers
             return RedirectToAction(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
         }
         /// <summary>Redireciona para criação de contrato com forma padrão e PaymentDetails (página SelectPaymentPlan removida).</summary>
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> SelectPaymentPlan(int coworkingAddressId, CancellationToken cancellationToken = default)
         {
@@ -1024,12 +1274,13 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>Cria o contrato com a primeira forma de pagamento disponível (não oculta) e redireciona para PaymentDetails.</summary>
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> CreateContractAndGoToPayment(int coworkingAddressId, CancellationToken cancellationToken = default)
         {
             if (User?.Identity?.IsAuthenticated != true)
             {
-                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.FiscalOnboarding, new { coworkingAddressId });
             }
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
@@ -1174,7 +1425,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             if (User?.Identity?.IsAuthenticated != true)
             {
-                return RedirectToAction(ActionNames.Login, ControllerNames.Auth, new { returnUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, ControllerNames.Client, new { coworkingAddressId }) });
+                return RedirectToAction(ActionNames.FiscalOnboarding, new { coworkingAddressId });
             }
             var isAjax = string.Equals(Request.Headers[HttpHeaderNames.XRequestedWith], HttpHeaderNames.XRequestedWithValue, StringComparison.OrdinalIgnoreCase);
             try
@@ -1730,6 +1981,17 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var document = await _clientAppService.GetDocumentByIdAsync(documentId, cancellationToken);
             return File(fileBytes, "application/pdf", document?.FileName ?? "document.pdf");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadKlyonOnboardingDocument(string slug, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var resolved = await _klyonOnboardingPublicDocumentService.TryGetDocumentFileForClientAsync(userId, slug, _webHostEnvironment.WebRootPath, cancellationToken);
+            if (resolved == null)
+                return NotFound();
+            var (fullPath, downloadName) = resolved.Value;
+            return PhysicalFile(fullPath, "application/pdf", downloadName);
         }
         [HttpGet]
         public async Task<IActionResult> MyPayments(int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)

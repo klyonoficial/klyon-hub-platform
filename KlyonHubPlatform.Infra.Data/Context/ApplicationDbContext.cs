@@ -180,6 +180,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<Correspondence> Correspondences { get; set; }
         public DbSet<CorrespondencePhoto> CorrespondencePhotos { get; set; }
         public DbSet<ClientRegistrationDocument> ClientRegistrationDocuments { get; set; }
+        public DbSet<FiscalOnboardingLead> FiscalOnboardingLeads { get; set; }
+        public DbSet<ClientMagicLoginToken> ClientMagicLoginTokens { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -226,6 +228,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.CNPJ).IsUnique();
                 entity.HasIndex(e => e.CPF).IsUnique();
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
+                entity.Property(e => e.FiscalOnboardingStatus).HasColumnType("int");
             });
             modelBuilder.Entity<ClientRegistrationDocument>(entity =>
             {
@@ -253,9 +256,34 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Subscription).WithMany(s => s.Payments).HasForeignKey(e => e.SubscriptionId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Reservation).WithMany().HasForeignKey(e => e.ReservationId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.FiscalOnboardingLead).WithMany(l => l.Payments).HasForeignKey(e => e.FiscalOnboardingLeadId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Validator).WithMany().HasForeignKey(e => e.ValidatedBy).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.Method).HasColumnType("int");
+            });
+            modelBuilder.Entity<FiscalOnboardingLead>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.PublicPaymentToken).IsUnique();
+                entity.HasIndex(e => new { e.TaxIdNormalized, e.CoworkingAddressId, e.Status });
+                entity.Property(e => e.TaxIdNormalized).HasMaxLength(14);
+                entity.Property(e => e.ContactEmail).HasMaxLength(256);
+                entity.Property(e => e.ContactPhone).HasMaxLength(32);
+                entity.Property(e => e.CnpjRazaoSocialSnapshot).HasMaxLength(512);
+                entity.Property(e => e.CnpjCnaePrincipalSnapshot).HasMaxLength(16);
+                entity.Property(e => e.AsaasCustomerId).HasMaxLength(64);
+                entity.Property(e => e.Status).HasColumnType("int");
+                entity.HasOne(e => e.Coworking).WithMany().HasForeignKey(e => e.CoworkingId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.CoworkingAddress).WithMany().HasForeignKey(e => e.CoworkingAddressId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Client).WithMany().HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.SetNull);
+            });
+            modelBuilder.Entity<ClientMagicLoginToken>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Token).IsUnique();
+                entity.Property(e => e.Token).HasMaxLength(128);
+                entity.HasOne(e => e.FiscalOnboardingLead).WithMany(l => l.MagicLoginTokens).HasForeignKey(e => e.FiscalOnboardingLeadId).OnDelete(DeleteBehavior.Cascade);
             });
             modelBuilder.Entity<Subscription>(entity =>
             {

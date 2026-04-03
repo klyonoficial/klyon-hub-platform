@@ -1,5 +1,7 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @inject KlyonHubPlatform.Application.Interfaces.IClientMenuService ClientMenuService
+@inject KlyonHubPlatform.Application.Interfaces.IKlyonOnboardingPublicDocumentService KlyonOnboardingPublicDocumentService
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment WebHostEnvironment
 @using System.Security.Claims
 @using KlyonHubPlatform.Api.Constants
 @using KlyonHubPlatform.Domain.Core.Enums
@@ -11,11 +13,15 @@
     // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo (status "Ativo" em Meus Contratos).
     // Ocultar "Localidades Disponíveis" no menu quando houver endereço ativo.
     var clientHasActiveContract = false;
+    IReadOnlyList<KlyonHubPlatform.Application.DTOs.FiscalOnboarding.KlyonOnboardingPublicDocumentItem>? klyonOnboardingPublicDocs = null;
     if (User.IsInRole("Client") && User.Identity?.IsAuthenticated == true)
     {
         var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (int.TryParse(userIdStr, out var userId))
+        {
             clientHasActiveContract = await ClientMenuService.ClientHasActiveContractAsync(userId);
+            klyonOnboardingPublicDocs = await KlyonOnboardingPublicDocumentService.GetVisibleDocumentsForClientAsync(userId, WebHostEnvironment.WebRootPath);
+        }
     }
 }
 <!DOCTYPE html>
@@ -457,6 +463,21 @@
                                     </li>
                                 </ul>
                             </div>
+                            @if (klyonOnboardingPublicDocs != null && klyonOnboardingPublicDocs.Count > 0)
+                            {
+                                <div class="mt-3 pt-2 border-top border-secondary">
+                                    <div class="nav-link text-white-50 small text-uppercase pb-0 mb-1" style="cursor: default;">
+                                        <i class="bi bi-building-check"></i> Documentos Klyon
+                                    </div>
+                                    <p class="small text-white-50 px-3 mb-2" style="line-height: 1.25;">Disponíveis após confirmação do pagamento da adesão (empresa nova ou com CNPJ).</p>
+                                    @foreach (var doc in klyonOnboardingPublicDocs)
+                                    {
+                                        <a class="nav-link py-2 small" href="@Url.Action(ActionNames.DownloadKlyonOnboardingDocument, ControllerNames.Client, new { slug = doc.Slug })" title="@doc.FileName">
+                                            <i class="bi bi-file-earmark-pdf"></i> @doc.Title
+                                        </a>
+                                    }
+                                </div>
+                            }
                         }
                     </nav>
                     @if (User.IsInRole("Administrator"))

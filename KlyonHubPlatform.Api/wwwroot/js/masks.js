@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-    document.querySelectorAll('input[id*="Phone"], input[name*="Phone"], input[id*="phone"], input[name*="phone"], input[id*="Telefone"], input[name*="Telefone"]').forEach(function(input) {
+    document.querySelectorAll('input[id*="Phone"], input[name*="Phone"], input[id*="phone"], input[name*="phone"], input[id*="Telefone"], input[name*="Telefone"], input#contactPhone, input[name="contactPhone"]').forEach(function(input) {
         if (input.type !== 'hidden' && !input.id.includes('BankPixKey')) {
             if (!input.hasAttribute('maxlength')) {
                 input.setAttribute('maxlength', '15');

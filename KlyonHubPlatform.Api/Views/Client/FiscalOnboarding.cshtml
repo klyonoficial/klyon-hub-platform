@@ -1,0 +1,349 @@
+@using KlyonHubPlatform.Api.Constants
+@{
+    Layout = LayoutPaths.Layout;
+    var cwId = (int)(ViewBag.CoworkingAddressId ?? 0);
+    var hasCnpj = ViewBag.DeclaresHasCnpj as bool? ?? true;
+    var partner = ViewBag.PartnerDisplay as string;
+    var pageHeading = !string.IsNullOrWhiteSpace(partner)
+        ? $"Endereço Fiscal - {partner}"
+        : "Endereço fiscal";
+    ViewData[ViewDataKeys.Title] = pageHeading;
+    var preservedAcceptLgpd = ViewBag.FiscalAcceptLgpdTerms as bool? == true;
+    var showLgpdError = ViewBag.FiscalShowLgpdError as bool? == true;
+    var validationIssues = ViewBag.FiscalValidationIssues as IList<string>;
+    string? fiscalValidationTitle = ViewBag.FiscalValidationTitle as string;
+    if (validationIssues != null && validationIssues.Count > 0 && string.IsNullOrEmpty(fiscalValidationTitle))
+    {
+        fiscalValidationTitle = validationIssues.All(s => s.Contains("não informado", StringComparison.OrdinalIgnoreCase))
+            ? "Campo não informado:"
+            : "Verifique os seguintes campos:";
+    }
+    var fiscalBlockKind = ViewBag.FiscalOnboardingBlockedKind as string;
+    var fiscalBlockMessage = ViewBag.FiscalOnboardingBlockedMessage as string;
+    var fiscalBlockLoginUrl = ViewBag.FiscalOnboardingLoginUrl as string ?? Url.Action(ActionNames.Login, ControllerNames.Auth);
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <h2 class="mb-3"><i class="bi bi-geo-alt"></i> @pageHeading</h2>
+
+        @if (cwId <= 0)
+        {
+            <div class="alert alert-warning">Endereço do parceiro inválido. Volte e escolha um endereço na lista.</div>
+            <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-secondary">Voltar</a>
+        }
+        else if (!string.IsNullOrEmpty(fiscalBlockKind))
+        {
+            <div class="alert alert-warning border shadow-sm">
+                <p class="mb-2 fw-semibold">@(string.IsNullOrWhiteSpace(fiscalBlockMessage) ? "Não foi possível continuar com estes dados." : fiscalBlockMessage)</p>
+                @if (fiscalBlockKind == "EmailMismatch")
+                {
+                    <p class="text-muted small mb-3 mb-md-0">Entre no sistema com sua conta; depois do login você poderá atualizar o e-mail de contato no perfil, se precisar.</p>
+                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">Atualizar</a>
+                }
+                else if (fiscalBlockKind == "AlreadyHasAddress")
+                {
+                    <p class="text-muted small mb-3 mb-md-0">Utilize o login da plataforma para acessar seu cadastro neste endereço fiscal.</p>
+                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">Entrar</a>
+                }
+            </div>
+            <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">Voltar à lista de endereços</a>
+        }
+        else
+        {
+            <form id="fiscalOnboardingForm" method="post" asp-action="@ActionNames.FiscalOnboarding" asp-controller="@ControllerNames.Client" novalidate>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="coworkingAddressId" value="@cwId" />
+                @* Um único campo postado evita radios que às vezes não chegam no POST; rádios só controlam o hidden via JS. *@
+                <input type="hidden" name="declaresHasCnpj" id="declaresHasCnpjField" value="@(hasCnpj ? "true" : "false")" />
+
+                <div id="fiscalValidationAlert" class="alert alert-danger @(validationIssues != null && validationIssues.Count > 0 ? "" : "d-none")" role="alert">
+                    <strong id="fiscalValidationTitle">@fiscalValidationTitle</strong>
+                    <ul class="mb-0 mt-2" id="fiscalValidationList">
+                        @if (validationIssues != null)
+                        {
+                            foreach (var line in validationIssues)
+                            {
+                                <li>@line</li>
+                            }
+                        }
+                    </ul>
+                </div>
+
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <label class="form-label fw-semibold">Possui CNPJ aberto?</label>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="fiscalCnpjModeUi" id="cnpjSim" value="true" @(hasCnpj ? "checked" : null) />
+                                <label class="form-check-label" for="cnpjSim">Sim</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="fiscalCnpjModeUi" id="cnpjNao" value="false" @(!hasCnpj ? "checked" : null) />
+                                <label class="form-check-label" for="cnpjNao">Não (empresa nova — CPF)</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="taxId" id="taxIdLabel">CNPJ</label>
+                            <input class="form-control" id="taxId" name="taxId" value="@ViewBag.TaxId" autocomplete="off" placeholder="Será formatado ao digitar" inputmode="numeric" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="contactEmail">E-mail <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="@ViewBag.ContactEmail" placeholder="Receberá o link de acesso após o pagamento" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="contactPhone">Telefone / WhatsApp <span class="text-danger">*</span></label>
+                            <input class="form-control" id="contactPhone" name="contactPhone" value="@ViewBag.ContactPhone" placeholder="(00) 00000-0000" inputmode="numeric" />
+                            <div class="form-text">Usamos também para o link rápido no WhatsApp no mesmo e-mail.</div>
+                        </div>
+
+                        <div class="mb-0">
+                            <div class="form-check">
+                                <input type="hidden" name="acceptLgpdTerms" id="acceptLgpdTermsValue" value="@(preservedAcceptLgpd ? "true" : "false")">
+                                <input class="form-check-input @(showLgpdError ? "is-invalid" : "")" type="checkbox" id="acceptLgpdTerms" aria-describedby="fiscalLgpdError" @(preservedAcceptLgpd ? "checked" : "")>
+                                <label class="form-check-label" for="acceptLgpdTerms">
+                                    Li e aceito os <a href="javascript:void(0)" class="link-primary" data-bs-toggle="modal" data-bs-target="#modalTermosLgpdFiscal">Termos de Uso e a Política de Privacidade (LGPD)</a>.
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4">
+                    Continuar e pagar
+                </button>
+                <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">Cancelar</a>
+            </form>
+        }
+    </div>
+</div>
+
+<!-- Modal Termos de Uso e LGPD (mesmo padrão do cadastro) -->
+<div class="modal fade" id="modalTermosLgpdFiscal" tabindex="-1" aria-labelledby="modalTermosLgpdFiscalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTermosLgpdFiscalLabel">Termos de Uso e Política de Privacidade (LGPD)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe src="@Url.Action("TermosUsoLgpd", ControllerNames.Home, new { embed = 1 })" title="Termos de Uso e LGPD" class="w-100 border-0" style="min-height: 70vh;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var sim = document.getElementById('cnpjSim');
+        var nao = document.getElementById('cnpjNao');
+        var declaresHasCnpjField = document.getElementById('declaresHasCnpjField');
+        var taxId = document.getElementById('taxId');
+        var label = document.getElementById('taxIdLabel');
+        var form = document.getElementById('fiscalOnboardingForm');
+        var acceptCheckbox = document.getElementById('acceptLgpdTerms');
+        var acceptHidden = document.getElementById('acceptLgpdTermsValue');
+        var contactEmailEl = document.getElementById('contactEmail');
+        var contactPhoneEl = document.getElementById('contactPhone');
+        var validationAlertEl = document.getElementById('fiscalValidationAlert');
+        var validationTitleEl = document.getElementById('fiscalValidationTitle');
+        var validationListEl = document.getElementById('fiscalValidationList');
+
+        var previousPf = null;
+
+        function syncDeclaresHasCnpjHidden() {
+            if (!declaresHasCnpjField) return;
+            declaresHasCnpjField.value = (nao && nao.checked) ? 'false' : 'true';
+        }
+        function isPf() {
+            return !!(nao && nao.checked);
+        }
+
+        function syncAcceptLgpd() {
+            if (acceptHidden) acceptHidden.value = acceptCheckbox && acceptCheckbox.checked ? 'true' : 'false';
+        }
+
+        function clearFiscalFormOnModeSwitch() {
+            if (taxId) {
+                taxId.value = '';
+                taxId.classList.remove('is-invalid');
+            }
+            if (contactEmailEl) {
+                contactEmailEl.value = '';
+                contactEmailEl.classList.remove('is-invalid');
+            }
+            if (contactPhoneEl) {
+                contactPhoneEl.value = '';
+                contactPhoneEl.classList.remove('is-invalid');
+            }
+            if (acceptCheckbox) {
+                acceptCheckbox.checked = false;
+                acceptCheckbox.classList.remove('is-invalid');
+            }
+            syncAcceptLgpd();
+            if (validationAlertEl) validationAlertEl.classList.add('d-none');
+            if (validationListEl) validationListEl.innerHTML = '';
+        }
+
+        function maskTaxFromDigits(raw) {
+            if (!taxId) return;
+            var d = String(raw || '').replace(/\D/g, '');
+            if (isPf()) {
+                d = d.substring(0, 11);
+                taxId.value = typeof applyCPFMask === 'function' ? applyCPFMask(d) : d;
+                taxId.setAttribute('maxlength', '14');
+                taxId.setAttribute('placeholder', '000.000.000-00');
+            } else {
+                d = d.substring(0, 14);
+                taxId.value = typeof applyCNPJMask === 'function' ? applyCNPJMask(d) : d;
+                taxId.setAttribute('maxlength', '18');
+                taxId.setAttribute('placeholder', '00.000.000/0000-00');
+            }
+        }
+
+        function syncTaxMode() {
+            if (!label) return;
+            label.textContent = isPf() ? 'CPF' : 'CNPJ';
+            maskTaxFromDigits(taxId ? taxId.value : '');
+        }
+
+        function onRadioTaxModeChange() {
+            var nowPf = isPf();
+            if (previousPf !== null && previousPf !== nowPf) {
+                clearFiscalFormOnModeSwitch();
+            }
+            previousPf = nowPf;
+            syncDeclaresHasCnpjHidden();
+            syncTaxMode();
+        }
+
+        if (taxId) {
+            taxId.addEventListener('input', function () {
+                maskTaxFromDigits(taxId.value);
+                taxId.classList.remove('is-invalid');
+            });
+            taxId.addEventListener('paste', function (e) {
+                e.preventDefault();
+                var paste = (e.clipboardData || window.clipboardData).getData('text');
+                maskTaxFromDigits(paste);
+            });
+            taxId.addEventListener('blur', function () {
+                maskTaxFromDigits(taxId.value);
+            });
+        }
+
+        if (sim) sim.addEventListener('change', onRadioTaxModeChange);
+        if (nao) nao.addEventListener('change', onRadioTaxModeChange);
+        onRadioTaxModeChange();
+
+        function isPlausibleEmailJs(s) {
+            if (!s || !String(s).trim()) return false;
+            var t = String(s).trim();
+            return /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(t);
+        }
+
+        function collectFiscalOnboardingIssues() {
+            var items = [];
+            var pf = isPf();
+            var taxDigits = (taxId && taxId.value ? taxId.value : '').replace(/\D/g, '');
+            var phoneDigits = (contactPhoneEl && contactPhoneEl.value ? contactPhoneEl.value : '').replace(/\D/g, '');
+            var emailVal = contactEmailEl && contactEmailEl.value ? contactEmailEl.value.trim() : '';
+            var taxLabel = pf ? 'CPF' : 'CNPJ';
+
+            if (taxDigits.length === 0)
+                items.push(taxLabel + ' — não informado');
+            else if (!pf) {
+                if (taxDigits.length < 14)
+                    items.push('CNPJ — incompleto (14 dígitos)');
+            } else {
+                if (taxDigits.length === 14)
+                    items.push('CPF — há 14 dígitos (CNPJ); marque "Sim" em Possui CNPJ aberto? ou informe só CPF (11 dígitos)');
+                else if (taxDigits.length < 11)
+                    items.push('CPF — incompleto (11 dígitos)');
+            }
+
+            if (!emailVal)
+                items.push('E-mail — não informado');
+            else if (!isPlausibleEmailJs(emailVal))
+                items.push('E-mail — inválido');
+
+            if (phoneDigits.length === 0)
+                items.push('Telefone / WhatsApp — não informado');
+            else if (phoneDigits.length < 10)
+                items.push('Telefone / WhatsApp — informe com DDD (mínimo 10 dígitos)');
+
+            if (!acceptCheckbox || !acceptCheckbox.checked)
+                items.push('Termos de Uso e Política de Privacidade (LGPD) — aceite obrigatório');
+
+            return items;
+        }
+
+        function showFiscalValidationClient(issues) {
+            if (!validationAlertEl || !validationTitleEl || !validationListEl) return;
+            var onlyNotInformed = issues.every(function (s) {
+                return s.toLowerCase().indexOf('não informado') !== -1;
+            });
+            validationTitleEl.textContent = onlyNotInformed ? 'Campo não informado:' : 'Verifique os seguintes campos:';
+            validationListEl.innerHTML = issues.map(function (i) {
+                var d = document.createElement('div');
+                d.textContent = i;
+                return '<li>' + d.innerHTML + '</li>';
+            }).join('');
+            validationAlertEl.classList.remove('d-none');
+            validationAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function applyFiscalInvalidStates(issues) {
+            if (taxId) taxId.classList.remove('is-invalid');
+            if (contactEmailEl) contactEmailEl.classList.remove('is-invalid');
+            if (contactPhoneEl) contactPhoneEl.classList.remove('is-invalid');
+            if (acceptCheckbox) acceptCheckbox.classList.remove('is-invalid');
+            issues.forEach(function (msg) {
+                if (msg.indexOf('CNPJ') === 0 || msg.indexOf('CPF') === 0) {
+                    if (taxId) taxId.classList.add('is-invalid');
+                } else if (msg.indexOf('E-mail') === 0) {
+                    if (contactEmailEl) contactEmailEl.classList.add('is-invalid');
+                } else if (msg.indexOf('Telefone') === 0) {
+                    if (contactPhoneEl) contactPhoneEl.classList.add('is-invalid');
+                } else if (msg.indexOf('Termos') === 0) {
+                    if (acceptCheckbox) acceptCheckbox.classList.add('is-invalid');
+                }
+            });
+        }
+
+        function clearFiscalFieldInvalid(el) {
+            if (el) el.classList.remove('is-invalid');
+        }
+
+        if (form && acceptHidden && acceptCheckbox) {
+            acceptCheckbox.addEventListener('change', function () {
+                syncAcceptLgpd();
+                clearFiscalFieldInvalid(acceptCheckbox);
+            });
+            if (contactEmailEl) contactEmailEl.addEventListener('input', function () { clearFiscalFieldInvalid(contactEmailEl); });
+            if (contactPhoneEl) contactPhoneEl.addEventListener('input', function () { clearFiscalFieldInvalid(contactPhoneEl); });
+
+            form.addEventListener('submit', function (e) {
+                syncDeclaresHasCnpjHidden();
+                syncAcceptLgpd();
+                var issues = collectFiscalOnboardingIssues();
+                if (issues.length > 0) {
+                    e.preventDefault();
+                    showFiscalValidationClient(issues);
+                    applyFiscalInvalidStates(issues);
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    return false;
+                }
+                if (validationAlertEl) validationAlertEl.classList.add('d-none');
+            });
+        }
+    });
+</script>

@@ -25,6 +25,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IAuditService? _auditService;
         private readonly IHttpContextAccessor? _httpContextAccessor;
+        private readonly IFiscalOnboardingService? _fiscalOnboardingService;
         public PaymentService(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
@@ -36,7 +37,8 @@ namespace KlyonHubPlatform.Application.Services
             ISystemConfigurationService systemConfigurationService,
             IAddressDeclarationService? addressDeclarationService = null,
             IAuditService? auditService = null,
-            IHttpContextAccessor? httpContextAccessor = null)
+            IHttpContextAccessor? httpContextAccessor = null,
+            IFiscalOnboardingService? fiscalOnboardingService = null)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
@@ -49,6 +51,7 @@ namespace KlyonHubPlatform.Application.Services
             _systemConfigurationService = systemConfigurationService;
             _auditService = auditService;
             _httpContextAccessor = httpContextAccessor;
+            _fiscalOnboardingService = fiscalOnboardingService;
         }
 
         /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
@@ -1274,7 +1277,14 @@ namespace KlyonHubPlatform.Application.Services
                             }
                         }
                     }
-                    var commission = await _commissionService.CreateCommissionAsync(payment.Id);
+                    if (payment.FiscalOnboardingLeadId.HasValue && _fiscalOnboardingService != null)
+                    {
+                        await _fiscalOnboardingService.HandleAdhesionPaymentConfirmedAsync(payment.Id, CancellationToken.None);
+                    }
+                    if (!payment.FiscalOnboardingLeadId.HasValue)
+                    {
+                        await _commissionService.CreateCommissionAsync(payment.Id);
+                    }
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
                     return payment;
