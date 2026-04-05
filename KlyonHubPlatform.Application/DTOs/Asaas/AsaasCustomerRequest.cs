@@ -29,6 +29,12 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         public string? State { get; set; }
         [JsonPropertyName("externalReference")]
         public string? ExternalReference { get; set; }
+        /// <summary>
+        /// Quando true, desabilita todas as notificações automáticas do Asaas para este cliente (e-mail, SMS).
+        /// Mantemos true porque a comunicação com o cliente é gerenciada pela plataforma Klyon.
+        /// </summary>
+        [JsonPropertyName("notificationDisabled")]
+        public bool NotificationDisabled { get; set; } = true;
     }
     public class AsaasCustomerResponse
     {

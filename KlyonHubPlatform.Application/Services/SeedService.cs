@@ -241,6 +241,17 @@ namespace KlyonHubPlatform.Application.Services
                     IsActive = true,
                     ImageUrl = "/images/services/endereco-fiscal.svg",
                     Category = CategoryService.Client
+                },
+                new Service
+                {
+                    Name = "Contratar Endereço Comercial",
+                    Code = CommercialAddressContracting,
+                    Description = "Use nosso endereço como apoio comercial: cartão de visita, site e imagem profissional — sem uso no CNPJ",
+                    Route = "/Client/ChooseLocation",
+                    DisplayOrder = 6,
+                    IsActive = true,
+                    ImageUrl = "/images/services/endereco-fiscal.svg",
+                    Category = CategoryService.Client
                 }
             };
             var newServices = servicesToAdd

@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public int Id { get; set; }
         public int ClientId { get; set; }
         public int CoworkingAddressId { get; set; }
+        /// <summary>Serviço contratado (ex.: Endereço Fiscal, Endereço Comercial).</summary>
+        public int ServiceId { get; set; }
         public string ContractNumber { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
@@ -37,6 +39,7 @@ namespace KlyonHubPlatform.Domain.Entities
         public ContractCardPlanType? CardPlanType { get; set; }
         public virtual Client Client { get; set; } = null!;
         public virtual CoworkingAddress CoworkingAddress { get; set; } = null!;
+        public virtual Service? Service { get; set; }
         public virtual Subscription? Subscription { get; set; }
         public virtual User? AssistedSaleAdmin { get; set; }
         public virtual ICollection<Document> Documents { get; set; } = new List<Document>();

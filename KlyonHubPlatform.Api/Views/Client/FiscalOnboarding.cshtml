@@ -2,11 +2,14 @@
 @{
     Layout = LayoutPaths.Layout;
     var cwId = (int)(ViewBag.CoworkingAddressId ?? 0);
-    var hasCnpj = ViewBag.DeclaresHasCnpj as bool? ?? true;
+    var hasCnpj = ViewBag.DeclaresHasCnpj as bool? ?? false;
     var partner = ViewBag.PartnerDisplay as string;
+    var serviceType = ViewBag.ServiceType as string ?? "";
+    var isCommercial = string.Equals(serviceType, "comercial", StringComparison.OrdinalIgnoreCase);
+    var serviceLabel = isCommercial ? "Comercial" : "Fiscal";
     var pageHeading = !string.IsNullOrWhiteSpace(partner)
-        ? $"Endereço Fiscal - {partner}"
-        : "Endereço fiscal";
+        ? $"Endereço {serviceLabel} - {partner}"
+        : $"Endereço {serviceLabel}";
     ViewData[ViewDataKeys.Title] = pageHeading;
     var preservedAcceptLgpd = ViewBag.FiscalAcceptLgpdTerms as bool? == true;
     var showLgpdError = ViewBag.FiscalShowLgpdError as bool? == true;
@@ -21,11 +24,26 @@
     var fiscalBlockKind = ViewBag.FiscalOnboardingBlockedKind as string;
     var fiscalBlockMessage = ViewBag.FiscalOnboardingBlockedMessage as string;
     var fiscalBlockLoginUrl = ViewBag.FiscalOnboardingLoginUrl as string ?? Url.Action(ActionNames.Login, ControllerNames.Auth);
+    var cnaeSuggestCommercial = ViewBag.CnaeSuggestCommercial as bool? ?? false;
 }
 
 <div class="row justify-content-center">
     <div class="col-lg-7">
-        <h2 class="mb-3"><i class="bi bi-geo-alt"></i> @pageHeading</h2>
+        <h2 class="mb-3" id="fiscalOnboardingHeading" data-partner="@(partner ?? "")">
+            <i class="bi @(isCommercial ? "bi-briefcase" : "bi-geo-alt")" id="fiscalOnboardingHeadingIcon" aria-hidden="true"></i>
+            <span id="fiscalOnboardingHeadingText">@pageHeading</span>
+        </h2>
+
+        <div id="commercialBanner" class="alert alert-info d-flex align-items-start gap-2 mb-3 border-0 shadow-sm @(isCommercial ? "" : "d-none")" style="background:linear-gradient(135deg,#e0f2fe,#f0f9ff); border-left:4px solid #0ea5e9 !important;">
+            <i class="bi bi-briefcase-fill text-info mt-1 fs-5"></i>
+            <div>
+                <strong class="d-block mb-1">Endereço Comercial</strong>
+                <span class="text-muted small">
+                    Você está contratando o <strong>Endereço Comercial</strong> — <strong>CPF</strong> ou <strong>CNPJ</strong> podem contratar. Use nosso endereço no cartão de visita, site e comunicações da empresa.
+                    <strong>Não pode ser usado como sede da empresa no CNPJ</strong> e não inclui documentos fiscais (IPTU, Alvará e etc.).
+                </span>
+            </div>
+        </div>
 
         @if (cwId <= 0)
         {
@@ -35,25 +53,42 @@
         else if (!string.IsNullOrEmpty(fiscalBlockKind))
         {
             <div class="alert alert-warning border shadow-sm">
-                <p class="mb-2 fw-semibold">@(string.IsNullOrWhiteSpace(fiscalBlockMessage) ? "Não foi possível continuar com estes dados." : fiscalBlockMessage)</p>
-                @if (fiscalBlockKind == "EmailMismatch")
+                <p class="mb-2 fw-semibold">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    @(string.IsNullOrWhiteSpace(fiscalBlockMessage) ? "Não foi possível continuar com estes dados." : fiscalBlockMessage)
+                </p>
+                @if (fiscalBlockKind == "AlreadyRegistered")
+                {
+                    <p class="text-muted small mb-3">Acesse sua conta para gerenciar seus serviços e contratos.</p>
+                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Fazer login
+                    </a>
+                }
+                else if (fiscalBlockKind == "EmailMismatch")
                 {
                     <p class="text-muted small mb-3 mb-md-0">Entre no sistema com sua conta; depois do login você poderá atualizar o e-mail de contato no perfil, se precisar.</p>
-                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">Atualizar</a>
+                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Fazer login
+                    </a>
                 }
                 else if (fiscalBlockKind == "AlreadyHasAddress")
                 {
-                    <p class="text-muted small mb-3 mb-md-0">Utilize o login da plataforma para acessar seu cadastro neste endereço fiscal.</p>
-                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">Entrar</a>
+                    <p class="text-muted small mb-3 mb-md-0">Utilize o login da plataforma para acessar seu cadastro neste endereço.</p>
+                    <a href="@fiscalBlockLoginUrl" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+                    </a>
                 }
             </div>
-            <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">Voltar à lista de endereços</a>
+            <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">
+                <i class="bi bi-arrow-left me-1"></i> Voltar à lista de endereços
+            </a>
         }
         else
         {
-            <form id="fiscalOnboardingForm" method="post" asp-action="@ActionNames.FiscalOnboarding" asp-controller="@ControllerNames.Client" novalidate>
+            <form id="fiscalOnboardingForm" method="post" asp-action="@ActionNames.FiscalOnboarding" asp-controller="@ControllerNames.Client" novalidate data-ajax-request="true">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="coworkingAddressId" value="@cwId" />
+                <input type="hidden" name="serviceType" value="@serviceType" />
                 @* Um único campo postado evita radios que às vezes não chegam no POST; rádios só controlam o hidden via JS. *@
                 <input type="hidden" name="declaresHasCnpj" id="declaresHasCnpjField" value="@(hasCnpj ? "true" : "false")" />
 
@@ -68,10 +103,38 @@
                             }
                         }
                     </ul>
+                    @if (cnaeSuggestCommercial)
+                    {
+                        <div id="cnaeSuggestion" class="mt-3 pt-2 border-top border-danger-subtle">
+                            <p class="mb-2 small fw-semibold">
+                                <i class="bi bi-info-circle-fill me-1"></i>
+                                Podemos atendê-lo como <strong>Endereço Comercial</strong> — vale para <strong>CPF</strong> ou <strong>CNPJ</strong>, sem restrições de CNAE.
+                            </p>
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-switch-commercial>
+                                <i class="bi bi-briefcase me-1"></i> Continuar como Endereço Comercial
+                            </button>
+                        </div>
+                    }
                 </div>
 
                 <div class="card shadow-sm mb-3">
                     <div class="card-body">
+                        <label class="form-label fw-semibold">Tipo de Endereço <span class="text-danger">*</span></label>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="serviceTypeUi" id="serviceTypeFiscal" value="fiscal" @(!isCommercial ? "checked" : null) />
+                                <label class="form-check-label" for="serviceTypeFiscal">
+                                    <i class="bi bi-geo-alt-fill me-1 text-primary"></i>Fiscal
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="serviceTypeUi" id="serviceTypeComercial" value="comercial" @(isCommercial ? "checked" : null) />
+                                <label class="form-check-label" for="serviceTypeComercial">
+                                    <i class="bi bi-briefcase-fill me-1 text-info"></i>Comercial
+                                </label>
+                            </div>
+                        </div>
+                        <hr class="my-2" />
                         <label class="form-label fw-semibold">Possui CNPJ aberto?</label>
                         <div class="d-flex gap-3 mb-3">
                             <div class="form-check">
@@ -80,24 +143,34 @@
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="fiscalCnpjModeUi" id="cnpjNao" value="false" @(!hasCnpj ? "checked" : null) />
-                                <label class="form-check-label" for="cnpjNao">Não (empresa nova — CPF)</label>
+                                <label class="form-check-label" for="cnpjNao">Não</label>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label" for="taxId" id="taxIdLabel">CNPJ</label>
-                            <input class="form-control" id="taxId" name="taxId" value="@ViewBag.TaxId" autocomplete="off" placeholder="Será formatado ao digitar" inputmode="numeric" />
+                            <label class="form-label" for="cpf">CPF <span class="text-danger">*</span></label>
+                            <input class="form-control" id="cpf" name="cpf" value="@ViewBag.CpfValue"
+                                   autocomplete="off" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" />
+                            <div id="cpfFeedback" class="invalid-feedback"></div>
+                        </div>
+
+                        <div class="mb-3 @(!hasCnpj ? "d-none" : "")" id="cnpjFieldRow">
+                            <label class="form-label" for="cnpj">CNPJ <span class="text-danger">*</span></label>
+                            <input class="form-control" id="cnpj" name="cnpj" value="@ViewBag.CnpjValue"
+                                   autocomplete="off" placeholder="00.000.000/0000-00" inputmode="numeric" maxlength="18"
+                                   @(hasCnpj ? "required" : "") />
+                            <div id="cnpjFeedback" class="invalid-feedback"></div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="contactEmail">E-mail <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="@ViewBag.ContactEmail" placeholder="Receberá o link de acesso após o pagamento" />
+                            <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="@ViewBag.ContactEmail" placeholder="seu@email.com" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="contactPhone">Telefone / WhatsApp <span class="text-danger">*</span></label>
                             <input class="form-control" id="contactPhone" name="contactPhone" value="@ViewBag.ContactPhone" placeholder="(00) 00000-0000" inputmode="numeric" />
-                            <div class="form-text">Usamos também para o link rápido no WhatsApp no mesmo e-mail.</div>
+                            <div class="form-text">Usado para contato e suporte via WhatsApp.</div>
                         </div>
 
                         <div class="mb-0">
@@ -112,10 +185,10 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4">
-                    Continuar e pagar
+                <button type="submit" id="btnContinuarPagar" class="btn btn-primary btn-lg rounded-pill px-4">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Continuar e pagar
                 </button>
-                <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="btn btn-link">Cancelar</a>
+                <a id="btnCancelar" href="@Url.Action(ActionNames.AddressDetail, ControllerNames.Client, new { coworkingAddressId = cwId })" class="btn btn-link">Cancelar</a>
             </form>
         }
     </div>
@@ -141,131 +214,163 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        var sim = document.getElementById('cnpjSim');
-        var nao = document.getElementById('cnpjNao');
-        var declaresHasCnpjField = document.getElementById('declaresHasCnpjField');
-        var taxId = document.getElementById('taxId');
-        var label = document.getElementById('taxIdLabel');
-        var form = document.getElementById('fiscalOnboardingForm');
-        var acceptCheckbox = document.getElementById('acceptLgpdTerms');
-        var acceptHidden = document.getElementById('acceptLgpdTermsValue');
-        var contactEmailEl = document.getElementById('contactEmail');
-        var contactPhoneEl = document.getElementById('contactPhone');
+        var sim               = document.getElementById('cnpjSim');
+        var nao               = document.getElementById('cnpjNao');
+        var declaresField     = document.getElementById('declaresHasCnpjField');
+        var cpfInput          = document.getElementById('cpf');
+        var cpfFeedback       = document.getElementById('cpfFeedback');
+        var cnpjInput         = document.getElementById('cnpj');
+        var cnpjFeedback      = document.getElementById('cnpjFeedback');
+        var cnpjFieldRow      = document.getElementById('cnpjFieldRow');
+        var form              = document.getElementById('fiscalOnboardingForm');
+        var acceptCheckbox    = document.getElementById('acceptLgpdTerms');
+        var acceptHidden      = document.getElementById('acceptLgpdTermsValue');
+        var contactEmailEl    = document.getElementById('contactEmail');
+        var contactPhoneEl    = document.getElementById('contactPhone');
         var validationAlertEl = document.getElementById('fiscalValidationAlert');
         var validationTitleEl = document.getElementById('fiscalValidationTitle');
-        var validationListEl = document.getElementById('fiscalValidationList');
+        var validationListEl  = document.getElementById('fiscalValidationList');
+        var serviceTypeFiscalRad    = document.getElementById('serviceTypeFiscal');
+        var serviceTypeComercialRad = document.getElementById('serviceTypeComercial');
+        var serviceTypeHiddenInput  = form ? form.querySelector('[name="serviceType"]') : null;
+        var commercialBannerEl      = document.getElementById('commercialBanner');
 
-        var previousPf = null;
-
-        function syncDeclaresHasCnpjHidden() {
-            if (!declaresHasCnpjField) return;
-            declaresHasCnpjField.value = (nao && nao.checked) ? 'false' : 'true';
+        function refreshValidationRefs() {
+            validationTitleEl = validationAlertEl ? validationAlertEl.querySelector('#fiscalValidationTitle') : null;
+            validationListEl  = validationAlertEl ? validationAlertEl.querySelector('#fiscalValidationList') : null;
         }
-        function isPf() {
-            return !!(nao && nao.checked);
+
+        function updateHeadingForServiceType(isComercial) {
+            var h2 = document.getElementById('fiscalOnboardingHeading');
+            var icon = document.getElementById('fiscalOnboardingHeadingIcon');
+            var textSpan = document.getElementById('fiscalOnboardingHeadingText');
+            if (!h2 || !icon || !textSpan) return;
+            var partner = (h2.getAttribute('data-partner') || '').trim();
+            var label = isComercial ? 'Comercial' : 'Fiscal';
+            var heading = partner ? ('Endereço ' + label + ' - ' + partner) : ('Endereço ' + label);
+            textSpan.textContent = heading;
+            icon.className = 'bi ' + (isComercial ? 'bi-briefcase' : 'bi-geo-alt');
+            document.title = heading;
         }
 
+        // ── Troca para comercial sem recarregar: mantém campos e opções preenchidos
+        function switchToCommercialPreserveForm() {
+            if (serviceTypeComercialRad) serviceTypeComercialRad.checked = true;
+            if (serviceTypeFiscalRad) serviceTypeFiscalRad.checked = false;
+            onServiceTypeChange();
+            if (validationAlertEl) validationAlertEl.classList.add('d-none');
+            if (commercialBannerEl) commercialBannerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        document.addEventListener('click', function (ev) {
+            var el = ev.target.closest('[data-switch-commercial]');
+            if (!el || !form || !form.contains(el)) return;
+            ev.preventDefault();
+            switchToCommercialPreserveForm();
+        });
+
+        // ── Sincronizar radio de tipo de endereço com o hidden input, banner e título da página
+        function onServiceTypeChange() {
+            var isComercial = serviceTypeComercialRad && serviceTypeComercialRad.checked;
+            if (serviceTypeHiddenInput) serviceTypeHiddenInput.value = isComercial ? 'comercial' : 'fiscal';
+            if (commercialBannerEl) commercialBannerEl.classList.toggle('d-none', !isComercial);
+            updateHeadingForServiceType(isComercial);
+            try {
+                var u = new URL(window.location.href);
+                if (form) {
+                    var cwInput = form.querySelector('[name="coworkingAddressId"]');
+                    if (cwInput && cwInput.value) u.searchParams.set('coworkingAddressId', cwInput.value);
+                }
+                u.searchParams.set('serviceType', isComercial ? 'comercial' : 'fiscal');
+                history.replaceState(null, '', u.toString());
+            } catch (ex) { /* ignore */ }
+            // Se mudou para comercial, oculta alertas de CNAE que não se aplicam
+            if (isComercial && validationAlertEl && !validationAlertEl.classList.contains('d-none')) {
+                var listItems = validationAlertEl.querySelectorAll('li');
+                var onlyCnae = Array.from(listItems).length > 0 &&
+                    Array.from(listItems).every(function(li){ return li.textContent.indexOf('CNAE') >= 0; });
+                if (onlyCnae) validationAlertEl.classList.add('d-none');
+            }
+        }
+
+        if (serviceTypeFiscalRad)    serviceTypeFiscalRad.addEventListener('change', onServiceTypeChange);
+        if (serviceTypeComercialRad) serviceTypeComercialRad.addEventListener('change', onServiceTypeChange);
+        onServiceTypeChange(); // sincroniza hidden input com o radio marcado no carregamento
+
+        // ── Sync hidden declaresHasCnpj
+        function syncDeclaresHasCnpj() {
+            if (declaresField) declaresField.value = (sim && sim.checked) ? 'true' : 'false';
+        }
+
+        function hasCnpjSelected() { return !!(sim && sim.checked); }
+
+        // ── Mostrar/esconder campo CNPJ
+        function toggleCnpjField() {
+            var show = hasCnpjSelected();
+            if (cnpjFieldRow) cnpjFieldRow.classList.toggle('d-none', !show);
+            if (cnpjInput) {
+                cnpjInput.required = show;
+                if (!show) { cnpjInput.value = ''; cnpjInput.classList.remove('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = ''; }
+            }
+            syncDeclaresHasCnpj();
+        }
+
+        if (sim) sim.addEventListener('change', toggleCnpjField);
+        if (nao) nao.addEventListener('change', toggleCnpjField);
+        toggleCnpjField(); // estado inicial
+
+        // ── Máscaras (masks.js já aplica via id*="cpf" / id*="cnpj"; aqui só limpa is-invalid)
+        if (cpfInput) {
+            cpfInput.addEventListener('input', function () { this.classList.remove('is-invalid'); if (cpfFeedback) cpfFeedback.textContent = ''; });
+            cpfInput.addEventListener('blur', function () {
+                if (!this.value) return;
+                var ok = typeof validateCPF === 'function' ? validateCPF(this.value) : this.value.replace(/\D/g,'').length === 11;
+                if (!ok) { this.classList.add('is-invalid'); if (cpfFeedback) cpfFeedback.textContent = 'CPF inválido.'; }
+            });
+        }
+        if (cnpjInput) {
+            cnpjInput.addEventListener('input', function () { this.classList.remove('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = ''; });
+            cnpjInput.addEventListener('blur', function () {
+                if (!this.value) return;
+                var ok = typeof validateCNPJ === 'function' ? validateCNPJ(this.value) : this.value.replace(/\D/g,'').length === 14;
+                if (!ok) { this.classList.add('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = 'CNPJ inválido.'; }
+            });
+        }
+
+        // ── LGPD sync
         function syncAcceptLgpd() {
             if (acceptHidden) acceptHidden.value = acceptCheckbox && acceptCheckbox.checked ? 'true' : 'false';
         }
 
-        function clearFiscalFormOnModeSwitch() {
-            if (taxId) {
-                taxId.value = '';
-                taxId.classList.remove('is-invalid');
-            }
-            if (contactEmailEl) {
-                contactEmailEl.value = '';
-                contactEmailEl.classList.remove('is-invalid');
-            }
-            if (contactPhoneEl) {
-                contactPhoneEl.value = '';
-                contactPhoneEl.classList.remove('is-invalid');
-            }
-            if (acceptCheckbox) {
-                acceptCheckbox.checked = false;
-                acceptCheckbox.classList.remove('is-invalid');
-            }
-            syncAcceptLgpd();
-            if (validationAlertEl) validationAlertEl.classList.add('d-none');
-            if (validationListEl) validationListEl.innerHTML = '';
-        }
-
-        function maskTaxFromDigits(raw) {
-            if (!taxId) return;
-            var d = String(raw || '').replace(/\D/g, '');
-            if (isPf()) {
-                d = d.substring(0, 11);
-                taxId.value = typeof applyCPFMask === 'function' ? applyCPFMask(d) : d;
-                taxId.setAttribute('maxlength', '14');
-                taxId.setAttribute('placeholder', '000.000.000-00');
-            } else {
-                d = d.substring(0, 14);
-                taxId.value = typeof applyCNPJMask === 'function' ? applyCNPJMask(d) : d;
-                taxId.setAttribute('maxlength', '18');
-                taxId.setAttribute('placeholder', '00.000.000/0000-00');
-            }
-        }
-
-        function syncTaxMode() {
-            if (!label) return;
-            label.textContent = isPf() ? 'CPF' : 'CNPJ';
-            maskTaxFromDigits(taxId ? taxId.value : '');
-        }
-
-        function onRadioTaxModeChange() {
-            var nowPf = isPf();
-            if (previousPf !== null && previousPf !== nowPf) {
-                clearFiscalFormOnModeSwitch();
-            }
-            previousPf = nowPf;
-            syncDeclaresHasCnpjHidden();
-            syncTaxMode();
-        }
-
-        if (taxId) {
-            taxId.addEventListener('input', function () {
-                maskTaxFromDigits(taxId.value);
-                taxId.classList.remove('is-invalid');
-            });
-            taxId.addEventListener('paste', function (e) {
-                e.preventDefault();
-                var paste = (e.clipboardData || window.clipboardData).getData('text');
-                maskTaxFromDigits(paste);
-            });
-            taxId.addEventListener('blur', function () {
-                maskTaxFromDigits(taxId.value);
-            });
-        }
-
-        if (sim) sim.addEventListener('change', onRadioTaxModeChange);
-        if (nao) nao.addEventListener('change', onRadioTaxModeChange);
-        onRadioTaxModeChange();
-
         function isPlausibleEmailJs(s) {
-            if (!s || !String(s).trim()) return false;
-            var t = String(s).trim();
-            return /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(t);
+            if (!s) return false;
+            return /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(s).trim());
         }
 
-        function collectFiscalOnboardingIssues() {
+        // ── Coletar problemas de validação client-side
+        function collectIssues() {
             var items = [];
-            var pf = isPf();
-            var taxDigits = (taxId && taxId.value ? taxId.value : '').replace(/\D/g, '');
-            var phoneDigits = (contactPhoneEl && contactPhoneEl.value ? contactPhoneEl.value : '').replace(/\D/g, '');
-            var emailVal = contactEmailEl && contactEmailEl.value ? contactEmailEl.value.trim() : '';
-            var taxLabel = pf ? 'CPF' : 'CNPJ';
+            var cpfDigits  = (cpfInput  ? cpfInput.value  : '').replace(/\D/g,'');
+            var cnpjDigits = (cnpjInput ? cnpjInput.value : '').replace(/\D/g,'');
+            var phoneDigits = (contactPhoneEl ? contactPhoneEl.value : '').replace(/\D/g,'');
+            var emailVal   = (contactEmailEl ? contactEmailEl.value.trim() : '');
 
-            if (taxDigits.length === 0)
-                items.push(taxLabel + ' — não informado');
-            else if (!pf) {
-                if (taxDigits.length < 14)
+            // CPF — sempre obrigatório
+            if (cpfDigits.length === 0)
+                items.push('CPF — não informado');
+            else if (cpfDigits.length < 11)
+                items.push('CPF — incompleto (11 dígitos)');
+            else if (typeof validateCPF === 'function' && !validateCPF(cpfInput.value))
+                items.push('CPF — inválido');
+
+            // CNPJ — obrigatório apenas quando "Sim"
+            if (hasCnpjSelected()) {
+                if (cnpjDigits.length === 0)
+                    items.push('CNPJ — não informado');
+                else if (cnpjDigits.length < 14)
                     items.push('CNPJ — incompleto (14 dígitos)');
-            } else {
-                if (taxDigits.length === 14)
-                    items.push('CPF — há 14 dígitos (CNPJ); marque "Sim" em Possui CNPJ aberto? ou informe só CPF (11 dígitos)');
-                else if (taxDigits.length < 11)
-                    items.push('CPF — incompleto (11 dígitos)');
+                else if (typeof validateCNPJ === 'function' && !validateCNPJ(cnpjInput.value))
+                    items.push('CNPJ — inválido');
             }
 
             if (!emailVal)
@@ -284,65 +389,89 @@
             return items;
         }
 
-        function showFiscalValidationClient(issues) {
+        function showValidation(issues) {
             if (!validationAlertEl || !validationTitleEl || !validationListEl) return;
-            var onlyNotInformed = issues.every(function (s) {
-                return s.toLowerCase().indexOf('não informado') !== -1;
-            });
-            validationTitleEl.textContent = onlyNotInformed ? 'Campo não informado:' : 'Verifique os seguintes campos:';
-            validationListEl.innerHTML = issues.map(function (i) {
-                var d = document.createElement('div');
-                d.textContent = i;
+            var onlyMissing = issues.every(function(s){ return s.toLowerCase().indexOf('não informado') !== -1; });
+            validationTitleEl.textContent = onlyMissing ? 'Campo não informado:' : 'Verifique os seguintes campos:';
+            validationListEl.innerHTML = issues.map(function(i){
+                var d = document.createElement('div'); d.textContent = i;
                 return '<li>' + d.innerHTML + '</li>';
             }).join('');
             validationAlertEl.classList.remove('d-none');
             validationAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        function applyFiscalInvalidStates(issues) {
-            if (taxId) taxId.classList.remove('is-invalid');
-            if (contactEmailEl) contactEmailEl.classList.remove('is-invalid');
-            if (contactPhoneEl) contactPhoneEl.classList.remove('is-invalid');
-            if (acceptCheckbox) acceptCheckbox.classList.remove('is-invalid');
-            issues.forEach(function (msg) {
-                if (msg.indexOf('CNPJ') === 0 || msg.indexOf('CPF') === 0) {
-                    if (taxId) taxId.classList.add('is-invalid');
-                } else if (msg.indexOf('E-mail') === 0) {
-                    if (contactEmailEl) contactEmailEl.classList.add('is-invalid');
-                } else if (msg.indexOf('Telefone') === 0) {
-                    if (contactPhoneEl) contactPhoneEl.classList.add('is-invalid');
-                } else if (msg.indexOf('Termos') === 0) {
-                    if (acceptCheckbox) acceptCheckbox.classList.add('is-invalid');
-                }
+        function applyInvalidStates(issues) {
+            [cpfInput, cnpjInput, contactEmailEl, contactPhoneEl, acceptCheckbox].forEach(function(el){ if (el) el.classList.remove('is-invalid'); });
+            issues.forEach(function(msg){
+                if (msg.indexOf('CPF') === 0)          { if (cpfInput) cpfInput.classList.add('is-invalid'); }
+                else if (msg.indexOf('CNPJ') === 0)    { if (cnpjInput) cnpjInput.classList.add('is-invalid'); }
+                else if (msg.indexOf('E-mail') === 0)  { if (contactEmailEl) contactEmailEl.classList.add('is-invalid'); }
+                else if (msg.indexOf('Telefone') === 0){ if (contactPhoneEl) contactPhoneEl.classList.add('is-invalid'); }
+                else if (msg.indexOf('Termos') === 0)  { if (acceptCheckbox) acceptCheckbox.classList.add('is-invalid'); }
             });
         }
 
-        function clearFiscalFieldInvalid(el) {
-            if (el) el.classList.remove('is-invalid');
+        if (acceptCheckbox) {
+            acceptCheckbox.addEventListener('change', function(){ syncAcceptLgpd(); this.classList.remove('is-invalid'); });
         }
+        if (contactEmailEl) contactEmailEl.addEventListener('input', function(){ this.classList.remove('is-invalid'); });
+        if (contactPhoneEl) contactPhoneEl.addEventListener('input', function(){ this.classList.remove('is-invalid'); });
 
         if (form && acceptHidden && acceptCheckbox) {
-            acceptCheckbox.addEventListener('change', function () {
-                syncAcceptLgpd();
-                clearFiscalFieldInvalid(acceptCheckbox);
-            });
-            if (contactEmailEl) contactEmailEl.addEventListener('input', function () { clearFiscalFieldInvalid(contactEmailEl); });
-            if (contactPhoneEl) contactPhoneEl.addEventListener('input', function () { clearFiscalFieldInvalid(contactPhoneEl); });
-
             form.addEventListener('submit', function (e) {
-                syncDeclaresHasCnpjHidden();
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                syncDeclaresHasCnpj();
                 syncAcceptLgpd();
-                var issues = collectFiscalOnboardingIssues();
-                if (issues.length > 0) {
-                    e.preventDefault();
-                    showFiscalValidationClient(issues);
-                    applyFiscalInvalidStates(issues);
-                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                        window.KlyonLoading.hide();
-                    }
-                    return false;
-                }
+
+                var issues = collectIssues();
+                if (issues.length > 0) { showValidation(issues); applyInvalidStates(issues); return; }
+
                 if (validationAlertEl) validationAlertEl.classList.add('d-none');
+
+                var btn = document.getElementById('btnContinuarPagar');
+                var btnCancelar = document.getElementById('btnCancelar');
+                if (btn) btn.disabled = true;
+                if (btnCancelar) { btnCancelar.style.pointerEvents = 'none'; btnCancelar.style.opacity = '0.5'; btnCancelar.tabIndex = -1; }
+
+                if (window.KlyonLoading) window.KlyonLoading.show();
+
+                fetch(form.action, { method: 'POST', body: new FormData(form), redirect: 'follow' })
+                    .then(function (response) {
+                        if (response.redirected) { window.location.href = response.url; return; }
+                        return response.text().then(function (html) {
+                            if (window.KlyonLoading) window.KlyonLoading.hide();
+                            // Re-habilita botões para permitir nova tentativa após erro server-side
+                            if (btn) btn.disabled = false;
+                            if (btnCancelar) { btnCancelar.style.pointerEvents = ''; btnCancelar.style.opacity = ''; btnCancelar.tabIndex = 0; }
+                            var parser = new DOMParser();
+                            var doc = parser.parseFromString(html, 'text/html');
+                            var serverAlert = doc.getElementById('fiscalValidationAlert');
+                            if (serverAlert && !serverAlert.classList.contains('d-none')) {
+                                if (validationAlertEl) {
+                                    validationAlertEl.innerHTML = serverAlert.innerHTML;
+                                    validationAlertEl.classList.remove('d-none');
+                                    refreshValidationRefs();
+                                    validationAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                }
+                                return;
+                            }
+                            var blockedEl = doc.querySelector('.alert-warning, .alert-danger');
+                            if (blockedEl) {
+                                if (validationAlertEl) { validationAlertEl.innerHTML = blockedEl.innerHTML; validationAlertEl.classList.remove('d-none'); validationAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                                return;
+                            }
+                            window.location.reload();
+                        });
+                    })
+                    .catch(function () {
+                        if (window.KlyonLoading) window.KlyonLoading.hide();
+                        if (btn) btn.disabled = false;
+                        if (btnCancelar) { btnCancelar.style.pointerEvents = ''; btnCancelar.style.opacity = ''; btnCancelar.tabIndex = 0; }
+                        if (validationAlertEl) { validationAlertEl.innerHTML = '<strong>Erro de conexão.</strong> Verifique sua internet e tente novamente.'; validationAlertEl.classList.remove('d-none'); }
+                    });
             });
         }
     });

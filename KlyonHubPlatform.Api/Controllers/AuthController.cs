@@ -165,7 +165,7 @@ namespace KlyonHubPlatform.Api.Controllers
             return View();
         }
         [HttpPost]
-        public async Task<IActionResult> Register(string email, string password, string fullName, string role = RoleNames.Client, string? returnUrl = null, string? acceptLgpdTerms = null, string? hasCnpj = null, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Register(string email, string password, string fullName, string role = RoleNames.Client, string? returnUrl = null, string? acceptLgpdTerms = null, string? hasCnpj = null, string? cnpj = null, string? cpf = null, CancellationToken cancellationToken = default)
         {
             var acceptLgpdRaw = acceptLgpdTerms ?? Request.Form["acceptLgpdTerms"].ToString();
             bool aceiteLgpd = StringBooleanValue.IsTrue(acceptLgpdRaw)
@@ -182,6 +182,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 ViewBag.RegisterRole = role;
                 ViewBag.RegisterAcceptLgpdTerms = aceiteLgpd;
                 ViewBag.RegisterHasCnpj = hasCnpj;
+                ViewBag.RegisterCnpj = cnpj;
+                ViewBag.RegisterCpf = cpf;
                 if (role == RoleNames.CoworkingPartner) ViewBag.PreSelectedRole = RoleNames.CoworkingPartner;
             }
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
@@ -194,7 +196,27 @@ namespace KlyonHubPlatform.Api.Controllers
                 PreserveRegisterForm("É obrigatório aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.");
                 return View();
             }
-            var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl, clientHasCnpj);
+            // CPF obrigatório para todos os clientes
+            if (role == RoleNames.Client)
+            {
+                var cpfDigits = System.Text.RegularExpressions.Regex.Replace(cpf ?? "", @"[^\d]", "");
+                if (cpfDigits.Length != 11)
+                {
+                    PreserveRegisterForm("Informe o CPF completo (11 dígitos) para prosseguir.");
+                    return View();
+                }
+            }
+            // Validar CNPJ quando declarado
+            if (clientHasCnpj == true)
+            {
+                var cnpjDigits = System.Text.RegularExpressions.Regex.Replace(cnpj ?? "", @"[^\d]", "");
+                if (cnpjDigits.Length != 14)
+                {
+                    PreserveRegisterForm("Informe o CNPJ completo (14 dígitos) para prosseguir.");
+                    return View();
+                }
+            }
+            var success = await _authService.RegisterAsync(email, password, fullName, role, returnUrl, clientHasCnpj, cnpj, cpf);
             if (!success)
             {
                 PreserveRegisterForm("Erro ao criar conta. Email já existe?");
@@ -235,67 +257,94 @@ namespace KlyonHubPlatform.Api.Controllers
             return View();
         }
         [HttpPost]
-        public async Task<IActionResult> ForgotPassword(string email, CancellationToken cancellationToken = default)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(string email, string taxId, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrEmpty(email))
+            var isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest";
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(taxId))
             {
-                ViewData[ViewDataKeys.Error] = "Email é obrigatório.";
+                if (isAjax)
+                    return Json(new { success = false, error = "Informe o e-mail e o CPF ou CNPJ cadastrado." });
+
+                ViewData[ViewDataKeys.Error] = "Informe o e-mail e o CPF ou CNPJ cadastrado.";
                 return View();
             }
-            var success = await _authService.RequestPasswordResetAsync(email);
-            if (success)
-            {
-                ViewData[ViewDataKeys.Success] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha em alguns minutos.";
-            }
-            else
-            {
-                ViewData[ViewDataKeys.Success] = "Se o email existir em nosso sistema, você receberá instruções para redefinir sua senha.";
-            }
+
+            // Valida e-mail + CPF/CNPJ antes de enviar o link — previne redefinição indevida
+            await _authService.RequestCommercialPasswordResetAsync(email.Trim(), taxId.Trim());
+
+            // Mensagem genérica independente do resultado (não revela se o e-mail/CPF/CNPJ existe)
+            const string successMsg = "Se os dados informados corresponderem a um cadastro, você receberá um e-mail com o link para redefinir sua senha em instantes.";
+
+            if (isAjax)
+                return Json(new { success = true, message = successMsg });
+
+            ViewData[ViewDataKeys.Success] = successMsg;
             return View();
         }
         [HttpGet]
-        public IActionResult ResetPassword(string? token = null)
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword(string? token = null, CancellationToken cancellationToken = default)
         {
-            if (User.Identity?.IsAuthenticated == true)
+            // Quando há token, sempre exibir a página (inclusive para usuários já autenticados
+            // que receberam o link de boas-vindas por e-mail e ainda precisam definir a senha).
+            if (User.Identity?.IsAuthenticated == true && string.IsNullOrEmpty(token))
             {
                 var role = User.FindFirst(ClaimTypes.Role)?.Value;
                 return RedirectToDashboardByRole(role, null);
             }
             if (string.IsNullOrEmpty(token))
             {
-                ViewData[ViewDataKeys.Error] = "Token de redefinição não fornecido.";
+                ViewData[ViewDataKeys.Error] = "Link de redefinição não fornecido.";
                 return View();
             }
+
+            // Mensagens vindas de redirecionamentos do POST
+            if (TempData[ErrorMessages.TempDataKey] is string err)
+                ViewData[ViewDataKeys.Error] = err;
+            if (TempData[SuccessMessage.TempDataKey] is string ok)
+                ViewData[ViewDataKeys.Success] = ok;
+
+            ViewBag.RequireTaxId = await _authService.DoesResetTokenRequireTaxIdAsync(token);
             return View();
         }
+
         [HttpPost]
-        public async Task<IActionResult> ResetPassword(string token, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(
+            string token, string newPassword, string confirmPassword,
+            string? taxId = null, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(token))
             {
-                ViewData[ViewDataKeys.Error] = "Token de redefinição não fornecido.";
-                return View();
+                TempData[ErrorMessages.TempDataKey] = "Link de redefinição não fornecido.";
+                return RedirectToAction(ActionNames.Login);
             }
+
             if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6)
             {
-                ViewData[ViewDataKeys.Error] = "A senha deve ter no mínimo 6 caracteres.";
-                return View();
+                TempData[ErrorMessages.TempDataKey] = "A senha deve ter no mínimo 6 caracteres.";
+                return RedirectToAction(ActionNames.ResetPassword, new { token });
             }
             if (newPassword != confirmPassword)
             {
-                ViewData[ViewDataKeys.Error] = "As senhas não coincidem.";
-                return View();
+                TempData[ErrorMessages.TempDataKey] = "As senhas não coincidem.";
+                return RedirectToAction(ActionNames.ResetPassword, new { token });
             }
-            var success = await _authService.ResetPasswordAsync(token, newPassword);
-            if (success)
+
+            var result = await _authService.ResetPasswordWithTaxValidationAsync(token, taxId, newPassword);
+            if (!result.Success)
             {
-                ViewData[ViewDataKeys.Success] = "Senha redefinida com sucesso! Você já pode fazer login com sua nova senha.";
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+                return RedirectToAction(ActionNames.ResetPassword, new { token });
             }
-            else
-            {
-                ViewData[ViewDataKeys.Error] = "Token inválido ou expirado. Solicite um novo link de redefinição.";
-            }
-            return View();
+
+            TempData[SuccessMessage.TempDataKey] = User.Identity?.IsAuthenticated == true
+                ? "Senha definida com sucesso!"
+                : "Senha definida com sucesso! Você já pode fazer login.";
+            return RedirectToAction(ActionNames.ResetPassword, new { token });
         }
         [HttpGet]
         public async Task<IActionResult> VerifyEmail(string? token = null, string? returnUrl = null, CancellationToken cancellationToken = default)
@@ -504,5 +553,6 @@ namespace KlyonHubPlatform.Api.Controllers
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.PasswordChanged;
             return Redirect(returnUrl);
         }
+
     }
 }

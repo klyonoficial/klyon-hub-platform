@@ -1,0 +1,1231 @@
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Domain.Core.Constants
+@{
+    ViewData[ViewDataKeys.Title] = "Detalhes do Endereço";
+    Layout = LayoutPaths.LandingLayout;
+}
+
+@model KlyonHubPlatform.Domain.Entities.CoworkingAddress
+
+@{
+    var photos = ViewBag.Photos as List<KlyonHubPlatform.Domain.Entities.CoworkingPhoto>
+                 ?? new List<KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
+    var fiscalOnboardingUrl = ViewBag.FiscalOnboardingUrl as string ?? "#";
+    var commercialOnboardingUrl = ViewBag.CommercialOnboardingUrl as string ?? "#";
+    var chooseLocationUrl = ViewBag.ChooseLocationUrl as string ?? Url.Action(ActionNames.ChooseLocation, ControllerNames.Client);
+
+    var tradeName = !string.IsNullOrWhiteSpace(Model.Coworking?.TradeName)
+        ? Model.Coworking.TradeName
+        : Model.Coworking?.Name ?? "Coworking";
+    var locationLabel = Model.Location != null
+        ? $"{Model.Location.City}/{Model.Location.State}"
+        : $"{Model.City}/{Model.State}";
+    var yearlyPrice = Model.BasePrice;
+    var monthlyEquivalent = yearlyPrice / 12;
+    var vacancies = Model.MaxContracts - Model.CurrentContracts;
+    var fullAddress = $"{Model.Address}, {Model.Number}"
+        + (!string.IsNullOrEmpty(Model.Complement) ? $", {Model.Complement}" : "")
+        + $" — {Model.Neighborhood}, {Model.City}/{Model.State} — CEP {Model.ZipCode}";
+    var hasPhotos = photos.Any();
+    var mainPhoto = photos.FirstOrDefault(p => p.IsMain) ?? photos.FirstOrDefault();
+    var description = Model.Coworking?.Description;
+}
+
+<style>
+/* ============ Address Detail Landing — Klyon ============ */
+.ad-back-btn {
+    position: fixed;
+    top: 80px;
+    left: 24px;
+    z-index: 1000;
+    background: rgba(5,19,35,0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    border-radius: 50px;
+    padding: 8px 18px 8px 14px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s ease;
+}
+.ad-back-btn:hover { color: #c69844; border-color: #c69844; }
+
+/* ---- Hero ---- */
+.ad-hero {
+    padding: 100px 0 0;
+    background: linear-gradient(160deg, #051323 0%, #0a1f3a 60%, #051323 100%);
+    position: relative;
+    overflow: hidden;
+}
+.ad-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 60% 20%, rgba(45,107,163,0.2), transparent);
+    pointer-events: none;
+}
+.ad-hero-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+}
+@@media (max-width: 900px) {
+    .ad-hero-inner { grid-template-columns: 1fr; gap: 40px; }
+    .ad-hero { padding-top: 80px; }
+}
+.ad-hero-meta {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #c69844;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ad-hero-title {
+    font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+    font-weight: 700;
+    color: #f8fafc;
+    line-height: 1.2;
+    margin-bottom: 16px;
+}
+.ad-hero-address {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+.ad-price-box {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.ad-price-yearly {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1;
+}
+.ad-price-yearly small { font-size: 0.9rem; color: #94a3b8; font-weight: 400; }
+.ad-price-monthly {
+    font-size: 0.9rem;
+    color: #10b981;
+    font-weight: 600;
+    padding: 4px 10px;
+    background: rgba(16,185,129,0.12);
+    border-radius: 20px;
+}
+.ad-badge-vacancy {
+    font-size: 0.8rem;
+    color: #fbbf24;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(251,191,36,0.1);
+    border: 1px solid rgba(251,191,36,0.25);
+    border-radius: 20px;
+    width: fit-content;
+}
+
+/* Photo carousel */
+.ad-carousel-wrap {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    background: #0a1f3a;
+    height: 380px;
+}
+.ad-carousel-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ad-carousel-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.3);
+    gap: 12px;
+}
+.ad-carousel-empty i { font-size: 4rem; }
+.ad-carousel-empty span { font-size: 0.9rem; }
+.ad-carousel-dots {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+}
+.ad-carousel-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.4);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+}
+.ad-carousel-dot.active { background: #c69844; width: 20px; border-radius: 4px; }
+.ad-carousel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: #fff;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    backdrop-filter: blur(4px);
+}
+.ad-carousel-nav:hover { background: rgba(0,0,0,0.75); }
+.ad-carousel-nav.prev { left: 12px; }
+.ad-carousel-nav.next { right: 12px; }
+
+/* CTA bar */
+.ad-cta-bar {
+    background: rgba(255,255,255,0.04);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 28px 0;
+    margin-top: 60px;
+}
+.ad-cta-bar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.ad-cta-bar-text { color: #94a3b8; font-size: 0.95rem; }
+.ad-cta-bar-text strong { color: #f8fafc; }
+.ad-cta-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ---- Section base ---- */
+.ad-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 72px 24px;
+}
+.ad-section-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #1a4d7a;
+    margin-bottom: 12px;
+}
+.ad-section-title {
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 16px;
+    line-height: 1.25;
+}
+.ad-section-subtitle {
+    color: #94a3b8;
+    font-size: 1.05rem;
+    max-width: 600px;
+    margin-bottom: 48px;
+    line-height: 1.7;
+}
+
+/* ---- Decision Guide ---- */
+.ad-guide {
+    background: linear-gradient(160deg, #0a1f3a 0%, #051323 100%);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ad-guide-question-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto 48px;
+}
+.ad-guide-question-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+.ad-guide-question-text {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 8px;
+}
+.ad-guide-question-sub {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-bottom: 28px;
+}
+.ad-guide-btn-group { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.ad-guide-btn {
+    padding: 14px 32px;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: #f8fafc;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.ad-guide-btn:hover { border-color: #1a4d7a; background: rgba(26,77,122,0.2); }
+.ad-guide-btn.selected-sim { border-color: #f97316; background: rgba(249,115,22,0.15); color: #fb923c; }
+.ad-guide-btn.selected-nao { border-color: #10b981; background: rgba(16,185,129,0.15); color: #34d399; }
+
+/* Result cards */
+.ad-result {
+    display: none;
+    animation: adFadeIn 0.4s ease;
+}
+.ad-result.visible { display: block; }
+@@keyframes adFadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.ad-result-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@@media (max-width: 768px) { .ad-result-cards { grid-template-columns: 1fr; } }
+
+.ad-result-card {
+    border-radius: 20px;
+    padding: 32px;
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+.ad-result-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.06;
+    pointer-events: none;
+}
+.ad-result-card.recommended {
+    border-color: rgba(16,185,129,0.5);
+    background: rgba(16,185,129,0.06);
+}
+.ad-result-card.recommended::before { background: #10b981; }
+.ad-result-card.not-recommended {
+    border-color: rgba(249,115,22,0.3);
+    background: rgba(249,115,22,0.04);
+}
+.ad-result-card.not-recommended::before { background: #f97316; }
+.ad-result-card-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+}
+.badge-recommended { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.badge-not-recommended { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+.ad-result-card-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.ad-result-card-title { font-size: 1.3rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+.ad-result-card-desc { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.6; }
+.ad-result-card-list {
+    list-style: none;
+    padding: 0; margin: 0 0 24px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.ad-result-card-list li {
+    font-size: 0.88rem;
+    color: #cbd5e1;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+.ad-result-card-list li .check { color: #10b981; flex-shrink: 0; margin-top: 1px; }
+.ad-result-card-list li .cross { color: #ef4444; flex-shrink: 0; margin-top: 1px; }
+
+/* ---- Comparison Table ---- */
+.ad-compare {
+    background: #051323;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.ad-compare-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.92rem;
+}
+.ad-compare-table th {
+    padding: 20px 24px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 2px solid rgba(255,255,255,0.08);
+}
+.ad-compare-table th.col-fiscal { color: #10b981; }
+.ad-compare-table th.col-comercial { color: #f97316; }
+.ad-compare-table td {
+    padding: 16px 24px;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    vertical-align: middle;
+}
+.ad-compare-table td:first-child { color: #94a3b8; font-size: 0.88rem; }
+.ad-compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+.ad-compare-table .check-yes { color: #10b981; font-weight: 600; }
+.ad-compare-table .check-no { color: #ef4444; }
+.ad-compare-table .check-partial { color: #fbbf24; }
+.ad-compare-header {
+    text-align: center;
+    padding: 20px 24px;
+    border-radius: 12px 12px 0 0;
+}
+.ad-compare-header.fiscal-head { background: rgba(16,185,129,0.1); color: #34d399; }
+.ad-compare-header.comercial-head { background: rgba(249,115,22,0.08); color: #fb923c; }
+.ad-compare-header-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+.ad-compare-header-sub { font-size: 0.8rem; opacity: 0.8; }
+.compare-wrapper {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ---- Benefits ---- */
+.ad-benefits {
+    background: linear-gradient(160deg, #0a1f3a 0%, #051323 100%);
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.ad-benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+.ad-benefit-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+.ad-benefit-card:hover {
+    border-color: rgba(198,152,68,0.3);
+    background: rgba(198,152,68,0.05);
+    transform: translateY(-2px);
+}
+.ad-benefit-icon {
+    font-size: 1.8rem;
+    margin-bottom: 12px;
+    display: block;
+}
+.ad-benefit-title { font-size: 0.95rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px; }
+.ad-benefit-desc { font-size: 0.83rem; color: #64748b; line-height: 1.6; }
+
+/* ---- Matrix/Filial Scenario ---- */
+.ad-scenario {
+    background: #051323;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.ad-scenario-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.ad-scenario-text {
+    color: #94a3b8;
+    font-size: 1rem;
+    line-height: 1.75;
+    text-align: center;
+    margin-bottom: 36px;
+}
+.ad-scenario-text em { color: #f8fafc; font-style: normal; font-weight: 600; }
+.ad-scenario-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+.ad-scenario-node {
+    background: rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 20px 28px;
+    text-align: center;
+    min-width: 200px;
+    border: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+}
+.ad-scenario-node.node-fiscal { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.07); }
+.ad-scenario-node.node-filial { border-color: rgba(249,115,22,0.4); background: rgba(249,115,22,0.07); }
+.ad-scenario-node-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.node-fiscal .ad-scenario-node-label { color: #34d399; }
+.node-filial .ad-scenario-node-label { color: #fb923c; }
+.ad-scenario-node-cnpj {
+    font-size: 0.85rem;
+    font-family: monospace;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+.ad-scenario-node-desc { font-size: 0.82rem; color: #64748b; }
+.ad-scenario-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 20px;
+    gap: 4px;
+    color: #334155;
+}
+.ad-scenario-arrow i { font-size: 1.5rem; }
+.ad-scenario-arrow span { font-size: 0.7rem; color: #475569; }
+
+/* ---- FAQ ---- */
+.ad-faq {
+    background: linear-gradient(160deg, #0a1f3a 0%, #051323 100%);
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.ad-faq-list { display: flex; flex-direction: column; gap: 12px; max-width: 820px; }
+.ad-faq-item {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.ad-faq-item:hover { border-color: rgba(198,152,68,0.25); }
+.ad-faq-q {
+    width: 100%;
+    background: none;
+    border: none;
+    color: #f8fafc;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 18px 24px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+.ad-faq-q .faq-icon { flex-shrink: 0; color: #94a3b8; font-size: 1.1rem; transition: transform 0.25s; }
+.ad-faq-item.open .faq-icon { transform: rotate(45deg); color: #c69844; }
+.ad-faq-a { display: none; padding: 0 24px 18px; color: #94a3b8; font-size: 0.9rem; line-height: 1.75; }
+.ad-faq-item.open .ad-faq-a { display: block; }
+
+/* ---- Final CTA ---- */
+.ad-final-cta {
+    background: linear-gradient(135deg, #0a1f3a 0%, #051323 50%, #0a1f3a 100%);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    text-align: center;
+}
+.ad-final-cta-subtitle {
+    color: #94a3b8;
+    font-size: 1rem;
+    max-width: 560px;
+    margin: 0 auto 36px;
+    line-height: 1.75;
+}
+.ad-final-btns {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ---- Buttons ---- */
+.btn-ad-fiscal {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    background: linear-gradient(135deg, #1a4d7a 0%, #2d6ba3 100%);
+    color: #fff;
+    border: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 20px rgba(26,77,122,0.4);
+    cursor: pointer;
+}
+.btn-ad-fiscal:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(26,77,122,0.5); color: #fff; }
+
+.btn-ad-comercial {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    background: rgba(255,255,255,0.06);
+    color: #f8fafc;
+    border: 2px solid rgba(255,255,255,0.15);
+    transition: all 0.25s ease;
+    cursor: pointer;
+}
+.btn-ad-comercial:hover {
+    background: rgba(249,115,22,0.12);
+    border-color: rgba(249,115,22,0.5);
+    color: #fb923c;
+    transform: translateY(-2px);
+}
+
+.btn-ad-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.25s ease;
+    cursor: pointer;
+}
+.btn-ad-outline:hover { border-color: rgba(255,255,255,0.3); color: #f8fafc; }
+
+.divider-glow {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(26,77,122,0.5), rgba(198,152,68,0.3), transparent);
+    margin: 0;
+}
+</style>
+
+<!-- Botão Voltar -->
+<a href="@chooseLocationUrl" class="ad-back-btn">
+    <i class="bi bi-arrow-left"></i> Voltar à lista
+</a>
+
+<!-- ======================== HERO ======================== -->
+<section class="ad-hero">
+    <div class="ad-hero-inner">
+        <!-- Info -->
+        <div>
+            <div class="ad-hero-meta">
+                <i class="bi bi-geo-alt-fill"></i>
+                @tradeName &middot; @locationLabel
+            </div>
+            <h1 class="ad-hero-title">
+                @Model.Address, @Model.Number
+                @if (!string.IsNullOrEmpty(Model.Complement))
+                {
+                    <span style="color:#94a3b8; font-size:0.7em; font-weight:400;"> @Model.Complement</span>
+                }
+            </h1>
+            <div class="ad-hero-address">
+                <i class="bi bi-building" style="color:#1a4d7a; flex-shrink:0; margin-top:2px;"></i>
+                <span>@Model.Neighborhood, @Model.City / @Model.State &mdash; CEP @Model.ZipCode</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(description))
+            {
+                <p style="color:#94a3b8; font-size:0.93rem; line-height:1.7; margin-bottom:24px; max-width:480px;">@description</p>
+            }
+
+            <div class="ad-price-box">
+                <div>
+                    <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">A partir de</div>
+                    <div class="ad-price-yearly">
+                        R$ @yearlyPrice.ToString("N2") <small>/ano</small>
+                    </div>
+                </div>
+                <div class="ad-price-monthly">
+                    <i class="bi bi-tag-fill me-1"></i>Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
+                </div>
+            </div>
+
+            @if (vacancies > 0 && vacancies <= 5)
+            {
+                <div class="ad-badge-vacancy">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Apenas @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")
+                </div>
+            }
+            else if (vacancies <= 0)
+            {
+                <div class="ad-badge-vacancy" style="color:#ef4444; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25);">
+                    <i class="bi bi-x-circle-fill"></i> Sem vagas disponíveis no momento
+                </div>
+            }
+        </div>
+
+        <!-- Carrossel de Fotos -->
+        <div>
+            <div class="ad-carousel-wrap" id="adCarousel">
+                @if (hasPhotos)
+                {
+                    foreach (var photo in photos)
+                    {
+                        <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })"
+                             alt="Foto do local"
+                             class="ad-carousel-slide"
+                             style="display:none; width:100%; height:100%; object-fit:cover;"
+                             onerror="this.style.display='none'; document.getElementById('adCarouselEmpty').style.display='flex';" />
+                    }
+                    <div class="ad-carousel-empty" id="adCarouselEmpty" style="display:none;">
+                        <i class="bi bi-image"></i>
+                        <span>Foto não disponível</span>
+                    </div>
+                    @if (photos.Count > 1)
+                    {
+                        <button class="ad-carousel-nav prev" id="adPrev" aria-label="Foto anterior"><i class="bi bi-chevron-left"></i></button>
+                        <button class="ad-carousel-nav next" id="adNext" aria-label="Próxima foto"><i class="bi bi-chevron-right"></i></button>
+                        <div class="ad-carousel-dots" id="adDots">
+                            @for (int i = 0; i < photos.Count; i++)
+                            {
+                                <button class="ad-carousel-dot @(i == 0 ? "active" : "")" data-idx="@i" aria-label="Foto @(i+1)"></button>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="ad-carousel-empty">
+                        <i class="bi bi-building"></i>
+                        <span>@tradeName</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- CTA Bar dentro do Hero -->
+    <div class="ad-cta-bar">
+        <div class="ad-cta-bar-inner">
+            <div class="ad-cta-bar-text">
+                <strong>Pronto para contratar?</strong> Escolha o tipo de endereço que melhor atende sua empresa.
+            </div>
+            <div class="ad-cta-btns">
+                <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal">
+                    <i class="bi bi-bank"></i> Quero Endereço Fiscal
+                </a>
+                <a href="@commercialOnboardingUrl" class="btn-ad-comercial">
+                    <i class="bi bi-briefcase"></i> Quero Endereço Comercial
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== GUIA DE DECISÃO ======================== -->
+<section class="ad-guide">
+    <div class="ad-section">
+        <div style="text-align:center; margin-bottom:48px;">
+            <div class="ad-section-label" style="justify-content:center; display:flex;">Guia Rápido</div>
+            <div class="ad-section-title" style="text-align:center;">Qual endereço é ideal para você?</div>
+            <div class="ad-section-subtitle" style="margin:0 auto 0;">Responda uma pergunta e descubra em segundos.</div>
+        </div>
+
+        <!-- Pergunta -->
+        <div class="ad-guide-question-card" id="guideQuestion">
+            <div class="ad-guide-question-icon">📦</div>
+            <div class="ad-guide-question-text">Sua empresa tem, ou pretende ter, <strong>estoque físico</strong>?</div>
+            <div class="ad-guide-question-sub">Estoque físico = mercadorias, produtos para venda ou distribuição guardados em algum local.</div>
+            <div class="ad-guide-btn-group">
+                <button class="ad-guide-btn" id="btnSim" onclick="showGuide('sim')">
+                    <i class="bi bi-check-circle"></i> SIM, tenho estoque
+                </button>
+                <button class="ad-guide-btn" id="btnNao" onclick="showGuide('nao')">
+                    <i class="bi bi-x-circle"></i> NÃO tenho estoque
+                </button>
+            </div>
+        </div>
+
+        <!-- Resultado SIM -->
+        <div class="ad-result" id="result-sim">
+            <div class="ad-result-cards">
+                <div class="ad-result-card not-recommended">
+                    <span class="ad-result-card-badge badge-not-recommended">Não recomendado para CNPJ</span>
+                    <div class="ad-result-card-icon">🏢</div>
+                    <div class="ad-result-card-title">Endereço Fiscal</div>
+                    <div class="ad-result-card-desc">
+                        Empresas com estoque precisam que o CNPJ fique no local onde a operação acontece de fato.
+                        Usar nosso endereço como sede fiscal pode gerar problemas na prefeitura.
+                    </div>
+                    <ul class="ad-result-card-list">
+                        <li><i class="bi bi-x-circle-fill cross"></i> CNPJ com estoque não pode usar endereço virtual como sede</li>
+                        <li><i class="bi bi-x-circle-fill cross"></i> Risco de autuação fiscal e cancelamento do CNPJ</li>
+                        <li><i class="bi bi-x-circle-fill cross"></i> CNAEs de comércio não são permitidos para endereço fiscal virtual</li>
+                    </ul>
+                </div>
+                <div class="ad-result-card recommended">
+                    <span class="ad-result-card-badge badge-recommended">Recomendado para você</span>
+                    <div class="ad-result-card-icon">📍</div>
+                    <div class="ad-result-card-title">Endereço Comercial</div>
+                    <div class="ad-result-card-desc">
+                        Use nosso endereço para dar uma imagem profissional à sua empresa: cartão de visita, site, reuniões — sem precisar colocar no CNPJ.
+                    </div>
+                    <ul class="ad-result-card-list">
+                        <li><i class="bi bi-check-circle-fill check"></i> Endereço premium no cartão de visita e site</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Recebimento de correspondências e encomendas</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Apoio administrativo e atendimento presencial</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Acesso a salas de reunião (mediante contratação)</li>
+                    </ul>
+                    <a href="@commercialOnboardingUrl" class="btn-ad-comercial" style="width:100%; justify-content:center;">
+                        <i class="bi bi-briefcase"></i> Contratar Endereço Comercial
+                    </a>
+                </div>
+            </div>
+            <div style="text-align:center; margin-top:20px;">
+                <button class="btn-ad-outline" onclick="resetGuide()"><i class="bi bi-arrow-counterclockwise"></i> Refazer</button>
+            </div>
+        </div>
+
+        <!-- Resultado NÃO -->
+        <div class="ad-result" id="result-nao">
+            <div class="ad-result-cards">
+                <div class="ad-result-card recommended">
+                    <span class="ad-result-card-badge badge-recommended">Ideal para você</span>
+                    <div class="ad-result-card-icon">🏢</div>
+                    <div class="ad-result-card-title">Endereço Fiscal</div>
+                    <div class="ad-result-card-desc">
+                        Perfeito para prestadores de serviço! Use nosso endereço diretamente no seu CNPJ com documentação completa e suporte Klyon.
+                    </div>
+                    <ul class="ad-result-card-list">
+                        <li><i class="bi bi-check-circle-fill check"></i> Use no CNPJ — sede oficial da sua empresa</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Documentação inclusa (IPTU, alvará, etc.)</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Aceito para prestadores de serviço (CNAEs de serviço)</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Suporte Klyon</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Recebimento de correspondências</li>
+                    </ul>
+                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center;">
+                        <i class="bi bi-bank"></i> Contratar Endereço Fiscal
+                    </a>
+                </div>
+                <div class="ad-result-card" style="border-color:rgba(255,255,255,0.1); background:rgba(255,255,255,0.03);">
+                    <div class="ad-result-card-icon" style="opacity:0.5;">📍</div>
+                    <div class="ad-result-card-title" style="color:#64748b;">Endereço Comercial</div>
+                    <div class="ad-result-card-desc">
+                        Pode ser contratado como complemento, mas não é necessário se você já tem o Endereço Fiscal — ele já inclui uso para cartão de visita e site.
+                    </div>
+                    <ul class="ad-result-card-list">
+                        <li><i class="bi bi-dash-circle" style="color:#475569; flex-shrink:0;"></i> <span style="color:#475569;">Não coloca no CNPJ</span></li>
+                        <li><i class="bi bi-dash-circle" style="color:#475569; flex-shrink:0;"></i> <span style="color:#475569;">Não inclui documentos</span></li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Pode ser usado para cartão de visita e site</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="text-align:center; margin-top:20px;">
+                <button class="btn-ad-outline" onclick="resetGuide()"><i class="bi bi-arrow-counterclockwise"></i> Refazer</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== COMPARATIVO ======================== -->
+<section class="ad-compare">
+    <div class="ad-section">
+        <div class="ad-section-label">Comparativo</div>
+        <div class="ad-section-title">Fiscal <span style="color:#334155;">vs</span> Comercial</div>
+        <div class="ad-section-subtitle">Entenda as diferenças antes de escolher. Sem letras miúdas.</div>
+
+        <div class="compare-wrapper">
+            <table class="ad-compare-table">
+                <thead>
+                    <tr>
+                        <th style="width:40%; background:rgba(255,255,255,0.02);">Características</th>
+                        <th class="col-fiscal" style="background:rgba(16,185,129,0.06);">
+                            <div class="ad-compare-header fiscal-head">
+                                <div class="ad-compare-header-title">🏢 Endereço Fiscal</div>
+                                <div class="ad-compare-header-sub">Para quem presta serviços</div>
+                            </div>
+                        </th>
+                        <th class="col-comercial" style="background:rgba(249,115,22,0.04);">
+                            <div class="ad-compare-header comercial-head">
+                                <div class="ad-compare-header-title">📍 Endereço Comercial</div>
+                                <div class="ad-compare-header-sub">Para apoio e imagem</div>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Usar no CNPJ como sede</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Sim</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não</span></td>
+                    </tr>
+                    <tr>
+                        <td>Empresas sem estoque</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Ideal</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-partial"><i class="bi bi-dash-circle-fill"></i> Disponível</span></td>
+                    </tr>
+                    <tr>
+                        <td>Empresas com estoque</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não permitido</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Recomendado</span></td>
+                    </tr>
+                    <tr>
+                        <td>Documentos (IPTU, Alvará)</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Incluso</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não incluso</span></td>
+                    </tr>
+                    <tr>
+                        <td>Cartão de visita e site</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Sim</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Sim</span></td>
+                    </tr>
+                    <tr>
+                        <td>Recebimento de correspondência</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Sim</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Sim</span></td>
+                    </tr>
+                    <tr>
+                        <td>CNAEs de prestação de serviço</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Aceito</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-partial"><i class="bi bi-dash-circle-fill"></i> Não aplicável</span></td>
+                    </tr>
+                    <tr>
+                        <td>Pode ser fiscalizado pela prefeitura</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-partial"><i class="bi bi-exclamation-circle-fill" style="color:#fbbf24;"></i> Sim — sem estoque</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não se aplica</span></td>
+                    </tr>
+                    <tr>
+                        <td>Suporte Klyon</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Incluso</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Incluso</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== BENEFÍCIOS ======================== -->
+<section class="ad-benefits">
+    <div class="ad-section">
+        <div class="ad-section-label">O que está incluso</div>
+        <div class="ad-section-title">Tudo que você precisa para operar com profissionalismo</div>
+        <div class="ad-section-subtitle">Seja qual for o plano escolhido, esses são os pilares do seu contrato.</div>
+
+        <div class="ad-benefits-grid">
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">📬</span>
+                <div class="ad-benefit-title">Recebimento de Correspondência</div>
+                <div class="ad-benefit-desc">Receba cartas, documentos e encomendas no endereço. Notificação digital quando chegar.</div>
+            </div>
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">🏛️</span>
+                <div class="ad-benefit-title">Endereço Profissional</div>
+                <div class="ad-benefit-desc">Use no cartão de visita, assinatura de e-mail, site e redes sociais com credibilidade.</div>
+            </div>
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">🤝</span>
+                <div class="ad-benefit-title">Apoio Administrativo</div>
+                <div class="ad-benefit-desc">Equipe do parceiro disponível para recepcionar clientes e apoiar no dia a dia.</div>
+            </div>
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">📋</span>
+                <div class="ad-benefit-title">Documentação Oficial</div>
+                <div class="ad-benefit-desc">Para Endereço Fiscal: IPTU, Alvará e documentos exigidos para abertura e manutenção do CNPJ.</div>
+            </div>
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">🛡️</span>
+                <div class="ad-benefit-title">Suporte Klyon</div>
+                <div class="ad-benefit-desc">Nossa equipe garante a regularidade do endereço e auxilia sempre que precisar.</div>
+            </div>
+            <div class="ad-benefit-card">
+                <span class="ad-benefit-icon">🏢</span>
+                <div class="ad-benefit-title">Salas de Reunião</div>
+                <div class="ad-benefit-desc">Realize reuniões presenciais no local mediante contratação avulsa por hora.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== CENÁRIO MATRIZ/FILIAL ======================== -->
+<section class="ad-scenario">
+    <div class="ad-section">
+        <div class="ad-section-label">Solução para empresas com estoque</div>
+        <div class="ad-section-title">Tem estoque? Use nosso endereço como Sede Fiscal — com Filial operacional</div>
+        <div class="ad-section-subtitle">
+            Muitas empresas adotam a estrutura Matriz + Filial para manter a regularidade fiscal e a operação separadas.
+        </div>
+
+        <div class="ad-scenario-box">
+            <p class="ad-scenario-text">
+                Se a sua empresa tem estoque físico, o endereço no CNPJ precisa ser onde a
+                <em>operação acontece de fato</em>. Porém, nossa estrutura pode ser usada como
+                <em>sede administrativa</em> da empresa (Matriz), enquanto o estoque e a operação
+                ficam na Filial — cada um com seu CNPJ.
+            </p>
+
+            <div class="ad-scenario-diagram">
+                <div class="ad-scenario-node node-fiscal">
+                    <div class="ad-scenario-node-label">Matriz (Sede Fiscal)</div>
+                    <div class="ad-scenario-node-cnpj">00.000.000/0001-00</div>
+                    <div class="ad-scenario-node-desc">
+                        <span style="color:#34d399; font-weight:600;">Nosso endereço</span><br>
+                        Gestão, administração<br>e CNPJ da empresa
+                    </div>
+                </div>
+                <div class="ad-scenario-arrow">
+                    <i class="bi bi-arrow-right-short"></i>
+                    <span>+ Filial</span>
+                </div>
+                <div class="ad-scenario-node node-filial">
+                    <div class="ad-scenario-node-label">Filial (Operação)</div>
+                    <div class="ad-scenario-node-cnpj">00.000.000/0002-00</div>
+                    <div class="ad-scenario-node-desc">
+                        <span style="color:#fb923c; font-weight:600;">Seu endereço</span><br>
+                        Estoque, produção<br>e operação física
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:32px; padding:20px; background:rgba(198,152,68,0.08); border:1px solid rgba(198,152,68,0.2); border-radius:12px; text-align:center;">
+                <p style="color:#c69844; font-size:0.88rem; margin:0; line-height:1.7;">
+                    <i class="bi bi-lightbulb-fill me-2"></i>
+                    <strong>Dica:</strong> Consulte um contador para verificar se essa estrutura é adequada para o seu modelo de negócio.
+                    Cada CNAE e atividade tem regras específicas.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== FAQ ======================== -->
+<section class="ad-faq">
+    <div class="ad-section">
+        <div class="ad-section-label">Dúvidas Frequentes</div>
+        <div class="ad-section-title">Perguntas que todo cliente faz</div>
+
+        <div class="ad-faq-list">
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    Posso usar o endereço fiscal se vendo produtos físicos?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Depende. Se você vende online e não tem estoque físico (dropshipping ou marketplace), pode ser possível com prestação de serviços. Mas se você armazena mercadoria, o CNPJ deve ficar no local do estoque. Consulte um contador e entre em contato com nossa equipe para analisar seu caso.
+                </div>
+            </div>
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    O endereço comercial pode aparecer no CNPJ?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Não. O Endereço Comercial é apenas para uso em cartão de visita, site e comunicações da empresa. Não fornecemos documentos (IPTU, alvará) para esse serviço e ele não deve ser declarado na Receita Federal como sede da empresa.
+                </div>
+            </div>
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    Quais documentos são fornecidos para o Endereço Fiscal?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Para o Endereço Fiscal, fornecemos os documentos necessários para regularização na prefeitura e junto à Receita Federal, como IPTU, comprovante de endereço e alvará de funcionamento (quando aplicável). Os documentos específicos variam conforme o município.
+                </div>
+            </div>
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    Minha empresa pode abrir CNPJ já usando esse endereço?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Sim! Você não precisa ter CNPJ para contratar. Se ainda não tem CNPJ, pode usar nosso endereço fiscal durante a abertura da empresa. Ao contratar, você informa se já possui CNPJ ou se irá abrir — e preparamos o contrato no CPF ou no CNPJ conforme seu caso.
+                </div>
+            </div>
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    O contrato é anual? Posso cancelar antes?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    O contrato é anual com reajuste no IPCA. Cancelamentos antecipados podem estar sujeitos a multa contratual conforme previsto no contrato. Consulte nossos termos ou entre em contato para esclarecer dúvidas sobre cancelamento.
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider-glow"></div>
+
+<!-- ======================== CTA FINAL ======================== -->
+<section class="ad-final-cta">
+    <div class="ad-section" style="text-align:center;">
+        <div class="ad-section-label" style="justify-content:center; display:flex;">Pronto para começar?</div>
+        <div class="ad-section-title" style="text-align:center;">
+            Escolha o endereço certo<br>
+            <span style="color:#1a4d7a;">para a sua empresa crescer.</span>
+        </div>
+        <p class="ad-final-cta-subtitle">
+            Sem burocracia excessiva. Contrato digital, pagamento online e suporte da Klyon do começo ao fim.
+        </p>
+        <div class="ad-final-btns">
+            <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;">
+                <i class="bi bi-bank"></i>
+                Quero Endereço Fiscal
+                <span style="font-size:0.8rem; opacity:0.8; font-weight:400;">— Para meu CNPJ</span>
+            </a>
+            <a href="@commercialOnboardingUrl" class="btn-ad-comercial" style="padding:16px 40px; font-size:1rem;">
+                <i class="bi bi-briefcase"></i>
+                Quero Endereço Comercial
+                <span style="font-size:0.8rem; opacity:0.8; font-weight:400;">— Para minha imagem</span>
+            </a>
+        </div>
+        <div style="margin-top:24px;">
+            <a href="@chooseLocationUrl" class="btn-ad-outline">
+                <i class="bi bi-arrow-left"></i> Ver outros endereços
+            </a>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+<script>
+(function () {
+    /* ---- Carrossel ---- */
+    var slides = document.querySelectorAll('.ad-carousel-slide');
+    var dots = document.querySelectorAll('.ad-carousel-dot');
+    var current = 0;
+    var total = slides.length;
+    var autoTimer = null;
+
+    function showSlide(idx) {
+        if (total === 0) return;
+        slides.forEach(function (s) { s.style.display = 'none'; });
+        dots.forEach(function (d) { d.classList.remove('active'); });
+        current = (idx + total) % total;
+        slides[current].style.display = 'block';
+        if (dots[current]) dots[current].classList.add('active');
+    }
+
+    function startAuto() {
+        if (total <= 1) return;
+        autoTimer = setInterval(function () { showSlide(current + 1); }, 4000);
+    }
+
+    function resetAuto() {
+        clearInterval(autoTimer);
+        startAuto();
+    }
+
+    if (total > 0) {
+        showSlide(0);
+        startAuto();
+
+        var prevBtn = document.getElementById('adPrev');
+        var nextBtn = document.getElementById('adNext');
+        if (prevBtn) prevBtn.addEventListener('click', function () { showSlide(current - 1); resetAuto(); });
+        if (nextBtn) nextBtn.addEventListener('click', function () { showSlide(current + 1); resetAuto(); });
+
+        dots.forEach(function (d) {
+            d.addEventListener('click', function () {
+                showSlide(parseInt(d.getAttribute('data-idx')));
+                resetAuto();
+            });
+        });
+    }
+
+    /* ---- Guia de Decisão ---- */
+    window.showGuide = function (opt) {
+        document.getElementById('result-sim').classList.remove('visible');
+        document.getElementById('result-nao').classList.remove('visible');
+        document.getElementById('btnSim').classList.remove('selected-sim', 'selected-nao');
+        document.getElementById('btnNao').classList.remove('selected-sim', 'selected-nao');
+
+        if (opt === 'sim') {
+            document.getElementById('result-sim').classList.add('visible');
+            document.getElementById('btnSim').classList.add('selected-sim');
+        } else {
+            document.getElementById('result-nao').classList.add('visible');
+            document.getElementById('btnNao').classList.add('selected-nao');
+        }
+
+        setTimeout(function () {
+            var el = document.getElementById('result-' + opt);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    };
+
+    window.resetGuide = function () {
+        document.getElementById('result-sim').classList.remove('visible');
+        document.getElementById('result-nao').classList.remove('visible');
+        document.getElementById('btnSim').classList.remove('selected-sim', 'selected-nao');
+        document.getElementById('btnNao').classList.remove('selected-sim', 'selected-nao');
+        document.getElementById('guideQuestion').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    /* ---- FAQ ---- */
+    window.toggleFaq = function (btn) {
+        var item = btn.closest('.ad-faq-item');
+        var isOpen = item.classList.contains('open');
+        document.querySelectorAll('.ad-faq-item.open').forEach(function (el) { el.classList.remove('open'); });
+        if (!isOpen) item.classList.add('open');
+    };
+
+    /* ---- Loading em links de navegação ---- */
+    document.querySelectorAll('a[href]').forEach(function (link) {
+        var href = (link.getAttribute('href') || '').trim();
+        if (!href || href === '#' || href.startsWith('javascript:')) return;
+        link.addEventListener('click', function (e) {
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // abre nova aba
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
+                window.KlyonLoading.show();
+            }
+        });
+    });
+})();
+</script>
+}

@@ -247,6 +247,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Client).WithMany(c => c.Contracts).HasForeignKey(e => e.ClientId);
                 entity.HasOne(e => e.CoworkingAddress).WithMany().HasForeignKey(e => e.CoworkingAddressId);
+                entity.HasOne(e => e.Service).WithMany().HasForeignKey(e => e.ServiceId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Subscription).WithOne(s => s.Contract).HasForeignKey<Subscription>(s => s.ContractId);
                 entity.HasOne(e => e.AssistedSaleAdmin).WithMany().HasForeignKey(e => e.AssistedSaleAdminId).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");

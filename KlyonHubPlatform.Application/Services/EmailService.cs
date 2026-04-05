@@ -164,6 +164,67 @@ namespace KlyonHubPlatform.Application.Services
 </html>";
             return await SendEmailAsync(to, subject, body, true);
         }
+        public async Task<bool> SendClientWelcomeEmailAsync(string to, string name, string token, string serviceDescription = "Klyon")
+        {
+            var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();
+            var definePasswordUrl = $"{baseUrl}/Auth/ResetPassword?token={token}";
+            var forgotUrl = $"{baseUrl}/Auth/ForgotPassword";
+            var subject = $"Bem-vindo à Klyon! Defina sua senha de acesso";
+            var body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #051323; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+        .header h1 {{ margin: 0; font-size: 22px; }}
+        .content {{ padding: 28px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 14px 28px; background-color: #1a4d7a; color: white !important; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; font-size: 15px; }}
+        .info-box {{ background-color: #e8f4fd; border-left: 4px solid #1a4d7a; padding: 14px; margin: 16px 0; border-radius: 0 6px 6px 0; }}
+        .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 16px 0; border-radius: 0 6px 6px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #888; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Klyon — {serviceDescription}</h1>
+        </div>
+        <div class='content'>
+            <h2>Olá, {name}!</h2>
+            <p>Seu cadastro de <strong>{serviceDescription}</strong> foi criado com sucesso na plataforma Klyon.</p>
+            <p>Para acessar sua conta e acompanhar seus contratos e pagamentos, você precisa <strong>definir sua senha de acesso</strong>. Clique no botão abaixo:</p>
+            <p style='text-align: center;'>
+                <a href='{definePasswordUrl}' class='button'>Definir minha senha</a>
+            </p>
+            <div class='warning'>
+                <strong>⚠️ Atenção:</strong> Este link expira em <strong>72 horas</strong>. Defina sua senha o quanto antes.
+            </div>
+            <div class='info-box'>
+                <strong>Como recuperar o acesso depois:</strong><br>
+                Caso precise redefinir sua senha no futuro, acesse:<br>
+                <a href='{forgotUrl}' style='color:#1a4d7a;'>{forgotUrl}</a><br>
+                Você precisará informar o seu <strong>e-mail</strong> cadastrado e o seu <strong>CPF ou CNPJ</strong>.
+            </div>
+            <div class='info-box' style='margin-top:20px;'>
+                <strong>💬 Ficou com dúvidas?</strong><br>
+                Fale com a nossa equipe pelo WhatsApp:<br>
+                <a href='https://wa.me/5527989030369' style='color:#1a4d7a; font-weight:bold;'>+55 (27) 98903-0369</a>
+            </div>
+            <p>Atenciosamente,<br><strong>Equipe Klyon</strong></p>
+        </div>
+        <div class='footer'>
+            <p>Este é um e-mail automático, por favor não responda.</p>
+            <p>© {DateTime.Now.Year} Klyon. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>";
+            return await SendEmailAsync(to, subject, body, true);
+        }
+
         public async Task<bool> SendContractExpiryNotificationAsync(string to, string clientName, string contractNumber, DateTime expiryDate, int daysRemaining)
         {
             var baseUrl = await _appBaseUrlProvider.GetBaseUrlAsync();

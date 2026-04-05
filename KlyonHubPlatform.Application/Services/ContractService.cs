@@ -83,7 +83,7 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _contractRepository.GetByClientIdAsync(clientId);
         }
-        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null, ContractCardPlanType? cardPlanType = null)
+        public async Task<Contract> CreateContractAsync(int clientId, int coworkingAddressId, decimal monthlyValue, int serviceId, int? assistedSaleAdminId = null, PaymentMethod? initialPaymentMethod = null, ContractCardPlanType? cardPlanType = null)
         {
             var strategy = _context.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
@@ -113,6 +113,7 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         ClientId = clientId,
                         CoworkingAddressId = coworkingAddressId,
+                        ServiceId = serviceId,
                         ContractNumber = await GenerateContractNumberAsync(),
                         StartDate = DateTime.UtcNow,
                         MonthlyValue = monthlyValue,

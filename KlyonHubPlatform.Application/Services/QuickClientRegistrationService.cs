@@ -84,7 +84,13 @@ namespace KlyonHubPlatform.Application.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             var monthlyValueForContract = input.MonthlyValue / 12;
-            var contract = await _contractService.CreateContractAsync(client.Id, input.CoworkingAddressId, monthlyValueForContract, assistedSaleAdminId: adminUserId, null);
+            var fiscalServiceId = await _context.Services.AsNoTracking()
+                .Where(s => s.Code == ServiceCodes.FiscalAddressContracting)
+                .Select(s => (int?)s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!fiscalServiceId.HasValue)
+                return QuickClientRegistrationResult.Fail("ServiceNotFound", "Serviço de endereço fiscal não encontrado. Verifique a configuração do sistema.");
+            var contract = await _contractService.CreateContractAsync(client.Id, input.CoworkingAddressId, monthlyValueForContract, fiscalServiceId.Value, assistedSaleAdminId: adminUserId, null);
 
             var newValues = JsonSerializer.Serialize(new { IsAssistedSale = true, AssistedSaleAdminId = adminUserId, Origin = "VendaAssistida" });
             await _auditService.LogActionAsync(adminUserId, "ContractCreated", "Contract", contract.Id, null, newValues, remoteIp, userAgent);
