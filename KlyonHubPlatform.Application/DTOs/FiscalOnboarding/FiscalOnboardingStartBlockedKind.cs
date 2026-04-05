@@ -7,6 +7,8 @@ namespace KlyonHubPlatform.Application.DTOs.FiscalOnboarding
         /// <summary>CNPJ cadastrado com outro e-mail — orientar login para atualizar contato.</summary>
         EmailMismatchForTaxId = 1,
         /// <summary>Já há adesão/contrato ativo neste endereço fiscal.</summary>
-        AlreadyHasFiscalAddressActive = 2
+        AlreadyHasFiscalAddressActive = 2,
+        /// <summary>E-mail, CPF ou CNPJ já possuem cadastro na plataforma — orientar login.</summary>
+        AlreadyRegistered = 3
     }
 }

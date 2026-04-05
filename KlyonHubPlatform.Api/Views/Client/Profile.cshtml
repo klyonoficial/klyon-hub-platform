@@ -133,8 +133,14 @@
                             zipCodeValue = $"{zipCodeValue.Substring(0, 5)}-{zipCodeValue.Substring(5, 3)}";
                         }
                     }
-                    <input type="text" class="form-control" id="ZipCode" name="ZipCode" value="@zipCodeValue" placeholder="00000-000" maxlength="9" required>
-                    <small class="form-text text-muted">Obrigatório. Necessário para pagamentos com cartão.</small>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="ZipCode" name="ZipCode" value="@zipCodeValue" placeholder="00000-000" maxlength="9" required autocomplete="postal-code">
+                        <span class="input-group-text d-none" id="zipCodeSpinner">
+                            <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
+                        </span>
+                    </div>
+                    <div id="zipCodeFeedback" class="text-danger small mt-1 d-none"></div>
+                    <small class="form-text text-muted">Obrigatório. Necessário para pagamentos com cartão. O endereço será preenchido automaticamente.</small>
                 </div>
             </div>
             <div class="row">
@@ -328,6 +334,84 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof showToast === 'function') showToast('Erro ao processar. Tente novamente.', 'error');
         });
     });
+
+    // ── Busca de endereço por CEP via ViaCEP
+    (function () {
+        var zipInput     = document.getElementById('ZipCode');
+        var zipSpinner   = document.getElementById('zipCodeSpinner');
+        var zipFeedback  = document.getElementById('zipCodeFeedback');
+        var addressInput = document.getElementById('Address');
+        var neighborhoodInput = document.getElementById('Neighborhood');
+        var cityInput    = document.getElementById('City');
+        var stateSelect  = document.getElementById('State');
+
+        if (!zipInput) return;
+
+        function showZipError(msg) {
+            if (zipFeedback) { zipFeedback.textContent = msg; zipFeedback.classList.remove('d-none'); }
+            zipInput.classList.add('is-invalid');
+        }
+        function clearZipError() {
+            if (zipFeedback) { zipFeedback.textContent = ''; zipFeedback.classList.add('d-none'); }
+            zipInput.classList.remove('is-invalid');
+        }
+
+        function fillAddress(data) {
+            if (addressInput    && data.logradouro) addressInput.value    = data.logradouro;
+            if (neighborhoodInput && data.bairro)   neighborhoodInput.value = data.bairro;
+            if (cityInput       && data.localidade) cityInput.value       = data.localidade;
+            if (stateSelect && data.uf) {
+                var opt = stateSelect.querySelector('option[value="' + data.uf + '"]');
+                if (opt) {
+                    stateSelect.value = data.uf;
+                    // Notifica o Select2 (se presente) para atualizar o componente visual
+                    if (typeof $ !== 'undefined' && $(stateSelect).data('select2')) {
+                        $(stateSelect).trigger('change');
+                    } else {
+                        stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            }
+        }
+
+        function fetchCep(cep) {
+            clearZipError();
+            if (zipSpinner) zipSpinner.classList.remove('d-none');
+            fetch('https://viacep.com.br/ws/' + cep + '/json/')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (zipSpinner) zipSpinner.classList.add('d-none');
+                    if (data.erro) {
+                        showZipError('CEP não encontrado. Verifique e tente novamente.');
+                        return;
+                    }
+                    fillAddress(data);
+                })
+                .catch(function () {
+                    if (zipSpinner) zipSpinner.classList.add('d-none');
+                    showZipError('Não foi possível consultar o CEP. Verifique sua conexão.');
+                });
+        }
+
+        var lastFetchedCep = '';
+
+        function fetchCepOnce(digits) {
+            if (digits.length !== 8 || digits === lastFetchedCep) return;
+            lastFetchedCep = digits;
+            fetchCep(digits);
+        }
+
+        zipInput.addEventListener('input', function () {
+            clearZipError();
+            var digits = this.value.replace(/\D/g, '');
+            if (digits.length < 8) lastFetchedCep = ''; // reseta se o usuário apagar
+            fetchCepOnce(digits);
+        });
+
+        zipInput.addEventListener('blur', function () {
+            fetchCepOnce(this.value.replace(/\D/g, ''));
+        });
+    }());
 });
 </script>
 }

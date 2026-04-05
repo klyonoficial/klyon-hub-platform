@@ -23,6 +23,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string SubmitInterest = "SubmitInterest";
         public const string GetAvailability = "GetAvailability";
         public const string ChooseLocation = "ChooseLocation";
+        public const string AddressDetail = "AddressDetail";
+        public const string CommercialOnboardingPayment = "CommercialOnboardingPayment";
         public const string RegisterClient = "RegisterClient";
         public const string Profile = "Profile";
         public const string Services = "Services";
@@ -60,6 +62,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Logout = "Logout";
         public const string ForgotPassword = "ForgotPassword";
         public const string ResetPassword = "ResetPassword";
+        public const string CommercialForgotPassword = "CommercialForgotPassword";
         public const string ChangePasswordRequired = "ChangePasswordRequired";
         public const string VerifyEmail = "VerifyEmail";
         public const string ResendVerification = "ResendVerification";

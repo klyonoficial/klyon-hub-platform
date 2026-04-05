@@ -48,9 +48,19 @@
                                 <option value="CoworkingPartner">Coworking Parceiro</option>
                             </select>
                         </div>
+                        <div class="mb-3 d-none" id="cpfContainer">
+                            <label for="cpf" class="form-label">
+                                CPF <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="cpf" name="cpf"
+                                   placeholder="000.000.000-00" maxlength="14"
+                                   autocomplete="off" inputmode="numeric">
+                            <div id="cpfFeedback" class="invalid-feedback"></div>
+                            <div class="form-text">Digite apenas os números — a formatação é aplicada automaticamente.</div>
+                        </div>
                         <div class="mb-3 d-none" id="hasCnpjContainer">
-                            <label class="form-label">Possui CNPJ?</label>
-                            <div class="d-flex gap-3">
+                            <label class="form-label fw-semibold">Possui CNPJ?</label>
+                            <div class="d-flex gap-3 mb-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="hasCnpj" id="hasCnpjSim" value="true">
                                     <label class="form-check-label" for="hasCnpjSim">Sim</label>
@@ -60,7 +70,14 @@
                                     <label class="form-check-label" for="hasCnpjNao">Não</label>
                                 </div>
                             </div>
-                            <small class="form-text text-muted">Se sim, na etapa de completar o cadastro você poderá anexar documentos (CNPJ, contrato social, RG/CNH dos representantes). O envio é opcional e não bloqueia o fluxo.</small>
+                            <div id="cnpjFieldContainer" class="d-none">
+                                <label for="cnpj" class="form-label">CNPJ <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="cnpj" name="cnpj"
+                                       placeholder="00.000.000/0001-00" maxlength="18"
+                                       autocomplete="off" inputmode="numeric">
+                                <div id="cnpjFeedback" class="invalid-feedback"></div>
+                                <div class="form-text">Digite apenas os números — a formatação é aplicada automaticamente.</div>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <div class="form-check">
@@ -110,54 +127,161 @@
         var sel = document.getElementById('role');
         if (sel && '@initialRole') sel.value = '@initialRole';
 
-        var hasCnpjContainer = document.getElementById('hasCnpjContainer');
+        var cpfContainer       = document.getElementById('cpfContainer');
+        var cpfInput           = document.getElementById('cpf');
+        var cpfFeedback        = document.getElementById('cpfFeedback');
+        var hasCnpjContainer   = document.getElementById('hasCnpjContainer');
+        var cnpjFieldContainer = document.getElementById('cnpjFieldContainer');
+        var cnpjInput          = document.getElementById('cnpj');
+        var cnpjFeedback       = document.getElementById('cnpjFeedback');
+
         var preservedHasCnpj = '@(ViewBag.RegisterHasCnpj as string ?? "")';
-        function toggleHasCnpj() {
-            if (sel && sel.value === 'Client') {
-                hasCnpjContainer.classList.remove('d-none');
-                if (preservedHasCnpj === 'true') document.getElementById('hasCnpjSim').checked = true;
-                else if (preservedHasCnpj === 'false') document.getElementById('hasCnpjNao').checked = true;
+        var preservedCnpj    = '@(ViewBag.RegisterCnpj as string ?? "")';
+        var preservedCpf     = '@(ViewBag.RegisterCpf as string ?? "")';
+
+        // ── CPF: limpa erro ao digitar; valida algoritmo ao sair do campo
+        if (cpfInput) {
+            cpfInput.addEventListener('input', function () {
+                this.classList.remove('is-invalid');
+                if (cpfFeedback) cpfFeedback.textContent = '';
+            });
+            cpfInput.addEventListener('blur', function () {
+                if (!this.value) return;
+                var valid = typeof validateCPF === 'function'
+                    ? validateCPF(this.value)
+                    : this.value.replace(/\D/g, '').length === 11;
+                if (!valid) {
+                    this.classList.add('is-invalid');
+                    if (cpfFeedback) cpfFeedback.textContent = 'CPF inválido. Verifique os dígitos informados.';
+                } else {
+                    this.classList.remove('is-invalid');
+                    if (cpfFeedback) cpfFeedback.textContent = '';
+                }
+            });
+            if (preservedCpf) cpfInput.value = preservedCpf;
+        }
+
+        // ── CNPJ: limpa erro ao digitar; valida algoritmo ao sair do campo
+        if (cnpjInput) {
+            cnpjInput.addEventListener('input', function () {
+                this.classList.remove('is-invalid');
+                if (cnpjFeedback) cnpjFeedback.textContent = '';
+            });
+            cnpjInput.addEventListener('blur', function () {
+                if (!this.value) return;
+                var valid = typeof validateCNPJ === 'function'
+                    ? validateCNPJ(this.value)
+                    : this.value.replace(/\D/g, '').length === 14;
+                if (!valid) {
+                    this.classList.add('is-invalid');
+                    if (cnpjFeedback) cnpjFeedback.textContent = 'CNPJ inválido. Verifique os dígitos informados.';
+                } else {
+                    this.classList.remove('is-invalid');
+                    if (cnpjFeedback) cnpjFeedback.textContent = '';
+                }
+            });
+            if (preservedCnpj) cnpjInput.value = preservedCnpj;
+        }
+
+        // ── Mostra/esconde campo CNPJ
+        function toggleCnpjField() {
+            var hasSim = document.getElementById('hasCnpjSim');
+            if (hasSim && hasSim.checked) {
+                cnpjFieldContainer.classList.remove('d-none');
+                if (cnpjInput) cnpjInput.required = true;
             } else {
-                hasCnpjContainer.classList.add('d-none');
+                cnpjFieldContainer.classList.add('d-none');
+                if (cnpjInput) { cnpjInput.required = false; cnpjInput.value = ''; cnpjInput.classList.remove('is-invalid'); }
             }
         }
+
+        // ── Mostra/esconde seção de campos de cliente conforme papel selecionado
+        function toggleHasCnpj() {
+            var isClient = sel && sel.value === 'Client';
+            if (cpfContainer)     { cpfContainer.classList.toggle('d-none', !isClient); if (cpfInput) cpfInput.required = isClient; }
+            if (hasCnpjContainer) hasCnpjContainer.classList.toggle('d-none', !isClient);
+            if (isClient) {
+                if (preservedHasCnpj === 'true') document.getElementById('hasCnpjSim').checked = true;
+                else if (preservedHasCnpj === 'false') document.getElementById('hasCnpjNao').checked = true;
+            }
+            toggleCnpjField();
+        }
+
+        var hasCnpjSim = document.getElementById('hasCnpjSim');
+        var hasCnpjNao = document.getElementById('hasCnpjNao');
+        if (hasCnpjSim) hasCnpjSim.addEventListener('change', toggleCnpjField);
+        if (hasCnpjNao) hasCnpjNao.addEventListener('change', toggleCnpjField);
+
         if (sel) {
             sel.addEventListener('change', toggleHasCnpj);
             toggleHasCnpj();
         }
 
+        // ── Validação no submit
         var form = document.querySelector('form[action*="Register"]');
         var acceptCheckbox = document.getElementById('acceptLgpdTerms');
-        var acceptHidden = document.getElementById('acceptLgpdTermsValue');
-        var lgpdError = document.getElementById('lgpdError');
+        var acceptHidden   = document.getElementById('acceptLgpdTermsValue');
+        var lgpdError      = document.getElementById('lgpdError');
+
         function syncAcceptLgpd() {
             if (acceptHidden) acceptHidden.value = acceptCheckbox && acceptCheckbox.checked ? 'true' : 'false';
         }
-        if (form && acceptCheckbox) {
-            if (acceptHidden) {
-                acceptCheckbox.addEventListener('change', function() {
-                    syncAcceptLgpd();
-                    if (acceptCheckbox.checked) {
-                        lgpdError.classList.add('d-none');
-                        acceptCheckbox.classList.remove('is-invalid');
-                    }
-                });
-                form.addEventListener('submit', function(e) {
-                    syncAcceptLgpd();
-                    if (!acceptCheckbox.checked) {
-                        e.preventDefault();
-                        lgpdError.classList.remove('d-none');
-                        acceptCheckbox.classList.add('is-invalid');
-                        // O loading.js mostra o spinner no submit (capture); como bloqueamos o envio, precisamos escondê-lo
-                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
-                            window.KlyonLoading.hide();
-                        }
-                        return false;
-                    }
+
+        if (form && acceptCheckbox && acceptHidden) {
+            acceptCheckbox.addEventListener('change', function() {
+                syncAcceptLgpd();
+                if (acceptCheckbox.checked) {
                     lgpdError.classList.add('d-none');
                     acceptCheckbox.classList.remove('is-invalid');
-                });
-            }
+                }
+            });
+
+            form.addEventListener('submit', function(e) {
+                syncAcceptLgpd();
+                var blocked = false;
+
+                // LGPD
+                if (!acceptCheckbox.checked) {
+                    lgpdError.classList.remove('d-none');
+                    acceptCheckbox.classList.add('is-invalid');
+                    blocked = true;
+                } else {
+                    lgpdError.classList.add('d-none');
+                    acceptCheckbox.classList.remove('is-invalid');
+                }
+
+                // CPF (validateCPF de validation.js)
+                if (cpfInput && cpfInput.required) {
+                    var cpfValid = typeof validateCPF === 'function'
+                        ? validateCPF(cpfInput.value)
+                        : cpfInput.value.replace(/\D/g, '').length === 11;
+                    if (!cpfValid) {
+                        cpfInput.classList.add('is-invalid');
+                        if (cpfFeedback) cpfFeedback.textContent = 'CPF inválido. Verifique os dígitos informados.';
+                        blocked = true;
+                    }
+                }
+
+                // CNPJ (validateCNPJ de validation.js)
+                if (cnpjInput && cnpjInput.required) {
+                    var cnpjValid = typeof validateCNPJ === 'function'
+                        ? validateCNPJ(cnpjInput.value)
+                        : cnpjInput.value.replace(/\D/g, '').length === 14;
+                    if (!cnpjValid) {
+                        cnpjInput.classList.add('is-invalid');
+                        if (cnpjFeedback) cnpjFeedback.textContent = 'CNPJ inválido. Verifique os dígitos informados.';
+                        blocked = true;
+                    }
+                }
+
+                if (blocked) {
+                    e.preventDefault();
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
+                    return false;
+                }
+            });
         }
     });
 </script>

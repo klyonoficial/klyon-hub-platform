@@ -48,6 +48,36 @@ namespace KlyonHubPlatform.Application.Services
             if (string.IsNullOrWhiteSpace(email) || !email.Contains('@', StringComparison.Ordinal) || email.Length < 5)
                 return FiscalOnboardingStartResult.Fail("Informe um e-mail válido para receber o link de acesso após o pagamento.");
 
+            // Verificação antecipada: se e-mail, CPF ou CNPJ já estão cadastrados → bloquear e orientar login
+            var emailAlreadyExists = await _context.Users.AsNoTracking()
+                .AnyAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+            if (emailAlreadyExists)
+                return FiscalOnboardingStartResult.Blocked(
+                    FiscalOnboardingStartBlockedKind.AlreadyRegistered,
+                    "Identificamos que este e-mail já possui um cadastro na plataforma. Faça login para continuar.");
+
+            var taxDigitsEarly = Regex.Replace(request.TaxId ?? "", @"[^\d]", "");
+            if (request.DeclaresHasCnpj && taxDigitsEarly.Length == 14)
+            {
+                var formattedCnpj = FormatCnpj(taxDigitsEarly);
+                var cnpjAlreadyExists = await _context.Clients.AsNoTracking()
+                    .AnyAsync(c => c.CNPJ == formattedCnpj, cancellationToken);
+                if (cnpjAlreadyExists)
+                    return FiscalOnboardingStartResult.Blocked(
+                        FiscalOnboardingStartBlockedKind.AlreadyRegistered,
+                        "Identificamos que este CNPJ já possui um cadastro na plataforma. Faça login para continuar.");
+            }
+            else if (!request.DeclaresHasCnpj && taxDigitsEarly.Length == 11)
+            {
+                var formattedCpf = FormatCpf(taxDigitsEarly);
+                var cpfAlreadyExists = await _context.Clients.AsNoTracking()
+                    .AnyAsync(c => c.CPF == formattedCpf, cancellationToken);
+                if (cpfAlreadyExists)
+                    return FiscalOnboardingStartResult.Blocked(
+                        FiscalOnboardingStartBlockedKind.AlreadyRegistered,
+                        "Identificamos que este CPF já possui um cadastro na plataforma. Faça login para continuar.");
+            }
+
             var phoneDigits = Regex.Replace(request.ContactPhone ?? "", @"[^\d]", "");
             if (phoneDigits.Length < 10)
                 return FiscalOnboardingStartResult.Fail("Informe o telefone ou WhatsApp com DDD (mínimo 10 dígitos). Sem telefone não é possível gerar a cobrança.");

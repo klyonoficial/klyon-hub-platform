@@ -796,6 +796,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<decimal>("MonthlyValue")
                         .HasColumnType("decimal(65,30)");
 
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("SignedAt")
                         .HasColumnType("datetime(6)");
 
@@ -837,6 +840,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasIndex("ClientId");
 
                     b.HasIndex("CoworkingAddressId");
+
+                    b.HasIndex("ServiceId");
 
                     b.ToTable("Contracts");
                 });
@@ -3616,11 +3621,19 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("AssistedSaleAdmin");
 
                     b.Navigation("Client");
 
                     b.Navigation("CoworkingAddress");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Correspondence", b =>

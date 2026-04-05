@@ -36,6 +36,12 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         [JsonPropertyName("pixAutomaticAuthorizationId")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? PixAutomaticAuthorizationId { get; set; }
+        /// <summary>
+        /// Quando false, desabilita o envio automático de e-mail/postal pelo Asaas ao cliente sobre esta cobrança.
+        /// Mantemos false porque a comunicação com o cliente é gerenciada pela própria plataforma Klyon.
+        /// </summary>
+        [JsonPropertyName("postalService")]
+        public bool PostalService { get; set; } = false;
     }
     public class AsaasCustomerData
     {
