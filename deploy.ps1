@@ -231,7 +231,32 @@ server {
     Write-Host "Setup concluido. Iniciando deploy..." -ForegroundColor Green
 }
 
+function Test-DotNetRuntimeOnVm {
+    $runtimes = Invoke-Ssh "dotnet --list-runtimes 2>/dev/null || true"
+    $hasCore = ($null -ne $runtimes -and $runtimes -match "Microsoft\.NETCore\.App 8\.")
+    $hasAspNet = ($null -ne $runtimes -and $runtimes -match "Microsoft\.AspNetCore\.App 8\.")
+    return ($hasCore -and $hasAspNet)
+}
+
+function Ensure-DotNetRuntimeOnVm {
+    if (Test-DotNetRuntimeOnVm) { return $true }
+    Write-Host "`n[Pre] .NET 8 Runtime ausente na VM. Instalando aspnetcore-runtime-8.0..." -ForegroundColor Yellow
+    Invoke-Ssh "wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb && sudo dpkg -i /tmp/packages-microsoft-prod.deb && rm -f /tmp/packages-microsoft-prod.deb && sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dotnet-runtime-8.0 aspnetcore-runtime-8.0" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERRO: Falha ao instalar .NET 8 na VM. Veja docs/DEPLOY.md secao 'No frameworks were found'." -ForegroundColor Red
+        return $false
+    }
+    if (-not (Test-DotNetRuntimeOnVm)) {
+        Write-Host "ERRO: .NET 8 instalado mas runtimes ainda nao detectados (dotnet --list-runtimes)." -ForegroundColor Red
+        return $false
+    }
+    Write-Host "  .NET 8 Runtime OK na VM." -ForegroundColor Green
+    return $true
+}
+
 # --- Fase Deploy ---
+if (-not (Ensure-DotNetRuntimeOnVm)) { exit 1 }
+
 Write-Host "`n[1] Publicando a aplicacao (Release)..." -ForegroundColor Cyan
 dotnet publish "KlyonHubPlatform.Api\KlyonHubPlatform.Api.csproj" -c Release -o ".\publish"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -303,6 +328,10 @@ do {
 } while ($attempt -lt $maxAttempts)
 if (-not $ready) {
     Write-Host "ERRO: Aplicacao nao respondeu em 60s na porta $inactivePort. Abortando switch." -ForegroundColor Red
+    Write-Host "  Ultimas linhas do journal ($inactiveService):" -ForegroundColor Yellow
+    $journalTail = Invoke-Ssh "sudo journalctl -u $inactiveService -n 25 --no-pager 2>/dev/null || true"
+    if ($journalTail) { $journalTail | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }
+    Write-Host "  Dicas: dotnet --list-runtimes na VM; status=150 = runtime .NET 8 ausente." -ForegroundColor Yellow
     Invoke-Ssh "sudo systemctl stop $inactiveService 2>/dev/null" | Out-Null
     exit 1
 }
