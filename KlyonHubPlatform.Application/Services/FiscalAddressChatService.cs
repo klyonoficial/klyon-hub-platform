@@ -69,10 +69,12 @@ namespace KlyonHubPlatform.Application.Services
             var t = msg.ToLowerInvariant();
             var whatsApp = string.IsNullOrWhiteSpace(_options.WhatsAppUrl) ? "https://wa.me/27989030369" : _options.WhatsAppUrl.Trim();
 
+            if (ContainsAny(t, "como contratar", "contratar", "contrata"))
+                return "Você pode contratar direto pela plataforma: acesse a listagem de endereços em várias cidades e finalize em poucos cliques. Comece em: /Client/ChooseLocation — ou fale conosco pelo WhatsApp se preferir: " + whatsApp;
+            if (ContainsAny(t, "onde fica", "localização", "localizacao", "endereço", "endereco", "cidades", "estados"))
+                return "Temos endereços fiscais em várias cidades — escolha estado e cidade em /Client/ChooseLocation. Também operamos no Shopping Moxuara, Cariacica/ES.";
             if (ContainsAny(t, "valor", "preço", "preco", "quanto custa", "valor do", "mensal", "anual"))
-                return "O valor do serviço pode ser: R$ 718,80 à vista no Pix; ou R$ 85,90 em 12x no cartão; ou R$ 102,00 mensal.";
-            if (ContainsAny(t, "onde fica", "localização", "localizacao", "endereço", "endereco", "cariacica", "moxuara", "ficam", "fica o endereço"))
-                return "Estamos no Shopping Moxuara em Cariacica/ES.";
+                return "O valor varia por endereço e cidade — consulte os preços na listagem (/Client/ChooseLocation). Exemplo Moxuara/Cariacica: R$ 718,80 à vista no Pix; ou parcelado no cartão.";
             if (ContainsAny(t, "o que está incluso", "o que inclui", "inclui", "incluso", "incluído"))
                 return "Inclui uso do endereço fiscal, recebimento de correspondências e aviso quando houver entrega.";
             if (ContainsAny(t, "abrir empresa", "abertura", "registro da empresa"))
@@ -87,8 +89,6 @@ namespace KlyonHubPlatform.Application.Services
                 return "Sim, o serviço é formalizado por contrato.";
             if (ContainsAny(t, "prazo mínimo", "prazo minimo", "mínimo de", "6 meses"))
                 return "O prazo mínimo é de 6 meses.";
-            if (ContainsAny(t, "como contratar", "contratar", "contrata"))
-                return $"Entre em contato pelo WhatsApp: {whatsApp}";
             if (ContainsAny(t, "visitar", "visita", "conhecer o local"))
                 return "Sim, agende uma visita pelo WhatsApp.";
             if (ContainsAny(t, "sede", "sede da empresa", "endereço fiscal da empresa"))

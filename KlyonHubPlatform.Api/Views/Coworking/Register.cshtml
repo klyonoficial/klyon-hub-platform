@@ -1,327 +1,205 @@
 @{
-    ViewData[ViewDataKeys.Title] = "Cadastro de Coworking";
+    ViewData[ViewDataKeys.Title] = "Cadastro de Parceiro";
     Layout = LayoutPaths.Layout;
+    var locations = ViewBag.Locations as List<KlyonHubPlatform.Domain.Entities.Location> ?? new();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-building"></i> Cadastro de Coworking</h2>
+    <h2><i class="bi bi-building"></i> Cadastro do seu espaço</h2>
+</div>
+
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" id="wizardSteps">
+            <span class="badge rounded-pill bg-primary wizard-step-badge" data-step="1">1. Empresa</span>
+            <i class="bi bi-chevron-right text-muted d-none d-md-inline"></i>
+            <span class="badge rounded-pill bg-secondary wizard-step-badge" data-step="2">2. Endereço fiscal</span>
+            <i class="bi bi-chevron-right text-muted d-none d-md-inline"></i>
+            <span class="badge rounded-pill bg-secondary wizard-step-badge" data-step="3">3. Documentos</span>
+        </div>
+    </div>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <form method="post" action="@Url.Action("Register", "Coworking")" enctype="multipart/form-data">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="Name" name="Name" value="@ViewBag.UserFullName" required>
+        <form method="post" action="@Url.Action("Register", "Coworking")" enctype="multipart/form-data" id="partnerWizardForm" novalidate>
+            <!-- Step 1: Empresa -->
+            <div class="wizard-panel" data-panel="1">
+                <h5 class="mb-3"><i class="bi bi-building"></i> Dados da empresa</h5>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="Name" name="Name" value="@ViewBag.UserFullName" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="CNPJ" class="form-label">CNPJ <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" placeholder="00.000.000/0000-00" maxlength="18" required>
-                    <div class="invalid-feedback" id="cnpjError"></div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="TradeName" class="form-label">Nome Fantasia</label>
+                        <input type="text" class="form-control" id="TradeName" name="TradeName">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="ContactEmail" class="form-label">E-mail de contato <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" value="@ViewBag.UserEmail" required>
+                    </div>
                 </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="TradeName" class="form-label">Nome Fantasia</label>
-                    <input type="text" class="form-control" id="TradeName" name="TradeName">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="ContactPhone" class="form-label">Telefone</label>
+                        <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15">
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="ContactEmail" class="form-label">Email de Contato</label>
-                    <input type="email" class="form-control" id="ContactEmail" name="ContactEmail" value="@ViewBag.UserEmail" required>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="ContactPhone" class="form-label">Telefone de Contato</label>
-                    <input type="text" class="form-control" id="ContactPhone" name="ContactPhone" placeholder="(00) 00000-0000" maxlength="15">
-                </div>
-            </div>
-            <hr>
-            <h5><i class="bi bi-images"></i> Fotos do Coworking</h5>
-            <div class="mb-3">
-                <label for="Photos" class="form-label">Envie fotos do seu coworking</label>
-                <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*">
-                <small class="form-text text-muted">Você pode enviar até 10 fotos</small>
-            </div>
-            <hr>
-            <h5><i class="bi bi-file-earmark-text"></i> Documentos Obrigatórios</h5>
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Por favor, envie os documentos obrigatórios para completar seu cadastro
-            </div>
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label for="UtilityBill" class="form-label">
-                        Comprovante de Endereço <span class="text-danger">*</span>
-                    </label>
-                    <input type="file" class="form-control" id="UtilityBill" name="UtilityBill" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">Conta de água, luz ou IPTU (últimos 90 dias)</small>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="AddressAuthorization" class="form-label">
-                        Declaração de Autorização <span class="text-danger">*</span>
-                    </label>
-                    <input type="file" class="form-control" id="AddressAuthorization" name="AddressAuthorization" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">Declaração de autorização de uso de endereço fiscal</small>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="CNPJCard" class="form-label">
-                        Cartão CNPJ <span class="text-danger">*</span>
-                    </label>
-                    <input type="file" class="form-control" id="CNPJCard" name="CNPJCard" accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="form-text text-muted">Cartão CNPJ do coworking</small>
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-primary" data-wizard-next="2">Próximo: Endereço <i class="bi bi-arrow-right"></i></button>
                 </div>
             </div>
-            <hr>
-            <h5>Dados Bancários</h5>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="BankName" class="form-label">Banco</label>
-                    <select class="form-select" id="BankName" name="BankName">
-                        <option value="">Selecione o banco</option>
-                        @{
-                            var banks = KlyonHubPlatform.Domain.Core.Constants.BrazilianBanks.GetBanks();
-                            foreach (var bank in banks.OrderBy(b => b.Value))
+
+            <!-- Step 2: Endereço -->
+            <div class="wizard-panel d-none" data-panel="2">
+                <h5 class="mb-3"><i class="bi bi-geo-alt"></i> Endereço fiscal ofertado</h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="ZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ZipCode" name="zipCode" placeholder="00000-000" maxlength="9" required>
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label for="Address" class="form-label">Logradouro <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="Address" name="address" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="Number" class="form-label">Número <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="Number" name="number" required>
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <label for="Complement" class="form-label">Complemento</label>
+                        <input type="text" class="form-control" id="Complement" name="complement">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="Neighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="Neighborhood" name="neighborhood" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="LocationId" class="form-label">Cidade / Localidade <span class="text-danger">*</span></label>
+                        <select class="form-select" id="LocationId" name="locationId" required>
+                            <option value="">Selecione...</option>
+                            @foreach (var loc in locations)
                             {
-                                <option value="@bank.Key">@bank.Key - @bank.Value</option>
+                                <option value="@loc.Id" data-state="@loc.State" data-city="@loc.City">@loc.City/@loc.State</option>
                             }
-                        }
-                    </select>
+                        </select>
+                        <input type="hidden" id="City" name="city" value="">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="State" class="form-label">UF <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="State" name="state" maxlength="2" required readonly>
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="BankAgency" class="form-label">Agência</label>
-                    <input type="text" class="form-control" id="BankAgency" name="BankAgency">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="BasePrice" class="form-label">Preço anual (R$) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="BasePrice" name="basePrice" min="0" step="0.01" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="MaxContracts" class="form-label">Capacidade (contratos) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="MaxContracts" name="maxContracts" min="1" value="10" required>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary" data-wizard-prev="1"><i class="bi bi-arrow-left"></i> Voltar</button>
+                    <button type="button" class="btn btn-primary" data-wizard-next="3">Próximo: Documentos <i class="bi bi-arrow-right"></i></button>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="BankAccount" class="form-label">Conta</label>
-                    <input type="text" class="form-control" id="BankAccount" name="BankAccount">
+
+            <!-- Step 3: Documentos -->
+            <div class="wizard-panel d-none" data-panel="3">
+                <h5 class="mb-3"><i class="bi bi-file-earmark-text"></i> Documentos obrigatórios</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Após o envio, sua candidatura entra em análise. A comissão e a publicação do endereço são definidas pela equipe Klyon.
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="BankPixKey" class="form-label">Chave PIX</label>
-                    <input type="text" class="form-control" id="BankPixKey" name="BankPixKey">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="UtilityBill" class="form-label">Comprovante de endereço <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="UtilityBill" name="UtilityBill" accept=".pdf,.jpg,.jpeg,.png" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="AddressAuthorization" class="form-label">Declaração de autorização <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="AddressAuthorization" name="AddressAuthorization" accept=".pdf,.jpg,.jpeg,.png" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="CNPJCard" class="form-label">Cartão CNPJ <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="CNPJCard" name="CNPJCard" accept=".pdf,.jpg,.jpeg,.png" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="Photos" class="form-label">Fotos do espaço (opcional)</label>
+                    <input type="file" class="form-control" id="Photos" name="Photos" multiple accept="image/*">
+                    <small class="form-text text-muted">Até 2 fotos serão processadas no cadastro inicial.</small>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary" data-wizard-prev="2"><i class="bi bi-arrow-left"></i> Voltar</button>
+                    <button type="submit" class="btn btn-success" data-funnel="partner_wizard_submit">
+                        <i class="bi bi-check-circle"></i> Enviar candidatura
+                    </button>
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-check-circle"></i> Salvar
-            </button>
         </form>
     </div>
 </div>
 
 @section Scripts {
-    <script>
-        // Função para validar CNPJ
-        function validateCNPJ(cnpj) {
-            cnpj = cnpj.replace(/[^\d]+/g, '');
-            
-            if (cnpj.length != 14) return false;
-            
-            // Eliminar CNPJs conhecidos como inválidos
-            if (/^(\d)\1+$/.test(cnpj)) return false;
-            
-            // Validar dígitos verificadores
-            let tamanho = cnpj.length - 2;
-            let numeros = cnpj.substring(0, tamanho);
-            let digitos = cnpj.substring(tamanho);
-            let soma = 0;
-            let pos = tamanho - 7;
-            
-            for (let i = tamanho; i >= 1; i--) {
-                soma += numeros.charAt(tamanho - i) * pos--;
-                if (pos < 2) pos = 9;
-            }
-            
-            let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-            if (resultado != digitos.charAt(0)) return false;
-            
-            tamanho = tamanho + 1;
-            numeros = cnpj.substring(0, tamanho);
-            soma = 0;
-            pos = tamanho - 7;
-            
-            for (let i = tamanho; i >= 1; i--) {
-                soma += numeros.charAt(tamanho - i) * pos--;
-                if (pos < 2) pos = 9;
-            }
-            
-            resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-            if (resultado != digitos.charAt(1)) return false;
-            
-            return true;
-        }
+<script>
+(function () {
+    var currentStep = 1;
+    var badges = document.querySelectorAll('.wizard-step-badge');
+    var panels = document.querySelectorAll('.wizard-panel');
 
-        // Validação de CNPJ no formulário
-        document.addEventListener('DOMContentLoaded', function() {
-            const cnpjInput = document.getElementById('CNPJ');
-            const nameInput = document.getElementById('Name');
-            const cnpjError = document.getElementById('cnpjError');
-            const form = document.querySelector('form[action*="Register"]');
-            
-            if (cnpjInput && form) {
-                // Validar nome durante a digitação
-                if (nameInput) {
-                    nameInput.addEventListener('input', function() {
-                        if (!this.value || this.value.trim() === '') {
-                            this.setCustomValidity('Nome do Coworking é obrigatório.');
-                        } else {
-                            this.setCustomValidity('');
-                        }
-                    });
-                }
-
-                // Validar CNPJ durante a digitação
-                cnpjInput.addEventListener('input', function() {
-                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
-                    if (!cnpjValue) {
-                        this.setCustomValidity('');
-                    } else if (cnpjValue.length === 14) {
-                        if (!validateCNPJ(this.value)) {
-                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
-                        } else {
-                            this.setCustomValidity('');
-                        }
-                    } else {
-                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
-                    }
-                });
-
-                // Validar ao sair do campo
-                cnpjInput.addEventListener('blur', function() {
-                    const cnpjValue = this.value.replace(/[^\d]+/g, '');
-                    if (cnpjValue.length === 14) {
-                        if (!validateCNPJ(this.value)) {
-                            this.classList.add('is-invalid');
-                            this.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
-                            if (cnpjError) {
-                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
-                            }
-                        } else {
-                            this.classList.remove('is-invalid');
-                            this.classList.add('is-valid');
-                            this.setCustomValidity('');
-                            if (cnpjError) {
-                                cnpjError.textContent = '';
-                            }
-                        }
-                    } else if (cnpjValue.length > 0) {
-                        this.classList.add('is-invalid');
-                        this.setCustomValidity('CNPJ deve conter 14 dígitos.');
-                        if (cnpjError) {
-                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
-                        }
-                    } else {
-                        this.setCustomValidity('');
-                    }
-                });
-
-                // Validar valor inicial vindo do banco (se houver)
-                const initialCnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
-                if (initialCnpjValue) {
-                    if (initialCnpjValue.length === 14) {
-                        if (!validateCNPJ(cnpjInput.value)) {
-                            cnpjInput.classList.add('is-invalid');
-                            cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
-                            if (cnpjError) {
-                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
-                            }
-                        } else {
-                            cnpjInput.classList.remove('is-invalid');
-                            cnpjInput.setCustomValidity('');
-                        }
-                    } else {
-                        cnpjInput.classList.add('is-invalid');
-                        cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
-                        if (cnpjError) {
-                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
-                        }
-                    }
-                }
-                
-                // Enviar via AJAX para mostrar loading e redirecionar normalmente
-                form.addEventListener('submit', async function(e) {
-                    // Validar CNPJ antes de submeter
-                    const cnpjValue = cnpjInput.value.replace(/[^\d]+/g, '');
-                    if (cnpjValue.length === 14) {
-                        if (!validateCNPJ(cnpjInput.value)) {
-                            e.preventDefault();
-                            cnpjInput.classList.add('is-invalid');
-                            cnpjInput.setCustomValidity('CNPJ inválido. Verifique os dígitos.');
-                            if (cnpjError) {
-                                cnpjError.textContent = 'CNPJ inválido. Verifique os dígitos.';
-                            }
-                            showToast('CNPJ inválido. Verifique os dígitos.', 'error');
-                            return false;
-                        }
-                    } else if (cnpjValue.length > 0) {
-                        e.preventDefault();
-                        cnpjInput.classList.add('is-invalid');
-                        cnpjInput.setCustomValidity('CNPJ deve conter 14 dígitos.');
-                        if (cnpjError) {
-                            cnpjError.textContent = 'CNPJ deve conter 14 dígitos.';
-                        }
-                        showToast('CNPJ deve conter 14 dígitos.', 'error');
-                        return false;
-                    }
-
-                    // Se o formulário é inválido, não processar
-                    if (!form.checkValidity()) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        form.classList.add('was-validated');
-                        return false;
-                    }
-
-                    e.preventDefault();
-
-                    // Mostrar loading
-                    if (window.KlyonLoading && window.KlyonLoading.show) {
-                        window.KlyonLoading.show();
-                    }
-
-                    // Marcar como requisição AJAX manual para evitar interceptadores
-                    form.setAttribute('data-ajax-request', 'true');
-
-                    try {
-                        const formData = new FormData(form);
-                        const response = await fetch(form.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            },
-                            redirect: 'follow'
-                        });
-
-                        // Remover marcação
-                        form.removeAttribute('data-ajax-request');
-
-                        // Se houver redirect, seguir normalmente
-                        if (response.redirected && response.url) {
-                            window.location.href = response.url;
-                            return;
-                        }
-
-                        if (response.ok && response.url) {
-                            window.location.href = response.url;
-                            return;
-                        }
-
-                        // Se chegou aqui, tratar como erro
-                        if (window.KlyonLoading && window.KlyonLoading.hide) {
-                            window.KlyonLoading.hide();
-                        }
-                        showToast('Erro ao salvar. Por favor, tente novamente.', 'error');
-                    } catch (error) {
-                        form.removeAttribute('data-ajax-request');
-                        if (window.KlyonLoading && window.KlyonLoading.hide) {
-                            window.KlyonLoading.hide();
-                        }
-                        showToast('Erro ao processar requisição: ' + error.message, 'error');
-                    }
-                });
-            }
+    function showStep(n) {
+        currentStep = n;
+        panels.forEach(function (p) {
+            p.classList.toggle('d-none', parseInt(p.getAttribute('data-panel'), 10) !== n);
         });
-    </script>
+        badges.forEach(function (b) {
+            var s = parseInt(b.getAttribute('data-step'), 10);
+            b.classList.toggle('bg-primary', s === n);
+            b.classList.toggle('bg-secondary', s !== n);
+            b.classList.toggle('bg-success', s < n);
+        });
+    }
+
+    document.querySelectorAll('[data-wizard-next]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var next = parseInt(btn.getAttribute('data-wizard-next'), 10);
+            var panel = document.querySelector('.wizard-panel[data-panel="' + currentStep + '"]');
+            var inputs = panel.querySelectorAll('input[required], select[required]');
+            for (var i = 0; i < inputs.length; i++) {
+                if (!inputs[i].checkValidity()) { inputs[i].reportValidity(); return; }
+            }
+            showStep(next);
+        });
+    });
+    document.querySelectorAll('[data-wizard-prev]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            showStep(parseInt(btn.getAttribute('data-wizard-prev'), 10));
+        });
+    });
+
+    var locSelect = document.getElementById('LocationId');
+    var cityHidden = document.getElementById('City');
+    var stateInput = document.getElementById('State');
+    if (locSelect) {
+        locSelect.addEventListener('change', function () {
+            var opt = locSelect.options[locSelect.selectedIndex];
+            if (cityHidden) cityHidden.value = opt.getAttribute('data-city') || '';
+            if (stateInput) stateInput.value = opt.getAttribute('data-state') || '';
+        });
+    }
+})();
+</script>
 }

@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Api.Constants;
-using KlyonHubPlatform.Api.Hubs;
 using KlyonHubPlatform.Domain.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -17,7 +15,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAsaasService _asaasService;
         private readonly IPaymentRepository _paymentRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
-        private readonly IHubContext<PaymentHub> _hubContext;
+        private readonly IPaymentRealtimeNotifier _paymentNotifier;
         private readonly ILogger<PaymentWebhookController> _logger;
 
         public PaymentWebhookController(
@@ -25,14 +23,14 @@ namespace KlyonHubPlatform.Api.Controllers
             IAsaasService asaasService,
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
-            IHubContext<PaymentHub> hubContext,
+            IPaymentRealtimeNotifier paymentNotifier,
             ILogger<PaymentWebhookController> logger)
         {
             _paymentService = paymentService;
             _asaasService = asaasService;
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
-            _hubContext = hubContext;
+            _paymentNotifier = paymentNotifier;
             _logger = logger;
         }
         [HttpPost("stripe")]
@@ -101,14 +99,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         {
                             await _paymentService.ConfirmPaymentAsync(pendingPayment.Id, null);
                             _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook PIX Automático (autorização ativada)", pendingPayment.Id);
-                            try
-                            {
-                                await _hubContext.Clients.Group($"payment_{pendingPayment.Id}").SendAsync(PaymentHub.PaymentConfirmed, new { paymentId = pendingPayment.Id });
-                            }
-                            catch (Exception exHub)
-                            {
-                                _logger.LogWarning(exHub, "Falha ao notificar SignalR para pagamento {PaymentId}", pendingPayment.Id);
-                            }
                         }
                     }
                     return Ok();
@@ -180,14 +170,6 @@ namespace KlyonHubPlatform.Api.Controllers
                             }
                         }
                         _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
-                        try
-                        {
-                            await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentConfirmed, new { paymentId = payment.Id });
-                        }
-                        catch (Exception exHub)
-                        {
-                            _logger.LogWarning(exHub, "Falha ao notificar SignalR para pagamento {PaymentId}", payment.Id);
-                        }
                     }
                 }
                 else if (eventType == AsaasWebhookEvents.PaymentDeleted || eventType == AsaasWebhookEvents.PaymentOverdue)
@@ -210,41 +192,20 @@ namespace KlyonHubPlatform.Api.Controllers
                             {
                                 await _paymentService.HandlePixPaymentOverdueAsync(payment.Id);
                                 _logger.LogInformation("Pagamento PIX {PaymentId} vencido: data de vencimento atualizada e novo código gerado via Asaas (api/PaymentWebhook/asaas)", payment.Id);
-                                try
-                                {
-                                    await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentPixCodeRegenerated, new { paymentId = payment.Id });
-                                }
-                                catch (Exception exHub)
-                                {
-                                    _logger.LogWarning(exHub, "Falha ao notificar SignalR (PIX regenerado) para pagamento {PaymentId}", payment.Id);
-                                }
+                                await _paymentNotifier.NotifyPaymentPixCodeRegeneratedAsync(payment.Id);
                             }
                             catch (Exception exPix)
                             {
                                 _logger.LogError(exPix, "Erro ao tratar vencimento PIX do pagamento {PaymentId}; cancelando.", payment.Id);
                                 await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
-                                try
-                                {
-                                    await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
-                                }
-                                catch (Exception exHub)
-                                {
-                                    _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
-                                }
+                                await _paymentNotifier.NotifyPaymentCancelledAsync(payment.Id);
                             }
                         }
                         else
                         {
                             await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
                             _logger.LogInformation("Pagamento {PaymentId} cancelado/vencido via webhook Asaas (api/PaymentWebhook/asaas)", payment.Id);
-                            try
-                            {
-                                await _hubContext.Clients.Group($"payment_{payment.Id}").SendAsync(PaymentHub.PaymentCancelled, new { paymentId = payment.Id });
-                            }
-                            catch (Exception exHub)
-                            {
-                                _logger.LogWarning(exHub, "Falha ao notificar SignalR (cancelado) para pagamento {PaymentId}", payment.Id);
-                            }
+                            await _paymentNotifier.NotifyPaymentCancelledAsync(payment.Id);
                         }
                     }
                 }

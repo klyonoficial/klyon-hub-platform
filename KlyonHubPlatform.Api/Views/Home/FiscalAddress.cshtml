@@ -2,8 +2,6 @@
     ViewData[ViewDataKeys.Title] = "Contratar Endereço Fiscal";
     Layout = "~/Views/Shared/_LandingLayout.cshtml";
     var urlChooseLocation = Url.Action(ActionNames.ChooseLocation, ControllerNames.Client);
-    var urlRegister = Url.Action(ActionNames.Register, ControllerNames.Auth);
-    var urlLogin = Url.Action(ActionNames.Login, ControllerNames.Auth);
 }
 
 <section class="lp-commercial-hero">
@@ -50,9 +48,9 @@
             </div>
         </div>
         <div class="text-center mt-4">
-            <p class="lp-text-muted small mb-2">Ainda não tem conta?</p>
-            <a href="@urlRegister" class="lp-btn-secondary me-2">Cadastrar</a>
-            <a href="@urlLogin" class="lp-btn-secondary">Entrar</a>
+            <a href="@urlChooseLocation" class="lp-btn-primary" data-funnel="cta_fiscal_lp_choose">
+                <i class="bi bi-search"></i> Ver endereços disponíveis
+            </a>
         </div>
     </div>
 </section>

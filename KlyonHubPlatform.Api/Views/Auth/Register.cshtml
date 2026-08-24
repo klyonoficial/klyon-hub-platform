@@ -2,6 +2,7 @@
     ViewData[ViewDataKeys.Title] = "Cadastro";
     Layout = LayoutPaths.Layout;
     var initialRole = ViewBag.RegisterRole as string ?? ViewBag.PreSelectedRole as string ?? "Client";
+    var isPartnerRegistration = string.Equals(initialRole, "CoworkingPartner", StringComparison.OrdinalIgnoreCase);
     var preservedFullName = ViewBag.RegisterFullName as string;
     var preservedEmail = ViewBag.RegisterEmail as string;
     var preservedAcceptLgpd = ViewBag.RegisterAcceptLgpdTerms as bool? == true;
@@ -14,7 +15,7 @@
             <div class="card shadow">
                 <div class="card-body p-5">
                     <h2 class="card-title text-center mb-4">
-                        <i class="bi bi-person-plus"></i> Criar Conta
+                        <i class="bi bi-person-plus"></i> @(isPartnerRegistration ? "Candidatar meu espaço" : "Criar Conta")
                     </h2>
 
                     @if (ViewData["Error"] != null)
@@ -41,13 +42,17 @@
                             <label for="password" class="form-label">Senha</label>
                             <input type="password" class="form-control" id="password" name="password" required minlength="6">
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-3 @(isPartnerRegistration ? "d-none" : "")">
                             <label for="role" class="form-label">Tipo de Conta</label>
                             <select class="form-select" id="role" name="role">
                                 <option value="Client">Cliente (Empresa/Profissional)</option>
                                 <option value="CoworkingPartner">Coworking Parceiro</option>
                             </select>
                         </div>
+                        @if (isPartnerRegistration)
+                        {
+                            <input type="hidden" name="role" value="CoworkingPartner" />
+                        }
                         <div class="mb-3 d-none" id="cpfContainer">
                             <label for="cpf" class="form-label">
                                 CPF <span class="text-danger">*</span>
@@ -92,7 +97,7 @@
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mb-3" id="btnCadastrar">
-                            <i class="bi bi-person-plus"></i> Cadastrar
+                            <i class="bi bi-person-plus"></i> @(isPartnerRegistration ? "Criar conta e continuar" : "Cadastrar")
                         </button>
                     </form>
 

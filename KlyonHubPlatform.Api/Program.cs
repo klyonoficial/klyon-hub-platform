@@ -97,6 +97,17 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LoginPath = "/Auth/Login";
         options.LogoutPath = "/Auth/Logout";
         options.AccessDeniedPath = "/Auth/Login";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/hubs"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
     })
     .AddJwtBearer(options =>
     {
@@ -133,6 +144,7 @@ builder.Services.AddScoped<ICorrespondenceService, CorrespondenceService>();
 builder.Services.AddScoped<IFiscalOnboardingService, FiscalOnboardingService>();
 builder.Services.AddScoped<IKlyonOnboardingPublicDocumentService, KlyonOnboardingPublicDocumentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IPaymentRealtimeNotifier, KlyonHubPlatform.Api.Services.PaymentRealtimeNotifier>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<ICommissionService, CommissionService>();
@@ -174,6 +186,10 @@ builder.Services.AddTransient<ClicksignRateLimitHandler>();
 builder.Services.AddHttpClient<IClicksignService, ClicksignService>()
     .AddHttpMessageHandler<ClicksignRateLimitHandler>();
 builder.Services.AddScoped<IAddressDeclarationService, AddressDeclarationService>();
+builder.Services.AddSingleton<ContractDocumentsWorkQueue>();
+builder.Services.AddSingleton<IContractDocumentsWorkQueue>(sp => sp.GetRequiredService<ContractDocumentsWorkQueue>());
+builder.Services.AddHostedService<ContractDocumentsBackgroundService>();
+builder.Services.AddScoped<IContractDocumentsEnsureService, ContractDocumentsEnsureService>();
 builder.Services.AddScoped<IClientMenuService, ClientMenuService>();
 builder.Services.AddScoped<IClientDashboardService, ClientDashboardService>();
 builder.Services.AddScoped<IClientAppService, ClientAppService>();

@@ -54,6 +54,18 @@
         <i class="bi bi-eye"></i> <strong>Visualização somente leitura.</strong> Você está visualizando este pagamento como administrador; nenhum campo pode ser alterado.
     </div>
 }
+@if (isPending && isPaymentOwner && showPixInDropdown)
+{
+    <div class="alert alert-primary border-0 shadow-sm mb-4" role="status">
+        <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-qr-code fs-4"></i>
+            <div>
+                <strong>PIX recomendado</strong> — confirmação rápida e sem taxas extras.
+                <span class="d-block small mt-1 opacity-75">Cartão e boleto ficam em <em>Outras formas de pagamento</em>, abaixo do QR Code.</span>
+            </div>
+        </div>
+    </div>
+}
 
 <div class="row">
     <div class="col-md-8">

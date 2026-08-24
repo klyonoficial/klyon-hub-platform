@@ -82,10 +82,23 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
         public async Task<Payment?> GetByPixConciliationIdentifierAsync(string pixConciliationIdentifier, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(pixConciliationIdentifier)) return null;
-            return await _context.Payments
+            var payment = await _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s!.Contract)
                 .FirstOrDefaultAsync(p => p.PixConciliationIdentifier == pixConciliationIdentifier, cancellationToken);
+            if (payment != null)
+                return payment;
+
+            // PIX Automático: Asaas envia pixQrCodeId no webhook com externalReference null;
+            // o identificador fica em Subscription.PixAutomaticConciliationIdentifier.
+            return await _context.Payments
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Contract)
+                .Where(p => p.Subscription != null
+                    && p.Subscription.PixAutomaticConciliationIdentifier == pixConciliationIdentifier
+                    && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing))
+                .OrderByDescending(p => p.Id)
+                .FirstOrDefaultAsync(cancellationToken);
         }
     }
 }

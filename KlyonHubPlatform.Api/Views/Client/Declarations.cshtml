@@ -1,16 +1,18 @@
 @{
-    ViewData[ViewDataKeys.Title] = "Declarações de Uso de Endereço Fiscal";
+    ViewData[ViewDataKeys.Title] = "Declarações de Endereço";
     Layout = LayoutPaths.Layout;
 }
 
 @using KlyonHubPlatform.Domain.Entities
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
 
 @{
     var contracts = ViewBag.Contracts as List<Contract> ?? new List<Contract>();
     var allContracts = ViewBag.AllContracts as List<Contract> ?? contracts; // Para o dropdown de filtros
     var declarationsByContract = ViewBag.DeclarationsByContract as Dictionary<int, List<AddressDeclaration>> ?? new Dictionary<int, List<AddressDeclaration>>();
     var contractsWithPaidPayments = ViewBag.ContractsWithPaidPayments as List<int> ?? new List<int>();
+    var contractsCanGenerateDeclaration = ViewBag.ContractsCanGenerateDeclaration as List<int> ?? new List<int>();
     var search = ViewBag.Search as string ?? "";
     var contractId = ViewBag.ContractId as int?;
     var status = ViewBag.Status as string ?? "";
@@ -22,8 +24,9 @@
     var totalItems = ViewBag.TotalItems as int? ?? 0;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-file-earmark-text"></i> Declarações de Uso de Endereço Fiscal</h2>
+<div class="mb-4">
+    <h2><i class="bi bi-file-earmark-text"></i> Declarações de Endereço</h2>
+    <p class="text-muted mb-0">Fiscal (CNPJ/Receita) ou comercial (cartão de visita e site), conforme o serviço contratado.</p>
 </div>
 
 <!-- Filtros -->
@@ -171,15 +174,24 @@ else
                                     </h5>
                                     <small class="text-muted">
                                         <i class="bi bi-file-earmark-text"></i> Contrato: @contract.ContractNumber
+                                        @if (ServiceCodes.IsCommercialAddress(contract.Service?.Code))
+                                        {
+                                            <span class="badge bg-warning text-dark ms-1">Comercial</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success ms-1">Fiscal</span>
+                                        }
                                     </small>
                                 </div>
                                 <div>
-                                    @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
+                                    @if (contractsCanGenerateDeclaration.Contains(contract.Id))
                                     {
                                         <form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline" onclick="event.stopPropagation();">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="contractId" value="@contract.Id">
                                             <button type="submit" class="btn btn-primary btn-sm" 
+                                                    data-declaration-kind="@(ServiceCodes.IsCommercialAddress(contract.Service?.Code) ? "comercial" : "fiscal")"
                                                     onclick="event.preventDefault(); handleGenerateDeclaration(this);">
                                                 <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
                                             </button>
@@ -354,12 +366,13 @@ else
                         </small>
                     </div>
                     <div>
-                        @if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id))
+                        @if (contractsCanGenerateDeclaration.Contains(contract.Id))
                         {
                             <form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="contractId" value="@contract.Id">
                                 <button type="submit" class="btn btn-light btn-sm" 
+                                        data-declaration-kind="@(ServiceCodes.IsCommercialAddress(contract.Service?.Code) ? "comercial" : "fiscal")"
                                         onclick="event.preventDefault(); handleGenerateDeclaration(this);">
                                     <i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
                                 </button>
@@ -570,8 +583,9 @@ else
 @section Scripts {
     <script>
         async function handleGenerateDeclaration(button) {
+            const kind = button.getAttribute('data-declaration-kind') || 'fiscal';
             const confirmed = await showConfirm(
-                'Deseja gerar uma nova declaração de autorização de uso de endereço fiscal para este contrato?',
+                'Deseja gerar uma nova declaração de autorização de uso de endereço ' + kind + ' para este contrato?',
                 'Gerar Declaração',
                 'info'
             );

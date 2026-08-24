@@ -247,15 +247,20 @@ namespace KlyonHubPlatform.Application.Services
                         }
                     }
 
-                    try
+                    var service = await _context.Services.AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.Id == serviceId);
+                    if (service == null || !ServiceCodes.IsFiscalAddress(service.Code))
                     {
-                        await _documentService.GenerateContractDocumentAsync(createdContract.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine(
-                            $"Erro ao gerar documento do contrato: {ex.Message}"
-                        );
+                        try
+                        {
+                            await _documentService.GenerateContractDocumentAsync(createdContract.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine(
+                                $"Erro ao gerar documento do contrato: {ex.Message}"
+                            );
+                        }
                     }
                     await transaction.CommitAsync();
                     if (!assistedSaleAdminId.HasValue)

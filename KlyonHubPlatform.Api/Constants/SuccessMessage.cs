@@ -141,6 +141,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CardSetAsDefault = "Cartão definido como padrão.";
         public static string DeclarationGenerated(string declarationNumber) =>
             $"Declaração gerada com sucesso! Número: {declarationNumber}";
+        public static string ContractGenerated(string contractNumber) =>
+            $"Contrato gerado com sucesso! Número: {contractNumber}";
         public static string SingleReservationConfirmed(DateTime date) =>
             $"Reserva confirmada para {date:dd/MM/yyyy}!";
         public static string MultipleReservationsConfirmed(int count) =>

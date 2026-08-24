@@ -595,6 +595,14 @@
 }
 .btn-ad-fiscal:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(26,77,122,0.5); color: #fff; }
 
+.ad-cta-secondary-link {
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+.ad-cta-secondary-link:hover { color: #c69844; }
+.ad-cta-secondary-link strong { color: #e2e8f0; font-weight: 600; }
+
 .btn-ad-comercial {
     display: inline-flex;
     align-items: center;
@@ -743,14 +751,14 @@
     <div class="ad-cta-bar">
         <div class="ad-cta-bar-inner">
             <div class="ad-cta-bar-text">
-                <strong>Pronto para contratar?</strong> Escolha o tipo de endereço que melhor atende sua empresa.
+                <strong>Pronto para contratar?</strong> Endereço fiscal para usar no CNPJ — contrato digital e pagamento online.
             </div>
-            <div class="ad-cta-btns">
-                <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal">
-                    <i class="bi bi-bank"></i> Quero Endereço Fiscal
+            <div class="ad-cta-btns flex-column align-items-stretch gap-2">
+                <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" data-funnel="cta_address_detail_contratar">
+                    <i class="bi bi-bank"></i> Contratar endereço fiscal
                 </a>
-                <a href="@commercialOnboardingUrl" class="btn-ad-comercial">
-                    <i class="bi bi-briefcase"></i> Quero Endereço Comercial
+                <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link small text-center" data-funnel="cta_address_detail_comercial">
+                    Não preciso de sede no CNPJ? <strong>Endereço comercial</strong> — qual a diferença?
                 </a>
             </div>
         </div>
@@ -1112,16 +1120,13 @@
         <p class="ad-final-cta-subtitle">
             Sem burocracia excessiva. Contrato digital, pagamento online e suporte da Klyon do começo ao fim.
         </p>
-        <div class="ad-final-btns">
-            <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;">
+        <div class="ad-final-btns flex-column align-items-center gap-3">
+            <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;" data-funnel="cta_address_detail_final_contratar">
                 <i class="bi bi-bank"></i>
-                Quero Endereço Fiscal
-                <span style="font-size:0.8rem; opacity:0.8; font-weight:400;">— Para meu CNPJ</span>
+                Contratar endereço fiscal
             </a>
-            <a href="@commercialOnboardingUrl" class="btn-ad-comercial" style="padding:16px 40px; font-size:1rem;">
-                <i class="bi bi-briefcase"></i>
-                Quero Endereço Comercial
-                <span style="font-size:0.8rem; opacity:0.8; font-weight:400;">— Para minha imagem</span>
+            <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link" data-funnel="cta_address_detail_final_comercial">
+                Prefere endereço comercial (sem sede no CNPJ)?
             </a>
         </div>
         <div style="margin-top:24px;">

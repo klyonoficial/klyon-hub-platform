@@ -25,6 +25,7 @@
     var fiscalBlockMessage = ViewBag.FiscalOnboardingBlockedMessage as string;
     var fiscalBlockLoginUrl = ViewBag.FiscalOnboardingLoginUrl as string ?? Url.Action(ActionNames.Login, ControllerNames.Auth);
     var cnaeSuggestCommercial = ViewBag.CnaeSuggestCommercial as bool? ?? false;
+    var isLoggedInCheckout = ViewBag.IsLoggedInCheckout as bool? ?? false;
 }
 
 <div class="row justify-content-center">
@@ -164,7 +165,11 @@
 
                         <div class="mb-3">
                             <label class="form-label" for="contactEmail">E-mail <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="@ViewBag.ContactEmail" placeholder="seu@email.com" />
+                            <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="@ViewBag.ContactEmail" placeholder="seu@email.com" @(isLoggedInCheckout ? "readonly" : null) />
+                            @if (isLoggedInCheckout)
+                            {
+                                <div class="form-text">E-mail da sua conta logada.</div>
+                            }
                         </div>
 
                         <div class="mb-3">
@@ -329,12 +334,55 @@
             });
         }
         if (cnpjInput) {
-            cnpjInput.addEventListener('input', function () { this.classList.remove('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = ''; });
-            cnpjInput.addEventListener('blur', function () {
+            cnpjInput.addEventListener('input', function () { this.classList.remove('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = ''; clearCnpjAsyncHint(); });
+            cnpjInput.addEventListener('blur', async function () {
                 if (!this.value) return;
                 var ok = typeof validateCNPJ === 'function' ? validateCNPJ(this.value) : this.value.replace(/\D/g,'').length === 14;
-                if (!ok) { this.classList.add('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = 'CNPJ inválido.'; }
+                if (!ok) { this.classList.add('is-invalid'); if (cnpjFeedback) cnpjFeedback.textContent = 'CNPJ inválido.'; return; }
+                var isFiscal = serviceTypeFiscalRad && serviceTypeFiscalRad.checked;
+                if (!isFiscal || !hasCnpjSelected()) return;
+                await validateCnpjCnaeAsync(this.value);
             });
+        }
+
+        var cnpjAsyncHintEl = null;
+        function clearCnpjAsyncHint() {
+            if (cnpjAsyncHintEl) { cnpjAsyncHintEl.remove(); cnpjAsyncHintEl = null; }
+        }
+        function showCnpjAsyncHint(html, isError) {
+            clearCnpjAsyncHint();
+            cnpjAsyncHintEl = document.createElement('div');
+            cnpjAsyncHintEl.className = 'form-text ' + (isError ? 'text-danger' : 'text-success');
+            cnpjAsyncHintEl.innerHTML = html;
+            if (cnpjInput && cnpjInput.parentNode) cnpjInput.parentNode.appendChild(cnpjAsyncHintEl);
+        }
+        async function validateCnpjCnaeAsync(cnpjVal) {
+            if (!cnpjInput) return;
+            var digits = cnpjVal.replace(/\D/g, '');
+            if (digits.length !== 14) return;
+            showCnpjAsyncHint('<span class="spinner-border spinner-border-sm me-1"></span> Validando CNPJ...', false);
+            try {
+                var url = '@Url.Action(ActionNames.ValidateCnpjForFiscal, ControllerNames.Client)?cnpj=' + encodeURIComponent(digits);
+                var resp = await fetch(url);
+                var data = await resp.json();
+                clearCnpjAsyncHint();
+                if (data.valid) {
+                    cnpjInput.classList.remove('is-invalid');
+                    var msg = 'CNPJ válido para endereço fiscal.';
+                    if (data.razaoSocial) msg += ' <strong>' + data.razaoSocial + '</strong>';
+                    showCnpjAsyncHint(msg, false);
+                } else {
+                    cnpjInput.classList.add('is-invalid');
+                    if (cnpjFeedback) cnpjFeedback.textContent = data.message || 'CNPJ não aprovado.';
+                    var hint = data.message || 'CNPJ não aprovado para endereço fiscal.';
+                    if (data.suggestCommercial) {
+                        hint += ' <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-switch-commercial>Continuar como Endereço Comercial</button>';
+                    }
+                    showCnpjAsyncHint(hint, true);
+                }
+            } catch (e) {
+                clearCnpjAsyncHint();
+            }
         }
 
         // ── LGPD sync

@@ -1,0 +1,89 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Api.Constants
+@{
+    ViewData[ViewDataKeys.Title] = "Pedido confirmado";
+    Layout = LayoutPaths.LandingLayout;
+    var isPaid = ViewBag.IsPaid as bool? == true;
+    var isAwaitingValidation = ViewBag.IsAwaitingValidation as bool? == true;
+    var contract = Model.Subscription?.Contract;
+    var partnerName = contract?.CoworkingAddress?.Coworking?.Name ?? "Parceiro Klyon";
+    var addressLabel = contract?.CoworkingAddress != null
+        ? $"{contract.CoworkingAddress.City}/{contract.CoworkingAddress.State}"
+        : "";
+}
+
+<section class="lp-section" style="min-height: 60vh; padding-top: 120px;">
+    <div class="lp-container">
+        <div class="row justify-content-center">
+            <div class="col-lg-7 text-center">
+                @if (isPaid)
+                {
+                    <div class="display-1 text-success mb-3"><i class="bi bi-check-circle-fill"></i></div>
+                    <h1 class="lp-section-title mb-3">Pagamento confirmado!</h1>
+                    <p class="lp-section-subtitle mx-auto mb-4">
+                        Seu contrato de endereço fiscal está ativo. Em breve você receberá orientações por e-mail.
+                    </p>
+                }
+                else if (isAwaitingValidation)
+                {
+                    <div class="display-1 text-warning mb-3"><i class="bi bi-clock-history"></i></div>
+                    <h1 class="lp-section-title mb-3">Comprovante recebido</h1>
+                    <p class="lp-section-subtitle mx-auto mb-4">
+                        Estamos validando seu pagamento. Você será notificado assim que for confirmado.
+                    </p>
+                }
+                else
+                {
+                    <div class="display-1 text-primary mb-3"><i class="bi bi-hourglass-split"></i></div>
+                    <h1 class="lp-section-title mb-3">Pedido registrado</h1>
+                    <p class="lp-section-subtitle mx-auto mb-4">
+                        Seu contrato foi criado. Conclua o pagamento para ativar o serviço.
+                    </p>
+                }
+
+                <div class="card shadow-sm border-0 text-start mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3"><i class="bi bi-receipt me-2"></i> Resumo</h5>
+                        @if (contract != null)
+                        {
+                            <p class="mb-1"><strong>Contrato:</strong> @contract.ContractNumber</p>
+                            <p class="mb-1"><strong>Parceiro:</strong> @partnerName</p>
+                            @if (!string.IsNullOrEmpty(addressLabel))
+                            {
+                                <p class="mb-1"><strong>Localidade:</strong> @addressLabel</p>
+                            }
+                        }
+                        <p class="mb-0"><strong>Valor:</strong> R$ @Model.Amount.ToString("N2")</p>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+                    @if (!isPaid && !isAwaitingValidation)
+                    {
+                        <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = Model.Id })" class="lp-btn-primary" data-funnel="success_back_payment">
+                            <i class="bi bi-qr-code me-1"></i> Continuar pagamento
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="lp-btn-primary" data-funnel="success_my_contracts">
+                            <i class="bi bi-file-earmark-text me-1"></i> Ver meus contratos
+                        </a>
+                    }
+                    <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="lp-btn-secondary" data-funnel="success_home">
+                        Voltar ao início
+                    </a>
+                </div>
+
+                @if (isPaid || isAwaitingValidation)
+                {
+                    <p class="lp-text-muted small mt-4 mb-0">
+                        <i class="bi bi-envelope me-1"></i>
+                        Verifique seu e-mail para definir sua senha e acessar correspondências e declarações.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</section>

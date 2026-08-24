@@ -1,7 +1,15 @@
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
 @{
 	ViewData[ViewDataKeys.Title] = "Detalhes do Contrato";
 	Layout = LayoutPaths.Layout;
+	var declarationSectionTitle = AddressDeclarationLabels.SectionTitle(Model.Service?.Code);
+	var declarationKindLabel = AddressDeclarationLabels.IsCommercial(Model.Service?.Code) ? "comercial" : "fiscal";
+	var canGenerateDeclaration = ViewBag.CanGenerateDeclaration as bool? ?? false;
+	var canGenerateContract = ViewBag.CanGenerateContract as bool? ?? false;
+	var contractKindLabel = AddressDeclarationLabels.IsCommercial(Model.Service?.Code) ? "comercial" : "fiscal";
+	var contractDocuments = Model.Documents?.Where(d => d.Type == DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
+	var otherDocuments = Model.Documents?.Where(d => d.Type != DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
 }
 
 @model KlyonHubPlatform.Domain.Entities.Contract
@@ -218,9 +226,86 @@
 				<h5 class="card-title-tight"><i class="bi bi-file-earmark-pdf me-1"></i> Documentos</h5>
 			</div>
 			<div class="card-body">
+				@if (contractDocuments.Any())
+				{
+					<h6 class="mb-3">Contrato:</h6>
+					<ul class="list-group mb-3">
+						@foreach (var doc in contractDocuments)
+						{
+							<li class="list-group-item d-flex justify-content-between align-items-center">
+								<div>
+									<span class="fw-bold">@(string.IsNullOrWhiteSpace(doc.Description) ? "Contrato" : doc.Description)</span><br>
+									<small class="text-muted">@doc.GeneratedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
+								</div>
+								@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
+								{
+									<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })" class="btn btn-sm btn-primary">
+										<i class="bi bi-download"></i> Download
+									</a>
+								}
+								else if (Model.Status == ContractStatus.PendingPayment)
+								{
+									<span class="text-muted small">Disponível após pagamento</span>
+								}
+								else
+								{
+									<span class="text-muted small">—</span>
+								}
+							</li>
+						}
+					</ul>
+				}
+				else
+				{
+					<p class="text-muted mb-3">Nenhum contrato gerado ainda.</p>
+				}
+
+				@if (canGenerateContract)
+				{
+					@if (ViewBag.ContractGenerationError is string contractError && !string.IsNullOrWhiteSpace(contractError))
+					{
+						<div class="alert alert-warning py-2 small mb-2">
+							<i class="bi bi-exclamation-triangle me-1"></i> Não foi possível gerar o contrato automaticamente. Tente novamente.
+						</div>
+					}
+					<div class="d-flex justify-content-end mb-3">
+						<form method="post" action="@Url.Action(ActionNames.GenerateContract, ControllerNames.Client)" class="d-inline">
+							@Html.AntiForgeryToken()
+							<input type="hidden" name="contractId" value="@Model.Id">
+							<input type="hidden" name="returnToContract" value="true">
+							<button type="submit" class="btn btn-primary btn-sm"
+									data-contract-kind="@contractKindLabel"
+									onclick="event.preventDefault(); handleGenerateContract(this);">
+								<i class="bi bi-file-earmark-pdf"></i> Gerar Contrato
+							</button>
+						</form>
+					</div>
+				}
+
+				@if (canGenerateDeclaration)
+				{
+					@if (ViewBag.DeclarationGenerationError is string declarationError && !string.IsNullOrWhiteSpace(declarationError))
+					{
+						<div class="alert alert-warning py-2 small mb-2">
+							<i class="bi bi-exclamation-triangle me-1"></i> Não foi possível emitir a declaração automaticamente. Tente novamente.
+						</div>
+					}
+					<div class="d-flex justify-content-end mb-3">
+						<form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline">
+							@Html.AntiForgeryToken()
+							<input type="hidden" name="contractId" value="@Model.Id">
+							<input type="hidden" name="returnToContract" value="true">
+							<button type="submit" class="btn btn-primary btn-sm"
+									data-declaration-kind="@declarationKindLabel"
+									onclick="event.preventDefault(); handleGenerateDeclaration(this);">
+								<i class="bi bi-file-earmark-pdf"></i> Emitir Declaração
+							</button>
+						</form>
+					</div>
+				}
 				@if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
 				{
-					<h6 class="mb-3">Declarações de Endereço:</h6>
+					<h6 class="mb-3">@declarationSectionTitle:</h6>
 					<ul class="list-group mb-3">
 						@foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
 						{
@@ -251,11 +336,11 @@
 					<p class="text-muted mb-3">Nenhuma declaração gerada ainda.</p>
 				}
 
-				@if (Model.Documents != null && Model.Documents.Any())
+				@if (otherDocuments.Any())
 				{
 					<h6 class="mb-3">Outros Documentos:</h6>
 					<ul class="list-group">
-						@foreach (var doc in Model.Documents)
+						@foreach (var doc in otherDocuments)
 						{
 							var documentTypeText = doc.Type switch
 							{
@@ -430,3 +515,33 @@
 		</div>
 	</div>
 </div>
+
+@section Scripts {
+	<script>
+		async function handleGenerateDeclaration(button) {
+			const kind = button.getAttribute('data-declaration-kind') || 'fiscal';
+			const confirmed = await showConfirm(
+				'Deseja gerar uma nova declaração de autorização de uso de endereço ' + kind + ' para este contrato?',
+				'Gerar Declaração',
+				'info'
+			);
+			if (confirmed) {
+				const form = button.closest('form');
+				if (form) form.submit();
+			}
+		}
+
+		async function handleGenerateContract(button) {
+			const kind = button.getAttribute('data-contract-kind') || 'fiscal';
+			const confirmed = await showConfirm(
+				'Deseja gerar o contrato de endereço ' + kind + ' para este contrato?',
+				'Gerar Contrato',
+				'info'
+			);
+			if (confirmed) {
+				const form = button.closest('form');
+				if (form) form.submit();
+			}
+		}
+	</script>
+}

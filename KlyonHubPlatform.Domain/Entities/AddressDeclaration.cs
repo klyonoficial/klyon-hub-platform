@@ -4,6 +4,8 @@ namespace KlyonHubPlatform.Domain.Entities
     {
         public int Id { get; set; }
         public int ContractId { get; set; }
+        /// <summary>Tipo de serviço (fiscal/comercial) no momento da emissão — usado para saber se já existe declaração vigente para o tipo atual.</summary>
+        public int? ServiceId { get; set; }
         public string DeclarationNumber { get; set; } = string.Empty;
         public int Version { get; set; } = 1;
         public DateTime StartDate { get; set; }

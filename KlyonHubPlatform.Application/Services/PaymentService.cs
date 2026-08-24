@@ -22,10 +22,13 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IAsaasService _asaasService;
         private readonly ApplicationDbContext _context;
         private readonly IAddressDeclarationService? _addressDeclarationService;
+        private readonly IDocumentService? _documentService;
+        private readonly IContractDocumentsWorkQueue? _contractDocumentsWorkQueue;
         private readonly ISystemConfigurationService _systemConfigurationService;
         private readonly IAuditService? _auditService;
         private readonly IHttpContextAccessor? _httpContextAccessor;
         private readonly IFiscalOnboardingService? _fiscalOnboardingService;
+        private readonly IPaymentRealtimeNotifier? _paymentRealtimeNotifier;
         public PaymentService(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
@@ -36,9 +39,12 @@ namespace KlyonHubPlatform.Application.Services
             ApplicationDbContext context,
             ISystemConfigurationService systemConfigurationService,
             IAddressDeclarationService? addressDeclarationService = null,
+            IDocumentService? documentService = null,
+            IContractDocumentsWorkQueue? contractDocumentsWorkQueue = null,
             IAuditService? auditService = null,
             IHttpContextAccessor? httpContextAccessor = null,
-            IFiscalOnboardingService? fiscalOnboardingService = null)
+            IFiscalOnboardingService? fiscalOnboardingService = null,
+            IPaymentRealtimeNotifier? paymentRealtimeNotifier = null)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
@@ -48,10 +54,22 @@ namespace KlyonHubPlatform.Application.Services
             _asaasService = asaasService;
             _context = context;
             _addressDeclarationService = addressDeclarationService;
+            _documentService = documentService;
+            _contractDocumentsWorkQueue = contractDocumentsWorkQueue;
             _systemConfigurationService = systemConfigurationService;
             _auditService = auditService;
             _httpContextAccessor = httpContextAccessor;
             _fiscalOnboardingService = fiscalOnboardingService;
+            _paymentRealtimeNotifier = paymentRealtimeNotifier;
+        }
+
+        private async Task EnqueueContractDocumentsAsync(IEnumerable<int> contractIds)
+        {
+            if (_contractDocumentsWorkQueue == null)
+                return;
+
+            foreach (var contractId in contractIds.Distinct())
+                await _contractDocumentsWorkQueue.EnqueueAsync(contractId);
         }
 
         /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
@@ -196,6 +214,7 @@ namespace KlyonHubPlatform.Application.Services
             return await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await _context.Database.BeginTransactionAsync();
+                var contractIdsToEnsureDocuments = new List<int>();
                 try
                 {
                     var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -253,17 +272,7 @@ namespace KlyonHubPlatform.Application.Services
                                         }
                                         _context.CoworkingAddresses.Update(contract.CoworkingAddress);
                                     }
-                                    if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
-                                    {
-                                        try
-                                        {
-                                            await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
-                                        }
-                                    }
+                                    contractIdsToEnsureDocuments.Add(contract.Id);
                                     await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
                                 }
                                 else
@@ -298,6 +307,7 @@ namespace KlyonHubPlatform.Application.Services
                     await _commissionService.CreateCommissionAsync(payment.Id);
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    await EnqueueContractDocumentsAsync(contractIdsToEnsureDocuments);
                     return payment;
                 }
                 catch
@@ -675,7 +685,7 @@ namespace KlyonHubPlatform.Application.Services
                         await _subscriptionRepository.UpdateAsync(subscription);
                         payment.PixCode = null;
                         payment.PixExpiresAt = null;
-                        payment.PixConciliationIdentifier = null;
+                        payment.PixConciliationIdentifier = subscription.PixAutomaticConciliationIdentifier;
                         payment.DueDate = expiresAt;
                         await _paymentRepository.UpdateAsync(payment);
                         return subscription.PixAutomaticPayload;
@@ -703,6 +713,9 @@ namespace KlyonHubPlatform.Application.Services
                         subscription.PixAutomaticPayloadExpiresAt = expiresAtRetry;
                         subscription.PixAutomaticConciliationIdentifier = retryAuth.ImmediateQrCode?.ConciliationIdentifier;
                         await _subscriptionRepository.UpdateAsync(subscription);
+                        payment.PixConciliationIdentifier = subscription.PixAutomaticConciliationIdentifier;
+                        payment.DueDate = expiresAtRetry;
+                        await _paymentRepository.UpdateAsync(payment);
                         return subscription.PixAutomaticPayload;
                     }
                     throw new InvalidOperationException(
@@ -1147,6 +1160,7 @@ namespace KlyonHubPlatform.Application.Services
             return await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await _context.Database.BeginTransactionAsync();
+                var contractIdsToEnsureDocuments = new List<int>();
                 try
                 {
                     var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -1235,17 +1249,7 @@ namespace KlyonHubPlatform.Application.Services
                                         }
                                         _context.CoworkingAddresses.Update(contract.CoworkingAddress);
                                     }
-                                    if (_addressDeclarationService != null && contract.ExpiryDate.HasValue)
-                                    {
-                                        try
-                                        {
-                                            await _addressDeclarationService.GenerateDeclarationAsync(contract.Id);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            System.Diagnostics.Debug.WriteLine($"Erro ao gerar declaração automaticamente: {ex.Message}");
-                                        }
-                                    }
+                                    contractIdsToEnsureDocuments.Add(contract.Id);
                                     await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
                                 }
                                 else
@@ -1287,6 +1291,9 @@ namespace KlyonHubPlatform.Application.Services
                     }
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    if (_paymentRealtimeNotifier != null)
+                        await _paymentRealtimeNotifier.NotifyPaymentConfirmedAsync(paymentId);
+                    await EnqueueContractDocumentsAsync(contractIdsToEnsureDocuments);
                     return payment;
                 }
                 catch

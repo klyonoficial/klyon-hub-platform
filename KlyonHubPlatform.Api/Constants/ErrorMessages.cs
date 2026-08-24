@@ -84,6 +84,10 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
         public const string PurchaseNotFound = "Compra não encontrada.";
         public const string DeclarationInvalidOrExpired = "Esta declaração está inválida ou expirada.";
+        public const string DeclarationGenerationNotAllowed =
+            "Não é possível emitir declaração: o contrato precisa estar vigente, com pagamento confirmado e sem declaração válida para o tipo de serviço atual.";
+        public const string ContractGenerationNotAllowed =
+            "Não é possível gerar contrato: o contrato precisa estar vigente, com pagamento confirmado e sem documento de contrato para o tipo de serviço atual.";
         public const string ErrorDownloadingDeclarationFileNotFound = "Erro ao baixar declaração. Arquivo não encontrado.";
         public const string DocumentNotFound = "Documento não encontrado.";
         public const string InformRejectionJustification = "Informe a justificativa ou os itens que precisam de correção.";

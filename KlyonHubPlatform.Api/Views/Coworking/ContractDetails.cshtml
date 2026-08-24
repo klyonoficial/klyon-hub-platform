@@ -1,7 +1,9 @@
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
 @{
     ViewData[ViewDataKeys.Title] = "Detalhes do Contrato";
     Layout = LayoutPaths.Layout;
+    var declarationSectionTitle = AddressDeclarationLabels.SectionTitle(Model.Service?.Code);
 }
 
 @model KlyonHubPlatform.Domain.Entities.Contract
@@ -102,7 +104,7 @@
             <div class="card-body">
                 @if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
                 {
-                    <h6 class="mb-3">Declarações de Endereço:</h6>
+                    <h6 class="mb-3">@declarationSectionTitle:</h6>
                     <ul class="list-group mb-3">
                         @foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
                         {

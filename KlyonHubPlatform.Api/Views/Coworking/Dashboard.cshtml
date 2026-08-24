@@ -1,4 +1,5 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
+@using KlyonHubPlatform.Api.Models
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
     ViewData[ViewDataKeys.Title] = "Dashboard Coworking";
@@ -95,6 +96,49 @@ else
     else if (ast == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.Approved)
     {
         @* Nada aqui - a mensagem aparece apenas na notificação HasPendingStatusNotification (bloco "Parabéns!"), que é dispensável. *@
+    }
+
+    @* Status da parceria — checklist de onboarding *@
+    @if (ViewBag.PartnershipSteps is IEnumerable<PartnershipStepViewModel> partnershipSteps)
+    {
+        var stepList = partnershipSteps.ToList();
+        var allDone = stepList.All(s => s.Done);
+        if (!allDone)
+        {
+            <div class="card border-primary shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-signpost-split"></i> Status da parceria</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var step in stepList)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    @if (step.Done)
+                                    {
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    }
+                                    else if (step.Pending)
+                                    {
+                                        <i class="bi bi-hourglass-split text-warning me-2"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-circle text-muted me-2"></i>
+                                    }
+                                    @step.Label
+                                </span>
+                                @if (!step.Done)
+                                {
+                                    <a href="@Url.Action(step.Action, step.Controller)" class="btn btn-sm btn-outline-primary">Completar</a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
     }
 
     @* Seção de Alertas Administrativos *@

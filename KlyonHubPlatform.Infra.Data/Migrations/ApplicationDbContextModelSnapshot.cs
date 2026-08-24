@@ -55,6 +55,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<bool>("IsValid")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<int?>("ServiceId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime(6)");
 

@@ -17,5 +17,13 @@ namespace KlyonHubPlatform.Domain.Core.Constants
         public const string AuditoriumRental = "AUDITORIUM_RENTAL";
         public const string RoomReservation = "ROOM_RESERVATION";
         public const string VirtualOffice = "VIRTUAL_OFFICE";
+
+        public static bool IsCommercialAddress(string? serviceCode) =>
+            !string.IsNullOrWhiteSpace(serviceCode) &&
+            serviceCode.StartsWith(CommercialAddressCodePrefix, StringComparison.OrdinalIgnoreCase);
+
+        public static bool IsFiscalAddress(string? serviceCode) =>
+            !string.IsNullOrWhiteSpace(serviceCode) &&
+            serviceCode.StartsWith(FiscalAddressCodePrefix, StringComparison.OrdinalIgnoreCase);
     }
 }

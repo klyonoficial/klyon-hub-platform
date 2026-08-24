@@ -36,6 +36,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ContractDetails = "ContractDetails";
         public const string MyPayments = "MyPayments";
         public const string PaymentDetails = "PaymentDetails";
+        public const string PaymentSuccess = "PaymentSuccess";
+        public const string ValidateCnpjForFiscal = "ValidateCnpjForFiscal";
         public const string UpdateProfile = "UpdateProfile";
         public const string GetLogo = "GetLogo";
         public const string CheckDocumentExists = "CheckDocumentExists";
@@ -49,6 +51,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string DownloadKlyonOnboardingDocument = "DownloadKlyonOnboardingDocument";
         public const string AutoLogin = "AutoLogin";
         public const string GenerateDeclaration = "GenerateDeclaration";
+        public const string GenerateContract = "GenerateContract";
         public const string DownloadDeclaration = "DownloadDeclaration";
         public const string Declarations = "Declarations";
         public const string BuyCredits = "BuyCredits";

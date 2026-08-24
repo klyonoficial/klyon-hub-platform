@@ -397,6 +397,7 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _context.AddressDeclarations
                 .Include(d => d.Contract)
+                    .ThenInclude(c => c.Service)
                 .FirstOrDefaultAsync(d => d.Id == declarationId, cancellationToken);
         }
 
@@ -414,6 +415,7 @@ namespace KlyonHubPlatform.Application.Services
             if (ids.Count == 0) return new List<AddressDeclaration>();
             return await _context.AddressDeclarations
                 .Include(d => d.Contract)
+                    .ThenInclude(c => c!.Service)
                 .Where(d => ids.Contains(d.ContractId))
                 .ToListAsync(cancellationToken);
         }
@@ -437,6 +439,7 @@ namespace KlyonHubPlatform.Application.Services
                     .ThenInclude(a => a!.Coworking)
                 .Include(c => c.CoworkingAddress)
                     .ThenInclude(a => a!.Location)
+                .Include(c => c.Service)
                 .Where(c => c.ClientId == clientId && c.Status == ContractStatus.Active)
                 .OrderByDescending(c => c.StartDate)
                 .ToListAsync(cancellationToken);

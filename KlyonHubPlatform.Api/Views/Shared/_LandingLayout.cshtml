@@ -66,7 +66,7 @@
                             <a class="nav-link" href="@Url.Action(ActionNames.Login, ControllerNames.Auth)">Entrar</a>
                         </li>
                         <li class="nav-item">
-                            <a class="btn btn-primary btn-sm ms-lg-2" href="@Url.Action(ActionNames.Register, ControllerNames.Auth)">
+                            <a class="btn btn-primary btn-sm ms-lg-2" href="@(Url.Action(ActionNames.Register, ControllerNames.Auth) + "?role=Client")">
                                 <i class="fa-solid fa-user-plus me-1" aria-hidden="true"></i> Cadastrar
                             </a>
                         </li>
@@ -128,6 +128,7 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/funnel-analytics.js" asp-append-version="true"></script>
 
     <!-- Toast Container -->
     <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;" id="toastContainer"></div>

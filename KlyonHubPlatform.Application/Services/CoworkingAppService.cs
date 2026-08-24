@@ -416,6 +416,7 @@ namespace KlyonHubPlatform.Application.Services
                     .ThenInclude(a => a!.Location)
                 .Include(c => c.CoworkingAddress!)
                     .ThenInclude(a => a!.Coworking)
+                .Include(c => c.Service)
                 .Include(c => c.Subscription)
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == contractId && c.CoworkingAddress!.CoworkingId == coworkingId, cancellationToken);
@@ -453,6 +454,8 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.AddressDeclarations
                 .Include(d => d.Contract!)
                     .ThenInclude(c => c!.CoworkingAddress)
+                .Include(d => d.Contract!)
+                    .ThenInclude(c => c!.Service)
                 .FirstOrDefaultAsync(d => d.Id == declarationId, cancellationToken);
         }
 

@@ -13,6 +13,7 @@ using KlyonHubPlatform.Domain.Core.Constants;
 using static KlyonHubPlatform.Domain.Core.Constants.ServiceCodes;
 using KlyonHubPlatform.Infra.CrossCutting.Helpers;
 using KlyonHubPlatform.Api.Constants;
+using KlyonHubPlatform.Api.Models;
 using KlyonHubPlatform.Api.Dtos;
 using KlyonHubPlatform.Api.Dtos.Coworking;
 using Microsoft.EntityFrameworkCore;
@@ -200,8 +201,48 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.AdministrativeAlerts = administrativeAlerts;
             ViewBag.PendingFiscalNotesCount = pendingNfCount;
             ViewBag.PendenciasTotal = pendenciasTotal;
+            ViewBag.PartnershipSteps = await BuildPartnershipChecklistAsync(coworkingWithAddresses ?? coworkingEntity, cancellationToken);
             return View();
         }
+
+        private async Task<List<PartnershipStepViewModel>> BuildPartnershipChecklistAsync(Coworking coworking, CancellationToken cancellationToken)
+        {
+            var steps = new List<PartnershipStepViewModel>();
+            var hasCompany = !string.IsNullOrWhiteSpace(coworking.Name) && !string.IsNullOrWhiteSpace(coworking.CNPJ);
+            steps.Add(new PartnershipStepViewModel("company", "Cadastro da empresa", hasCompany, false, ActionNames.Register, ControllerNames.Coworking));
+
+            var pendingDocs = await _coworkingAppService.GetPendingCoworkingDocumentsCountAsync(coworking.Id, cancellationToken);
+            var rejectedDocs = await _coworkingAppService.GetRejectedCoworkingDocumentsAsync(coworking.Id);
+            var hasDocs = coworking.SubmittedAt.HasValue && rejectedDocs.Count == 0;
+            steps.Add(new PartnershipStepViewModel("docs", "Documentos enviados", hasDocs, pendingDocs > 0, ActionNames.Profile, ControllerNames.Coworking));
+
+            var address = coworking.Addresses?.FirstOrDefault();
+            var hasAddress = address != null;
+            steps.Add(new PartnershipStepViewModel("address", "Endereço fiscal cadastrado", hasAddress, false, ActionNames.MyAddresses, ControllerNames.Parceiro));
+
+            var inReview = coworking.ApprovalStatus == CoworkingApprovalStatus.UnderReview
+                || coworking.ApprovalStatus == CoworkingApprovalStatus.AwaitingAdjustment;
+            var approved = coworking.ApprovalStatus == CoworkingApprovalStatus.Approved;
+            steps.Add(new PartnershipStepViewModel(
+                "review",
+                approved ? "Parceria aprovada" : (inReview ? "Em análise pela Klyon" : "Aguardando envio / ajustes"),
+                approved,
+                inReview,
+                ActionNames.Profile,
+                ControllerNames.Coworking));
+
+            var isLive = approved && address != null
+                && address.AddressStatus == AddressStatus.Active && address.IsAvailable;
+            steps.Add(new PartnershipStepViewModel(
+                "live",
+                isLive ? "Endereço no ar — recebendo clientes" : "Publicação do endereço (após aprovação e comissão)",
+                isLive,
+                approved && !isLive,
+                ActionNames.MyAddresses,
+                ControllerNames.Parceiro));
+            return steps;
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DismissStatusNotification(CancellationToken cancellationToken = default)
@@ -348,6 +389,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.UserEmail = userEmail;
             var user = await _coworkingAppService.FindUserAsync(userId);
             ViewBag.UserFullName = user?.FullName ?? string.Empty;
+            ViewBag.Locations = await _coworkingAppService.GetActiveLocationsAsync();
             return View();
         }
         [HttpPost]
@@ -355,7 +397,17 @@ namespace KlyonHubPlatform.Api.Controllers
             List<IFormFile>? Photos,
             IFormFile? UtilityBill,
             IFormFile? AddressAuthorization,
-            IFormFile? CNPJCard)
+            IFormFile? CNPJCard,
+            int? locationId,
+            string? address,
+            string? number,
+            string? complement,
+            string? neighborhood,
+            string? city,
+            string? state,
+            string? zipCode,
+            decimal? basePrice,
+            int? maxContracts)
         {
             try
             {
@@ -377,31 +429,35 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (string.IsNullOrWhiteSpace(coworking.Name) || string.IsNullOrWhiteSpace(coworking.CNPJ))
                 {
                     TempData[ErrorMessages.TempDataKey] = "Nome e CNPJ são obrigatórios.";
-                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                    ViewBag.UserEmail = userEmail;
-                    var user = await _coworkingAppService.FindUserAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
-                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
-                    return View(coworking);
+                    return await ReturnRegisterViewAsync(coworking);
+                }
+                if (UtilityBill == null || UtilityBill.Length == 0
+                    || AddressAuthorization == null || AddressAuthorization.Length == 0
+                    || CNPJCard == null || CNPJCard.Length == 0)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Envie os três documentos obrigatórios: comprovante de endereço, declaração de autorização e cartão CNPJ.";
+                    return await ReturnRegisterViewAsync(coworking);
+                }
+                if (!locationId.HasValue || locationId.Value <= 0
+                    || string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(number)
+                    || string.IsNullOrWhiteSpace(neighborhood) || string.IsNullOrWhiteSpace(city)
+                    || string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(zipCode)
+                    || !basePrice.HasValue || basePrice.Value < 0 || !maxContracts.HasValue || maxContracts.Value < 1)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Preencha todos os campos do endereço fiscal e informe preço anual e capacidade.";
+                    return await ReturnRegisterViewAsync(coworking);
                 }
                 var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
                 if (cnpjClean.Length != 14 || !cnpjClean.All(char.IsDigit))
                 {
                     TempData[ErrorMessages.TempDataKey] = "CNPJ inválido. O CNPJ deve conter 14 dígitos numéricos.";
-                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                    ViewBag.UserEmail = userEmail;
-                    var user = await _coworkingAppService.FindUserAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
-                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
-                    return View(coworking);
+                    return await ReturnRegisterViewAsync(coworking);
                 }
                 var existingCNPJ = await _coworkingAppService.GetCoworkingByCnpjAsync(cnpjClean);
                 if (existingCNPJ != null)
                 {
                     TempData[ErrorMessages.TempDataKey] = $"O CNPJ {coworking.CNPJ} já está cadastrado no sistema.";
-                    var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                    ViewBag.UserEmail = userEmail;
-                    var user = await _coworkingAppService.FindUserAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
-                    ViewBag.UserFullName = user?.FullName ?? string.Empty;
-                    return View(coworking);
+                    return await ReturnRegisterViewAsync(coworking);
                 }
                 coworking.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -468,6 +524,45 @@ namespace KlyonHubPlatform.Api.Controllers
                         _coworkingAppService.AddCoworkingDocument(coworkingDocument);
                     }
                 }
+
+                var location = await _coworkingAppService.FindLocationAsync(locationId!.Value);
+                if (location != null)
+                {
+                    var coworkingAddress = new CoworkingAddress
+                    {
+                        CoworkingId = createdCoworking.Id,
+                        LocationId = locationId.Value,
+                        Address = address!,
+                        Number = number!,
+                        Complement = complement,
+                        Neighborhood = neighborhood!,
+                        City = city!,
+                        State = state!,
+                        ZipCode = zipCode!,
+                        BasePrice = basePrice!.Value,
+                        MaxContracts = maxContracts!.Value,
+                        IsAvailable = false,
+                        AddressStatus = AddressStatus.PendingApproval,
+                        CurrentContracts = 0
+                    };
+                    await _coworkingService.CreateAddressAsync(coworkingAddress);
+                    var fiscalAddressOfferService = await _coworkingAppService.GetServiceByCodeAsync(FiscalAddressOffer);
+                    if (fiscalAddressOfferService != null)
+                    {
+                        var alreadyHasService = await _coworkingAppService.PartnerServiceExistsAsync(createdCoworking.Id, fiscalAddressOfferService.Id);
+                        if (!alreadyHasService)
+                        {
+                            _coworkingAppService.AddPartnerService(new PartnerService
+                            {
+                                CoworkingId = createdCoworking.Id,
+                                ServiceId = fiscalAddressOfferService.Id,
+                                Percentage = 0,
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+
                 var enableCoworkingMenus = await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());
                 var showCoworkingMenus = StringBooleanValue.IsTrue(enableCoworkingMenus);
                 if (showCoworkingMenus)
@@ -494,11 +589,20 @@ namespace KlyonHubPlatform.Api.Controllers
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = $"Erro ao cadastrar coworking: {ex.Message}";
-                var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                ViewBag.UserEmail = userEmail;
-                return View(coworking ?? new Coworking());
+                return await ReturnRegisterViewAsync(coworking ?? new Coworking());
             }
         }
+
+        private async Task<IActionResult> ReturnRegisterViewAsync(Coworking coworking)
+        {
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            ViewBag.UserEmail = userEmail;
+            var user = await _coworkingAppService.FindUserAsync(int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"));
+            ViewBag.UserFullName = user?.FullName ?? string.Empty;
+            ViewBag.Locations = await _coworkingAppService.GetActiveLocationsAsync();
+            return View(coworking);
+        }
+
         [HttpGet]
         public async Task<IActionResult> MyAddresses(string? search = null, string? status = null, int? locationId = null, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
@@ -1395,7 +1499,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return NotFound();
             }
-            var fileName = $"{declaration.DeclarationNumber}.pdf";
+            var fileName = $"{AddressDeclarationLabels.DownloadFilePrefix(declaration.Contract?.Service?.Code)}_{declaration.DeclarationNumber}.pdf";
             return File(pdfBytes, "application/pdf", fileName);
         }
         [HttpGet]

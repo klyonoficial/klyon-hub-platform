@@ -19,6 +19,8 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                     .ThenInclude(cl => cl.User)
                 .Include(c => c.CoworkingAddress)
                     .ThenInclude(a => a.Coworking)
+                        .ThenInclude(c => c.Partners)
+                .Include(c => c.Service)
                 .Include(c => c.Subscription)
                 .Include(c => c.Documents)
                 .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
