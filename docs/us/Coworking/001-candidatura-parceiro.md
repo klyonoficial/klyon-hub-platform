@@ -22,3 +22,5 @@ minha candidatura seja analisada sem formulários confusos.
 - [ ] Documentos obrigatórios bloqueiam submit se ausentes
 - [ ] Endereço fiscal criado no mesmo fluxo do cadastro inicial
 - [ ] Fotos limitadas a 2 no processamento (mensagem alinhada à UI)
+- [ ] Razão Social, CNPJ, Inscrição Imobiliária, Representante Legal e endereço da sede são obrigatórios (wizard, perfil do parceiro e admin)
+- [ ] Contrato/declaração PDF usam CNPJ, endereço e representante persistidos no parceiro — sem placeholders de `DocumentSettings`

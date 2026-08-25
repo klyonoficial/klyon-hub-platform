@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Commands;
 using KlyonHubPlatform.Application.Constants;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -25,9 +26,26 @@ namespace KlyonHubPlatform.Application.Services
             if (coworking == null)
                 return new AdminCommandResult { Success = false, ErrorMessage = AdminResultMessages.CoworkingNotFound, RedirectToDashboard = true };
 
+            var validationError = PartnerContractDataRules.Validate(
+                command.Name,
+                command.CNPJ,
+                command.LegalRepresentative,
+                command.PropertyRegistration,
+                command.Address,
+                command.AddressNumber,
+                command.AddressNeighborhood,
+                command.AddressCity,
+                command.AddressState,
+                command.AddressZipCode,
+                PartnerContractDataSection.All);
+            if (validationError != null)
+                return new AdminCommandResult { Success = false, ErrorMessage = validationError, RedirectCoworkingId = id };
+
             coworking.Name = command.Name;
             coworking.CNPJ = command.CNPJ;
             coworking.TradeName = command.TradeName;
+            coworking.PropertyRegistration = command.PropertyRegistration;
+            coworking.LegalRepresentative = command.LegalRepresentative;
             coworking.ContactEmail = command.ContactEmail;
             coworking.ContactPhone = command.ContactPhone;
             coworking.SecondaryEmail = command.SecondaryEmail;

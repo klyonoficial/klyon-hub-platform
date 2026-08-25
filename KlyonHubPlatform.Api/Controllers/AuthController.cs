@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Helpers;
 using KlyonHubPlatform.Api.Constants;
 namespace KlyonHubPlatform.Api.Controllers
 {
@@ -47,7 +48,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
-                new Claim(ClaimTypes.Name, user.FullName ?? ""),
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email)),
                 new Claim(AuthConstants.TokenClaimType, jwtToken)
             };
             foreach (var role in roles)
@@ -59,7 +60,7 @@ namespace KlyonHubPlatform.Api.Controllers
             await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
             HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
             HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email ?? "");
-            HttpContext.Session.SetString(SessionKeys.UserName, user.FullName ?? "");
+            HttpContext.Session.SetString(SessionKeys.UserName, ClientDisplayName.Resolve(user.FullName, user.Email));
 
             var cwId = await _fiscalOnboardingService.GetCoworkingAddressIdForOnboardedUserAsync(user.Id, cancellationToken);
             if (cwId.HasValue)
@@ -111,7 +112,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName),
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email)),
                 new Claim(AuthConstants.TokenClaimType, token)
             };
             foreach (var role in roles)
@@ -133,7 +134,7 @@ namespace KlyonHubPlatform.Api.Controllers
             await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal, authProperties);
             HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
             HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email);
-            HttpContext.Session.SetString(SessionKeys.UserName, user.FullName);
+            HttpContext.Session.SetString(SessionKeys.UserName, ClientDisplayName.Resolve(user.FullName, user.Email));
             if (user.MustChangePassword)
             {
                 var tempToken = Guid.NewGuid().ToString();
@@ -465,7 +466,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName),
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email)),
                 new Claim(AuthConstants.TokenClaimType, jwtToken)
             };
             foreach (var role in roles)
@@ -477,7 +478,7 @@ namespace KlyonHubPlatform.Api.Controllers
             await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
             HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
             HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email);
-            HttpContext.Session.SetString(SessionKeys.UserName, user.FullName);
+            HttpContext.Session.SetString(SessionKeys.UserName, ClientDisplayName.Resolve(user.FullName, user.Email));
             if (user.MustChangePassword)
             {
                 HttpContext.Session.SetString(SessionKeys.MustChangePassword, StringBooleanValue.True);

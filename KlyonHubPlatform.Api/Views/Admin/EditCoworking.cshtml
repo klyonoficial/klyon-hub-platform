@@ -28,7 +28,7 @@
                 <div class="card-body collapse show" id="dadosBasicos">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Nome do Coworking <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Razão Social <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="Name" value="@Model.Name" required />
                         </div>
                         <div class="col-md-6 mb-3">
@@ -38,6 +38,14 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Nome Fantasia</label>
                             <input type="text" class="form-control" name="TradeName" value="@(Model.TradeName ?? "")" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Representante Legal <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="LegalRepresentative" value="@(Model.LegalRepresentative ?? "")" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Inscrição Imobiliária <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="PropertyRegistration" value="@(Model.PropertyRegistration ?? "")" maxlength="50" required />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Status</label>
@@ -162,33 +170,33 @@
                 <div class="card-body collapse" id="endereco">
                     <div class="row">
                         <div class="col-md-2 mb-3">
-                            <label class="form-label fw-bold">CEP</label>
+                            <label class="form-label fw-bold">CEP <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="AddressZipCode" name="AddressZipCode" value="@(Model.AddressZipCode ?? "")" 
-                                   placeholder="00000-000" maxlength="9" />
+                                   placeholder="00000-000" maxlength="9" required />
                         </div>
                         <div class="col-md-8 mb-3">
-                            <label class="form-label fw-bold">Logradouro</label>
-                            <input type="text" class="form-control" name="Address" value="@(Model.Address ?? "")" />
+                            <label class="form-label fw-bold">Logradouro <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="Address" value="@(Model.Address ?? "")" required />
                         </div>
                         <div class="col-md-2 mb-3">
-                            <label class="form-label fw-bold">Número</label>
-                            <input type="text" class="form-control" name="AddressNumber" value="@(Model.AddressNumber ?? "")" />
+                            <label class="form-label fw-bold">Número <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AddressNumber" value="@(Model.AddressNumber ?? "")" required />
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Complemento</label>
                             <input type="text" class="form-control" name="AddressComplement" value="@(Model.AddressComplement ?? "")" />
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Bairro</label>
-                            <input type="text" class="form-control" name="AddressNeighborhood" value="@(Model.AddressNeighborhood ?? "")" />
+                            <label class="form-label fw-bold">Bairro <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AddressNeighborhood" value="@(Model.AddressNeighborhood ?? "")" required />
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Cidade</label>
-                            <input type="text" class="form-control" name="AddressCity" value="@(Model.AddressCity ?? "")" />
+                            <label class="form-label fw-bold">Cidade <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AddressCity" value="@(Model.AddressCity ?? "")" required />
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Estado</label>
-                            <input type="text" class="form-control" name="AddressState" value="@(Model.AddressState ?? "")" maxlength="2" placeholder="Ex: SP" />
+                            <label class="form-label fw-bold">Estado <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AddressState" value="@(Model.AddressState ?? "")" maxlength="2" placeholder="Ex: SP" required />
                         </div>
                     </div>
                 </div>

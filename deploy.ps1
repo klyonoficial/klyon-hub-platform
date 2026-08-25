@@ -6,6 +6,7 @@
 # Nginx; em toda execucao faz deploy na instancia inativa e troca o trafego.
 # Requer: chave SSH e (na VM) usuario ubuntu com sudo NOPASSWD para systemctl, tee, sed, nginx:
 # echo "ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/tee, /usr/bin/sed, /usr/sbin/nginx" | sudo tee /etc/sudoers.d/klyon-deploy
+# Invoke-Ssh remove CR (CRLF do Windows) dos comandos remotos — senao systemctl reload nginx\r falha.
 # =============================================================================
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +27,9 @@ $DeployConnectionString = ""
 
 function Invoke-Ssh {
     param([string]$Command)
+    # Working tree no Windows costuma ter CRLF (core.autocrlf). Here-strings com \r
+    # quebram o remoto: ex. "systemctl reload nginx\r" -> unit nginx\x0d nao existe.
+    $Command = $Command -replace "`r`n", "`n" -replace "`r", ""
     $prevErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
     try {
@@ -39,6 +43,36 @@ function Invoke-Ssh {
 function Test-Ssh {
     $r = Invoke-Ssh "exit 0"
     return $LASTEXITCODE -eq 0
+}
+
+# Nginx: 20m (folga acima dos 15 MB da app) e pagina amigavel no 413.
+function Ensure-NginxUploadConfig {
+    Write-Host "  Nginx: client_max_body_size 20m e error_page 413..." -ForegroundColor Gray
+    $cmd = @"
+CONF='$NginxConfig'
+if grep -q 'client_max_body_size' "`$CONF" 2>/dev/null; then
+  sudo sed -i 's/client_max_body_size *[0-9.]\+[kmgKMG]\?;/client_max_body_size 20m;/g' "`$CONF"
+else
+  sudo sed -i '/server_name/a\    client_max_body_size 20m;' "`$CONF"
+fi
+if ! grep -q 'error_page 413' "`$CONF" 2>/dev/null; then
+  sudo sed -i '/client_max_body_size/a\    error_page 413 =200 /errors/413.html;' "`$CONF"
+fi
+sudo nginx -t && sudo systemctl reload nginx
+"@
+    $nginxOut = Invoke-Ssh $cmd
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Nginx: client_max_body_size 20m e error_page 413 aplicados." -ForegroundColor Green
+    }
+    else {
+        Write-Host "  Aviso: nao foi possivel recarregar o Nginx com client_max_body_size 20m." -ForegroundColor Yellow
+        if ($nginxOut) {
+            $nginxOut | ForEach-Object {
+                $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.ToString() } else { "$_" }
+                if ($line) { Write-Host "    $line" -ForegroundColor DarkGray }
+            }
+        }
+    }
 }
 
 # --- Validacoes ---
@@ -192,7 +226,8 @@ WantedBy=multi-user.target
 server {
     listen 80;
     server_name _;
-    client_max_body_size 10m;
+    client_max_body_size 20m;
+    error_page 413 =200 /errors/413.html;
     location / {
         proxy_pass http://127.0.0.1:$PortBlue;
         proxy_http_version 1.1;
@@ -215,12 +250,7 @@ server {
         Write-Host "  Config Nginx criada e ativada." -ForegroundColor Gray
     }
     else {
-        # Garantir limite de upload 10MB (permite fotos ate 5MB) em configs existentes
-        $hasLimit = Invoke-Ssh "grep -q 'client_max_body_size' $NginxConfig 2>/dev/null && echo 1"
-        if ($hasLimit -notmatch "1") {
-            Invoke-Ssh "echo '    client_max_body_size 10m;' > /tmp/nginx_body_size_line.txt && sudo sed -i '/server_name _;/r /tmp/nginx_body_size_line.txt' $NginxConfig && sudo nginx -t && sudo systemctl reload nginx"
-            if ($LASTEXITCODE -eq 0) { Write-Host "  Nginx: client_max_body_size 10m adicionado (uploads ate 5MB)." -ForegroundColor Gray }
-        }
+        Ensure-NginxUploadConfig
     }
 
     # 6. Parar klyon-app antigo e iniciar blue
@@ -269,14 +299,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# 2.5 Garantir Nginx permite upload ate 10MB (fotos ate 5MB) - roda em todo deploy
-$hasLimit = Invoke-Ssh "grep -q 'client_max_body_size' $NginxConfig 2>/dev/null && echo 1"
-if ($null -eq $hasLimit) { $hasLimit = "" }
-if ($hasLimit -notmatch "1") {
-    Write-Host "  Nginx: adicionando client_max_body_size 10m..." -ForegroundColor Gray
-    Invoke-Ssh "echo '    client_max_body_size 10m;' > /tmp/nginx_body_size_line.txt && sudo sed -i '/server_name _;/r /tmp/nginx_body_size_line.txt' $NginxConfig && sudo nginx -t && sudo systemctl reload nginx"
-    if ($LASTEXITCODE -eq 0) { Write-Host "  Nginx: client_max_body_size 10m aplicado." -ForegroundColor Green }
-}
+# 2.5 Nginx: 20m (app valida 15 MB no total) e pagina amigavel no 413 — roda em todo deploy
+Ensure-NginxUploadConfig
 
 # 3. Detectar qual instancia esta ativa (Nginx aponta para qual porta? Evitar null do SSH)
 $proxyLine = Invoke-Ssh "grep proxy_pass $NginxConfig 2>/dev/null || true"
@@ -312,22 +336,23 @@ if ($LASTEXITCODE -ne 0) { Write-Host "ERRO: Falha ao iniciar $inactiveService."
 
 # 6. Health check na porta inativa (tratar retorno nulo do SSH para evitar erro ao chamar .Trim())
 Write-Host "`n[6] Aguardando aplicacao ficar pronta (porta $inactivePort)..." -ForegroundColor Cyan
-$maxAttempts = 30
+$maxAttempts = 150
 $attempt = 0
 $ready = $false
 do {
     Start-Sleep -Seconds 2
-    $curlOut = Invoke-Ssh "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${inactivePort}/ 2>/dev/null"
+    # --max-time evita SSH/curl pendurados se a app ainda sobe (migrations).
+    $curlOut = Invoke-Ssh "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 8 http://127.0.0.1:${inactivePort}/ 2>/dev/null"
     $httpCode = if ($null -ne $curlOut) { $curlOut.ToString().Trim() } else { "" }
     if ($httpCode -match "200|302") {
         $ready = $true
         break
     }
     $attempt++
-    Write-Host "  Tentativa $attempt/$maxAttempts..." -ForegroundColor Gray
+    Write-Host "  Tentativa $attempt/$maxAttempts (http=$httpCode)..." -ForegroundColor Gray
 } while ($attempt -lt $maxAttempts)
 if (-not $ready) {
-    Write-Host "ERRO: Aplicacao nao respondeu em 60s na porta $inactivePort. Abortando switch." -ForegroundColor Red
+    Write-Host "ERRO: Aplicacao nao respondeu em ~300s na porta $inactivePort. Abortando switch." -ForegroundColor Red
     Write-Host "  Ultimas linhas do journal ($inactiveService):" -ForegroundColor Yellow
     $journalTail = Invoke-Ssh "sudo journalctl -u $inactiveService -n 25 --no-pager 2>/dev/null || true"
     if ($journalTail) { $journalTail | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }

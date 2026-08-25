@@ -6,5 +6,6 @@ namespace KlyonHubPlatform.Application.DTOs.ContractDocuments
         public bool ContractManualRetryAvailable { get; set; }
         public string? DeclarationErrorMessage { get; set; }
         public string? ContractErrorMessage { get; set; }
+        public bool ClientPartyIncomplete { get; set; }
     }
 }

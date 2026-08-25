@@ -1,19 +1,35 @@
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.DTOs.Asaas;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KlyonHubPlatform.Application.Services
 {
     public class ClientAppService : IClientAppService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IContractHistoryService _contractHistoryService;
+        private readonly IAsaasService _asaasService;
+        private readonly IPaymentService _paymentService;
+        private readonly ILogger<ClientAppService> _logger;
 
-        public ClientAppService(ApplicationDbContext context)
+        public ClientAppService(
+            ApplicationDbContext context,
+            IContractHistoryService contractHistoryService,
+            IAsaasService asaasService,
+            IPaymentService paymentService,
+            ILogger<ClientAppService> logger)
         {
             _context = context;
+            _contractHistoryService = contractHistoryService;
+            _asaasService = asaasService;
+            _paymentService = paymentService;
+            _logger = logger;
         }
 
         public async Task<Client?> GetClientByUserIdAsync(int userId, CancellationToken cancellationToken = default)
@@ -82,6 +98,50 @@ namespace KlyonHubPlatform.Application.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task<string?> SaveClientProfileAsync(int clientId, int actingUserId, CancellationToken cancellationToken = default)
+        {
+            await _contractHistoryService.RecordProfileUpdatedForClientAsync(clientId, actingUserId, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            return await TrySyncAsaasCustomerAsync(clientId, cancellationToken);
+        }
+
+        /// <summary>
+        /// Sincroniza o customer já existente no Asaas. Falha no gateway não desfaz o perfil local.
+        /// </summary>
+        private async Task<string?> TrySyncAsaasCustomerAsync(int clientId, CancellationToken cancellationToken)
+        {
+            const string asaasSyncWarning =
+                "Perfil salvo. Não foi possível atualizar os dados no meio de pagamento agora; o cadastro local permanece válido.";
+            try
+            {
+                var client = await _context.Clients
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.Id == clientId, cancellationToken);
+                if (client == null)
+                    return null;
+
+                var outcome = await _asaasService.TryUpdateExistingCustomerAsync(
+                    $"client_{client.Id}",
+                    PaymentGatewayCustomer.ResolveName(client),
+                    PaymentGatewayCustomer.ResolveEmail(client),
+                    PaymentGatewayCustomer.ResolveTaxIdDigits(client),
+                    PaymentGatewayCustomer.ResolvePhone(client),
+                    PaymentGatewayCustomer.ResolveAddress(client),
+                    asaasCustomerId: null,
+                    cancellationToken);
+
+                return outcome == AsaasCustomerSyncOutcome.Failed ? asaasSyncWarning : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Asaas: falha ao sincronizar o cliente {ClientId} após salvar o perfil. O cadastro local não será desfeito.",
+                    clientId);
+                return asaasSyncWarning;
+            }
+        }
+
         public async Task<User?> GetUserByIdAsync(int userId, CancellationToken cancellationToken = default)
         {
             return await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
@@ -122,39 +182,20 @@ namespace KlyonHubPlatform.Application.Services
 
         public async Task PromotePendingContractsToActiveIfPaidAsync(int clientId, CancellationToken cancellationToken = default)
         {
-            var pendingContracts = await _context.Contracts
+            // Contratos ainda PendingPayment cujo pagamento já está Paid (ex.: cartão marcou Paid
+            // antes do Confirm ativar o contrato). Reusa ConfirmPaymentAsync como fonte de verdade.
+            var paidPaymentIds = await _context.Contracts
+                .AsNoTracking()
                 .Where(c => c.ClientId == clientId && c.Status == ContractStatus.PendingPayment)
+                .SelectMany(c => c.Subscription!.Payments
+                    .Where(p => p.Status == PaymentStatus.Paid)
+                    .Select(p => p.Id))
+                .Distinct()
                 .ToListAsync(cancellationToken);
-            if (pendingContracts.Count == 0) return;
-            var contractIds = pendingContracts.Select(c => c.Id).ToList();
-            var subscriptions = await _context.Subscriptions
-                .Where(s => contractIds.Contains(s.ContractId))
-                .ToListAsync(cancellationToken);
-            var subscriptionIds = subscriptions.Select(s => s.Id).ToList();
-            if (subscriptionIds.Count == 0) return;
-            var paidPayments = await _context.Payments
-                .Where(p => subscriptionIds.Contains(p.SubscriptionId ?? 0) && p.Status == PaymentStatus.Paid)
-                .GroupBy(p => p.SubscriptionId)
-                .Select(g => new { SubscriptionId = g.Key, FirstPaidAt = g.Min(p => p.PaidAt ?? p.CreatedAt) })
-                .ToListAsync(cancellationToken);
-            var subscriptionToFirstPaidDate = paidPayments
-                .Where(p => p.SubscriptionId.HasValue)
-                .ToDictionary(p => p.SubscriptionId!.Value, p => p.FirstPaidAt);
-            foreach (var subscription in subscriptions)
+            foreach (var paymentId in paidPaymentIds)
             {
-                if (!subscriptionToFirstPaidDate.TryGetValue(subscription.Id, out var firstPaidDate)) continue;
-                var contract = pendingContracts.FirstOrDefault(c => c.Id == subscription.ContractId);
-                if (contract == null) continue;
-                contract.Status = ContractStatus.Active;
-                if (!contract.ExpiryDate.HasValue)
-                    contract.ExpiryDate = firstPaidDate.AddYears(1);
-                contract.UpdatedAt = DateTime.UtcNow;
-                _context.Entry(contract).Property(c => c.Status).IsModified = true;
-                _context.Entry(contract).Property(c => c.UpdatedAt).IsModified = true;
-                if (contract.ExpiryDate.HasValue)
-                    _context.Entry(contract).Property(c => c.ExpiryDate).IsModified = true;
+                await _paymentService.ConfirmPaymentAsync(paymentId);
             }
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<(List<Contract> Items, int TotalItems)> GetMyContractsAsync(int clientId, string? search, string? status, int page, int pageSize, CancellationToken cancellationToken = default)
@@ -320,6 +361,8 @@ namespace KlyonHubPlatform.Application.Services
         {
             var query = _context.PaymentHistories
                 .Include(h => h.ActionByUser)
+                    .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .Where(h => h.PaymentId == paymentId)
                 .OrderByDescending(h => h.ActionAt);
             var totalItems = await query.CountAsync(cancellationToken);
@@ -336,6 +379,8 @@ namespace KlyonHubPlatform.Application.Services
             if (ids.Count == 0) return new List<PaymentHistory>();
             return await _context.PaymentHistories
                 .Include(h => h.ActionByUser)
+                    .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .Where(h => ids.Contains(h.PaymentId))
                 .ToListAsync(cancellationToken);
         }
@@ -469,6 +514,28 @@ namespace KlyonHubPlatform.Application.Services
             _context.CreditCards.Add(creditCard);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<int> CountActiveCreditCardsAsync(int clientId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CreditCards.CountAsync(c => c.ClientId == clientId && c.IsActive, cancellationToken);
+        }
+
+        public async Task SetCreditCardAsaasTokenAsync(int cardId, int clientId, string token, string? postalCode = null, string? addressNumber = null, CancellationToken cancellationToken = default)
+        {
+            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == clientId, cancellationToken);
+            if (card == null)
+                return;
+            card.AsaasToken = token;
+            if (!string.IsNullOrWhiteSpace(postalCode) && string.IsNullOrWhiteSpace(card.PostalCode))
+            {
+                card.PostalCode = postalCode.Trim();
+                if (!string.IsNullOrWhiteSpace(addressNumber))
+                    card.AddressNumber = addressNumber.Trim();
+            }
+            card.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
 
         public async Task RemoveCreditCardAsync(int cardId, int clientId, CancellationToken cancellationToken = default)
         {

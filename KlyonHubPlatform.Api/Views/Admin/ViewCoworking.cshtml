@@ -35,6 +35,14 @@
                         <p class="form-control-plaintext">@(Model.TradeName ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                     <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Representante Legal</label>
+                        <p class="form-control-plaintext">@(Model.LegalRepresentative ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Inscrição Imobiliária</label>
+                        <p class="form-control-plaintext">@(Model.PropertyRegistration ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Status</label>
                         <p>
                             <span class="badge bg-@(Model.IsActive ? "success" : "danger")">
@@ -97,6 +105,44 @@
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Telefone Secundário</label>
                         <p class="form-control-plaintext">@(Model.SecondaryPhone ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#enderecoSede" aria-expanded="false" aria-controls="enderecoSede">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Endereço da Sede <i class="bi bi-chevron-down float-end"></i></h5>
+            </div>
+            <div class="card-body collapse" id="enderecoSede">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">CEP</label>
+                        <p class="form-control-plaintext">@(Model.AddressZipCode ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label fw-bold">Logradouro</label>
+                        <p class="form-control-plaintext">@(Model.Address ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label fw-bold">Número</label>
+                        <p class="form-control-plaintext">@(Model.AddressNumber ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Complemento</label>
+                        <p class="form-control-plaintext">@(Model.AddressComplement ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Bairro</label>
+                        <p class="form-control-plaintext">@(Model.AddressNeighborhood ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Cidade</label>
+                        <p class="form-control-plaintext">@(Model.AddressCity ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Estado</label>
+                        <p class="form-control-plaintext">@(Model.AddressState ?? DefaultDisplayStrings.EmptyPlaceholder)</p>
                     </div>
                 </div>
             </div>
@@ -429,9 +475,11 @@
             var requiredDocTypes = new[]
             {
                 (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressProof, "IPTU", "IPTU emitido em nome do coworking (últimos 90 dias)"),
                 (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
-                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.OperatingLicense, "Alvará de funcionamento", "Alvará de funcionamento do espaço"),
+                (KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType.FireDepartmentLicense, "Alvará dos bombeiros", "Alvará do corpo de bombeiros")
             };
             var docsByType = Model.Documents?.ToDictionary(d => d.Type) ?? new Dictionary<KlyonHubPlatform.Domain.Core.Enums.CoworkingDocumentType, KlyonHubPlatform.Domain.Entities.CoworkingDocument>();
             

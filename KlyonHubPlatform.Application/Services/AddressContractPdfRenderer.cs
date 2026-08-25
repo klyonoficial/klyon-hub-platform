@@ -186,7 +186,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var row = new PdfPCell { Border = Rectangle.NO_BORDER, PaddingBottom = 5 };
                 row.AddElement(new Paragraph(label, fonts.Label) { SpacingAfter = 1 });
-                row.AddElement(new Paragraph(PdfFieldFormatter.OrDash(value), fonts.Value));
+                row.AddElement(new Paragraph(value ?? string.Empty, fonts.Value));
                 fieldsTable.AddCell(row);
             }
 
@@ -201,32 +201,32 @@ namespace KlyonHubPlatform.Application.Services
             var fields = new List<(string, string)>();
             if (model.Variant == FiscalAddressContractVariant.WithCnpj)
             {
-                fields.Add(("Razão Social", model.ClientRazaoSocial ?? "-"));
-                fields.Add(("CNPJ", model.ClientCnpj ?? "-"));
-                fields.Add(("Representante Legal", model.LegalRepresentative ?? "-"));
-                fields.Add(("CPF", model.RepresentativeCpf ?? "-"));
-                fields.Add(("Endereço do Representante", model.RepresentativeAddress ?? "-"));
+                fields.Add(("Razão Social", PdfFieldFormatter.OrDash(model.ClientRazaoSocial)));
+                fields.Add(("CNPJ", PdfFieldFormatter.OrDash(model.ClientCnpj)));
+                fields.Add(("Representante Legal", model.LegalRepresentative ?? string.Empty));
+                fields.Add(("CPF", PdfFieldFormatter.OrDash(model.RepresentativeCpf)));
+                fields.Add(("Endereço do Representante", PdfFieldFormatter.OrDash(model.RepresentativeAddress)));
             }
             else
             {
-                fields.Add(("Nome Completo", model.ClientFullName ?? "-"));
-                fields.Add(("CPF", model.ClientCpf ?? "-"));
-                fields.Add(("Endereço", model.ClientAddress ?? "-"));
+                fields.Add(("Nome Completo", model.ClientFullName ?? string.Empty));
+                fields.Add(("CPF", PdfFieldFormatter.OrDash(model.ClientCpf)));
+                fields.Add(("Endereço", PdfFieldFormatter.OrDash(model.ClientAddress)));
             }
 
-            fields.Add(("E-mail", model.ClientEmail ?? "-"));
-            fields.Add(("Telefone", model.ClientPhone ?? "-"));
+            fields.Add(("E-mail", PdfFieldFormatter.OrDash(model.ClientEmail)));
+            fields.Add(("Telefone", PdfFieldFormatter.OrDash(model.ClientPhone)));
             return fields;
         }
 
         private static IReadOnlyList<(string Label, string Value)> BuildContractedFields(FiscalAddressContractPdfModel model) =>
             new List<(string, string)>
             {
-                ("Razão Social", model.ContractorCompanyName),
-                ("CNPJ", model.ContractorCnpj),
-                ("Endereço", model.ContractorAddress),
-                ("Inscrição Imobiliária", model.PropertyRegistration),
-                ("Representante Legal", model.ContractorLegalRepresentative)
+                ("Razão Social", PdfFieldFormatter.OrDash(model.ContractorCompanyName)),
+                ("CNPJ", PdfFieldFormatter.OrDash(model.ContractorCnpj)),
+                ("Endereço", PdfFieldFormatter.OrDash(model.ContractorAddress)),
+                ("Inscrição Imobiliária", PdfFieldFormatter.OrDash(model.PropertyRegistration)),
+                ("Representante Legal", PdfFieldFormatter.OrDash(model.ContractorLegalRepresentative))
             };
 
         private static void AddIntroBox(PdfDocument pdfDocument, string intro, ContractFonts fonts)

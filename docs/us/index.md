@@ -9,6 +9,8 @@
 | 001 | Buscar e contratar endereço fiscal | [Client/001-buscar-contratar-endereco-fiscal.md](Client/001-buscar-contratar-endereco-fiscal.md) |
 | 002 | Checkout unificado (onboarding + pagamento) | [Client/002-checkout-onboarding-pagamento.md](Client/002-checkout-onboarding-pagamento.md) |
 | 003 | Declaração PDF fiscal vs comercial | [Client/003-declaracao-endereco-fiscal-comercial.md](Client/003-declaracao-endereco-fiscal-comercial.md) |
+| 004 | Upload de documentos e aprovação | [Client/004-upload-documentos-aprovacao.md](Client/004-upload-documentos-aprovacao.md) |
+| 005 | Dados do contratante numa única tela | [Client/005-dados-contrato-perfil.md](Client/005-dados-contrato-perfil.md) |
 
 ## Coworking / Parceiro
 

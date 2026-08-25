@@ -277,7 +277,8 @@ O `deploy.ps1` implementa deploy **blue-green**: a aplicação permanece no ar a
 
 **O que o script faz:**
 - **Primeira execução (setup):** Cria na VM as pastas `app_blue` (porta 5000) e `app_green` (porta 5001), os units systemd `klyon-app-blue` e `klyon-app-green`, e a config do Nginx (se ainda não existir). Se existir `/home/ubuntu/app`, copia o conteúdo para blue e green. Para obter a connection string do banco, o script lê o unit `klyon-app.service` existente; se não houver, é possível definir a variável `$DeployConnectionString` no topo do `deploy.ps1`.
-- **Toda execução (deploy):** Publica localmente, envia os arquivos para `app_new` na VM, identifica qual instância está ativa (blue ou green), copia `app_new` para a pasta inativa, inicia o serviço inativo, aguarda o health check (HTTP 200/302), altera o `proxy_pass` do Nginx para a nova porta e recarrega o Nginx, e por fim para o serviço antigo.
+- **Toda execução (deploy):** Publica localmente, envia os arquivos para `app_new` na VM, identifica qual instância está ativa (blue ou green), copia `app_new` para a pasta inativa, inicia o serviço inativo, aguarda o health check (HTTP 200/302), altera o `proxy_pass` do Nginx para a nova porta e recarrega o Nginx, e por fim para o serviço antigo. Também garante `client_max_body_size 20m` e `error_page 413 =200 /errors/413.html` na config do Nginx (substitui o limite antigo de 10m).
+- **Nginx no Windows:** o `Invoke-Ssh` remove `\r` (CRLF do working tree) antes de enviar o comando. Sem isso, `sudo systemctl reload nginx` falha com `Unit nginx\x0d.service not found` (aviso amarelo no deploy), mesmo com sudoers e conf corretos.
 
 **Requisito na VM: sudo sem senha**
 
@@ -355,6 +356,8 @@ Cole o conteúdo abaixo (ajuste `server_name` se tiver domínio; senão o `_` at
 server {
     listen 80;
     server_name _;
+    client_max_body_size 20m;
+    error_page 413 =200 /errors/413.html;
     location / {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
@@ -369,6 +372,8 @@ server {
     }
 }
 ```
+
+O `client_max_body_size 20m` dá folga acima dos **15 MB no total** validados pela aplicação no upload de documentos do cliente (`/Client/UploadDocuments`). Sem isso o Nginx devolve a página branca **413 Request Entity Too Large** antes da API. O `error_page 413` aponta para `/errors/413.html` (página amigável da app, status 200 para o navegador exibir o HTML após um POST). O `deploy.ps1` aplica esses dois ajustes em **todo** deploy.
 
 Salve (Ctrl+O, Enter, Ctrl+X).
 

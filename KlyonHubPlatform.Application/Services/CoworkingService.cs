@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Interfaces;
 namespace KlyonHubPlatform.Application.Services
@@ -22,6 +23,9 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _coworkingRepository.GetByUserIdAsync(userId, cancellationToken);
         }
+        public string? ValidatePartnerContractData(Coworking coworking, PartnerContractDataSection section) =>
+            PartnerContractDataRules.Validate(coworking, section);
+
         public async Task<Coworking> CreateAsync(Coworking coworking, CancellationToken cancellationToken = default)
         {
             return await _coworkingRepository.CreateAsync(coworking, cancellationToken);

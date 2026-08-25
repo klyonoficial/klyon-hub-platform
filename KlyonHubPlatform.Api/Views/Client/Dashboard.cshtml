@@ -47,6 +47,17 @@
     </h2>
 </div>
 
+@if (ViewBag.Client != null && ViewBag.ContractPartyIncomplete == true)
+{
+    <div class="alert alert-warning">
+        <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Dados do contratante incompletos</h5>
+        <p class="mb-2">Preencha nome (ou razão social), CPF/CNPJ, endereço completo e telefone numa única tela. Sem isso o contrato e a declaração não são gerados.</p>
+        <a href="@Url.Action("Profile", "Client")" class="btn btn-warning btn-sm">
+            <i class="bi bi-person-badge"></i> Preencher dados para o contrato
+        </a>
+    </div>
+}
+
 @if (ViewBag.Client == null)
 {
     <div class="alert alert-info">

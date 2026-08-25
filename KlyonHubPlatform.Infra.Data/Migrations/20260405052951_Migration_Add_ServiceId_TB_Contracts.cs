@@ -5,46 +5,78 @@
 namespace KlyonHubPlatform.Infra.Data.Migrations
 {
     /// <inheritdoc />
+    /// <summary>
+    /// Adiciona ServiceId em Contracts. Idempotente: coluna/índice/FK já existem em alguns bancos
+    /// (schema aplicado fora do histórico EF).
+    /// </summary>
     public partial class Migration_Add_ServiceId_TB_Contracts : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "ServiceId",
-                table: "Contracts",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) = 0,
+  'ALTER TABLE `Contracts` ADD COLUMN `ServiceId` int NOT NULL DEFAULT 0',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND COLUMN_NAME = 'ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Contracts_ServiceId",
-                table: "Contracts",
-                column: "ServiceId");
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) = 0,
+  'CREATE INDEX `IX_Contracts_ServiceId` ON `Contracts` (`ServiceId`)',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND INDEX_NAME = 'IX_Contracts_ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Contracts_Services_ServiceId",
-                table: "Contracts",
-                column: "ServiceId",
-                principalTable: "Services",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Restrict);
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) = 0,
+  'ALTER TABLE `Contracts` ADD CONSTRAINT `FK_Contracts_Services_ServiceId` FOREIGN KEY (`ServiceId`) REFERENCES `Services` (`Id`) ON DELETE RESTRICT',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND CONSTRAINT_NAME = 'FK_Contracts_Services_ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Contracts_Services_ServiceId",
-                table: "Contracts");
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) > 0,
+  'ALTER TABLE `Contracts` DROP FOREIGN KEY `FK_Contracts_Services_ServiceId`',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND CONSTRAINT_NAME = 'FK_Contracts_Services_ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
 
-            migrationBuilder.DropIndex(
-                name: "IX_Contracts_ServiceId",
-                table: "Contracts");
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) > 0,
+  'DROP INDEX `IX_Contracts_ServiceId` ON `Contracts`',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND INDEX_NAME = 'IX_Contracts_ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
 
-            migrationBuilder.DropColumn(
-                name: "ServiceId",
-                table: "Contracts");
+            migrationBuilder.Sql(@"
+SET @stmt = (SELECT IF(COUNT(*) > 0,
+  'ALTER TABLE `Contracts` DROP COLUMN `ServiceId`',
+  'SELECT 1')
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Contracts' AND COLUMN_NAME = 'ServiceId');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;");
         }
     }
 }

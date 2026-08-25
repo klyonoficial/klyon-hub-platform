@@ -157,8 +157,9 @@ namespace KlyonHubPlatform.Api.Controllers
                         payment = await _paymentRepository.GetByPixConciliationIdentifierAsync(pixQrCodeId, cancellationToken);
                         foundByPixQrCodeId = payment != null;
                     }
-                    if (payment != null && payment.Status != PaymentStatus.Paid)
+                    if (payment != null)
                     {
+                        // Confirm é idempotente: se já Paid, ainda ativa contrato PendingPayment (race do cartão).
                         await _paymentService.ConfirmPaymentAsync(payment.Id, paymentId);
                         if (foundByPixQrCodeId)
                         {

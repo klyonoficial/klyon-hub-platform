@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Security.Claims;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -37,6 +38,8 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IMapper _mapper;
         private readonly ICorrespondenceService _correspondenceService;
         private readonly IContractRepository _contractRepository;
+        private readonly IClientOnboardingDocumentService _clientOnboardingDocumentService;
+        private readonly IContractTimelineService _contractTimelineService;
         public CoworkingController(
             ICoworkingService coworkingService,
             ICoworkingAppService coworkingAppService,
@@ -51,7 +54,9 @@ namespace KlyonHubPlatform.Api.Controllers
             IMonthlySettlementService monthlySettlementService,
             IMapper mapper,
             ICorrespondenceService correspondenceService,
-            IContractRepository contractRepository)
+            IContractRepository contractRepository,
+            IClientOnboardingDocumentService clientOnboardingDocumentService,
+            IContractTimelineService contractTimelineService)
         {
             _coworkingService = coworkingService;
             _coworkingAppService = coworkingAppService;
@@ -67,6 +72,8 @@ namespace KlyonHubPlatform.Api.Controllers
             _mapper = mapper;
             _correspondenceService = correspondenceService;
             _contractRepository = contractRepository;
+            _clientOnboardingDocumentService = clientOnboardingDocumentService;
+            _contractTimelineService = contractTimelineService;
         }
         private async Task RefreshUserPrincipalAsync(User user)
         {
@@ -202,6 +209,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.PendingFiscalNotesCount = pendingNfCount;
             ViewBag.PendenciasTotal = pendenciasTotal;
             ViewBag.PartnershipSteps = await BuildPartnershipChecklistAsync(coworkingWithAddresses ?? coworkingEntity, cancellationToken);
+            ViewBag.PendingOnboardingDocumentsCount = await _clientOnboardingDocumentService.CountPendingForCoworkingAsync(coworkingEntity.Id, cancellationToken);
             return View();
         }
 
@@ -426,11 +434,6 @@ namespace KlyonHubPlatform.Api.Controllers
                         BankPixKey = Request.Form["BankPixKey"].ToString()
                     };
                 }
-                if (string.IsNullOrWhiteSpace(coworking.Name) || string.IsNullOrWhiteSpace(coworking.CNPJ))
-                {
-                    TempData[ErrorMessages.TempDataKey] = "Nome e CNPJ são obrigatórios.";
-                    return await ReturnRegisterViewAsync(coworking);
-                }
                 if (UtilityBill == null || UtilityBill.Length == 0
                     || AddressAuthorization == null || AddressAuthorization.Length == 0
                     || CNPJCard == null || CNPJCard.Length == 0)
@@ -445,6 +448,19 @@ namespace KlyonHubPlatform.Api.Controllers
                     || !basePrice.HasValue || basePrice.Value < 0 || !maxContracts.HasValue || maxContracts.Value < 1)
                 {
                     TempData[ErrorMessages.TempDataKey] = "Preencha todos os campos do endereço fiscal e informe preço anual e capacidade.";
+                    return await ReturnRegisterViewAsync(coworking);
+                }
+                coworking.Address = address;
+                coworking.AddressNumber = number;
+                coworking.AddressComplement = complement;
+                coworking.AddressNeighborhood = neighborhood;
+                coworking.AddressCity = city;
+                coworking.AddressState = state;
+                coworking.AddressZipCode = zipCode;
+                var partnerDataError = _coworkingService.ValidatePartnerContractData(coworking, PartnerContractDataSection.All);
+                if (partnerDataError != null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = partnerDataError;
                     return await ReturnRegisterViewAsync(coworking);
                 }
                 var cnpjClean = coworking.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
@@ -1337,129 +1353,13 @@ namespace KlyonHubPlatform.Api.Controllers
                     historiesByPaymentId = await _coworkingAppService.GetPaymentHistoriesByPaymentIdsAsync(paymentIds);
                 }
             }
-            var timeline = new List<object>();
-            string ContractStatusPt(ContractStatus s) => s.ToDisplayString();
-            string PaymentStatusPt(PaymentStatus s) => s.ToDisplayStringShort();
-            string PaymentMethodPt(PaymentMethod m) => m.ToDisplayString();
-            timeline.Add(new
-            {
-                Date = contract.CreatedAt,
-                Type = "Criação",
-                Title = "Contrato Criado",
-                Description = $"Contrato {contract.ContractNumber} foi criado",
-                Icon = "bi-file-earmark-plus",
-                Color = "primary"
-            });
-            if (contract.UpdatedAt.HasValue && contract.UpdatedAt != contract.CreatedAt)
-            {
-                var statusPt = ContractStatusPt(contract.Status);
-                timeline.Add(new
-                {
-                    Date = contract.UpdatedAt.Value,
-                    Type = "Status",
-                    Title = $"Status: {statusPt}",
-                    Description = $"Status do contrato alterado para {statusPt}",
-                    Icon = "bi-arrow-repeat",
-                    Color = BootstrapBadgeCss.Info
-                });
-            }
-            foreach (var payment in payments)
-            {
-                timeline.Add(new
-                {
-                    Date = payment.CreatedAt,
-                    Type = "Pagamento",
-                    Title = $"Pagamento de R$ {payment.Amount:N2}",
-                    Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
-                    Icon = "bi-cash-coin",
-                    Color = payment.Status == PaymentStatus.Paid ? BootstrapBadgeCss.Success : BootstrapBadgeCss.Warning,
-                    Payment = payment
-                });
-                if (payment.PaidAt.HasValue)
-                {
-                    timeline.Add(new
-                    {
-                        Date = payment.PaidAt.Value,
-                        Type = "Pagamento",
-                        Title = "Pagamento Confirmado",
-                        Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
-                        Icon = "bi-check-circle",
-                        Color = BootstrapBadgeCss.Success,
-                        Payment = payment
-                    });
-                }
-                if (historiesByPaymentId.ContainsKey(payment.Id))
-                {
-                    foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
-                    {
-                        if (history.Action == PaymentHistoryActions.ContractCreated)
-                            continue;
-                        string title, description, icon, color;
-                        if (history.Action == "Approved")
-                        {
-                            title = "Pagamento Aprovado";
-                            description = $"Aprovado por {history.ActionByUser?.FullName ?? DefaultDisplayStrings.SystemAdminLabel}";
-                            icon = "bi-check-circle";
-                            color = BootstrapBadgeCss.Success;
-                        }
-                        else if (history.Action == "Cancelled")
-                        {
-                            title = "Pagamento Cancelado";
-                            description = history.RejectionReason ?? "Cancelado (outro contrato ativado)";
-                            icon = "bi-x-circle";
-                            color = BootstrapBadgeCss.Secondary;
-                        }
-                        else if (history.Action == "ReceiptUploaded")
-                        {
-                            title = "Comprovante enviado";
-                            description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
-                            icon = "bi-file-earmark-arrow-up";
-                            color = BootstrapBadgeCss.Info;
-                        }
-                        else if (history.Action == PaymentHistoryActions.Rejected)
-                        {
-                            title = "Pagamento Reprovado";
-                            description = $"Reprovado por {history.ActionByUser?.FullName ?? DefaultDisplayStrings.SystemAdminLabel}: {history.RejectionReason}";
-                            icon = "bi-x-circle";
-                            color = BootstrapBadgeCss.Danger;
-                        }
-                        else
-                            continue;
-                        timeline.Add(new
-                        {
-                            Date = history.ActionAt,
-                            Type = "Validação",
-                            Title = title,
-                            Description = description,
-                            Icon = icon,
-                            Color = color,
-                            History = history
-                        });
-                    }
-                }
-            }
-            foreach (var declaration in declarations)
-            {
-                timeline.Add(new
-                {
-                    Date = declaration.CreatedAt,
-                    Type = "Documento",
-                    Title = $"Declaração {declaration.DeclarationNumber}",
-                    Description = $"Versão {declaration.Version} gerada",
-                    Icon = "bi-file-earmark-pdf",
-                    Color = BootstrapBadgeCss.Info,
-                    Declaration = declaration
-                });
-            }
-            timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList();
-            var timelineTotal = timeline.Count;
-            var timelineTotalPages = timelinePageSize > 0 ? (int)Math.Ceiling(timelineTotal / (double)timelinePageSize) : 1;
-            if (timelinePage < 1) timelinePage = 1;
-            if (timelinePage > timelineTotalPages) timelinePage = Math.Max(1, timelineTotalPages);
-            var timelinePaged = timeline
-                .Skip((timelinePage - 1) * timelinePageSize)
-                .Take(timelinePageSize)
-                .ToList();
+            var timelinePageResult = await _contractTimelineService.BuildPagedAsync(
+                contract,
+                payments,
+                historiesByPaymentId,
+                declarations,
+                timelinePage,
+                timelinePageSize);
             if (contract.Status == ContractStatus.PendingPayment && payments.Any())
             {
                 var latestPaymentStatus = payments.OrderByDescending(p => p.CreatedAt).First().Status;
@@ -1467,13 +1367,13 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             else
             {
-                ViewBag.ContractDisplayStatus = ContractStatusPt(contract.Status);
+                ViewBag.ContractDisplayStatus = contract.Status.ToDisplayString();
             }
-            ViewBag.Timeline = timelinePaged;
-            ViewBag.TimelineTotalItems = timelineTotal;
-            ViewBag.TimelineCurrentPage = timelinePage;
-            ViewBag.TimelineTotalPages = timelineTotalPages;
-            ViewBag.TimelinePageSize = timelinePageSize;
+            ViewBag.Timeline = timelinePageResult.Items;
+            ViewBag.TimelineTotalItems = timelinePageResult.TotalItems;
+            ViewBag.TimelineCurrentPage = timelinePageResult.CurrentPage;
+            ViewBag.TimelineTotalPages = timelinePageResult.TotalPages;
+            ViewBag.TimelinePageSize = timelinePageResult.PageSize;
             ViewBag.Declarations = declarations;
             ViewBag.Payments = payments;
             ViewBag.PaymentHistories = historiesByPaymentId;
@@ -2190,6 +2090,27 @@ namespace KlyonHubPlatform.Api.Controllers
                 switch (activeTab)
                 {
                     case "basic":
+                        var basicError = PartnerContractDataRules.Validate(
+                            coworking.Name,
+                            coworking.CNPJ,
+                            coworking.LegalRepresentative,
+                            coworking.PropertyRegistration,
+                            coworking.Address,
+                            coworking.AddressNumber,
+                            coworking.AddressNeighborhood,
+                            coworking.AddressCity,
+                            coworking.AddressState,
+                            coworking.AddressZipCode,
+                            PartnerContractDataSection.Basic);
+                        if (basicError != null)
+                        {
+                            TempData[ErrorMessages.TempDataKey] = basicError;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = basicError });
+                            }
+                            return RedirectToAction(ActionNames.Profile);
+                        }
                         if (string.IsNullOrWhiteSpace(coworking.Name))
                         {
                             var errorMessage = "Nome do Coworking é obrigatório.";
@@ -2240,6 +2161,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         coworkingEntity.Name = coworking.Name;
                         coworkingEntity.CNPJ = coworking.CNPJ;
                         coworkingEntity.TradeName = coworking.TradeName;
+                        coworkingEntity.LegalRepresentative = coworking.LegalRepresentative;
+                        coworkingEntity.PropertyRegistration = coworking.PropertyRegistration;
                         coworkingEntity.Description = coworking.Description;
                         break;
                     case "contact":
@@ -2248,6 +2171,27 @@ namespace KlyonHubPlatform.Api.Controllers
                         coworkingEntity.SecondaryEmail = coworking.SecondaryEmail;
                         break;
                     case "address":
+                        var addressError = PartnerContractDataRules.Validate(
+                            coworking.Name,
+                            coworking.CNPJ,
+                            coworking.LegalRepresentative,
+                            coworking.PropertyRegistration,
+                            coworking.Address,
+                            coworking.AddressNumber,
+                            coworking.AddressNeighborhood,
+                            coworking.AddressCity,
+                            coworking.AddressState,
+                            coworking.AddressZipCode,
+                            PartnerContractDataSection.Address);
+                        if (addressError != null)
+                        {
+                            TempData[ErrorMessages.TempDataKey] = addressError;
+                            if (isAjaxRequest)
+                            {
+                                return Json(new { success = false, error = addressError });
+                            }
+                            return RedirectToAction(ActionNames.Profile);
+                        }
                         coworkingEntity.AddressZipCode = coworking.AddressZipCode;
                         coworkingEntity.Address = coworking.Address;
                         coworkingEntity.AddressNumber = coworking.AddressNumber;
@@ -2274,6 +2218,8 @@ namespace KlyonHubPlatform.Api.Controllers
                         coworkingEntity.Name = coworking.Name;
                         coworkingEntity.CNPJ = coworking.CNPJ;
                         coworkingEntity.TradeName = coworking.TradeName;
+                        coworkingEntity.LegalRepresentative = coworking.LegalRepresentative;
+                        coworkingEntity.PropertyRegistration = coworking.PropertyRegistration;
                         coworkingEntity.Description = coworking.Description;
                         coworkingEntity.ContactEmail = coworking.ContactEmail;
                         coworkingEntity.ContactPhone = coworking.ContactPhone;
@@ -3421,6 +3367,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     CoworkingDocumentType.AddressProof => "address_proof",
                     CoworkingDocumentType.CNPJCard => "cnpj_card",
                     CoworkingDocumentType.AddressAuthorization => "address_authorization",
+                    CoworkingDocumentType.OperatingLicense => "operating_license",
+                    CoworkingDocumentType.FireDepartmentLicense => "fire_department_license",
                     _ => "other"
                 };
                 var fileName = $"{folderName}_{coworkingEntity.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(documentFile.FileName)}";
@@ -4520,6 +4468,79 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.MonthlySettlements);
             }
         }
+        public async Task<IActionResult> OnboardingDocuments(CancellationToken cancellationToken = default)
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            if (coworking == null)
+                return RedirectToAction(ActionNames.Register);
+            var items = await _clientOnboardingDocumentService.ListPendingForCoworkingAsync(coworking.Id, cancellationToken);
+            ViewBag.IsAdmin = User.IsInRole(RoleNames.Administrator);
+            return View(items);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReviewOnboardingDocuments(int contractId, CancellationToken cancellationToken = default)
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            if (coworking == null && !User.IsInRole(RoleNames.Administrator))
+                return RedirectToAction(ActionNames.Register);
+            var page = await _clientOnboardingDocumentService.GetReviewPageAsync(
+                contractId,
+                coworking?.Id,
+                User.IsInRole(RoleNames.Administrator),
+                cancellationToken);
+            if (!page.Success || page.Contract == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = page.ErrorMessage ?? "Contrato não encontrado.";
+                return RedirectToAction(ActionNames.OnboardingDocuments);
+            }
+            ViewBag.IsAdmin = User.IsInRole(RoleNames.Administrator);
+            return View(page);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveOnboardingDocuments(int contractId, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await GetCurrentCoworkingAsync();
+            var result = await _clientOnboardingDocumentService.ApproveAsync(
+                contractId, userId, coworking?.Id, User.IsInRole(RoleNames.Administrator), cancellationToken);
+            if (!result.Success)
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+            else
+                TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
+            return RedirectToAction(ActionNames.ReviewOnboardingDocuments, new { contractId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectOnboardingDocuments(int contractId, string reason, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var coworking = await GetCurrentCoworkingAsync();
+            var result = await _clientOnboardingDocumentService.RejectAsync(
+                contractId, userId, reason, coworking?.Id, User.IsInRole(RoleNames.Administrator), cancellationToken);
+            if (!result.Success)
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+            else
+                TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
+            return RedirectToAction(ActionNames.ReviewOnboardingDocuments, new { contractId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewOnboardingDocument(int id, bool download = false, CancellationToken cancellationToken = default)
+        {
+            var coworking = await GetCurrentCoworkingAsync();
+            var file = await _clientOnboardingDocumentService.GetFileAsync(
+                id, null, coworking?.Id, User.IsInRole(RoleNames.Administrator), cancellationToken);
+            if (file == null)
+                return NotFound();
+            if (download)
+                return File(file.Content, file.ContentType, file.FileName);
+            return File(file.Content, file.ContentType);
+        }
+
         private async Task<Coworking?> GetCurrentCoworkingAsync()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);

@@ -1,7 +1,9 @@
 @using KlyonHubPlatform.Api.Constants
 @using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Application.DTOs.PartnerListing
 @{
-    ViewData[ViewDataKeys.Title] = "Detalhes do Endereço";
+    ViewData[ViewDataKeys.Title] = "Endereço fiscal";
     Layout = LayoutPaths.LandingLayout;
 }
 
@@ -10,6 +12,9 @@
 @{
     var photos = ViewBag.Photos as List<KlyonHubPlatform.Domain.Entities.CoworkingPhoto>
                  ?? new List<KlyonHubPlatform.Domain.Entities.CoworkingPhoto>();
+    var trustDocuments = ViewBag.TrustDocuments as List<PartnerTrustDocumentDto>
+                         ?? new List<PartnerTrustDocumentDto>();
+    var isSolePublished = ViewBag.IsSolePublishedAddress as bool? == true;
     var fiscalOnboardingUrl = ViewBag.FiscalOnboardingUrl as string ?? "#";
     var commercialOnboardingUrl = ViewBag.CommercialOnboardingUrl as string ?? "#";
     var chooseLocationUrl = ViewBag.ChooseLocationUrl as string ?? Url.Action(ActionNames.ChooseLocation, ControllerNames.Client);
@@ -27,11 +32,12 @@
         + (!string.IsNullOrEmpty(Model.Complement) ? $", {Model.Complement}" : "")
         + $" — {Model.Neighborhood}, {Model.City}/{Model.State} — CEP {Model.ZipCode}";
     var hasPhotos = photos.Any();
-    var mainPhoto = photos.FirstOrDefault(p => p.IsMain) ?? photos.FirstOrDefault();
     var description = Model.Coworking?.Description;
 }
 
 <style>
+html { overflow-x: hidden; }
+body { overflow-x: hidden; }
 /* ============ Address Detail Landing — Klyon ============ */
 .ad-back-btn {
     position: fixed;
@@ -210,6 +216,133 @@
 .ad-carousel-nav:hover { background: rgba(0,0,0,0.75); }
 .ad-carousel-nav.prev { left: 12px; }
 .ad-carousel-nav.next { right: 12px; }
+.ad-carousel-wrap { touch-action: pan-y; cursor: grab; }
+.ad-gallery-desktop { display: grid; grid-template-columns: 1fr 160px; gap: 10px; height: 420px; }
+.ad-gallery-thumbs { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.ad-gallery-thumbs button {
+    border: 2px solid transparent; padding: 0; border-radius: 10px; overflow: hidden; height: 76px; background: #0a1f3a;
+    min-height: 44px;
+}
+.ad-gallery-thumbs button.active { border-color: #c69844; }
+.ad-gallery-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ad-gallery-counter {
+    position: absolute; bottom: 16px; right: 16px;
+    background: rgba(5,19,35,0.75); color: #fff; border-radius: 20px; padding: 6px 12px; font-size: 0.85rem;
+}
+.ad-listing-grid {
+    max-width: 1200px; margin: 0 auto; padding: 40px 24px 120px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 40px;
+}
+.ad-sticky-card {
+    position: sticky; top: 96px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px; padding: 24px;
+}
+.ad-mobile-cta {
+    display: none;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1040;
+    background: rgba(5,19,35,0.96); border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    align-items: center; justify-content: space-between; gap: 12px;
+}
+.ad-trust-menu { display: flex; flex-wrap: wrap; gap: 10px; }
+.ad-trust-btn {
+    min-height: 44px; border-radius: 12px; padding: 10px 14px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(198,152,68,0.35);
+    color: #e2e8f0; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+}
+.ad-trust-btn:hover { color: #c69844; border-color: #c69844; }
+.ad-trust-soon { opacity: 0.55; pointer-events: none; }
+.ad-lightbox, .ad-pdf-modal {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0,0,0,0.88); align-items: center; justify-content: center; padding: 16px;
+}
+.ad-lightbox.open, .ad-pdf-modal.open { display: flex; }
+.ad-lightbox img { max-width: 100%; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+.ad-pdf-frame { width: 100%; height: min(90vh, 860px); background: #111; border: 0; border-radius: 8px; }
+.ad-pdf-modal-panel {
+    width: min(960px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 100%;
+    overflow: hidden;
+}
+.ad-pdf-modal-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #fff;
+}
+.ad-pdf-modal-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.3;
+}
+.ad-pdf-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.ad-pdf-download {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+.ad-pdf-modal-close {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.ad-pdf-modal-close:hover { background: rgba(255,255,255,0.25); }
+.ad-modal-close {
+    position: absolute; top: 16px; right: 16px; min-width: 44px; min-height: 44px;
+    border-radius: 50%; border: 0; background: rgba(255,255,255,0.15); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.ad-pdf-modal {
+    overflow-x: hidden;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+}
+@@media (max-width: 480px) {
+    .ad-pdf-modal-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .ad-pdf-modal-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+@@media (max-width: 1024px) {
+    .ad-listing-grid { grid-template-columns: 1fr; padding-bottom: 140px; }
+    .ad-sticky-card { display: none; }
+    .ad-mobile-cta { display: flex; }
+    #fiscal-chat-toggle { bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+    #fiscal-chat-window { bottom: calc(148px + env(safe-area-inset-bottom, 0px)) !important; }
+    .ad-gallery-desktop { grid-template-columns: 1fr; height: 62vh; min-height: 280px; }
+    .ad-gallery-thumbs { display: none; }
+    .ad-hero-inner { grid-template-columns: 1fr; }
+    .ad-final-cta { padding-bottom: 24px; }
+    .ad-final-cta .ad-section { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+}
 
 /* CTA bar */
 .ad-cta-bar {
@@ -649,121 +782,140 @@
 }
 </style>
 
-<!-- Botão Voltar -->
-<a href="@chooseLocationUrl" class="ad-back-btn">
-    <i class="bi bi-arrow-left"></i> Voltar à lista
-</a>
+@if (!isSolePublished)
+{
+    <a href="@chooseLocationUrl" class="ad-back-btn">
+        <i class="bi bi-arrow-left"></i> Voltar à lista
+    </a>
+}
 
-<!-- ======================== HERO ======================== -->
 <section class="ad-hero">
-    <div class="ad-hero-inner">
-        <!-- Info -->
-        <div>
-            <div class="ad-hero-meta">
-                <i class="bi bi-geo-alt-fill"></i>
-                @tradeName &middot; @locationLabel
-            </div>
-            <h1 class="ad-hero-title">
-                @Model.Address, @Model.Number
-                @if (!string.IsNullOrEmpty(Model.Complement))
-                {
-                    <span style="color:#94a3b8; font-size:0.7em; font-weight:400;"> @Model.Complement</span>
-                }
-            </h1>
-            <div class="ad-hero-address">
-                <i class="bi bi-building" style="color:#1a4d7a; flex-shrink:0; margin-top:2px;"></i>
-                <span>@Model.Neighborhood, @Model.City / @Model.State &mdash; CEP @Model.ZipCode</span>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(description))
+    <div class="ad-hero-inner" style="grid-template-columns: 1fr; gap: 24px;">
+        <div class="ad-carousel-wrap" id="adCarousel" style="height: auto;">
+            @if (hasPhotos)
             {
-                <p style="color:#94a3b8; font-size:0.93rem; line-height:1.7; margin-bottom:24px; max-width:480px;">@description</p>
-            }
-
-            <div class="ad-price-box">
-                <div>
-                    <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">A partir de</div>
-                    <div class="ad-price-yearly">
-                        R$ @yearlyPrice.ToString("N2") <small>/ano</small>
-                    </div>
-                </div>
-                <div class="ad-price-monthly">
-                    <i class="bi bi-tag-fill me-1"></i>Equiv. R$ @monthlyEquivalent.ToString("N2")/mês
-                </div>
-            </div>
-
-            @if (vacancies > 0 && vacancies <= 5)
-            {
-                <div class="ad-badge-vacancy">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    Apenas @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")
-                </div>
-            }
-            else if (vacancies <= 0)
-            {
-                <div class="ad-badge-vacancy" style="color:#ef4444; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25);">
-                    <i class="bi bi-x-circle-fill"></i> Sem vagas disponíveis no momento
-                </div>
-            }
-        </div>
-
-        <!-- Carrossel de Fotos -->
-        <div>
-            <div class="ad-carousel-wrap" id="adCarousel">
-                @if (hasPhotos)
-                {
-                    foreach (var photo in photos)
-                    {
-                        <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })"
-                             alt="Foto do local"
-                             class="ad-carousel-slide"
-                             style="display:none; width:100%; height:100%; object-fit:cover;"
-                             onerror="this.style.display='none'; document.getElementById('adCarouselEmpty').style.display='flex';" />
-                    }
-                    <div class="ad-carousel-empty" id="adCarouselEmpty" style="display:none;">
-                        <i class="bi bi-image"></i>
-                        <span>Foto não disponível</span>
+                <div class="ad-gallery-desktop">
+                    <div style="position:relative; height:100%; min-height:280px;">
+                        @for (var i = 0; i < photos.Count; i++)
+                        {
+                            var photo = photos[i];
+                            <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })"
+                                 alt="Foto @(i + 1) de @tradeName"
+                                 class="ad-carousel-slide"
+                                 data-idx="@i"
+                                 style="display:@(i == 0 ? "block" : "none"); width:100%; height:100%; object-fit:cover;"
+                                 onerror="this.style.opacity='0';" />
+                        }
+                        @if (photos.Count > 1)
+                        {
+                            <button type="button" class="ad-carousel-nav prev" id="adPrev" aria-label="Foto anterior"><i class="bi bi-chevron-left"></i></button>
+                            <button type="button" class="ad-carousel-nav next" id="adNext" aria-label="Próxima foto"><i class="bi bi-chevron-right"></i></button>
+                            <div class="ad-gallery-counter" id="adCounter">1 / @photos.Count</div>
+                        }
                     </div>
                     @if (photos.Count > 1)
                     {
-                        <button class="ad-carousel-nav prev" id="adPrev" aria-label="Foto anterior"><i class="bi bi-chevron-left"></i></button>
-                        <button class="ad-carousel-nav next" id="adNext" aria-label="Próxima foto"><i class="bi bi-chevron-right"></i></button>
-                        <div class="ad-carousel-dots" id="adDots">
+                        <div class="ad-gallery-thumbs" id="adThumbs">
                             @for (int i = 0; i < photos.Count; i++)
                             {
-                                <button class="ad-carousel-dot @(i == 0 ? "active" : "")" data-idx="@i" aria-label="Foto @(i+1)"></button>
+                                <button type="button" class="@(i == 0 ? "active" : "")" data-idx="@i" aria-label="Foto @(i+1)">
+                                    <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photos[i].Id })" alt="" onerror="this.style.opacity='0';" />
+                                </button>
                             }
                         </div>
                     }
-                }
-                else
-                {
-                    <div class="ad-carousel-empty">
-                        <i class="bi bi-building"></i>
-                        <span>@tradeName</span>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <!-- CTA Bar dentro do Hero -->
-    <div class="ad-cta-bar">
-        <div class="ad-cta-bar-inner">
-            <div class="ad-cta-bar-text">
-                <strong>Pronto para contratar?</strong> Endereço fiscal para usar no CNPJ — contrato digital e pagamento online.
-            </div>
-            <div class="ad-cta-btns flex-column align-items-stretch gap-2">
-                <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" data-funnel="cta_address_detail_contratar">
-                    <i class="bi bi-bank"></i> Contratar endereço fiscal
-                </a>
-                <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link small text-center" data-funnel="cta_address_detail_comercial">
-                    Não preciso de sede no CNPJ? <strong>Endereço comercial</strong> — qual a diferença?
-                </a>
-            </div>
+                </div>
+            }
+            else
+            {
+                <div class="ad-carousel-empty" style="min-height:280px;">
+                    <i class="bi bi-building"></i>
+                    <span>@tradeName</span>
+                </div>
+            }
         </div>
     </div>
 </section>
+
+<div class="ad-listing-grid">
+    <div>
+        <div class="ad-hero-meta"><i class="bi bi-geo-alt-fill"></i> @locationLabel</div>
+        <h1 class="ad-hero-title">@tradeName — Endereço fiscal</h1>
+        <div class="ad-hero-address">
+            <i class="bi bi-building" style="color:#c69844;"></i>
+            <span>@fullAddress</span>
+        </div>
+        @if (vacancies > 0 && vacancies <= 5)
+        {
+            <div class="ad-badge-vacancy mb-3"><i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</div>
+        }
+
+        <div class="mb-4">
+            <div class="ad-section-label">Documentos de confiança</div>
+            <div class="ad-trust-menu">
+                @foreach (var doc in trustDocuments)
+                {
+                    if (doc.IsAvailable)
+                    {
+                        <button type="button" class="ad-trust-btn" data-doc-type="@doc.Type" data-doc-name="@doc.DisplayName">
+                            <i class="bi bi-file-earmark-pdf"></i> @doc.DisplayName
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="ad-trust-btn ad-trust-soon"><i class="bi bi-clock"></i> @doc.DisplayName — em breve</span>
+                    }
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(description))
+        {
+            <div class="mb-4">
+                <div class="ad-section-label">Sobre o espaço</div>
+                <p style="color:#94a3b8; line-height:1.75;">@description</p>
+            </div>
+        }
+    </div>
+    <aside class="ad-sticky-card">
+        <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">A partir de</div>
+        <div class="ad-price-yearly mb-2">R$ @yearlyPrice.ToString("N2") <small>/ano</small></div>
+        <div class="ad-price-monthly mb-3">Equiv. R$ @monthlyEquivalent.ToString("N2")/mês</div>
+        <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal w-100 justify-content-center" data-funnel="cta_address_detail_contratar" data-show-loading>
+            <i class="bi bi-bank"></i> Contratar
+        </a>
+        <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link d-block text-center mt-3 small" data-funnel="cta_address_detail_comercial" data-show-loading>
+            Prefere endereço comercial?
+        </a>
+    </aside>
+</div>
+
+<div class="ad-mobile-cta">
+    <div>
+        <div style="color:#f8fafc; font-weight:700;">R$ @yearlyPrice.ToString("N2") <small style="color:#94a3b8; font-weight:400;">/ano</small></div>
+        <div style="color:#10b981; font-size:0.8rem;">R$ @monthlyEquivalent.ToString("N2")/mês</div>
+    </div>
+    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:12px 18px; white-space:nowrap;" data-funnel="cta_address_detail_mobile" data-show-loading>Contratar</a>
+</div>
+
+<div class="ad-lightbox" id="adLightbox" role="dialog" aria-modal="true" aria-label="Galeria">
+    <button type="button" class="ad-modal-close" id="adLightboxClose" aria-label="Fechar">&times;</button>
+    <button type="button" class="ad-carousel-nav prev" id="adLightboxPrev" aria-label="Anterior"><i class="bi bi-chevron-left"></i></button>
+    <img id="adLightboxImg" alt="Foto ampliada" />
+    <button type="button" class="ad-carousel-nav next" id="adLightboxNext" aria-label="Próxima"><i class="bi bi-chevron-right"></i></button>
+</div>
+<div class="ad-pdf-modal" id="adPdfModal" role="dialog" aria-modal="true">
+    <div class="ad-pdf-modal-panel">
+        <div class="ad-pdf-modal-header">
+            <strong id="adPdfTitle" class="ad-pdf-modal-title">Documento</strong>
+            <div class="ad-pdf-modal-actions">
+                <a id="adPdfDownload" class="btn btn-sm btn-outline-light ad-pdf-download" href="#" download>Baixar</a>
+                <button type="button" class="ad-pdf-modal-close" id="adPdfClose" aria-label="Fechar">&times;</button>
+            </div>
+        </div>
+        <iframe id="adPdfFrame" class="ad-pdf-frame" title="Documento PDF"></iframe>
+    </div>
+</div>
 
 <div class="divider-glow"></div>
 
@@ -821,7 +973,7 @@
                         <li><i class="bi bi-check-circle-fill check"></i> Apoio administrativo e atendimento presencial</li>
                         <li><i class="bi bi-check-circle-fill check"></i> Acesso a salas de reunião (mediante contratação)</li>
                     </ul>
-                    <a href="@commercialOnboardingUrl" class="btn-ad-comercial" style="width:100%; justify-content:center;">
+                    <a href="@commercialOnboardingUrl" class="btn-ad-comercial" style="width:100%; justify-content:center;" data-show-loading>
                         <i class="bi bi-briefcase"></i> Contratar Endereço Comercial
                     </a>
                 </div>
@@ -848,7 +1000,7 @@
                         <li><i class="bi bi-check-circle-fill check"></i> Suporte Klyon</li>
                         <li><i class="bi bi-check-circle-fill check"></i> Recebimento de correspondências</li>
                     </ul>
-                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center;">
+                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center;" data-show-loading>
                         <i class="bi bi-bank"></i> Contratar Endereço Fiscal
                     </a>
                 </div>
@@ -1121,11 +1273,11 @@
             Sem burocracia excessiva. Contrato digital, pagamento online e suporte da Klyon do começo ao fim.
         </p>
         <div class="ad-final-btns flex-column align-items-center gap-3">
-            <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;" data-funnel="cta_address_detail_final_contratar">
+            <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;" data-funnel="cta_address_detail_final_contratar" data-show-loading>
                 <i class="bi bi-bank"></i>
                 Contratar endereço fiscal
             </a>
-            <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link" data-funnel="cta_address_detail_final_comercial">
+            <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link" data-funnel="cta_address_detail_final_comercial" data-show-loading>
                 Prefere endereço comercial (sem sede no CNPJ)?
             </a>
         </div>
@@ -1140,48 +1292,105 @@
 @section Scripts {
 <script>
 (function () {
-    /* ---- Carrossel ---- */
+    /* ---- Galeria swipe / lightbox ---- */
     var slides = document.querySelectorAll('.ad-carousel-slide');
-    var dots = document.querySelectorAll('.ad-carousel-dot');
+    var thumbs = document.querySelectorAll('#adThumbs button');
     var current = 0;
     var total = slides.length;
-    var autoTimer = null;
+    var counter = document.getElementById('adCounter');
+    var lightbox = document.getElementById('adLightbox');
+    var lightboxImg = document.getElementById('adLightboxImg');
 
     function showSlide(idx) {
         if (total === 0) return;
-        slides.forEach(function (s) { s.style.display = 'none'; });
-        dots.forEach(function (d) { d.classList.remove('active'); });
         current = (idx + total) % total;
-        slides[current].style.display = 'block';
-        if (dots[current]) dots[current].classList.add('active');
-    }
-
-    function startAuto() {
-        if (total <= 1) return;
-        autoTimer = setInterval(function () { showSlide(current + 1); }, 4000);
-    }
-
-    function resetAuto() {
-        clearInterval(autoTimer);
-        startAuto();
+        slides.forEach(function (s, i) { s.style.display = i === current ? 'block' : 'none'; });
+        thumbs.forEach(function (t, i) { t.classList.toggle('active', i === current); });
+        if (counter) counter.textContent = (current + 1) + ' / ' + total;
+        if (lightbox && lightbox.classList.contains('open') && lightboxImg) {
+            lightboxImg.src = slides[current].src;
+        }
     }
 
     if (total > 0) {
         showSlide(0);
-        startAuto();
-
         var prevBtn = document.getElementById('adPrev');
         var nextBtn = document.getElementById('adNext');
-        if (prevBtn) prevBtn.addEventListener('click', function () { showSlide(current - 1); resetAuto(); });
-        if (nextBtn) nextBtn.addEventListener('click', function () { showSlide(current + 1); resetAuto(); });
-
-        dots.forEach(function (d) {
-            d.addEventListener('click', function () {
-                showSlide(parseInt(d.getAttribute('data-idx')));
-                resetAuto();
+        if (prevBtn) prevBtn.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current - 1); });
+        if (nextBtn) nextBtn.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current + 1); });
+        thumbs.forEach(function (t) {
+            t.addEventListener('click', function () { showSlide(parseInt(t.getAttribute('data-idx'), 10)); });
+        });
+        var wrap = document.getElementById('adCarousel');
+        var startX = 0, startY = 0, tracking = false;
+        function onPointerDown(e) {
+            tracking = true;
+            startX = e.clientX;
+            startY = e.clientY;
+        }
+        function onPointerUp(e) {
+            if (!tracking) return;
+            tracking = false;
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+            showSlide(dx < 0 ? current + 1 : current - 1);
+        }
+        if (wrap) {
+            wrap.addEventListener('pointerdown', onPointerDown);
+            wrap.addEventListener('pointerup', onPointerUp);
+            wrap.addEventListener('pointercancel', function () { tracking = false; });
+            wrap.addEventListener('click', function (e) {
+                if (e.target.closest('.ad-carousel-nav') || e.target.closest('#adThumbs')) return;
+                if (!lightbox || total === 0) return;
+                lightboxImg.src = slides[current].src;
+                lightbox.classList.add('open');
             });
+        }
+        function closeLightbox() { if (lightbox) lightbox.classList.remove('open'); }
+        var lbClose = document.getElementById('adLightboxClose');
+        var lbPrev = document.getElementById('adLightboxPrev');
+        var lbNext = document.getElementById('adLightboxNext');
+        if (lbClose) lbClose.addEventListener('click', closeLightbox);
+        if (lbPrev) lbPrev.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current - 1); });
+        if (lbNext) lbNext.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current + 1); });
+        if (lightbox) lightbox.addEventListener('click', function (e) { if (e.target === lightbox) closeLightbox(); });
+        document.addEventListener('keydown', function (e) {
+            if (lightbox && lightbox.classList.contains('open')) {
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') showSlide(current - 1);
+                if (e.key === 'ArrowRight') showSlide(current + 1);
+            }
         });
     }
+
+    /* ---- Modal PDF ---- */
+    var pdfModal = document.getElementById('adPdfModal');
+    var pdfFrame = document.getElementById('adPdfFrame');
+    var pdfTitle = document.getElementById('adPdfTitle');
+    var pdfDownload = document.getElementById('adPdfDownload');
+    var pdfClose = document.getElementById('adPdfClose');
+    function closePdf() {
+        if (!pdfModal) return;
+        pdfModal.classList.remove('open');
+        if (pdfFrame) pdfFrame.src = '';
+    }
+    document.querySelectorAll('[data-doc-type]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var type = btn.getAttribute('data-doc-type');
+            var name = btn.getAttribute('data-doc-name') || 'Documento';
+            var url = '@Url.Action(ActionNames.ViewPartnerDocument, ControllerNames.Client, new { coworkingAddressId = Model.Id })' + '&type=' + encodeURIComponent(type);
+            if (pdfTitle) pdfTitle.textContent = name;
+            if (pdfFrame) pdfFrame.src = url;
+            if (pdfDownload) pdfDownload.href = url + '&download=true';
+            if (pdfModal) pdfModal.classList.add('open');
+        });
+    });
+    if (pdfClose) pdfClose.addEventListener('click', closePdf);
+    if (pdfModal) pdfModal.addEventListener('click', function (e) { if (e.target === pdfModal) closePdf(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closePdf();
+    });
 
     /* ---- Guia de Decisão ---- */
     window.showGuide = function (opt) {
@@ -1220,17 +1429,6 @@
         if (!isOpen) item.classList.add('open');
     };
 
-    /* ---- Loading em links de navegação ---- */
-    document.querySelectorAll('a[href]').forEach(function (link) {
-        var href = (link.getAttribute('href') || '').trim();
-        if (!href || href === '#' || href.startsWith('javascript:')) return;
-        link.addEventListener('click', function (e) {
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // abre nova aba
-            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
-                window.KlyonLoading.show();
-            }
-        });
-    });
 })();
 </script>
 }

@@ -6,8 +6,11 @@ using System.Security.Claims;
 using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.FiscalOnboarding;
+using KlyonHubPlatform.Application.DTOs.ClientOnboarding;
+using KlyonHubPlatform.Application.DTOs.ClientProfile;
 using KlyonHubPlatform.Application.DTOs.OpenCnpj;
 using KlyonHubPlatform.Application.Services;
+using KlyonHubPlatform.Domain.Core.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using static KlyonHubPlatform.Domain.Core.Constants.RoleNames;
@@ -51,6 +54,11 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IOpenCnpjQueryService _openCnpjQueryService;
         private readonly IContractDocumentsEnsureService _contractDocumentsEnsureService;
+        private readonly IPartnerListingService _partnerListingService;
+        private readonly IContractPartnerDocumentService _contractPartnerDocumentService;
+        private readonly IClientOnboardingDocumentService _clientOnboardingDocumentService;
+        private readonly IContractTimelineService _contractTimelineService;
+        private readonly IClientProfileService _clientProfileService;
         public ClientController(
             IContractService contractService,
             ICoworkingService coworkingService,
@@ -75,7 +83,12 @@ namespace KlyonHubPlatform.Api.Controllers
             IKlyonOnboardingPublicDocumentService klyonOnboardingPublicDocumentService,
             IWebHostEnvironment webHostEnvironment,
             IOpenCnpjQueryService openCnpjQueryService,
-            IContractDocumentsEnsureService contractDocumentsEnsureService)
+            IContractDocumentsEnsureService contractDocumentsEnsureService,
+            IPartnerListingService partnerListingService,
+            IContractPartnerDocumentService contractPartnerDocumentService,
+            IClientOnboardingDocumentService clientOnboardingDocumentService,
+            IContractTimelineService contractTimelineService,
+            IClientProfileService clientProfileService)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -101,12 +114,67 @@ namespace KlyonHubPlatform.Api.Controllers
             _webHostEnvironment = webHostEnvironment;
             _openCnpjQueryService = openCnpjQueryService;
             _contractDocumentsEnsureService = contractDocumentsEnsureService;
+            _partnerListingService = partnerListingService;
+            _contractPartnerDocumentService = contractPartnerDocumentService;
+            _clientOnboardingDocumentService = clientOnboardingDocumentService;
+            _contractTimelineService = contractTimelineService;
+            _clientProfileService = clientProfileService;
         }
         private async Task<long> GetMaxPhotoSizeBytesAsync()
         {
             var mb = await _systemConfig.GetValueAsync(UploadConfigKey.MaxPhotoSizeMB.ToConfigKey());
             if (int.TryParse(mb, out var n) && n > 0) return n * 1024L * 1024L;
             return 5 * 1024L * 1024L;
+        }
+
+        private const int PaymentSuccessAutoRedirectDelaySeconds = 4;
+
+        private string? LocalReturnUrl(string? returnUrl) =>
+            !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null;
+
+        private string PaymentSuccessUrl(int paymentId) =>
+            Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = paymentId })!;
+
+        private object CardPaymentSuccessJson(Payment payment, string message) =>
+            new { success = true, message, redirectUrl = PaymentSuccessUrl(payment.Id) };
+
+        private async Task<string?> ResolvePostPaymentOnboardingRedirectUrlAsync(
+            int userId,
+            int clientId,
+            Contract contract,
+            CancellationToken cancellationToken)
+        {
+            var onboarding = await _clientOnboardingDocumentService.GetPageAsync(
+                contract.Id,
+                clientId,
+                User.IsInRole(Administrator),
+                cancellationToken);
+            if (onboarding.Success && onboarding.CanUpload)
+            {
+                var uploadUrl = Url.Action(ActionNames.UploadDocuments, new { contractId = contract.Id })!;
+                var party = await _clientProfileService.GetContractPartyStatusByUserIdAsync(userId, cancellationToken);
+                if (!party.IsComplete)
+                {
+                    TempData[TempDataKeys.Info] = party.ErrorMessage ?? InfoMessages.CompleteContractPartyData;
+                    return Url.Action(ActionNames.Profile, new { returnUrl = LocalReturnUrl(uploadUrl) });
+                }
+                return uploadUrl;
+            }
+            if (!onboarding.Success && !contract.DocumentsApproved)
+                return Url.Action(ActionNames.UploadDocuments, new { contractId = contract.Id });
+            return null;
+        }
+
+        private async Task<IActionResult?> RedirectToProfileIfContractPartyIncompleteAsync(
+            int userId,
+            string? returnUrl,
+            CancellationToken cancellationToken)
+        {
+            var party = await _clientProfileService.GetContractPartyStatusByUserIdAsync(userId, cancellationToken);
+            if (party.IsComplete)
+                return null;
+            TempData[TempDataKeys.Info] = party.ErrorMessage ?? InfoMessages.CompleteContractPartyData;
+            return RedirectToAction(ActionNames.Profile, new { returnUrl = LocalReturnUrl(returnUrl) });
         }
         [HttpGet]
         public async Task<IActionResult> Services(CancellationToken cancellationToken = default)
@@ -146,13 +214,16 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.HasCertificateExpiring = result.HasCertificateExpiring;
             ViewBag.FirstPendingPaymentId = result.FirstPendingPaymentId;
             ViewBag.SubscriptionIdsWithPaymentAwaitingValidation = result.SubscriptionIdsWithPaymentAwaitingValidation;
+            var party = await _clientProfileService.GetContractPartyStatusByUserIdAsync(userId, cancellationToken);
+            ViewBag.ContractPartyIncomplete = !party.IsComplete;
+            ViewBag.ContractPartyMessage = party.ErrorMessage;
             return View(ViewNames.Dashboard);
         }
         [HttpGet]
-        public async Task<IActionResult> Profile(CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Profile(string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+            var client = await _clientAppService.GetClientByUserIdAsNoTrackingAsync(userId, cancellationToken);
             if (client == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFoundCompleteRegistration;
@@ -160,6 +231,10 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
             ViewBag.UserEmail = userEmail;
+            ViewBag.ReturnUrl = LocalReturnUrl(returnUrl);
+            var party = ClientContractPartyRules.Evaluate(client);
+            ViewBag.ContractPartyIncomplete = !party.IsComplete;
+            ViewBag.ContractPartyMissingFields = party.MissingFields;
             var maxPhotoMb = 5;
             var mbStr = await _systemConfig.GetValueAsync(UploadConfigKey.MaxPhotoSizeMB.ToConfigKey());
             if (int.TryParse(mbStr, out var n) && n > 0) maxPhotoMb = n;
@@ -204,15 +279,16 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
-                new Claim(ClaimTypes.Name, user.FullName ?? "")
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email))
             };
             foreach (var roleClaim in User.FindAll(ClaimTypes.Role))
                 claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
             var claimsIdentity = new ClaimsIdentity(claims, AuthConstants.CookieScheme);
             var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
             await HttpContext.SignInAsync(AuthConstants.CookieScheme, claimsPrincipal);
-            if (!string.IsNullOrEmpty(user.FullName))
-                HttpContext.Session.SetString(SessionKeys.UserName, user.FullName);
+            var displayName = ClientDisplayName.Resolve(user.FullName, user.Email);
+            if (!string.IsNullOrEmpty(displayName))
+                HttpContext.Session.SetString(SessionKeys.UserName, displayName);
         }
         private async Task SaveClientRegistrationDocumentsIfNeededAsync(int clientId, IFormFile? cnpjDoc, IFormFile? contratoDoc, IFormFile? rgCnhDoc, CancellationToken cancellationToken)
         {
@@ -263,213 +339,77 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> UpdateProfile(Client client, IFormFile? Logo, string? returnUrl = null, CancellationToken cancellationToken = default)
         {
             var isAjaxRequest = Request.Headers[HttpHeaderNames.XRequestedWith].ToString() == HttpHeaderNames.XRequestedWithValue;
+            var safeReturnUrl = LocalReturnUrl(returnUrl);
             try
             {
                 var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                var existingClient = await _clientAppService.GetClientByUserIdTrackingAsync(userId, cancellationToken);
-                if (existingClient == null)
-                {
-                    var err = "Cliente não encontrado.";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                var cnpjInput = string.IsNullOrWhiteSpace(client.CNPJ) ? null : client.CNPJ;
-                var cpfInput = string.IsNullOrWhiteSpace(client.CPF) ? null : client.CPF;
-                if (!string.IsNullOrWhiteSpace(cnpjInput))
-                {
-                    var cnpjValidation = DocumentValidator.ValidateCPForCNPJ(cnpjInput);
-                    if (!cnpjValidation.isValid || cnpjValidation.type != TipoDocumentoCliente.CNPJ)
-                    {
-                        TempData[ErrorMessages.TempDataKey] = cnpjValidation.message;
-                        if (isAjaxRequest) return Json(new { success = false, error = cnpjValidation.message });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    var cnpjClean = cnpjInput.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                    var allClients = await _clientAppService.GetClientsWithCnpjExcludingAsync(existingClient.Id, cancellationToken);
-                    var existingCNPJ = allClients.FirstOrDefault(c => 
-                        c.CNPJ != null && 
-                        c.CNPJ.Replace(".", "").Replace("/", "").Replace("-", "").Trim() == cnpjClean);
-                    if (existingCNPJ != null)
-                    {
-                        var err = $"O CNPJ {client.CNPJ} já está cadastrado no sistema.";
-                        TempData[ErrorMessages.TempDataKey] = err;
-                        if (isAjaxRequest) return Json(new { success = false, error = err });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    existingClient.CNPJ = $"{cnpjClean.Substring(0, 2)}.{cnpjClean.Substring(2, 3)}.{cnpjClean.Substring(5, 3)}/{cnpjClean.Substring(8, 4)}-{cnpjClean.Substring(12, 2)}";
-                }
-                else
-                {
-                    existingClient.CNPJ = null;
-                }
-                if (!string.IsNullOrWhiteSpace(cpfInput))
-                {
-                    var cpfValidation = DocumentValidator.ValidateCPForCNPJ(cpfInput);
-                    if (!cpfValidation.isValid || cpfValidation.type != TipoDocumentoCliente.CPF)
-                    {
-                        TempData[ErrorMessages.TempDataKey] = cpfValidation.message;
-                        if (isAjaxRequest) return Json(new { success = false, error = cpfValidation.message });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    var cpfClean = cpfInput.Replace(".", "").Replace("-", "").Trim();
-                    var allClients = await _clientAppService.GetClientsWithCpfExcludingAsync(existingClient.Id, cancellationToken);
-                    var existingCPF = allClients.FirstOrDefault(c => 
-                        c.CPF != null && 
-                        c.CPF.Replace(".", "").Replace("-", "").Trim() == cpfClean);
-                    if (existingCPF != null)
-                    {
-                        var err = $"O CPF {client.CPF} já está cadastrado no sistema.";
-                        TempData[ErrorMessages.TempDataKey] = err;
-                        if (isAjaxRequest) return Json(new { success = false, error = err });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    existingClient.CPF = $"{cpfClean.Substring(0, 3)}.{cpfClean.Substring(3, 3)}.{cpfClean.Substring(6, 3)}-{cpfClean.Substring(9, 2)}";
-                }
-                else
-                {
-                    existingClient.CPF = null;
-                }
-                var cnpjPreenchido = !string.IsNullOrWhiteSpace(cnpjInput);
-                var cpfPreenchido = !string.IsNullOrWhiteSpace(cpfInput);
-                if (!cnpjPreenchido && !cpfPreenchido)
-                {
-                    var err = "Informe o CPF (pessoa física) ou o CNPJ (pessoa jurídica).";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                if (string.IsNullOrWhiteSpace(client.State))
-                {
-                    var err = "O Estado é obrigatório.";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                if (string.IsNullOrWhiteSpace(client.ContactPhone))
-                {
-                    var err = "O Telefone é obrigatório.";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                if (string.IsNullOrWhiteSpace(client.ContactName))
-                {
-                    var err = "O Nome Completo é obrigatório.";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                var zipCodeRaw = (client.ZipCode ?? "").Replace("-", "").Replace(" ", "").Trim();
-                if (string.IsNullOrWhiteSpace(zipCodeRaw))
-                {
-                    var err = "O CEP é obrigatório.";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                if (zipCodeRaw.Length != 8 || !zipCodeRaw.All(char.IsDigit))
-                {
-                    var err = "Informe um CEP válido (8 dígitos).";
-                    TempData[ErrorMessages.TempDataKey] = err;
-                    if (isAjaxRequest) return Json(new { success = false, error = err });
-                    return RedirectToAction(ActionNames.Profile);
-                }
-                existingClient.RazaoSocial = client.RazaoSocial;
-                existingClient.NomeFantasia = client.NomeFantasia;
-                existingClient.ContactName = client.ContactName;
-                existingClient.ContactEmail = userEmail;
-                var userToUpdate = await _clientAppService.GetUserByIdAsync(userId, cancellationToken);
-                if (userToUpdate != null && !string.IsNullOrWhiteSpace(client.ContactName))
-                {
-                    userToUpdate.FullName = client.ContactName.Trim();
-                    userToUpdate.UpdatedAt = DateTime.UtcNow;
-                }
-                if (!string.IsNullOrEmpty(client.ContactPhone))
-                {
-                    existingClient.ContactPhone = client.ContactPhone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
-                }
-                else
-                {
-                    existingClient.ContactPhone = null;
-                }
-                if (!string.IsNullOrEmpty(client.ZipCode))
-                {
-                    existingClient.ZipCode = client.ZipCode.Replace("-", "");
-                }
-                else
-                {
-                    existingClient.ZipCode = null;
-                }
-                existingClient.Address = client.Address;
-                existingClient.AddressNumber = client.AddressNumber;
-                existingClient.Neighborhood = client.Neighborhood;
-                existingClient.Complement = client.Complement;
-                existingClient.City = client.City;
-                existingClient.State = client.State;
+                var userEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+                ClientProfileLogoInput? logoInput = null;
                 if (Logo != null && Logo.Length > 0)
                 {
-                    var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-                    var fileExtension = Path.GetExtension(Logo.FileName).ToLowerInvariant();
-                    if (!allowedExtensions.Contains(fileExtension))
+                    await using var stream = new MemoryStream();
+                    await Logo.CopyToAsync(stream, cancellationToken);
+                    logoInput = new ClientProfileLogoInput
                     {
-                        var err = "Formato de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.";
-                        TempData[ErrorMessages.TempDataKey] = err;
-                        if (isAjaxRequest) return Json(new { success = false, error = err });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    var maxBytes = await GetMaxPhotoSizeBytesAsync();
-                    var maxMb = (int)(maxBytes / (1024 * 1024));
-                    if (Logo.Length > maxBytes)
-                    {
-                        var err = $"O arquivo é muito grande. O tamanho máximo é {maxMb}MB. (Configurável em Admin > Configurações > Upload.MaxPhotoSizeMB)";
-                        TempData[ErrorMessages.TempDataKey] = err;
-                        if (isAjaxRequest) return Json(new { success = false, error = err });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
-                    var oldLogoPath = existingClient.LogoPath;
-                    try
-                    {
-                        var storageFactory = HttpContext.RequestServices.GetRequiredService<StorageServiceFactory>();
-                        var storageService = await storageFactory.GetStorageServiceAsync();
-                        using var stream = new MemoryStream();
-                        await Logo.CopyToAsync(stream);
-                        var fileBytes = stream.ToArray();
-                        var fileName = $"logo_{existingClient.Id}_{DateTimeHelper.GetBrazilianTime():yyyyMMddHHmmss}{fileExtension}";
-                        var folder = $"clients/{existingClient.Id}";
-                        var filePath = await storageService.SaveFileAsync(fileBytes, fileName, folder);
-                        existingClient.LogoPath = filePath;
-                        if (!string.IsNullOrEmpty(oldLogoPath))
-                        {
-                            try { await storageService.DeleteFileAsync(oldLogoPath); } catch { /* ignora falha ao excluir logo antiga */ }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        var err = $"Erro ao fazer upload da logo: {ex.Message}";
-                        TempData[ErrorMessages.TempDataKey] = err;
-                        if (isAjaxRequest) return Json(new { success = false, error = err });
-                        return RedirectToAction(ActionNames.Profile);
-                    }
+                        Content = stream.ToArray(),
+                        FileName = Logo.FileName
+                    };
                 }
-                existingClient.UpdatedAt = DateTimeHelper.GetBrazilianTime();
-                await _clientAppService.SaveChangesAsync(cancellationToken);
+
+                var saveResult = await _clientProfileService.SaveProfileAsync(new ClientProfileSaveInput
+                {
+                    UserId = userId,
+                    AccountEmail = userEmail,
+                    RazaoSocial = client.RazaoSocial,
+                    NomeFantasia = client.NomeFantasia,
+                    CNPJ = client.CNPJ,
+                    CPF = client.CPF,
+                    ContactName = client.ContactName,
+                    ContactPhone = client.ContactPhone,
+                    ZipCode = client.ZipCode,
+                    Address = client.Address,
+                    AddressNumber = client.AddressNumber,
+                    Neighborhood = client.Neighborhood,
+                    Complement = client.Complement,
+                    City = client.City,
+                    State = client.State,
+                    Logo = logoInput,
+                    MaxLogoBytes = await GetMaxPhotoSizeBytesAsync()
+                }, cancellationToken);
+
+                if (!saveResult.Success)
+                {
+                    var err = saveResult.ErrorMessage ?? "Não foi possível salvar o perfil.";
+                    TempData[ErrorMessages.TempDataKey] = err;
+                    if (isAjaxRequest) return Json(new { success = false, error = err });
+                    return RedirectToAction(ActionNames.Profile, new { returnUrl = safeReturnUrl });
+                }
+
+                var userToUpdate = await _clientAppService.GetUserByIdAsync(userId, cancellationToken);
                 if (userToUpdate != null)
                     await RefreshUserPrincipalAsync(userToUpdate);
+
                 if (isAjaxRequest)
-                    return Json(new { success = true, message = JsonMessage.PerfilAtualizadoComSucesso, contactName = existingClient.ContactName });
+                {
+                    return Json(new
+                    {
+                        success = true,
+                        message = JsonMessage.PerfilAtualizadoComSucesso,
+                        warning = saveResult.WarningMessage,
+                        contactName = saveResult.ContactName,
+                        displayName = saveResult.DisplayName,
+                        redirectUrl = safeReturnUrl
+                    });
+                }
+
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ProfileUpdated;
-                return RedirectToAction(ActionNames.Profile);
-            }
-            catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException mysqlEx && mysqlEx.Message.Contains("Duplicate entry"))
-            {
-                var err = "Este CNPJ ou CPF já está cadastrado no sistema. Verifique os dados informados.";
-                TempData[ErrorMessages.TempDataKey] = err;
-                if (isAjaxRequest) return Json(new { success = false, error = err });
+                if (!string.IsNullOrEmpty(saveResult.WarningMessage))
+                    TempData[TempDataKeys.Warning] = saveResult.WarningMessage;
+                if (!string.IsNullOrEmpty(safeReturnUrl))
+                    return Redirect(safeReturnUrl);
                 return RedirectToAction(ActionNames.Profile);
             }
             catch (Exception ex)
@@ -477,7 +417,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var err = $"Erro ao atualizar perfil: {ex.Message}";
                 TempData[ErrorMessages.TempDataKey] = err;
                 if (isAjaxRequest) return Json(new { success = false, error = err });
-                return RedirectToAction(ActionNames.Profile);
+                return RedirectToAction(ActionNames.Profile, new { returnUrl = safeReturnUrl });
             }
         }
         [HttpGet]
@@ -689,10 +629,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     if (existingClient.User != null)
                         existingClient.User.FullName = existingClient.ContactName ?? "";
-                    await _clientAppService.SaveChangesAsync(cancellationToken);
+                    var asaasWarning = await _clientAppService.SaveClientProfileAsync(existingClient.Id, userId, cancellationToken);
                     if (!isAdmin && existingClient.User != null)
                         await RefreshUserPrincipalAsync(existingClient.User);
                     TempData[SuccessMessage.TempDataKey] = SuccessMessage.ClientUpdated;
+                    if (!string.IsNullOrEmpty(asaasWarning))
+                        TempData[TempDataKeys.Warning] = asaasWarning;
                     if (isAdmin)
                     {
                         return RedirectToAction(ActionNames.Contracts, ControllerNames.Admin);
@@ -894,8 +836,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var result = await _openCnpjQueryService.ValidateForFiscalOnboardingAsync(digits, cancellationToken);
                 if (result.Success)
                     return Json(new { valid = true, razaoSocial = result.RazaoSocial, cnae = result.CnaePrincipal });
-                var suggestCommercial = result.ErrorMessage?.Contains("CNAE", StringComparison.OrdinalIgnoreCase) == true;
-                return Json(new { valid = false, message = result.ErrorMessage, suggestCommercial });
+                return Json(new { valid = false, message = result.ErrorMessage });
             }
             catch (Exception ex)
             {
@@ -1016,8 +957,6 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.FiscalValidationIssues = issues.ToList();
             var resolvedServiceType = serviceType?.ToLowerInvariant() ?? "";
             ViewBag.ServiceType = resolvedServiceType;
-            var isCnaeIssue = issues.Any(i => i.Contains("CNAE", StringComparison.OrdinalIgnoreCase));
-            ViewBag.CnaeSuggestCommercial = isCnaeIssue && !string.Equals(resolvedServiceType, "comercial", StringComparison.OrdinalIgnoreCase);
             if (!string.IsNullOrEmpty(validationTitleOverride))
                 ViewBag.FiscalValidationTitle = validationTitleOverride;
             return View("FiscalOnboarding");
@@ -1078,7 +1017,10 @@ namespace KlyonHubPlatform.Api.Controllers
             client.ContactEmail = user.Email;
             client.ContactName = !string.IsNullOrWhiteSpace(razaoSocial)
                 ? razaoSocial
-                : (string.IsNullOrWhiteSpace(client.ContactName) ? user.FullName : client.ContactName);
+                : ClientDisplayName.NullIfPlaceholder(client.ContactName, user.Email)
+                    ?? ClientDisplayName.NullIfPlaceholder(user.FullName, user.Email);
+            if (ClientDisplayName.IsPlaceholderName(user.FullName, user.Email))
+                user.FullName = client.ContactName ?? string.Empty;
             client.RazaoSocial = razaoSocial ?? client.RazaoSocial;
             client.UpdatedAt = DateTime.UtcNow;
             user.ClientHasCnpj = declaresHasCnpj;
@@ -1180,7 +1122,7 @@ namespace KlyonHubPlatform.Api.Controllers
 
             // ── Fluxo Endereço Comercial: criar conta + contrato + logar + PaymentDetails ──
             // ── Fluxo unificado: criar conta + contrato + logar + PaymentDetails ──
-            // Fiscal: valida CNPJ via OpenCnpj (CNAEs permitidos). Comercial: sem validação de CNAE.
+            // Fiscal: valida CNPJ via OpenCnpj (situação cadastral). Sem restrição de CNAE. Comercial: mesma jornada, sem essa consulta.
             var isFiscal = !isCommercial;
             var serviceDescription = isFiscal ? "Endereço Fiscal" : "Endereço Comercial";
 
@@ -1213,7 +1155,7 @@ namespace KlyonHubPlatform.Api.Controllers
         /// Cria conta (User + Client) + Contrato + Payment para qualquer tipo de onboarding (Fiscal ou Comercial).
         /// Implementado no controller para evitar dependência circular no DI
         /// (IContractService → ISubscriptionService → IPaymentService → IFiscalOnboardingService → IContractService).
-        /// Para Endereço Fiscal com CNPJ, executa a validação via OpenCnpj (CNAEs permitidos).
+        /// Para Endereço Fiscal com CNPJ, consulta OpenCnpj (situação cadastral). Não restringe CNAE.
         /// </summary>
         private async Task<CommercialOnboardingFullResult> RegisterClientAndCreateContractAsync(
             FiscalOnboardingStartRequest req, bool validateCnpjForFiscal, string serviceDescription, CancellationToken ct, string? serviceCode = null)
@@ -1263,7 +1205,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 || addressEntity.CurrentContracts >= addressEntity.MaxContracts)
                 return CommercialOnboardingFullResult.Fail("Este endereço não está disponível para contratação no momento.");
 
-            // Para Endereço Fiscal com CNPJ: validar CNAEs via OpenCnpj
+            // Para Endereço Fiscal com CNPJ: validar situação cadastral via OpenCnpj (sem bloqueio por CNAE)
             string? razaoSocial = null;
             if (validateCnpjForFiscal && req.DeclaresHasCnpj && taxDigits.Length == 14)
             {
@@ -1283,9 +1225,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
 
             var phoneDigits = System.Text.RegularExpressions.Regex.Replace(req.ContactPhone ?? "", @"[^\d]", "");
-            var contactName = !string.IsNullOrWhiteSpace(razaoSocial)
-                ? razaoSocial
-                : (email.Contains('@') ? email.Split('@')[0] : email);
+            var contactName = ClientDisplayName.NullIfPlaceholder(razaoSocial, email);
 
             var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == RoleNames.Client, ct);
             if (role == null)
@@ -1298,7 +1238,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 Email = email,
                 PasswordHash = passwordHash,
-                FullName = contactName,
+                FullName = contactName ?? string.Empty,
                 Phone = phoneDigits,
                 IsActive = true,
                 EmailVerified = false,
@@ -1411,7 +1351,7 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
-                new Claim(ClaimTypes.Name, user.FullName ?? "")
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email))
             };
             foreach (var role in roles)
                 claims.Add(new Claim(ClaimTypes.Role, role));
@@ -1423,7 +1363,7 @@ namespace KlyonHubPlatform.Api.Controllers
             await HttpContext.SignInAsync(AuthConstants.CookieScheme, principal);
             HttpContext.Session.SetString(SessionKeys.UserId, user.Id.ToString());
             HttpContext.Session.SetString(SessionKeys.UserEmail, user.Email ?? "");
-            HttpContext.Session.SetString(SessionKeys.UserName, user.FullName ?? "");
+            HttpContext.Session.SetString(SessionKeys.UserName, ClientDisplayName.Resolve(user.FullName, user.Email));
         }
 
         [AllowAnonymous]
@@ -1482,17 +1422,6 @@ namespace KlyonHubPlatform.Api.Controllers
                 .ToList();
             var contractedAddressIds = new HashSet<int>();
             int? activeContractId = null;
-            if (User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.Client))
-            {
-                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                var client = await _clientAppService.GetClientByUserIdAsNoTrackingAsync(userId, cancellationToken);
-                if (client != null)
-                {
-                    var ids = await _clientAppService.GetContractAddressIdsByClientIdAsync(client.Id, cancellationToken);
-                    contractedAddressIds = new HashSet<int>(ids);
-                    activeContractId = await _clientAppService.GetActiveContractIdByClientIdAsync(client.Id, cancellationToken);
-                }
-            }
             var pendingPaymentByAddressId = new Dictionary<int, int>();
             var pendingPaymentStatusByAddressId = new Dictionary<int, PaymentStatus>();
             if (User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.Client))
@@ -1501,10 +1430,22 @@ namespace KlyonHubPlatform.Api.Controllers
                 var client = await _clientAppService.GetClientByUserIdAsNoTrackingAsync(userId, cancellationToken);
                 if (client != null)
                 {
+                    // Heal: pagamento Paid + contrato ainda PendingPayment (race do cartão) → mesma fonte de verdade do Confirm/MyPayments
+                    await _clientAppService.PromotePendingContractsToActiveIfPaidAsync(client.Id, cancellationToken);
+
+                    var ids = await _clientAppService.GetContractAddressIdsByClientIdAsync(client.Id, cancellationToken);
+                    contractedAddressIds = new HashSet<int>(ids);
+                    activeContractId = await _clientAppService.GetActiveContractIdByClientIdAsync(client.Id, cancellationToken);
+
                     var pendingContracts = await _clientAppService.GetPendingContractsWithSubscriptionPaymentsAsync(client.Id, cancellationToken);
                     foreach (var c in pendingContracts)
                     {
-                        var payment = c.Subscription?.Payments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+                        var payment = c.Subscription?.Payments?
+                            .OrderByDescending(p => p.CreatedAt)
+                            .FirstOrDefault(p =>
+                                p.Status == PaymentStatus.Pending
+                                || p.Status == PaymentStatus.Processing
+                                || p.Status == PaymentStatus.AwaitingValidation);
                         if (payment != null)
                         {
                             pendingPaymentByAddressId[c.CoworkingAddressId] = payment.Id;
@@ -1543,28 +1484,135 @@ namespace KlyonHubPlatform.Api.Controllers
             if (coworkingAddressId <= 0)
                 return RedirectToAction(ActionNames.Index, ControllerNames.Home);
 
-            var address = await _context.CoworkingAddresses.AsNoTracking()
-                .Include(a => a.Coworking)
-                .Include(a => a.Location)
-                .FirstOrDefaultAsync(a => a.Id == coworkingAddressId && a.IsAvailable, cancellationToken);
-
-            if (address == null)
+            var listing = await _partnerListingService.GetPartnerListingAsync(coworkingAddressId, cancellationToken);
+            if (listing == null)
                 return RedirectToAction(ActionNames.FiscalAddress, ControllerNames.Home);
 
-            var photos = await _context.CoworkingPhotos.AsNoTracking()
-                .Where(p => p.CoworkingId == address.CoworkingId)
-                .OrderByDescending(p => p.IsMain)
-                .ThenBy(p => p.DisplayOrder)
-                .ToListAsync(cancellationToken);
-
-            ViewBag.Photos = photos;
-            // Usuário logado → pula FiscalOnboarding e cria contrato direto do perfil.
-            // Não logado → FiscalOnboarding coleta os dados necessários.
+            ViewBag.Photos = listing.Photos;
+            ViewBag.TrustDocuments = listing.TrustDocuments;
+            ViewBag.IsSolePublishedAddress = listing.IsSolePublishedAddress;
             ViewBag.FiscalOnboardingUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
             ViewBag.CommercialOnboardingUrl = Url.Action(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId, serviceType = "comercial" });
-            ViewBag.ChooseLocationUrl = Url.Action(ActionNames.ChooseLocation);
+            ViewBag.ChooseLocationUrl = listing.IsSolePublishedAddress
+                ? Url.Action(ActionNames.Index, ControllerNames.Home)
+                : Url.Action(ActionNames.ChooseLocation);
 
-            return View(address);
+            return View(listing.Address);
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> ViewPartnerDocument(int coworkingAddressId, CoworkingDocumentType type, bool download = false, CancellationToken cancellationToken = default)
+        {
+            var file = await _partnerListingService.GetPublicTrustDocumentAsync(coworkingAddressId, type, cancellationToken);
+            if (file == null)
+                return NotFound();
+            if (download)
+                return File(file.Content, file.ContentType, file.FileName);
+            return File(file.Content, file.ContentType);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> UploadDocuments(int contractId, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+            if (client == null && !User.IsInRole(Administrator))
+                return RedirectToAction(ActionNames.Login, ControllerNames.Auth);
+
+            if (client != null && !User.IsInRole(Administrator))
+            {
+                var incomplete = await RedirectToProfileIfContractPartyIncompleteAsync(
+                    userId,
+                    Url.Action(ActionNames.UploadDocuments, new { contractId }),
+                    cancellationToken);
+                if (incomplete != null)
+                    return incomplete;
+            }
+
+            var page = await _clientOnboardingDocumentService.GetPageAsync(contractId, client?.Id ?? 0, User.IsInRole(Administrator), cancellationToken);
+            if (!page.Success || page.Contract == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = page.ErrorMessage ?? ErrorMessages.ContractNotFound;
+                return RedirectToAction(ActionNames.MyContracts);
+            }
+            if (page.CanViewGeneratedDocuments)
+                return RedirectToAction(ActionNames.ContractDetails, new { id = contractId });
+
+            return View(page);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(UploadRequestLimits.MaxRequestBodyBytes)]
+        [RequestFormLimits(MultipartBodyLengthLimit = UploadRequestLimits.MaxRequestBodyBytes)]
+        public async Task<IActionResult> UploadDocuments(
+            int contractId,
+            ClientOnboardingIdentityPath identityPath,
+            IFormFile? rgFrontFile,
+            IFormFile? rgBackFile,
+            IFormFile? cpfFile,
+            IFormFile? cnhFile,
+            IFormFile? proofFile,
+            CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+            if (client == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
+                return RedirectToAction(ActionNames.UploadDocuments, new { contractId });
+            }
+
+            var result = await _clientOnboardingDocumentService.UploadSetAsync(new ClientOnboardingSetUploadInput
+            {
+                ContractId = contractId,
+                ClientId = client.Id,
+                Path = identityPath,
+                RgFront = await ToOnboardingUploadAsync(rgFrontFile, cancellationToken),
+                RgBack = await ToOnboardingUploadAsync(rgBackFile, cancellationToken),
+                Cpf = await ToOnboardingUploadAsync(cpfFile, cancellationToken),
+                Cnh = await ToOnboardingUploadAsync(cnhFile, cancellationToken),
+                ProofOfResidence = await ToOnboardingUploadAsync(proofFile, cancellationToken)
+            }, cancellationToken);
+
+            if (!result.Success)
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+            else
+                TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
+            return RedirectToAction(ActionNames.UploadDocuments, new { contractId });
+        }
+
+        private static async Task<ClientOnboardingUploadInput?> ToOnboardingUploadAsync(IFormFile? file, CancellationToken cancellationToken)
+        {
+            if (file == null || file.Length == 0)
+                return null;
+            await using var stream = new MemoryStream();
+            await file.CopyToAsync(stream, cancellationToken);
+            return new ClientOnboardingUploadInput
+            {
+                FileName = file.FileName,
+                ContentType = file.ContentType ?? string.Empty,
+                Content = stream.ToArray()
+            };
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewOnboardingDocument(int id, bool download = false, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+            var file = await _clientOnboardingDocumentService.GetFileAsync(
+                id,
+                client?.Id,
+                null,
+                User.IsInRole(Administrator),
+                cancellationToken);
+            if (file == null)
+                return NotFound();
+            if (download)
+                return File(file.Content, file.ContentType, file.FileName);
+            return File(file.Content, file.ContentType);
         }
 
         [HttpGet]
@@ -1590,6 +1638,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 var client = await _clientAppService.GetClientByUserIdAsNoTrackingAsync(userId, cancellationToken);
                 if (client != null)
                 {
+                    await _clientAppService.PromotePendingContractsToActiveIfPaidAsync(client.Id, cancellationToken);
                     var ids = await _clientAppService.GetContractAddressIdsByClientIdAsync(client.Id, cancellationToken);
                     contractedAddressIds = new HashSet<int>(ids);
                     activeContractId = await _clientAppService.GetActiveContractIdByClientIdAsync(client.Id, cancellationToken);
@@ -1964,37 +2013,6 @@ namespace KlyonHubPlatform.Api.Controllers
                             ActionAt = DateTimeHelper.GetBrazilianTime()
                         };
                         await _clientAppService.AddPaymentHistoryAsync(history, cancellationToken);
-                        var clientForPayment = await _clientAppService.GetClientByIdWithUserAsync(client.Id, cancellationToken);
-                        if (clientForPayment != null)
-                        {
-                            var clientName = clientForPayment.RazaoSocial ?? clientForPayment.NomeFantasia ?? clientForPayment.ContactName ?? clientForPayment.User?.FullName;
-                            var clientEmail = clientForPayment.ContactEmail ?? clientForPayment.User?.Email;
-                            var clientTaxId = (clientForPayment.CNPJ ?? clientForPayment.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                            if (clientTaxId == "00000000000000" || clientTaxId == "00000000000" || clientTaxId == "99999999999" || clientTaxId == "99999999999999" ||
-                                clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
-                                clientTaxId = "";
-                            if (string.IsNullOrWhiteSpace(clientName))
-                            {
-                                var msg = "Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome Completo. Seu contrato já foi criado.";
-                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action(ActionNames.Profile) });
-                                TempData[ErrorMessages.TempDataKey] = msg;
-                                return RedirectToAction(ActionNames.Profile);
-                            }
-                            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
-                            {
-                                var msg = "Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido. Seu contrato já foi criado.";
-                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action(ActionNames.Profile) });
-                                TempData[ErrorMessages.TempDataKey] = msg;
-                                return RedirectToAction(ActionNames.Profile);
-                            }
-                            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
-                            {
-                                var msg = "CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido. Seu contrato já foi criado.";
-                                if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action(ActionNames.Profile) });
-                                TempData[ErrorMessages.TempDataKey] = msg;
-                                return RedirectToAction(ActionNames.Profile);
-                            }
-                        }
                         if (isAjax) return Json(new { success = true, redirectUrl = Url.Action(ActionNames.PaymentDetails, new { id = payment.Id }) });
                         TempData[SuccessMessage.TempDataKey] = SuccessMessage.ContractCreated;
                         return RedirectToAction(ActionNames.PaymentDetails, new { id = payment.Id });
@@ -2057,7 +2075,28 @@ namespace KlyonHubPlatform.Api.Controllers
             if (contract.Client != null)
                 await _clientAppService.PromotePendingContractsToActiveIfPaidAsync(contract.Client.Id, cancellationToken);
 
-            var documentsEnsureResult = await _contractDocumentsEnsureService.EnsureAsync(id, cancellationToken);
+            KlyonHubPlatform.Application.DTOs.ContractDocuments.ContractDocumentsEnsureResult documentsEnsureResult;
+            if (contract.DocumentsApproved)
+            {
+                documentsEnsureResult = await _contractDocumentsEnsureService.GetStatusAsync(id, cancellationToken);
+            }
+            else
+            {
+                documentsEnsureResult = new KlyonHubPlatform.Application.DTOs.ContractDocuments.ContractDocumentsEnsureResult();
+                if (contract.Status == ContractStatus.Active || contract.Status == ContractStatus.PendingCancellation)
+                {
+                    var onboarding = await _clientOnboardingDocumentService.GetPageAsync(
+                        id,
+                        contract.Client?.Id ?? 0,
+                        User.IsInRole(Administrator),
+                        cancellationToken);
+                    if (onboarding.Success)
+                    {
+                        ViewBag.OnboardingBanner = onboarding.Banner;
+                        ViewBag.OnboardingDocumentsUrl = Url.Action(ActionNames.UploadDocuments, new { contractId = id });
+                    }
+                }
+            }
 
             contract = await _contractService.GetByIdAsync(id);
             if (contract == null)
@@ -2079,138 +2118,28 @@ namespace KlyonHubPlatform.Api.Controllers
                         .ToDictionary(g => g.Key, g => g.ToList());
                 }
             }
-            var timeline = new List<object>();
-            string ContractStatusPt(ContractStatus s) => s.ToDisplayString();
-            string PaymentStatusPt(PaymentStatus s) => s.ToDisplayStringShort();
-            string PaymentMethodPt(PaymentMethod m) => m.ToDisplayString();
-            timeline.Add(new
-            {
-                Date = contract.CreatedAt,
-                Type = "Criação",
-                Title = "Contrato Criado",
-                Description = $"Contrato {contract.ContractNumber} foi criado",
-                Icon = "bi-file-earmark-plus",
-                Color = "primary"
-            });
-            if (contract.UpdatedAt.HasValue && contract.UpdatedAt != contract.CreatedAt)
-            {
-                var statusPt = ContractStatusPt(contract.Status);
-                timeline.Add(new
-                {
-                    Date = contract.UpdatedAt.Value,
-                    Type = "Status",
-                    Title = $"Status: {statusPt}",
-                    Description = $"Status do contrato alterado para {statusPt}",
-                    Icon = "bi-arrow-repeat",
-                    Color = BootstrapBadgeCss.Info
-                });
-            }
-            foreach (var payment in payments)
-            {
-                timeline.Add(new
-                {
-                    Date = payment.CreatedAt,
-                    Type = "Pagamento",
-                    Title = $"Pagamento de R$ {payment.Amount:N2}",
-                    Description = $"Status: {PaymentStatusPt(payment.Status)} - Método: {PaymentMethodPt(payment.Method)}",
-                    Icon = "bi-cash-coin",
-                    Color = payment.Status == PaymentStatus.Paid ? BootstrapBadgeCss.Success : BootstrapBadgeCss.Warning,
-                    Payment = payment
-                });
-                if (payment.PaidAt.HasValue)
-                {
-                    timeline.Add(new
-                    {
-                        Date = payment.PaidAt.Value,
-                        Type = "Pagamento",
-                        Title = "Pagamento Confirmado",
-                        Description = $"Pagamento de R$ {payment.Amount:N2} foi confirmado",
-                        Icon = "bi-check-circle",
-                        Color = BootstrapBadgeCss.Success,
-                        Payment = payment
-                    });
-                }
-                if (historiesByPaymentId.ContainsKey(payment.Id))
-                {
-                    foreach (var history in historiesByPaymentId[payment.Id].OrderBy(h => h.ActionAt))
-                    {
-                        if (history.Action == PaymentHistoryActions.ContractCreated)
-                            continue;
-                        string title, description, icon, color;
-                        if (history.Action == PaymentHistoryActions.Approved)
-                        {
-                            title = "Pagamento Aprovado";
-                            description = $"Aprovado por {history.ActionByUser?.FullName ?? DefaultDisplayStrings.SystemAdminLabel}";
-                            icon = "bi-check-circle";
-                            color = BootstrapBadgeCss.Success;
-                        }
-                        else if (history.Action == PaymentHistoryActions.Cancelled)
-                        {
-                            title = "Pagamento Cancelado";
-                            description = history.RejectionReason ?? "Cancelado";
-                            icon = "bi-x-circle";
-                            color = BootstrapBadgeCss.Secondary;
-                        }
-                        else if (history.Action == PaymentHistoryActions.ReceiptUploaded)
-                        {
-                            title = "Comprovante enviado";
-                            description = "Cliente enviou o comprovante de pagamento. Aguardando validação.";
-                            icon = "bi-file-earmark-arrow-up";
-                            color = BootstrapBadgeCss.Info;
-                        }
-                        else if (history.Action == PaymentHistoryActions.Rejected)
-                        {
-                            title = "Pagamento Reprovado";
-                            description = $"Reprovado por {history.ActionByUser?.FullName ?? DefaultDisplayStrings.SystemAdminLabel}: {history.RejectionReason}";
-                            icon = "bi-x-circle";
-                            color = BootstrapBadgeCss.Danger;
-                        }
-                        else
-                            continue;
-                        timeline.Add(new
-                        {
-                            Date = history.ActionAt,
-                            Type = "Validação",
-                            Title = title,
-                            Description = description,
-                            Icon = icon,
-                            Color = color,
-                            History = history
-                        });
-                    }
-                }
-            }
-            foreach (var declaration in declarations)
-            {
-                timeline.Add(new
-                {
-                    Date = declaration.CreatedAt,
-                    Type = "Documento",
-                    Title = $"Declaração {declaration.DeclarationNumber}",
-                    Description = $"Versão {declaration.Version} gerada",
-                    Icon = "bi-file-earmark-pdf",
-                    Color = BootstrapBadgeCss.Info,
-                    Declaration = declaration
-                });
-            }
-            timeline = timeline.OrderByDescending(t => ((dynamic)t).Date).ToList<object>();
-            var timelineTotal = timeline.Count;
-            var timelineTotalPages = timelinePageSize > 0 ? (int)Math.Ceiling(timelineTotal / (double)timelinePageSize) : 1;
-            if (timelinePage < 1) timelinePage = 1;
-            if (timelinePage > timelineTotalPages) timelinePage = Math.Max(1, timelineTotalPages);
-            var timelinePaged = timeline
-                .Skip((timelinePage - 1) * timelinePageSize)
-                .Take(timelinePageSize)
-                .ToList<object>();
-            ViewBag.Timeline = timelinePaged;
-            ViewBag.TimelineTotalItems = timelineTotal;
-            ViewBag.TimelineCurrentPage = timelinePage;
-            ViewBag.TimelineTotalPages = timelineTotalPages;
-            ViewBag.TimelinePageSize = timelinePageSize;
+            var timelinePageResult = await _contractTimelineService.BuildPagedAsync(
+                contract,
+                payments,
+                historiesByPaymentId,
+                declarations,
+                timelinePage,
+                timelinePageSize,
+                cancellationToken);
+            ViewBag.Timeline = timelinePageResult.Items;
+            ViewBag.TimelineTotalItems = timelinePageResult.TotalItems;
+            ViewBag.TimelineCurrentPage = timelinePageResult.CurrentPage;
+            ViewBag.TimelineTotalPages = timelinePageResult.TotalPages;
+            ViewBag.TimelinePageSize = timelinePageResult.PageSize;
             ViewBag.CanGenerateDeclaration = documentsEnsureResult.DeclarationManualRetryAvailable;
             ViewBag.CanGenerateContract = documentsEnsureResult.ContractManualRetryAvailable;
             ViewBag.DeclarationGenerationError = documentsEnsureResult.DeclarationErrorMessage;
             ViewBag.ContractGenerationError = documentsEnsureResult.ContractErrorMessage;
+            ViewBag.PartnerDocuments = await _contractPartnerDocumentService.ListAvailableForContractAsync(
+                id,
+                contract.Client?.Id ?? 0,
+                User.IsInRole(Administrator),
+                cancellationToken);
             return View(contract);
             }
             catch (Exception ex)
@@ -2380,7 +2309,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
         [HttpGet]
-        public async Task<IActionResult> DownloadDocument(int documentId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> DownloadDocument(int documentId, bool download = true, CancellationToken cancellationToken = default)
         {
             var fileBytes = await _documentService.GetDocumentFileAsync(documentId);
             if (fileBytes == null)
@@ -2388,7 +2317,23 @@ namespace KlyonHubPlatform.Api.Controllers
                 return NotFound();
             }
             var document = await _clientAppService.GetDocumentByIdAsync(documentId, cancellationToken);
-            return File(fileBytes, "application/pdf", document?.FileName ?? "document.pdf");
+            return FileResultWithDisposition(fileBytes, "application/pdf", document?.FileName ?? "document.pdf", download);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadContractPartnerDocument(int contractId, int documentId, bool download = true, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+            var file = await _contractPartnerDocumentService.GetFileForContractAsync(
+                contractId,
+                documentId,
+                client?.Id ?? 0,
+                User.IsInRole(Administrator),
+                cancellationToken);
+            if (file == null)
+                return NotFound();
+            return FileResultWithDisposition(file.Content, file.ContentType, file.FileName, download);
         }
 
         [HttpGet]
@@ -2446,6 +2391,29 @@ namespace KlyonHubPlatform.Api.Controllers
                     var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
                     if (contract?.ClientId == client.Id)
                         authorized = true;
+                    if (authorized && payment.Status == PaymentStatus.Paid && contract != null)
+                    {
+                        var onboarding = await _clientOnboardingDocumentService.GetPageAsync(
+                            contract.Id,
+                            client.Id,
+                            User.IsInRole(Administrator),
+                            cancellationToken);
+                        if (onboarding.Success)
+                        {
+                            ViewBag.OnboardingBanner = onboarding.Banner;
+                            ViewBag.OnboardingDocumentsUrl = Url.Action(ActionNames.UploadDocuments, new { contractId = contract.Id });
+                        }
+                        var autoRedirectUrl = await ResolvePostPaymentOnboardingRedirectUrlAsync(
+                            userId,
+                            client.Id,
+                            contract,
+                            cancellationToken);
+                        if (!string.IsNullOrEmpty(autoRedirectUrl))
+                        {
+                            ViewBag.AutoRedirectUrl = autoRedirectUrl;
+                            ViewBag.AutoRedirectDelaySeconds = PaymentSuccessAutoRedirectDelaySeconds;
+                        }
+                    }
                 }
                 else if (payment.ReservationId.HasValue)
                 {
@@ -2607,6 +2575,16 @@ namespace KlyonHubPlatform.Api.Controllers
                     var creditCards = await _clientAppService.GetCreditCardsByClientIdAsync(ownerClientId.Value, cancellationToken);
                     ViewBag.CreditCards = creditCards;
                 }
+                var billingClient = client;
+                if (billingClient == null && ownerClientId.HasValue)
+                    billingClient = await _clientAppService.GetClientByIdAsync(ownerClientId.Value, cancellationToken);
+                if (billingClient != null)
+                {
+                    ViewBag.CardHolderPostalCode = CreditCardHolderBilling.FormatMasked(billingClient.ZipCode) ?? "";
+                    var isNoNumber = string.Equals((billingClient.AddressNumber ?? "").Trim(), CreditCardHolderBilling.NoNumberValue, StringComparison.OrdinalIgnoreCase);
+                    ViewBag.CardHolderHasNoNumber = isNoNumber;
+                    ViewBag.CardHolderAddressNumber = isNoNumber ? "" : (PaymentGatewayCustomer.RealAddressNumber(billingClient.AddressNumber) ?? "");
+                }
             }
             string? creditCardPlanLabel = null;
             string? creditCardRecurrence = null;
@@ -2722,15 +2700,30 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Forbid();
                 }
+                string? redirectUrl = null;
+                if (payment.Status == PaymentStatus.Paid || payment.Status == PaymentStatus.AwaitingValidation)
+                {
+                    redirectUrl = Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = payment.Id });
+                    if (payment.Status == PaymentStatus.Paid && payment.SubscriptionId.HasValue)
+                    {
+                        var subscription = await _clientAppService.GetSubscriptionWithContractAsync(payment.SubscriptionId.Value, cancellationToken);
+                        if (subscription?.Contract != null && !subscription.Contract.DocumentsApproved)
+                        {
+                            var uploadUrl = Url.Action(ActionNames.UploadDocuments, ControllerNames.Client, new { contractId = subscription.Contract.Id });
+                            var party = await _clientProfileService.GetContractPartyStatusByUserIdAsync(userId, cancellationToken);
+                            redirectUrl = party.IsComplete
+                                ? uploadUrl
+                                : Url.Action(ActionNames.Profile, ControllerNames.Client, new { returnUrl = uploadUrl });
+                        }
+                    }
+                }
                 return Ok(new 
                 { 
                     paymentId = payment.Id,
                     status = payment.Status.ToString(),
                     paidAt = payment.PaidAt,
                     updatedAt = payment.UpdatedAt,
-                    redirectUrl = payment.Status == PaymentStatus.Paid || payment.Status == PaymentStatus.AwaitingValidation
-                        ? Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = payment.Id })
-                        : null
+                    redirectUrl
                 });
             }
             catch (Exception ex)
@@ -3091,7 +3084,8 @@ namespace KlyonHubPlatform.Api.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddCreditCard(int paymentId, string cardNumber, string cardHolderName, 
-            string expiryMonth, string expiryYear, string cvv, string? isDefault, string? nickname, CancellationToken cancellationToken = default)
+            string expiryMonth, string expiryYear, string cvv, string? isDefault, string? nickname,
+            string? postalCode, string? addressNumber, string? addressHasNoNumber, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3120,7 +3114,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (cleanCardNumber.StartsWith("60") || cleanCardNumber.StartsWith("65"))
                     brand = "Discover";
                 var setAsDefault = StringBooleanValue.IsTrue(isDefault);
-                var existingCardsCount = await _context.CreditCards.CountAsync(c => c.ClientId == client.Id && c.IsActive, cancellationToken);
+                var existingCardsCount = await _clientAppService.CountActiveCreditCardsAsync(client.Id, cancellationToken);
                 if (existingCardsCount == 0)
                     setAsDefault = true;
                 if (setAsDefault)
@@ -3139,40 +3133,30 @@ namespace KlyonHubPlatform.Api.Controllers
                     IsDefault = setAsDefault,
                     IsActive = true
                 };
-                var clientWithUser = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
-                if (clientWithUser != null)
+                try
                 {
-                    var clientName = clientWithUser.RazaoSocial ?? clientWithUser.NomeFantasia ?? clientWithUser.ContactName ?? clientWithUser.User?.FullName ?? "";
-                    var clientEmail = clientWithUser.ContactEmail ?? clientWithUser.User?.Email ?? "";
-                    var clientTaxId = (clientWithUser.CNPJ ?? clientWithUser.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                    var clientPhone = clientWithUser.ContactPhone ?? clientWithUser.User?.Phone;
-                    var postalCode = (clientWithUser.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                    if (postalCode.Length > 8) postalCode = postalCode.Substring(0, 8);
-                    if (postalCode.Length < 8 && postalCode.All(char.IsDigit)) postalCode = postalCode.PadLeft(8, '0');
-                    var clientAddress = new Application.DTOs.PagBank.PagBankAddress
-                    {
-                        Street = clientWithUser.Address ?? "Não informado",
-                        Number = clientWithUser.AddressNumber ?? "S/N",
-                        Locality = "Não informado",
-                        City = clientWithUser.City ?? "Não informado",
-                        RegionCode = clientWithUser.State?.Length >= 2 ? clientWithUser.State.Substring(0, 2).ToUpperInvariant() : "ES",
-                        Country = "BRA",
-                        PostalCode = postalCode
-                    };
-                    try
-                    {
-                        var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
-                        var remoteIp = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-                        var token = await _asaasService.TokenizeCreditCardAsync(asaasCustomerId, cleanCardNumber, expiryMonth, expiryYear, cvv, cardHolderName.Trim(), clientEmail, clientTaxId, postalCode, clientAddress.Number ?? "S/N", clientPhone, remoteIp);
-                        if (!string.IsNullOrEmpty(token))
-                            creditCard.AsaasToken = token;
-                    }
-                    catch (Exception exToken)
-                    {
-                        _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. ClientId={ClientId}", client.Id);
-                        TempData[ErrorMessages.TempDataKey] = exToken.Message;
-                        return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
-                    }
+                    var remoteIp = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                    var tokenize = await _paymentService.TokenizeCreditCardForClientAsync(
+                        client.Id,
+                        cleanCardNumber,
+                        expiryMonth,
+                        expiryYear,
+                        cvv,
+                        cardHolderName.Trim(),
+                        postalCode,
+                        addressNumber,
+                        StringBooleanValue.IsTrue(addressHasNoNumber),
+                        remoteIp,
+                        cancellationToken);
+                    creditCard.AsaasToken = tokenize.Token;
+                    creditCard.PostalCode = tokenize.PostalCode;
+                    creditCard.AddressNumber = tokenize.AddressNumber;
+                }
+                catch (Exception exToken)
+                {
+                    _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. ClientId={ClientId}", client.Id);
+                    TempData[ErrorMessages.TempDataKey] = exToken.Message;
+                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
                 await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardAdded;
@@ -3291,6 +3275,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 const int installmentsForGateway = 1;
                 var remoteIpForPayment = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                var billingPostalCode = request.PostalCode;
+                var billingAddressNumber = request.AddressNumber;
+                var billingHasNoNumber = request.AddressHasNoNumber;
                 if (request.CreditCardId.HasValue && request.CreditCardId.Value > 0)
                 {
                     var savedCard = await _clientAppService.GetCreditCardByIdAndClientIdAsync(request.CreditCardId.Value, client.Id, cancellationToken);
@@ -3298,12 +3285,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     {
                         try
                         {
-                            var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpForPayment);
+                            var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpForPayment, billingPostalCode, billingAddressNumber, billingHasNoNumber);
                             if (savedCardResult.Status == PaymentStatus.Paid)
-                                return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                                return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoAprovadoContratoAtivado));
                             if (savedCardResult.Status == PaymentStatus.Failed)
                                 return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
-                            return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                            return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoSendoProcessadoAtualizePagina));
                         }
                         catch (Exception ex) when (ex.Message.Contains("CreditCardToken", StringComparison.OrdinalIgnoreCase) && (ex.Message.Contains("não encontrado", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("nao encontrado", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -3346,55 +3333,40 @@ namespace KlyonHubPlatform.Api.Controllers
                         {
                             return Json(new { success = false, error = ErrorJson.CardHolderNameInvalid });
                         }
-                        var clientWithUserReval = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
-                        if (clientWithUserReval != null)
+                        try
                         {
-                            var clientNameReval = clientWithUserReval.RazaoSocial ?? clientWithUserReval.NomeFantasia ?? clientWithUserReval.ContactName ?? clientWithUserReval.User?.FullName ?? "";
-                            var clientEmailReval = clientWithUserReval.ContactEmail ?? clientWithUserReval.User?.Email ?? "";
-                            var clientTaxIdReval = (clientWithUserReval.CNPJ ?? clientWithUserReval.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                            var clientPhoneReval = clientWithUserReval.ContactPhone ?? clientWithUserReval.User?.Phone;
-                            var postalCodeReval = (clientWithUserReval.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                            if (postalCodeReval.Length > 8) postalCodeReval = postalCodeReval.Substring(0, 8);
-                            if (postalCodeReval.Length < 8 && postalCodeReval.All(char.IsDigit)) postalCodeReval = postalCodeReval.PadLeft(8, '0');
-                            var clientAddressReval = new Application.DTOs.PagBank.PagBankAddress
-                            {
-                                Street = clientWithUserReval.Address ?? "Não informado",
-                                Number = clientWithUserReval.AddressNumber ?? "S/N",
-                                Locality = "Não informado",
-                                City = clientWithUserReval.City ?? "Não informado",
-                                RegionCode = clientWithUserReval.State?.Length >= 2 ? clientWithUserReval.State.Substring(0, 2).ToUpperInvariant() : "ES",
-                                Country = "BRA",
-                                PostalCode = postalCodeReval
-                            };
-                            try
-                            {
-                                var asaasCustomerIdReval = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientNameReval, clientEmailReval, clientTaxIdReval, clientPhoneReval, clientAddressReval, "client_" + client.Id);
-                                var remoteIpReval = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-                                var tokenReval = await _asaasService.TokenizeCreditCardAsync(asaasCustomerIdReval, numberReval, monthReval, yearReval, cvvReval, holderReval.Trim(), clientEmailReval, clientTaxIdReval, postalCodeReval, clientAddressReval.Number ?? "S/N", clientPhoneReval, remoteIpReval);
-                                if (!string.IsNullOrEmpty(tokenReval))
-                                {
-                                    var creditCardEntity = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == request.CreditCardId.Value && c.ClientId == client.Id, cancellationToken);
-                                    if (creditCardEntity != null)
-                                    {
-                                        creditCardEntity.AsaasToken = tokenReval;
-                                        await _context.SaveChangesAsync(cancellationToken);
-                                    }
-                                    var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpReval);
-                                    if (savedCardResult.Status == PaymentStatus.Paid)
-                                        return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
-                                    if (savedCardResult.Status == PaymentStatus.Failed)
-                                        return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
-                                    return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
-                                }
-                            }
-                            catch (Exception exToken)
-                            {
-                                _logger.LogWarning(exToken, "ProcessPaymentWithCard: revalidação de token para cartão Id={CreditCardId} falhou.", request.CreditCardId.Value);
-                                var revalError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
-                                return Json(new { success = false, error = revalError });
-                            }
+                            var tokenizeReval = await _paymentService.TokenizeCreditCardForClientAsync(
+                                client.Id,
+                                numberReval,
+                                monthReval,
+                                yearReval,
+                                cvvReval,
+                                holderReval,
+                                billingPostalCode,
+                                billingAddressNumber,
+                                billingHasNoNumber,
+                                remoteIpForPayment,
+                                cancellationToken);
+                            await _clientAppService.SetCreditCardAsaasTokenAsync(
+                                request.CreditCardId.Value,
+                                client.Id,
+                                tokenizeReval.Token,
+                                tokenizeReval.PostalCode,
+                                tokenizeReval.AddressNumber,
+                                cancellationToken);
+                            var savedCardResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, savedCard.Id, installmentsForGateway, remoteIpForPayment, billingPostalCode, billingAddressNumber, billingHasNoNumber);
+                            if (savedCardResult.Status == PaymentStatus.Paid)
+                                return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoAprovadoContratoAtivado));
+                            if (savedCardResult.Status == PaymentStatus.Failed)
+                                return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
+                            return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoSendoProcessadoAtualizePagina));
                         }
-                        return Json(new { success = false, error = ErrorJson.CardTokenMissingUseForm });
+                        catch (Exception exToken)
+                        {
+                            _logger.LogWarning(exToken, "ProcessPaymentWithCard: revalidação de token para cartão Id={CreditCardId} falhou.", request.CreditCardId.Value);
+                            var revalError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
+                            return Json(new { success = false, error = revalError });
+                        }
                     }
                 }
                 if (request.Card == null)
@@ -3443,7 +3415,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     else if (number.StartsWith("34") || number.StartsWith("37")) brand = "American Express";
                     else if (number.StartsWith("60") || number.StartsWith("65")) brand = "Discover";
                     var setAsDefault = request.SetAsDefault;
-                    var existingCardsCount = await _context.CreditCards.CountAsync(c => c.ClientId == client.Id && c.IsActive, cancellationToken);
+                    var existingCardsCount = await _clientAppService.CountActiveCreditCardsAsync(client.Id, cancellationToken);
                     if (existingCardsCount == 0)
                         setAsDefault = true;
                     if (setAsDefault)
@@ -3460,48 +3432,37 @@ namespace KlyonHubPlatform.Api.Controllers
                         IsDefault = setAsDefault,
                         IsActive = true
                     };
-                    var clientWithUser = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
-                    if (clientWithUser != null)
+                    try
                     {
-                        var clientName = clientWithUser.RazaoSocial ?? clientWithUser.NomeFantasia ?? clientWithUser.ContactName ?? clientWithUser.User?.FullName ?? "";
-                        var clientEmail = clientWithUser.ContactEmail ?? clientWithUser.User?.Email ?? "";
-                        var clientTaxId = (clientWithUser.CNPJ ?? clientWithUser.CPF ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                        var clientPhone = clientWithUser.ContactPhone ?? clientWithUser.User?.Phone;
-                        var postalCode = (clientWithUser.ZipCode ?? "").Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                        if (postalCode.Length > 8) postalCode = postalCode.Substring(0, 8);
-                        if (postalCode.Length < 8 && postalCode.All(char.IsDigit)) postalCode = postalCode.PadLeft(8, '0');
-                        var clientAddress = new Application.DTOs.PagBank.PagBankAddress
-                        {
-                            Street = clientWithUser.Address ?? "Não informado",
-                            Number = clientWithUser.AddressNumber ?? "S/N",
-                            Locality = "Não informado",
-                            City = clientWithUser.City ?? "Não informado",
-                            RegionCode = clientWithUser.State?.Length >= 2 ? clientWithUser.State.Substring(0, 2).ToUpperInvariant() : "ES",
-                            Country = "BRA",
-                            PostalCode = postalCode
-                        };
-                        try
-                        {
-                            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
-                            var remoteIp = HttpContext.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-                            var token = await _asaasService.TokenizeCreditCardAsync(asaasCustomerId, number, month, year, cvv, holderName.Trim(), clientEmail, clientTaxId, postalCode, clientAddress.Number ?? "S/N", clientPhone, remoteIp);
-                            if (!string.IsNullOrEmpty(token))
-                                creditCard.AsaasToken = token;
-                        }
-                        catch (Exception exToken)
-                        {
-                            _logger.LogWarning(exToken, "Tokenização Asaas ao salvar cartão no pagamento falhou. ClientId={ClientId}", client.Id);
-                            var tokenError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
-                            return Json(new { success = false, error = tokenError });
-                        }
+                        var tokenize = await _paymentService.TokenizeCreditCardForClientAsync(
+                            client.Id,
+                            number,
+                            month,
+                            year,
+                            cvv,
+                            holderName,
+                            billingPostalCode,
+                            billingAddressNumber,
+                            billingHasNoNumber,
+                            remoteIpForPayment,
+                            cancellationToken);
+                        creditCard.AsaasToken = tokenize.Token;
+                        creditCard.PostalCode = tokenize.PostalCode;
+                        creditCard.AddressNumber = tokenize.AddressNumber;
+                    }
+                    catch (Exception exToken)
+                    {
+                        _logger.LogWarning(exToken, "Tokenização Asaas ao salvar cartão no pagamento falhou. ClientId={ClientId}", client.Id);
+                        var tokenError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
+                        return Json(new { success = false, error = tokenError });
                     }
                     await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
-                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway, remoteIpForPayment);
+                    var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway, remoteIpForPayment, billingPostalCode, billingAddressNumber, billingHasNoNumber);
                     if (savedResult.Status == PaymentStatus.Paid)
-                        return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
+                        return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoAprovadoContratoAtivado));
                     if (savedResult.Status == PaymentStatus.Failed)
                         return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
-                    return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                    return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoSendoProcessadoAtualizePagina));
                 }
 
                 var card = new Application.DTOs.PagBank.PagBankCard
@@ -3512,16 +3473,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     Holder = new Application.DTOs.PagBank.PagBankCardHolder { Name = holderName.ToUpper() },
                     Store = false
                 };
-                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installmentsForGateway, remoteIpForPayment);
+                var result = await _paymentService.ProcessPaymentWithCreditCardAsync(payment.Id, card, installmentsForGateway, remoteIpForPayment, billingPostalCode, billingAddressNumber, billingHasNoNumber);
                 if (result.Status == PaymentStatus.Paid)
-                {
-                    return Json(new { success = true, message = JsonMessage.PagamentoAprovadoContratoAtivado });
-                }
+                    return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoAprovadoContratoAtivado));
                 if (result.Status == PaymentStatus.Failed)
-                {
                     return Json(new { success = false, error = ErrorJson.PaymentDeclinedTryAnotherCard });
-                }
-                return Json(new { success = true, message = JsonMessage.PagamentoSendoProcessadoAtualizePagina });
+                return Json(CardPaymentSuccessJson(payment, JsonMessage.PagamentoSendoProcessadoAtualizePagina));
             }
             catch (InvalidOperationException ex)
             {
@@ -3670,6 +3627,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ContractGenerationNotAllowed;
                     return RedirectAfterGenerate();
                 }
+                var party = await _clientProfileService.GetContractPartyStatusByContractIdAsync(contractId, cancellationToken);
+                if (!party.IsComplete)
+                {
+                    TempData[ErrorMessages.TempDataKey] = party.ErrorMessage ?? ClientContractPartyRules.IncompleteMessage;
+                    return RedirectToAction(ActionNames.Profile, new { returnUrl = Url.Action(ActionNames.ContractDetails, new { id = contractId }) });
+                }
                 await _documentService.GenerateContractDocumentAsync(contractId);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.ContractGenerated(contract.ContractNumber);
                 return RedirectAfterGenerate();
@@ -3712,6 +3675,12 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.DeclarationGenerationNotAllowed;
                     return RedirectAfterGenerate();
                 }
+                var party = await _clientProfileService.GetContractPartyStatusByContractIdAsync(contractId, cancellationToken);
+                if (!party.IsComplete)
+                {
+                    TempData[ErrorMessages.TempDataKey] = party.ErrorMessage ?? ClientContractPartyRules.IncompleteMessage;
+                    return RedirectToAction(ActionNames.Profile, new { returnUrl = Url.Action(ActionNames.ContractDetails, new { id = contractId }) });
+                }
                 var declaration = await _addressDeclarationService.GenerateDeclarationAsync(contractId);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.DeclarationGenerated(declaration.DeclarationNumber);
                 return RedirectAfterGenerate();
@@ -3723,7 +3692,7 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
         [HttpGet]
-        public async Task<IActionResult> DownloadDeclaration(int declarationId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> DownloadDeclaration(int declarationId, bool download = true, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3750,7 +3719,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.Declarations);
                 }
                 var fileName = $"{AddressDeclarationLabels.DownloadFilePrefix(declaration.Contract?.Service?.Code)}_{declaration.DeclarationNumber}.pdf";
-                return File(pdfBytes, "application/pdf", fileName);
+                return FileResultWithDisposition(pdfBytes, "application/pdf", fileName, download);
             }
             catch (Exception ex)
             {
@@ -4009,15 +3978,19 @@ namespace KlyonHubPlatform.Api.Controllers
                 var clientEmail = client.ContactEmail ?? client.User.Email;
                 var clientTaxId = client.CNPJ ?? client.CPF ?? "";
                 var clientPhone = client.ContactPhone ?? client.User.Phone;
+                var billingPostal = request.BillingAddress?.PostalCode;
+                var billingNumber = request.BillingAddress?.Number;
+                var billingNoNumber = string.Equals((billingNumber ?? "").Trim(), CreditCardHolderBilling.NoNumberValue, StringComparison.OrdinalIgnoreCase);
+                var (holderPostal, holderNumber) = CreditCardHolderBilling.NormalizeOrThrow(billingPostal, billingNumber, billingNoNumber);
                 var clientAddress = new Application.DTOs.PagBank.PagBankAddress
                 {
-                    Street = request.BillingAddress?.Street ?? client.Address ?? "Não informado",
-                    Number = request.BillingAddress?.Number ?? "S/N",
-                    Locality = request.BillingAddress?.Locality ?? "Não informado",
-                    City = request.BillingAddress?.City ?? client.City ?? "Não informado",
-                    RegionCode = request.BillingAddress?.RegionCode ?? client.State ?? "SP",
+                    Street = request.BillingAddress?.Street ?? string.Empty,
+                    Number = holderNumber,
+                    Locality = request.BillingAddress?.Locality ?? string.Empty,
+                    City = request.BillingAddress?.City ?? string.Empty,
+                    RegionCode = request.BillingAddress?.RegionCode ?? string.Empty,
                     Country = request.BillingAddress?.Country ?? "BRA",
-                    PostalCode = request.BillingAddress?.PostalCode ?? client.ZipCode?.Replace("-", "").Replace(".", "") ?? "00000000"
+                    PostalCode = holderPostal
                 };
                 var orderResponse = await _asaasService.CreateOrderAsync(
                     referenceId: purchase.ExternalPaymentId,
@@ -4582,6 +4555,18 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             return View(removalRequests);
+        }
+
+        /// <summary>
+        /// Returns a file as attachment (download) or inline (browser preview).
+        /// </summary>
+        private IActionResult FileResultWithDisposition(byte[] content, string contentType, string fileName, bool download)
+        {
+            if (download)
+                return File(content, contentType, fileName);
+
+            Response.Headers.Append(HttpHeaderNames.ContentDisposition, $"inline; filename=\"{fileName}\"");
+            return File(content, contentType);
         }
     }
 }

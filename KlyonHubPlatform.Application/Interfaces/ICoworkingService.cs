@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 namespace KlyonHubPlatform.Application.Interfaces
 {
@@ -6,6 +7,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Coworking?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<List<Coworking>> GetAllAsync(CancellationToken cancellationToken = default);
         Task<List<Coworking>> GetByUserIdAsync(int userId, CancellationToken cancellationToken = default);
+        string? ValidatePartnerContractData(Coworking coworking, PartnerContractDataSection section);
         Task<Coworking> CreateAsync(Coworking coworking, CancellationToken cancellationToken = default);
         Task<Coworking> UpdateAsync(Coworking coworking, CancellationToken cancellationToken = default);
         Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default);

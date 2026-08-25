@@ -445,6 +445,8 @@ namespace KlyonHubPlatform.Application.Services
             var list = await _context.PaymentHistories
                 .Where(ph => ids.Contains(ph.PaymentId))
                 .Include(ph => ph.ActionByUser)
+                    .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .ToListAsync(cancellationToken);
             return list.GroupBy(ph => ph.PaymentId).ToDictionary(g => g.Key, g => g.ToList());
         }

@@ -629,16 +629,113 @@ body {
     cursor: not-allowed;
 }
 
-/* Responsive Adjustments */
-@media (max-width: 768px) {
+/* Sidebar mobile toggle (≥44px touch target) */
+.sidebar-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--klyon-text);
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    flex-shrink: 0;
+    margin-right: 0.25rem;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+    color: #c69844;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-toggle .bi {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.sidebar-backdrop {
+    display: none;
+}
+
+/* Prevent horizontal page scroll (drawer / columns) */
+html {
+    overflow-x: hidden;
+}
+
+body {
+    overflow-x: hidden;
+}
+
+/* Responsive: drawer/offcanvas below md (matches Bootstrap col-md-*) */
+@media (max-width: 767.98px) {
     .sidebar {
         position: fixed;
-        height: 100vh;
-        z-index: 1000;
+        top: 56px;
+        left: 0;
+        bottom: 0;
+        width: min(280px, 85vw) !important;
+        max-width: min(280px, 85vw) !important;
+        height: calc(100vh - 56px);
+        min-height: calc(100vh - 56px);
+        z-index: 1045;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 0 0 auto !important;
+        -webkit-overflow-scrolling: touch;
     }
-    
+
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        top: 56px;
+        background: rgba(5, 19, 35, 0.55);
+        z-index: 1040;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+    }
+
+    body.sidebar-open .sidebar-backdrop {
+        display: block;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
     .main-content {
         margin-left: 0;
+        width: 100%;
+        max-width: 100%;
+        flex: 0 0 100%;
+    }
+}
+
+/* Desktop: sidebar normal na grade (nao drawer) */
+@media (min-width: 768px) {
+    .sidebar {
+        position: static;
+        transform: none !important;
+        width: auto;
+        max-width: none;
+        height: auto;
+        z-index: auto;
+        overflow: visible;
+    }
+
+    body.sidebar-open {
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 }
 

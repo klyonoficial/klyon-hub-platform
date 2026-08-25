@@ -248,21 +248,100 @@ namespace KlyonHubPlatform.Application.Services
             return await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, externalReference);
         }
 
+        public async Task<AsaasCustomerSyncOutcome> TryUpdateExistingCustomerAsync(
+            string externalReference,
+            string clientName,
+            string? clientEmail,
+            string? clientTaxId,
+            string? clientPhone,
+            PagBankAddress? clientAddress,
+            string? asaasCustomerId = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var customerId = asaasCustomerId?.Trim();
+                if (string.IsNullOrEmpty(customerId) && !string.IsNullOrWhiteSpace(externalReference))
+                    customerId = await FindCustomerIdByExternalReferenceAsync(externalReference, cancellationToken);
+
+                if (string.IsNullOrEmpty(customerId))
+                {
+                    _logger.LogInformation(
+                        "Asaas: nenhum customer para atualizar (externalReference={ExternalReference}). Sync ignorado.",
+                        externalReference);
+                    return AsaasCustomerSyncOutcome.Skipped;
+                }
+
+                var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+                if (!string.IsNullOrEmpty(cpfCnpj) && cpfCnpj.Length != 11 && cpfCnpj.Length != 14)
+                    cpfCnpj = "";
+
+                var phone = NormalizePhone(clientPhone);
+                var payload = new AsaasCustomerRequest
+                {
+                    Name = (clientName ?? string.Empty).Trim(),
+                    Email = string.IsNullOrWhiteSpace(clientEmail) ? null : clientEmail.Trim(),
+                    CpfCnpj = string.IsNullOrEmpty(cpfCnpj) ? null : cpfCnpj,
+                    Phone = phone,
+                    MobilePhone = phone,
+                    Address = NullIfBlankOrPlaceholder(clientAddress?.Street),
+                    AddressNumber = NullIfBlankOrPlaceholder(clientAddress?.Number, treatSnAsPlaceholder: false),
+                    Complement = NullIfBlankOrPlaceholder(clientAddress?.Complement),
+                    Province = NullIfBlankOrPlaceholder(clientAddress?.Locality),
+                    PostalCode = NormalizePostalCodeForUpdate(clientAddress?.PostalCode),
+                    City = TryGetCityAsIbgeCode(clientAddress?.City)?.ToString() ?? NullIfBlankOrPlaceholder(clientAddress?.City),
+                    State = NullIfBlankOrPlaceholder(clientAddress?.RegionCode),
+                    ExternalReference = string.IsNullOrWhiteSpace(externalReference) ? null : externalReference.Trim()
+                };
+
+                if (string.IsNullOrWhiteSpace(payload.Name))
+                {
+                    _logger.LogInformation("Asaas: nome vazio ao sincronizar customer {CustomerId}. Sync ignorado.", customerId);
+                    return AsaasCustomerSyncOutcome.Skipped;
+                }
+
+                var httpRequest = await CreateRequestAsync(HttpMethod.Put, $"/customers/{Uri.EscapeDataString(customerId)}");
+                httpRequest.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning(
+                        "Asaas: falha ao atualizar customer {CustomerId}: {StatusCode} - {Content}",
+                        customerId, response.StatusCode, content);
+                    return AsaasCustomerSyncOutcome.Failed;
+                }
+
+                _logger.LogInformation("Asaas: customer {CustomerId} atualizado (externalReference={ExternalReference}).", customerId, externalReference);
+                return AsaasCustomerSyncOutcome.Updated;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Asaas: erro ao sincronizar customer (externalReference={ExternalReference}).", externalReference);
+                return AsaasCustomerSyncOutcome.Failed;
+            }
+        }
+
         public async Task<string?> TokenizeCreditCardAsync(string asaasCustomerId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string email, string cpfCnpj, string postalCode, string addressNumber, string? phone, string remoteIp)
         {
-            var number = (cardNumber ?? "").Replace(" ", "").Replace("-", "").Trim();
+            var cardNumberDigits = (cardNumber ?? "").Replace(" ", "").Replace("-", "").Trim();
             var month = (expiryMonth ?? "").Trim();
             if (month.Length == 1) month = "0" + month;
             var year = (expiryYear ?? "").Trim();
             if (year.Length == 2) year = "20" + year;
             var phoneNorm = NormalizePhone(phone);
+            var postal = NormalizePostalCode(postalCode)
+                ?? throw new InvalidOperationException("Informe um CEP válido (8 dígitos). O CEP 00000-000 não é aceito.");
+            var holderAddressNumber = string.IsNullOrWhiteSpace(addressNumber)
+                ? throw new InvalidOperationException("Informe o número do endereço do titular do cartão.")
+                : addressNumber.Trim();
             var body = new
             {
                 customer = asaasCustomerId,
                 creditCard = new
                 {
                     holderName = (holderName ?? "").Trim(),
-                    number,
+                    number = cardNumberDigits,
                     expiryMonth = month,
                     expiryYear = year,
                     ccv = (cvv ?? "").Trim()
@@ -272,8 +351,8 @@ namespace KlyonHubPlatform.Application.Services
                     name = (holderName ?? "").Trim(),
                     email = (email ?? "").Trim(),
                     cpfCnpj = NormalizeCpfCnpj(cpfCnpj),
-                    postalCode = NormalizePostalCode(postalCode),
-                    addressNumber = (addressNumber ?? "S/N").Trim(),
+                    postalCode = postal,
+                    addressNumber = holderAddressNumber,
                     phone = phoneNorm ?? ""
                 },
                 remoteIp = (remoteIp ?? "127.0.0.1").Trim()
@@ -348,6 +427,10 @@ namespace KlyonHubPlatform.Application.Services
                 request.InstallmentCount = installments ?? 1;
                 request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
                 request.RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim();
+                var holderPostalCode = NormalizePostalCode(clientAddress?.PostalCode);
+                var holderAddressNumber = string.IsNullOrWhiteSpace(clientAddress?.Number) ? null : clientAddress.Number.Trim();
+                if (string.IsNullOrEmpty(holderPostalCode) || string.IsNullOrEmpty(holderAddressNumber))
+                    throw new InvalidOperationException("Informe o CEP e o número do endereço do titular do cartão.");
                 if (!string.IsNullOrEmpty(creditCardToken))
                 {
                     request.CreditCardToken = creditCardToken;
@@ -355,17 +438,17 @@ namespace KlyonHubPlatform.Application.Services
                 else if (card != null)
                 {
                     request.CreditCard = MapCard(card);
-                    request.CreditCardHolderInfo = new AsaasCreditCardHolderInfo
-                    {
-                        Name = card.Holder?.Name ?? clientName,
-                        Email = clientEmail,
-                        CpfCnpj = NormalizeCpfCnpj(clientTaxId),
-                        PostalCode = NormalizePostalCode(clientAddress?.PostalCode),
-                        AddressNumber = clientAddress?.Number,
-                        Phone = NormalizePhone(clientPhone),
-                        MobilePhone = NormalizePhone(clientPhone)
-                    };
                 }
+                request.CreditCardHolderInfo = new AsaasCreditCardHolderInfo
+                {
+                    Name = card?.Holder?.Name ?? clientName,
+                    Email = clientEmail,
+                    CpfCnpj = NormalizeCpfCnpj(clientTaxId),
+                    PostalCode = holderPostalCode,
+                    AddressNumber = holderAddressNumber,
+                    Phone = NormalizePhone(clientPhone),
+                    MobilePhone = NormalizePhone(clientPhone)
+                };
             }
             if (method == PaymentMethod.CreditCard)
             {
@@ -474,18 +557,11 @@ namespace KlyonHubPlatform.Application.Services
         {
             if (!string.IsNullOrWhiteSpace(externalReference))
             {
-                var listByRefReq = await CreateRequestAsync(HttpMethod.Get, $"/customers?externalReference={Uri.EscapeDataString(externalReference.Trim())}");
-                var listByRefRes = await _httpClient.SendAsync(listByRefReq);
-                if (listByRefRes.IsSuccessStatusCode)
+                var existingId = await FindCustomerIdByExternalReferenceAsync(externalReference);
+                if (!string.IsNullOrEmpty(existingId))
                 {
-                    var listByRefContent = await listByRefRes.Content.ReadAsStringAsync();
-                    var listByRef = JsonSerializer.Deserialize<AsaasCustomerListResponse>(listByRefContent, JsonOptions);
-                    var existingByRef = listByRef?.Data?.FirstOrDefault();
-                    if (!string.IsNullOrEmpty(existingByRef?.Id))
-                    {
-                        _logger.LogInformation("Asaas cliente encontrado por externalReference: {CustomerId}", existingByRef.Id);
-                        return existingByRef.Id;
-                    }
+                    _logger.LogInformation("Asaas cliente encontrado por externalReference: {CustomerId}", existingId);
+                    return existingId;
                 }
             }
             var phone = NormalizePhone(clientPhone);
@@ -496,13 +572,13 @@ namespace KlyonHubPlatform.Application.Services
                 Email = clientEmail,
                 Phone = phone,
                 MobilePhone = phone,
-                Address = clientAddress?.Street,
-                AddressNumber = clientAddress?.Number,
-                Complement = clientAddress?.Complement,
-                Province = clientAddress?.Locality,
+                Address = NullIfBlankOrPlaceholder(clientAddress?.Street),
+                AddressNumber = NullIfBlankOrPlaceholder(clientAddress?.Number, treatSnAsPlaceholder: false),
+                Complement = NullIfBlankOrPlaceholder(clientAddress?.Complement),
+                Province = NullIfBlankOrPlaceholder(clientAddress?.Locality),
                 PostalCode = NormalizePostalCode(clientAddress?.PostalCode),
-                City = clientAddress?.City,
-                State = clientAddress?.RegionCode,
+                City = TryGetCityAsIbgeCode(clientAddress?.City)?.ToString() ?? NullIfBlankOrPlaceholder(clientAddress?.City),
+                State = NullIfBlankOrPlaceholder(clientAddress?.RegionCode),
                 ExternalReference = externalReference
             };
             var customerReq = await CreateRequestAsync(HttpMethod.Post, "/customers");
@@ -784,6 +860,42 @@ namespace KlyonHubPlatform.Application.Services
                 Ccv = card.SecurityCode ?? ""
             };
         }
+        private async Task<string?> FindCustomerIdByExternalReferenceAsync(string externalReference, CancellationToken cancellationToken = default)
+        {
+            var listByRefReq = await CreateRequestAsync(HttpMethod.Get, $"/customers?externalReference={Uri.EscapeDataString(externalReference.Trim())}");
+            var listByRefRes = await _httpClient.SendAsync(listByRefReq, cancellationToken);
+            if (!listByRefRes.IsSuccessStatusCode)
+                return null;
+            var listByRefContent = await listByRefRes.Content.ReadAsStringAsync(cancellationToken);
+            var listByRef = JsonSerializer.Deserialize<AsaasCustomerListResponse>(listByRefContent, JsonOptions);
+            var id = listByRef?.Data?.FirstOrDefault()?.Id;
+            return string.IsNullOrEmpty(id) ? null : id;
+        }
+
+        private static string? NullIfBlankOrPlaceholder(string? value, bool treatSnAsPlaceholder = true)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+            var trimmed = value.Trim();
+            if (string.Equals(trimmed, DefaultDisplayStrings.NaoInformado, StringComparison.OrdinalIgnoreCase))
+                return null;
+            if (treatSnAsPlaceholder && string.Equals(trimmed, "S/N", StringComparison.OrdinalIgnoreCase))
+                return null;
+            if (trimmed == "00000000" || trimmed == "00000-000")
+                return null;
+            return trimmed;
+        }
+
+        private static string? NormalizePostalCodeForUpdate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+            var digits = new string(value.Where(char.IsDigit).ToArray());
+            if (digits.Length != 8 || digits.All(c => c == '0'))
+                return null;
+            return digits;
+        }
+
         private static string NormalizeCpfCnpj(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return "";
@@ -830,12 +942,8 @@ namespace KlyonHubPlatform.Application.Services
             if (digits.Length == 7 && int.TryParse(digits, out var code)) return code;
             return null;
         }
-        private static string? NormalizePostalCode(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            var s = value.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-            return s.Length >= 8 ? s.Substring(0, 8) : s.PadLeft(8, '0');
-        }
+        private static string? NormalizePostalCode(string? value) =>
+            NormalizePostalCodeForUpdate(value);
         private static string ParseAsaasError(string content)
         {
             try

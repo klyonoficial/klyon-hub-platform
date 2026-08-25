@@ -68,8 +68,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (paidEvents.Contains(eventType ?? "") && (status == AsaasPaymentStatus.Received || status == AsaasPaymentStatus.Confirmed))
                 {
                     var payment = await _paymentRepository.FindPaymentByExternalIdOrReferenceAsync(paymentId);
-                    if (payment != null && payment.Status != PaymentStatus.Paid)
+                    if (payment != null)
                     {
+                        // Confirm é idempotente: se já Paid, ainda ativa contrato PendingPayment (race do cartão).
                         await _paymentService.ConfirmPaymentAsync(payment.Id, paymentId);
                         _logger.LogInformation("Pagamento {PaymentId} confirmado via webhook Asaas", payment.Id);
                     }

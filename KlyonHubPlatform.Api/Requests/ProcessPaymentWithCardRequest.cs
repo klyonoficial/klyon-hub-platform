@@ -13,5 +13,11 @@ namespace KlyonHubPlatform.Api.Requests
         public bool SaveCard { get; set; }
         /// <summary>Se SaveCard for true, marca o novo cartão como padrão (só pode haver um padrão).</summary>
         public bool SetAsDefault { get; set; }
+        /// <summary>CEP do titular (creditCardHolderInfo.postalCode). Obrigatório no cartão.</summary>
+        public string? PostalCode { get; set; }
+        /// <summary>Número do endereço do titular (creditCardHolderInfo.addressNumber).</summary>
+        public string? AddressNumber { get; set; }
+        /// <summary>Se true, envia S/N como número do endereço.</summary>
+        public bool AddressHasNoNumber { get; set; }
     }
 }

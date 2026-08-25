@@ -427,6 +427,8 @@
                 return;
             }
 
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
+
             var purchaseId = document.getElementById('purchaseId').value;
             var cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
             var cardName = document.getElementById('cardName').value;
@@ -477,9 +479,11 @@
                     showToast(result.message, 'success');
                     window.location.reload();
                 } else {
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                     showToast(result.error || 'Falha no pagamento.', 'error');
                 }
             } catch (error) {
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                 showToast('Erro de conexão: ' + error.message, 'error');
             }
         });

@@ -18,6 +18,9 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<bool> ClientExistsWithCpfAsync(string cpfClean, int? excludeClientId, CancellationToken cancellationToken = default);
         Task AddClientAsync(Client client, CancellationToken cancellationToken = default);
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
+        /// <summary>Persiste o perfil do cliente, registra o evento no histórico dos contratos ativos e tenta sincronizar o customer no Asaas se já existir.</summary>
+        /// <returns>Aviso não-bloqueante se o sync Asaas falhou; null se o perfil foi salvo (incluindo quando ainda não há customer no Asaas).</returns>
+        Task<string?> SaveClientProfileAsync(int clientId, int actingUserId, CancellationToken cancellationToken = default);
 
         Task<User?> GetUserByIdAsync(int userId, CancellationToken cancellationToken = default);
 
@@ -65,6 +68,8 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<List<CreditCard>> GetCreditCardsByClientIdAsync(int clientId, CancellationToken cancellationToken = default);
         Task<CreditCard?> GetCreditCardByIdAndClientIdAsync(int cardId, int clientId, CancellationToken cancellationToken = default);
         Task AddCreditCardAsync(CreditCard creditCard, CancellationToken cancellationToken = default);
+        Task<int> CountActiveCreditCardsAsync(int clientId, CancellationToken cancellationToken = default);
+        Task SetCreditCardAsaasTokenAsync(int cardId, int clientId, string token, string? postalCode = null, string? addressNumber = null, CancellationToken cancellationToken = default);
         Task RemoveCreditCardAsync(int cardId, int clientId, CancellationToken cancellationToken = default);
         Task SetDefaultCreditCardAsync(int clientId, int cardId, CancellationToken cancellationToken = default);
         Task ClearDefaultCreditCardsAsync(int clientId, CancellationToken cancellationToken = default);

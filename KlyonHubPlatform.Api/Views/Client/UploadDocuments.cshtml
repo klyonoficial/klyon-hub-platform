@@ -1,0 +1,466 @@
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.DTOs.ClientOnboarding
+@using KlyonHubPlatform.Application.Helpers
+@using KlyonHubPlatform.Domain.Core.Enums
+@model ClientOnboardingPageResult
+@{
+    ViewData[ViewDataKeys.Title] = "Enviar documentos";
+    Layout = LayoutPaths.LandingLayout;
+    var contract = Model.Contract!;
+    var latest = ClientOnboardingDocumentRules.LatestByType(Model.Documents);
+    latest.TryGetValue(ClientOnboardingDocumentType.IdentityRgFront, out var rgFront);
+    latest.TryGetValue(ClientOnboardingDocumentType.IdentityRgBack, out var rgBack);
+    latest.TryGetValue(ClientOnboardingDocumentType.IdentityCpf, out var cpf);
+    latest.TryGetValue(ClientOnboardingDocumentType.IdentityCnh, out var cnh);
+    latest.TryGetValue(ClientOnboardingDocumentType.ProofOfResidence, out var proof);
+    var accept = "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png";
+    var fileHint = $"PDF, JPG ou PNG. No celular, use a câmera ou a galeria. Soma máxima de {ClientOnboardingDocumentRules.MaxTotalSetSizeMb} MB no envio (identidade + comprovante).";
+    var uploadError = TempData.Peek(ErrorMessages.TempDataKey) as string;
+    var identityPath = Model.IdentityPath;
+    var rgFrontUsable = rgFront != null && rgFront.Status != ClientOnboardingDocumentStatus.Rejected;
+    var rgBackUsable = rgBack != null && rgBack.Status != ClientOnboardingDocumentStatus.Rejected;
+    var cpfUsable = cpf != null && cpf.Status != ClientOnboardingDocumentStatus.Rejected;
+    var cnhUsable = cnh != null && cnh.Status != ClientOnboardingDocumentStatus.Rejected;
+    var proofUsable = proof != null && proof.Status != ClientOnboardingDocumentStatus.Rejected;
+    string StatusLabel(ClientOnboardingDocumentStatus status) => status switch
+    {
+        ClientOnboardingDocumentStatus.Pending => "Enviado, aguardando análise",
+        ClientOnboardingDocumentStatus.Approved => "Aprovado",
+        ClientOnboardingDocumentStatus.Rejected => "Rejeitado",
+        _ => status.ToString()
+    };
+}
+
+<style>
+.upload-page { padding: 110px 16px 120px; max-width: 720px; margin: 0 auto; overflow-x: hidden; }
+.upload-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+.upload-title { color: #f8fafc; font-weight: 700; font-size: 1.8rem; margin-bottom: 8px; }
+.upload-sub { color: #94a3b8; margin-bottom: 24px; line-height: 1.6; }
+.upload-label {
+    color: #f1f5f9;
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 10px;
+    display: block;
+}
+.upload-hint { color: #94a3b8; font-size: 0.9rem; margin-bottom: 12px; display: block; }
+.upload-file {
+    width: 100%;
+    min-height: 52px;
+    color: #cbd5e1;
+}
+.upload-file::file-selector-button {
+    min-height: 48px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #c69844;
+    color: #051323;
+    font-weight: 700;
+    margin-right: 12px;
+}
+.upload-btn {
+    min-height: 52px;
+    min-width: 44px;
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #1a4d7a 0%, #2d6ba3 100%);
+    color: #fff;
+    font-weight: 700;
+}
+.upload-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #334155;
+}
+.upload-status { border-radius: 14px; padding: 16px; margin-bottom: 20px; }
+.upload-status.waiting { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); color: #fbbf24; }
+.upload-status.rejected { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+.upload-status.gap { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.28); color: #7dd3fc; }
+.upload-doc { font-size: 0.9rem; color: #94a3b8; margin-top: 8px; }
+.upload-doc.rejected { color: #fca5a5; }
+.upload-path {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.upload-path-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: 56px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.03);
+    cursor: pointer;
+    color: #e2e8f0;
+}
+.upload-path-option input {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+.upload-path-option strong { display: block; font-size: 1.05rem; }
+.upload-path-option span { display: block; color: #94a3b8; font-size: 0.9rem; margin-top: 2px; }
+.upload-path-option.is-active {
+    border-color: #c69844;
+    background: rgba(198,152,68,0.12);
+}
+.upload-field { margin-bottom: 18px; }
+@@media (max-width: 576px) {
+    .upload-page { padding-top: 96px; }
+    .upload-title { font-size: 1.45rem; }
+    .upload-label { font-size: 1.12rem; }
+}
+</style>
+
+<section class="upload-page">
+    <h1 class="upload-title">Documentos para gerar o contrato</h1>
+    <p class="upload-sub">
+        Envie a identidade e o comprovante de residência de uma só vez. Para identidade, escolha
+        <strong style="color:#e2e8f0;">RG e CPF</strong> (frente e verso do RG e o CPF)
+        <strong style="color:#e2e8f0;">ou somente a CNH</strong>
+        (ela já contém RG e CPF). O envio só é liberado com o conjunto completo.
+        Após a aprovação do parceiro ou da Klyon, o contrato e a declaração serão gerados.
+    </p>
+
+    @if (Model.SetStatus == ClientOnboardingSetStatus.AwaitingApproval)
+    {
+        <div class="upload-status waiting">
+            <strong><i class="bi bi-hourglass-split me-1"></i> Aguardando aprovação</strong>
+            <p class="mb-0 mt-2">Recebemos seus documentos. O parceiro ou a equipe Klyon vai analisar em breve.</p>
+        </div>
+    }
+    else if (Model.SetStatus == ClientOnboardingSetStatus.Rejected)
+    {
+        <div class="upload-status rejected">
+            <strong><i class="bi bi-exclamation-triangle me-1"></i> Documentos rejeitados</strong>
+            @if (!string.IsNullOrWhiteSpace(Model.RejectionReason))
+            {
+                <p class="mb-0 mt-2"><strong>Motivo:</strong> @Model.RejectionReason</p>
+            }
+            <p class="mb-0 mt-2">Envie novamente os arquivos corrigidos.</p>
+        </div>
+    }
+
+    <div class="upload-card">
+        <p class="mb-1" style="color:#94a3b8;"><strong style="color:#f8fafc;">Contrato:</strong> @contract.ContractNumber</p>
+        <p class="mb-0" style="color:#94a3b8;"><strong style="color:#f8fafc;">Parceiro:</strong> @(contract.CoworkingAddress?.Coworking?.TradeName ?? contract.CoworkingAddress?.Coworking?.Name)</p>
+    </div>
+
+    @if (Model.CanUpload)
+    {
+        <div class="upload-card">
+            <h2 class="h5 text-white mb-3">Documentos</h2>
+            <p class="upload-sub mb-3">Escolha a identidade e anexe também o comprovante de residência. Não é possível enviar só a identidade ou só o comprovante. A soma dos arquivos deste envio pode ter no máximo @ClientOnboardingDocumentRules.MaxTotalSetSizeMb MB.</p>
+            @if (!string.IsNullOrWhiteSpace(uploadError))
+            {
+                <div class="upload-status rejected" role="alert">
+                    <strong><i class="bi bi-exclamation-triangle me-1"></i> Não foi possível enviar</strong>
+                    <p class="mb-0 mt-2">@uploadError</p>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.IdentityGapMessage))
+            {
+                <div class="upload-status gap">@Model.IdentityGapMessage</div>
+            }
+
+            <form id="documentsForm" method="post" asp-action="@ActionNames.UploadDocuments" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="contractId" value="@contract.Id" />
+
+                <div class="upload-path" role="radiogroup" aria-label="Tipo de identidade">
+                    <label class="upload-path-option @(identityPath == ClientOnboardingIdentityPath.RgAndCpf ? "is-active" : null)" id="pathRgCpfLabel">
+                        <input type="radio" name="identityPath" value="@ClientOnboardingIdentityPath.RgAndCpf" @(identityPath == ClientOnboardingIdentityPath.RgAndCpf ? "checked" : null) />
+                        <span>
+                            <strong>Tenho RG e CPF</strong>
+                            <span>Envie a frente e o verso do RG, o CPF e o comprovante de residência.</span>
+                        </span>
+                    </label>
+                    <label class="upload-path-option @(identityPath == ClientOnboardingIdentityPath.Cnh ? "is-active" : null)" id="pathCnhLabel">
+                        <input type="radio" name="identityPath" value="@ClientOnboardingIdentityPath.Cnh" @(identityPath == ClientOnboardingIdentityPath.Cnh ? "checked" : null) />
+                        <span>
+                            <strong>Tenho CNH</strong>
+                            <span>Envie somente a CNH (ela substitui RG e CPF) e o comprovante de residência.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div id="rgCpfFields">
+                    <div class="upload-field">
+                        <label class="upload-label" for="rgFrontFile">RG (frente)</label>
+                        <span class="upload-hint">@fileHint</span>
+                        <input id="rgFrontFile" class="upload-file" type="file" name="rgFrontFile" accept="@accept" />
+                        @if (rgFront != null)
+                        {
+                            <div class="upload-doc @(rgFront.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
+                                Enviado: @rgFront.FileName — @StatusLabel(rgFront.Status)
+                                @if (rgFront.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(rgFront.RejectionReason))
+                                {
+                                    <span> Motivo: @rgFront.RejectionReason</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="upload-field">
+                        <label class="upload-label" for="rgBackFile">RG (verso)</label>
+                        <span class="upload-hint">@fileHint</span>
+                        <input id="rgBackFile" class="upload-file" type="file" name="rgBackFile" accept="@accept" />
+                        @if (rgBack != null)
+                        {
+                            <div class="upload-doc @(rgBack.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
+                                Enviado: @rgBack.FileName — @StatusLabel(rgBack.Status)
+                                @if (rgBack.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(rgBack.RejectionReason))
+                                {
+                                    <span> Motivo: @rgBack.RejectionReason</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="upload-field">
+                        <label class="upload-label" for="cpfFile">CPF</label>
+                        <span class="upload-hint">@fileHint</span>
+                        <input id="cpfFile" class="upload-file" type="file" name="cpfFile" accept="@accept" />
+                        @if (cpf != null)
+                        {
+                            <div class="upload-doc @(cpf.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
+                                Enviado: @cpf.FileName — @StatusLabel(cpf.Status)
+                                @if (cpf.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(cpf.RejectionReason))
+                                {
+                                    <span> Motivo: @cpf.RejectionReason</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div id="cnhFields">
+                    <div class="upload-field">
+                        <label class="upload-label" for="cnhFile">CNH</label>
+                        <span class="upload-hint">@fileHint</span>
+                        <input id="cnhFile" class="upload-file" type="file" name="cnhFile" accept="@accept" />
+                        @if (cnh != null)
+                        {
+                            <div class="upload-doc @(cnh.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
+                                Enviado: @cnh.FileName — @StatusLabel(cnh.Status)
+                                @if (cnh.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(cnh.RejectionReason))
+                                {
+                                    <span> Motivo: @cnh.RejectionReason</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="upload-field">
+                    <label class="upload-label" for="proofFile">Comprovante de residência</label>
+                    <span class="upload-hint">@fileHint Obrigatório nos dois caminhos.</span>
+                    <input id="proofFile" class="upload-file" type="file" name="proofFile" accept="@accept" />
+                    @if (proof != null)
+                    {
+                        <div class="upload-doc @(proof.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
+                            Enviado: @proof.FileName — @StatusLabel(proof.Status)
+                            @if (proof.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(proof.RejectionReason))
+                            {
+                                <span> Motivo: @proof.RejectionReason</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <p id="documentsClientError" class="upload-doc rejected mb-3" hidden role="alert"></p>
+                <button type="submit" id="submitDocumentsBtn" class="upload-btn" disabled>Enviar documentos</button>
+            </form>
+        </div>
+    }
+
+    <p class="text-center mt-4 mb-0">
+        <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="text-decoration-none" style="color:#c69844;">Ver meus contratos</a>
+    </p>
+</section>
+
+@if (Model.CanUpload)
+{
+<script>
+    (function () {
+        var rgFrontUsable = @(rgFrontUsable ? "true" : "false");
+        var rgBackUsable = @(rgBackUsable ? "true" : "false");
+        var cpfUsable = @(cpfUsable ? "true" : "false");
+        var cnhUsable = @(cnhUsable ? "true" : "false");
+        var proofUsable = @(proofUsable ? "true" : "false");
+        var form = document.getElementById("documentsForm");
+        var rgCpfFields = document.getElementById("rgCpfFields");
+        var cnhFields = document.getElementById("cnhFields");
+        var rgFrontInput = document.getElementById("rgFrontFile");
+        var rgBackInput = document.getElementById("rgBackFile");
+        var cpfInput = document.getElementById("cpfFile");
+        var cnhInput = document.getElementById("cnhFile");
+        var proofInput = document.getElementById("proofFile");
+        var errorEl = document.getElementById("documentsClientError");
+        var submitBtn = document.getElementById("submitDocumentsBtn");
+        var rgLabel = document.getElementById("pathRgCpfLabel");
+        var cnhLabel = document.getElementById("pathCnhLabel");
+        var maxTotalBytes = @ClientOnboardingDocumentRules.MaxTotalSetSizeBytes;
+        var maxFileBytes = @ClientOnboardingDocumentRules.MaxFileSizeBytes;
+        var totalTooLargeMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ClientOnboardingDocumentRules.TotalTooLargeMessage));
+        var fileTooLargeMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ClientOnboardingDocumentRules.FileTooLargeMessage));
+
+        function selectedPath() {
+            var checked = form.querySelector('input[name="identityPath"]:checked');
+            return checked ? checked.value : "RgAndCpf";
+        }
+
+        function hasFile(input) {
+            return !!(input && input.files && input.files.length > 0);
+        }
+
+        function activeFileInputs() {
+            return selectedPath() === "Cnh"
+                ? [cnhInput, proofInput]
+                : [rgFrontInput, rgBackInput, cpfInput, proofInput];
+        }
+
+        function formatMb(bytes) {
+            return (bytes / (1024 * 1024)).toFixed(1).replace(".", ",");
+        }
+
+        function sizeErrorMessage() {
+            var total = 0;
+            var inputs = activeFileInputs();
+            for (var i = 0; i < inputs.length; i++) {
+                var input = inputs[i];
+                if (!input || !input.files) continue;
+                for (var n = 0; n < input.files.length; n++) {
+                    var size = input.files[n].size;
+                    if (size > maxFileBytes)
+                        return fileTooLargeMessage;
+                    total += size;
+                }
+            }
+            if (total > maxTotalBytes)
+                return "A soma dos arquivos é " + formatMb(total) + " MB. " + totalTooLargeMessage;
+            return "";
+        }
+
+        function hideOverlay() {
+            if (typeof window.KlyonLoading !== "undefined" && window.KlyonLoading.hide) window.KlyonLoading.hide();
+        }
+
+        function showOverlay() {
+            if (typeof window.KlyonLoading !== "undefined" && window.KlyonLoading.show) window.KlyonLoading.show();
+        }
+
+        function setError(message) {
+            if (!errorEl) return;
+            if (!message) {
+                errorEl.hidden = true;
+                errorEl.textContent = "";
+                return;
+            }
+            errorEl.hidden = false;
+            errorEl.textContent = message;
+        }
+
+        function missingSetMessage() {
+            var path = selectedPath();
+            var proofOk = proofUsable || hasFile(proofInput);
+            if (path === "Cnh") {
+                if (!cnhUsable && !hasFile(cnhInput))
+                    return "Envie a CNH. Ela substitui o RG e o CPF.";
+                if (!proofOk)
+                    return "Envie o comprovante de residência. Ele é obrigatório junto com a identidade.";
+                return "";
+            }
+            if (!(rgFrontUsable || hasFile(rgFrontInput)) && !(rgBackUsable || hasFile(rgBackInput)) && !(cpfUsable || hasFile(cpfInput)))
+                return "Envie a frente e o verso do RG e o CPF. Os três arquivos são obrigatórios.";
+            if (!(rgFrontUsable || hasFile(rgFrontInput)))
+                return "Envie a frente do RG";
+            if (!(rgBackUsable || hasFile(rgBackInput)))
+                return "Envie o verso do RG";
+            if (!(cpfUsable || hasFile(cpfInput)))
+                return "Envie também o CPF. Frente e verso do RG e o CPF são obrigatórios juntos.";
+            if (!proofOk)
+                return "Envie o comprovante de residência. Ele é obrigatório junto com a identidade.";
+            return "";
+        }
+
+        function isComplete() {
+            return !missingSetMessage();
+        }
+
+        function syncSubmit() {
+            var sizeMessage = sizeErrorMessage();
+            var complete = isComplete() && !sizeMessage;
+            if (submitBtn) {
+                submitBtn.disabled = !complete;
+                submitBtn.setAttribute("aria-disabled", complete ? "false" : "true");
+            }
+            if (sizeMessage) setError(sizeMessage);
+            else setError("");
+        }
+
+        function syncPath() {
+            var path = selectedPath();
+            var isCnh = path === "Cnh";
+            rgCpfFields.hidden = isCnh;
+            cnhFields.hidden = !isCnh;
+            rgFrontInput.disabled = isCnh;
+            rgBackInput.disabled = isCnh;
+            cpfInput.disabled = isCnh;
+            cnhInput.disabled = !isCnh;
+            if (isCnh) {
+                rgFrontInput.required = false;
+                rgBackInput.required = false;
+                cpfInput.required = false;
+                cnhInput.required = !cnhUsable;
+                rgFrontInput.value = "";
+                rgBackInput.value = "";
+                cpfInput.value = "";
+            } else {
+                cnhInput.required = false;
+                rgFrontInput.required = !rgFrontUsable;
+                rgBackInput.required = !rgBackUsable;
+                cpfInput.required = !cpfUsable;
+                cnhInput.value = "";
+            }
+            proofInput.required = !proofUsable;
+            if (rgLabel) rgLabel.classList.toggle("is-active", !isCnh);
+            if (cnhLabel) cnhLabel.classList.toggle("is-active", isCnh);
+            setError("");
+            syncSubmit();
+        }
+
+        form.querySelectorAll('input[name="identityPath"]').forEach(function (radio) {
+            radio.addEventListener("change", syncPath);
+        });
+
+        [rgFrontInput, rgBackInput, cpfInput, cnhInput, proofInput].forEach(function (input) {
+            input.addEventListener("change", syncSubmit);
+        });
+
+        form.addEventListener("submit", function (e) {
+            var message = missingSetMessage() || sizeErrorMessage();
+            if (message) {
+                e.preventDefault();
+                hideOverlay();
+                setError(message);
+                syncSubmit();
+                return;
+            }
+            showOverlay();
+        });
+
+        syncPath();
+    })();
+</script>
+}

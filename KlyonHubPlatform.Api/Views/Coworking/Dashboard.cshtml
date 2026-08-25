@@ -141,6 +141,14 @@ else
         }
     }
 
+    @if ((ViewBag.PendingOnboardingDocumentsCount as int? ?? 0) > 0)
+    {
+        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-person-badge me-2"></i> Há @ViewBag.PendingOnboardingDocumentsCount contrato(s) com documentos aguardando aprovação.</span>
+            <a class="btn btn-sm btn-warning" href="@Url.Action(ActionNames.OnboardingDocuments, ControllerNames.Parceiro)">Revisar</a>
+        </div>
+    }
+
     @* Seção de Alertas Administrativos *@
     @if (ViewBag.AdministrativeAlerts != null && ((List<object>)ViewBag.AdministrativeAlerts).Any())
     {

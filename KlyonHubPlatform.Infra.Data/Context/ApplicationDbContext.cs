@@ -164,6 +164,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<FiscalNote> FiscalNotes { get; set; }
         public DbSet<FiscalNoteScriptExecution> FiscalNoteScriptExecutions { get; set; }
         public DbSet<PaymentHistory> PaymentHistories { get; set; }
+        public DbSet<ContractHistory> ContractHistories { get; set; }
         public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
         public DbSet<MaxContractsChangeRequest> MaxContractsChangeRequests { get; set; }
         public DbSet<CardPriceChangeRequest> CardPriceChangeRequests { get; set; }
@@ -180,6 +181,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<Correspondence> Correspondences { get; set; }
         public DbSet<CorrespondencePhoto> CorrespondencePhotos { get; set; }
         public DbSet<ClientRegistrationDocument> ClientRegistrationDocuments { get; set; }
+        public DbSet<ClientOnboardingDocument> ClientOnboardingDocuments { get; set; }
         public DbSet<FiscalOnboardingLead> FiscalOnboardingLeads { get; set; }
         public DbSet<ClientMagicLoginToken> ClientMagicLoginTokens { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -210,6 +212,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasIndex(e => e.CNPJ).IsUnique();
                 entity.Property(e => e.CNPJ).IsRequired().HasMaxLength(18);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.LegalRepresentative).HasMaxLength(255);
+                entity.Property(e => e.PropertyRegistration).HasMaxLength(50);
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId);
                 entity.Property(e => e.ApprovalStatus).HasColumnType("int");
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
@@ -241,6 +245,8 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasKey(e => e.Id);
                 entity.HasOne(e => e.Client).WithMany(c => c.CreditCards).HasForeignKey(e => e.ClientId);
                 entity.HasIndex(e => new { e.ClientId, e.LastFourDigits, e.ExpiryMonth, e.ExpiryYear }).IsUnique();
+                entity.Property(e => e.PostalCode).HasMaxLength(8);
+                entity.Property(e => e.AddressNumber).HasMaxLength(20);
             });
             modelBuilder.Entity<Contract>(entity =>
             {
@@ -250,7 +256,23 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Service).WithMany().HasForeignKey(e => e.ServiceId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(e => e.Subscription).WithOne(s => s.Contract).HasForeignKey<Subscription>(s => s.ContractId);
                 entity.HasOne(e => e.AssistedSaleAdmin).WithMany().HasForeignKey(e => e.AssistedSaleAdminId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.DocumentsReviewedByUser).WithMany().HasForeignKey(e => e.DocumentsReviewedByUserId).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");
+                entity.Property(e => e.DocumentsRejectionReason).HasMaxLength(2000);
+            });
+            modelBuilder.Entity<ClientOnboardingDocument>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Client).WithMany(c => c.OnboardingDocuments).HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Contract).WithMany(c => c.OnboardingDocuments).HasForeignKey(e => e.ContractId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.ReviewedByUser).WithMany().HasForeignKey(e => e.ReviewedByUserId).OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Type).HasColumnType("int");
+                entity.Property(e => e.Status).HasColumnType("int");
+                entity.Property(e => e.FileName).HasMaxLength(260);
+                entity.Property(e => e.FilePath).HasMaxLength(1000);
+                entity.Property(e => e.ContentType).HasMaxLength(100);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.HasIndex(e => new { e.ContractId, e.Type });
             });
             modelBuilder.Entity<Payment>(entity =>
             {
@@ -669,6 +691,26 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.Property(e => e.Action).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.RejectionReason).HasMaxLength(1000);
                 entity.HasIndex(e => e.PaymentId);
+            });
+            modelBuilder.Entity<ContractHistory>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.Contract)
+                    .WithMany(c => c.HistoryEvents)
+                    .HasForeignKey(e => e.ContractId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.ActorUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ActorUserId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.Property(e => e.Action).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Details).HasMaxLength(1000);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.Property(e => e.ActorName).HasMaxLength(255);
+                entity.Property(e => e.ActorRole).HasMaxLength(80);
+                entity.HasIndex(e => e.ContractId);
+                entity.HasIndex(e => e.ActionAt);
             });
             modelBuilder.Entity<CapacityChangeRequest>(entity =>
             {

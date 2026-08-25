@@ -1,11 +1,21 @@
-@{
-    ViewData[ViewDataKeys.Title] = "Meu Perfil";
-    Layout = LayoutPaths.Layout;
-    var cnpjDigits = Model?.CNPJ != null ? System.Text.RegularExpressions.Regex.Replace(Model.CNPJ, @"\D", "") : "";
-    var cpfObrigatorio = string.IsNullOrEmpty(cnpjDigits) || cnpjDigits.Length < 14;
-}
-
 @model KlyonHubPlatform.Domain.Entities.Client
+@using KlyonHubPlatform.Domain.Core.Helpers
+@{
+    ViewData[ViewDataKeys.Title] = "Dados para o contrato";
+    Layout = LayoutPaths.Layout;
+    var userEmail = ViewBag.UserEmail as string ?? Model?.ContactEmail;
+    var contactNameValue = ClientDisplayName.IsPlaceholderName(Model?.ContactName, userEmail) ? "" : Model?.ContactName;
+    var titleSuffix = string.IsNullOrWhiteSpace(contactNameValue) ? "" : " - " + contactNameValue;
+    var cnpjDigits = Model?.CNPJ != null ? System.Text.RegularExpressions.Regex.Replace(Model.CNPJ, @"\D", "") : "";
+    if (cnpjDigits.Length > 0 && cnpjDigits.All(c => c == '0'))
+        cnpjDigits = "";
+    var cnpjValue = cnpjDigits.Length == 14 ? Model?.CNPJ : "";
+    var cpfObrigatorio = string.IsNullOrEmpty(cnpjDigits) || cnpjDigits.Length < 14;
+    var isPj = cnpjDigits.Length == 14;
+    var returnUrl = ViewBag.ReturnUrl as string;
+    var partyIncomplete = ViewBag.ContractPartyIncomplete as bool? == true;
+    var missingFields = ViewBag.ContractPartyMissingFields as IReadOnlyList<string>;
+}
 
 <style>
 /* Botão Salvar em estado de loading (Client/Profile) */
@@ -20,8 +30,24 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 id="clientProfileTitle"><i class="bi bi-person-badge"></i> Meu Perfil@(string.IsNullOrWhiteSpace(Model?.ContactName) ? "" : " - " + Model.ContactName)</h2>
+    <h2 id="clientProfileTitle"><i class="bi bi-person-badge"></i> Dados para o contrato@(titleSuffix)</h2>
 </div>
+
+@if (partyIncomplete)
+{
+    <div class="alert alert-warning">
+        <strong>Preencha todos os campos obrigatórios nesta tela.</strong>
+        Esses dados entram no contrato e na declaração. Não use o login ou o prefixo do e-mail como nome.
+        @if (missingFields != null && missingFields.Count > 0)
+        {
+            <div class="small mt-1">Em falta: @string.Join(", ", missingFields).</div>
+        }
+    </div>
+}
+else
+{
+    <p class="text-muted">Estes dados constam no contrato e na declaração. Mantenha-os atualizados nesta única tela.</p>
+}
 
 <div class="card">
     <div class="card-header">
@@ -30,6 +56,26 @@
     <div class="card-body">
         <form method="post" action="@Url.Action(ActionNames.UpdateProfile, ControllerNames.Client)" enctype="multipart/form-data" id="clientProfileForm">
             @Html.AntiForgeryToken()
+            @if (!string.IsNullOrEmpty(returnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+            }
+
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label class="form-label">Tipo de contratante</label>
+                    <div class="d-flex gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="PersonType" id="personTypePf" value="Fisica" @(isPj ? "" : "checked")>
+                            <label class="form-check-label" for="personTypePf">Pessoa física</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="PersonType" id="personTypePj" value="Juridica" @(isPj ? "checked" : "")>
+                            <label class="form-check-label" for="personTypePj">Pessoa jurídica</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Seção de Logo -->
             <div class="row mb-4">
@@ -72,8 +118,8 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="RazaoSocial" class="form-label">Razão Social</label>
-                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@Model.RazaoSocial">
+                    <label for="RazaoSocial" class="form-label">Razão Social <span id="razaoRequiredMarker" class="text-danger @(isPj ? "" : "d-none")">*</span></label>
+                    <input type="text" class="form-control" id="RazaoSocial" name="RazaoSocial" value="@Model.RazaoSocial" @(isPj ? "required" : "")>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="NomeFantasia" class="form-label">Nome Fantasia</label>
@@ -82,8 +128,8 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="CNPJ" class="form-label">CNPJ</label>
-                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" value="@Model.CNPJ" placeholder="00.000.000/0000-00" maxlength="18">
+                    <label for="CNPJ" class="form-label">CNPJ <span id="cnpjRequiredMarker" class="text-danger @(isPj ? "" : "d-none")">*</span></label>
+                    <input type="text" class="form-control" id="CNPJ" name="CNPJ" value="@cnpjValue" placeholder="00.000.000/0000-00" maxlength="18" @(isPj ? "required" : "")>
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -95,8 +141,9 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="ContactName" class="form-label">Nome Completo <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="ContactName" name="ContactName" value="@Model.ContactName" required>
+                    <label for="ContactName" class="form-label">Nome Completo <span id="contactNameRequiredMarker" class="text-danger @(isPj ? "d-none" : "")">*</span></label>
+                    <input type="text" class="form-control" id="ContactName" name="ContactName" value="@contactNameValue" placeholder="Nome e sobrenome" autocomplete="name" @(isPj ? "" : "required")>
+                    <small class="form-text text-muted">Obrigatório para pessoa física. Não use o login ou o prefixo do e-mail.</small>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="ContactEmail" class="form-label">Email de Contato <span class="text-danger">*</span></label>
@@ -140,21 +187,21 @@
                         </span>
                     </div>
                     <div id="zipCodeFeedback" class="text-danger small mt-1 d-none"></div>
-                    <small class="form-text text-muted">Obrigatório. Necessário para pagamentos com cartão. O endereço será preenchido automaticamente.</small>
+                    <small class="form-text text-muted">Obrigatório para o contrato. O endereço será preenchido automaticamente.</small>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="Address" class="form-label">Endereço (logradouro)</label>
-                    <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address">
+                    <label for="Address" class="form-label">Endereço (logradouro) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
                 </div>
                 <div class="col-md-2 mb-3">
-                    <label for="AddressNumber" class="form-label">Número</label>
-                    <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@Model.AddressNumber" placeholder="Nº">
+                    <label for="AddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@Model.AddressNumber" placeholder="Nº" required>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="Neighborhood" class="form-label">Bairro</label>
-                    <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood">
+                    <label for="Neighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood" required>
                 </div>
             </div>
             <div class="row">
@@ -163,8 +210,8 @@
                     <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement" placeholder="Apto, sala, bloco...">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="City" class="form-label">Cidade</label>
-                    <input type="text" class="form-control" id="City" name="City" value="@Model.City">
+                    <label for="City" class="form-label">Cidade <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="City" name="City" value="@Model.City" required>
                 </div>
             </div>
             <div class="row">
@@ -249,33 +296,67 @@ document.addEventListener('DOMContentLoaded', function() {
         logoClearPreviewBtn.addEventListener('click', restoreLogoPreview);
     }
 
-    // CPF é obrigatório apenas quando CNPJ não está preenchido (pessoa física)
+    // Pessoa física vs jurídica: campos obrigatórios nesta única tela
     var cnpjInput = document.getElementById('CNPJ');
     var cpfInput = document.getElementById('CPF');
     var cpfMarker = document.getElementById('cpfRequiredMarker');
-    function updateCpfRequired() {
+    var razaoInput = document.getElementById('RazaoSocial');
+    var razaoMarker = document.getElementById('razaoRequiredMarker');
+    var cnpjMarker = document.getElementById('cnpjRequiredMarker');
+    var contactNameInput = document.getElementById('ContactName');
+    var contactNameMarker = document.getElementById('contactNameRequiredMarker');
+    var personTypePf = document.getElementById('personTypePf');
+    var personTypePj = document.getElementById('personTypePj');
+    function isPjSelected() {
+        if (personTypePj && personTypePj.checked) return true;
         var cnpjVal = (cnpjInput && cnpjInput.value || '').replace(/\D/g, '');
-        var cpfIsRequired = cnpjVal.length < 14;
+        return cnpjVal.length === 14;
+    }
+    function updatePersonTypeRequired() {
+        var pj = isPjSelected();
         if (cpfInput) {
-            if (cpfIsRequired) {
-                cpfInput.setAttribute('required', 'required');
-                if (cpfMarker) cpfMarker.classList.remove('d-none');
-            } else {
+            if (pj) {
                 cpfInput.removeAttribute('required');
                 cpfInput.setCustomValidity('');
                 if (cpfMarker) cpfMarker.classList.add('d-none');
+            } else {
+                cpfInput.setAttribute('required', 'required');
+                if (cpfMarker) cpfMarker.classList.remove('d-none');
             }
         }
+        if (cnpjInput) {
+            if (pj) cnpjInput.setAttribute('required', 'required');
+            else cnpjInput.removeAttribute('required');
+        }
+        if (cnpjMarker) cnpjMarker.classList.toggle('d-none', !pj);
+        if (razaoInput) {
+            if (pj) razaoInput.setAttribute('required', 'required');
+            else razaoInput.removeAttribute('required');
+        }
+        if (razaoMarker) razaoMarker.classList.toggle('d-none', !pj);
+        if (contactNameInput) {
+            if (pj) contactNameInput.removeAttribute('required');
+            else contactNameInput.setAttribute('required', 'required');
+        }
+        if (contactNameMarker) contactNameMarker.classList.toggle('d-none', pj);
     }
     if (cnpjInput) {
-        cnpjInput.addEventListener('input', updateCpfRequired);
-        cnpjInput.addEventListener('change', updateCpfRequired);
+        cnpjInput.addEventListener('input', updatePersonTypeRequired);
+        cnpjInput.addEventListener('change', updatePersonTypeRequired);
     }
+    if (personTypePf) personTypePf.addEventListener('change', updatePersonTypeRequired);
+    if (personTypePj) personTypePj.addEventListener('change', updatePersonTypeRequired);
+    updatePersonTypeRequired();
 
     var form = document.getElementById('clientProfileForm');
     if (!form) return;
     form.addEventListener('submit', function(e) {
         e.preventDefault();
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+            form.reportValidity();
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
+            return;
+        }
         var submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = true;
@@ -311,14 +392,20 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!data) return;
             if (data.success === true) {
                 if (typeof showToast === 'function') showToast(data.message || 'Perfil atualizado com sucesso!', 'success');
+                if (data.warning && typeof showToast === 'function') showToast(data.warning, 'warning');
                 if (logoPreviewHint) logoPreviewHint.classList.add('d-none');
                 if (logoClearPreviewBtn) logoClearPreviewBtn.classList.add('d-none');
                 if (logoInput) logoInput.value = '';
-                if (data.contactName) {
+                var headerName = data.displayName || data.contactName;
+                if (headerName) {
                     var userNameLink = document.getElementById('userNameLink');
-                    if (userNameLink) userNameLink.textContent = data.contactName;
+                    if (userNameLink) userNameLink.textContent = headerName;
                     var titleEl = document.getElementById('clientProfileTitle');
-                    if (titleEl) titleEl.innerHTML = '<i class="bi bi-person-badge"></i> Meu Perfil - ' + data.contactName;
+                    if (titleEl) titleEl.innerHTML = '<i class="bi bi-person-badge"></i> Dados para o contrato - ' + headerName;
+                }
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                    return;
                 }
             } else if (data.success === false && data.error) {
                 if (typeof showToast === 'function') showToast(data.error, 'error');

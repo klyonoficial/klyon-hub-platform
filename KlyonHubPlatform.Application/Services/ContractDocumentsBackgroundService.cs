@@ -52,6 +52,10 @@ namespace KlyonHubPlatform.Application.Services
                         "Falha ao gerar documentos em background para o contrato {ContractId}",
                         contractId);
                 }
+                finally
+                {
+                    _workQueue.MarkCompleted(contractId);
+                }
             }
         }
     }

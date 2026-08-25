@@ -6,7 +6,6 @@ using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
 using PdfDocument = iTextSharp.text.Document;
 using DocumentModel = KlyonHubPlatform.Domain.Entities.Document;
 using KlyonHubPlatform.Domain.Interfaces;
@@ -21,34 +20,34 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IContractRepository _contractRepository;
         private readonly IPaymentRepository _paymentRepository;
         private readonly ApplicationDbContext _context;
-        private readonly IConfiguration _configuration;
         private readonly IHostEnvironment _environment;
         private readonly StorageServiceFactory _storageFactory;
         private readonly ISystemConfigurationService _systemConfigService;
         private readonly ID4SignService _d4SignService;
         private readonly IClicksignService _clicksignService;
+        private readonly IContractHistoryService _contractHistoryService;
         public DocumentService(
             IDocumentRepository documentRepository,
             IContractRepository contractRepository,
             IPaymentRepository paymentRepository,
             ApplicationDbContext context,
-            IConfiguration configuration,
             IHostEnvironment environment,
             StorageServiceFactory storageFactory,
             ISystemConfigurationService systemConfigService,
             ID4SignService d4SignService,
-            IClicksignService clicksignService)
+            IClicksignService clicksignService,
+            IContractHistoryService contractHistoryService)
         {
             _documentRepository = documentRepository;
             _contractRepository = contractRepository;
             _paymentRepository = paymentRepository;
             _context = context;
-            _configuration = configuration;
             _environment = environment;
             _storageFactory = storageFactory;
             _systemConfigService = systemConfigService;
             _d4SignService = d4SignService;
             _clicksignService = clicksignService;
+            _contractHistoryService = contractHistoryService;
         }
         public async Task<bool> CanGenerateContractDocumentAsync(int contractId)
         {
@@ -87,6 +86,10 @@ namespace KlyonHubPlatform.Application.Services
             if (contract == null)
                 throw new InvalidOperationException("Contrato não encontrado");
 
+            var party = ClientContractPartyRules.Evaluate(contract.Client);
+            if (!party.IsComplete)
+                throw new InvalidOperationException(party.ErrorMessage ?? ClientContractPartyRules.IncompleteMessage);
+
             var hasPaidPayment = contract.Subscription != null
                 && await _context.Payments.AnyAsync(
                     p => p.SubscriptionId == contract.Subscription!.Id
@@ -104,32 +107,33 @@ namespace KlyonHubPlatform.Application.Services
             var serviceKind = AddressContractRules.ResolveServiceKind(contract.Service?.Code)
                 ?? throw new InvalidOperationException("Tipo de serviço do contrato não suporta geração de contrato.");
 
-            var docSettings = _configuration.GetSection("DocumentSettings");
+            var variant = FiscalAddressContractRules.ResolveVariant(contract.Client);
+            var existingDocuments = await _context.Documents
+                .AsNoTracking()
+                .Where(d => d.ContractId == contractId && d.Type == DocumentType.Contract)
+                .ToListAsync();
+            var existingMatch = existingDocuments.FirstOrDefault(d =>
+                AddressContractRules.DocumentMatches(d.Description, serviceKind, variant));
+            if (existingMatch != null)
+                return existingMatch;
+
             var fileName = $"contract_{contract.ContractNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
             byte[] pdfBytes;
             string description;
-            var variant = FiscalAddressContractRules.ResolveVariant(contract.Client);
             var watermarkBytes = PdfWatermarkLoader.LoadKlyonLogo(_environment);
 
             if (serviceKind == AddressContractServiceKind.Fiscal)
             {
-                var model = BuildFiscalAddressContractPdfModel(contract, docSettings, variant);
+                var model = BuildFiscalAddressContractPdfModel(contract, variant);
                 pdfBytes = FiscalAddressContractPdfBuilder.BuildPdf(model, watermarkBytes);
                 description = FiscalAddressContractRules.DescriptionForVariant(variant);
             }
             else
             {
-                var model = BuildFiscalAddressContractPdfModel(contract, docSettings, variant);
+                var model = BuildFiscalAddressContractPdfModel(contract, variant);
                 pdfBytes = CommercialAddressContractPdfBuilder.BuildPdf(model, watermarkBytes);
                 description = CommercialAddressContractRules.DescriptionForVariant(variant);
             }
-
-            var existingContracts = (contract.Documents ?? Enumerable.Empty<DocumentModel>())
-                .Where(d => d.Type == DocumentType.Contract
-                            && AddressContractRules.DocumentMatches(d.Description, serviceKind, variant))
-                .ToList();
-            foreach (var existing in existingContracts)
-                await _documentRepository.DeleteAsync(existing.Id);
 
             var storageService = await _storageFactory.GetStorageServiceAsync();
             var provider = await _systemConfigService.GetValueAsync(StorageConfigKeys.Provider) ?? FtpDefaults.ProviderName;
@@ -185,12 +189,17 @@ namespace KlyonHubPlatform.Application.Services
                 D4SignDocumentUuid = d4SignUuid,
                 ClicksignEnvelopeIdentifier = clicksignEnvelopeId
             };
-            return await _documentRepository.CreateAsync(documentEntity);
+            var created = await _documentRepository.CreateAsync(documentEntity);
+            await _contractHistoryService.RecordContractGeneratedAsync(
+                contractId,
+                contract.ContractNumber,
+                description);
+            await _context.SaveChangesAsync();
+            return created;
         }
 
         private static FiscalAddressContractPdfModel BuildFiscalAddressContractPdfModel(
             Contract contract,
-            IConfigurationSection docSettings,
             FiscalAddressContractVariant variant)
         {
             var client = contract.Client;
@@ -205,67 +214,49 @@ namespace KlyonHubPlatform.Application.Services
                 client.ZipCode,
                 client.Complement);
 
-            var contractorAddress = !string.IsNullOrWhiteSpace(docSettings["CompanyAddress"])
-                ? docSettings["CompanyAddress"]!
-                : PdfFieldFormatter.BuildCoworkingContractorAddress(
-                    address.Address,
-                    address.Number,
-                    address.Complement,
-                    address.Neighborhood,
-                    address.City,
-                    address.State,
-                    address.ZipCode);
-
-            var contractorLegalRepresentative = docSettings["LegalRepresentative"];
-            if (string.IsNullOrWhiteSpace(contractorLegalRepresentative))
-            {
-                var partner = coworking.Partners?
-                    .FirstOrDefault(p => p.IsContractSigner)
-                    ?? coworking.Partners?.FirstOrDefault(p => p.IsPrincipal)
-                    ?? coworking.Partners?.FirstOrDefault();
-                contractorLegalRepresentative = partner?.Name;
-            }
+            var contractorAddress = PdfFieldFormatter.BuildPartnerContractorAddress(coworking, address);
+            var contractorLegalRepresentative = PdfFieldFormatter.ResolveContractorLegalRepresentative(coworking);
+            var clientPersonName = PdfFieldFormatter.ResolveClientPersonName(
+                client.ContactName,
+                client.User?.FullName,
+                client.ContactEmail,
+                client.User?.Email);
 
             var signatureCity = !string.IsNullOrWhiteSpace(address.City) && !string.IsNullOrWhiteSpace(address.State)
                 ? $"{address.City}/{address.State}"
                 : "Cariacica/ES";
 
-            var clientDisplayName = !string.IsNullOrWhiteSpace(client.RazaoSocial) ? client.RazaoSocial
-                : !string.IsNullOrWhiteSpace(client.NomeFantasia) ? client.NomeFantasia
-                : !string.IsNullOrWhiteSpace(client.ContactName) ? client.ContactName
-                : client.User?.FullName;
-
             var model = new FiscalAddressContractPdfModel
             {
                 Variant = variant,
                 ContractNumberFormatted = PdfFieldFormatter.FormatContractNumberForPdf(contract.ContractNumber),
-                ClientFullName = client.ContactName ?? client.User?.FullName,
-                ClientCpf = client.CPF,
+                ClientFullName = clientPersonName,
+                ClientCpf = PdfFieldFormatter.FormatCpf(client.CPF),
                 ClientAddress = clientAddress,
                 ClientEmail = client.ContactEmail ?? client.User?.Email,
-                ClientPhone = client.ContactPhone,
+                ClientPhone = PdfFieldFormatter.FormatPhone(client.ContactPhone),
                 ClientRazaoSocial = client.RazaoSocial ?? client.NomeFantasia,
-                ClientCnpj = client.CNPJ,
-                LegalRepresentative = client.ContactName ?? client.User?.FullName,
-                RepresentativeCpf = client.CPF,
+                ClientCnpj = PdfFieldFormatter.FormatCnpj(client.CNPJ),
+                LegalRepresentative = clientPersonName,
+                RepresentativeCpf = PdfFieldFormatter.FormatCpf(client.CPF),
                 RepresentativeAddress = clientAddress,
-                ContractorCompanyName = docSettings["CompanyName"] ?? coworking.Name,
-                ContractorCnpj = docSettings["CompanyCNPJ"] ?? coworking.CNPJ,
+                ContractorCompanyName = PdfFieldFormatter.OrDash(coworking.Name),
+                ContractorCnpj = PdfFieldFormatter.FormatCnpj(coworking.CNPJ),
                 ContractorAddress = contractorAddress,
-                PropertyRegistration = docSettings["PropertyRegistration"],
+                PropertyRegistration = PdfFieldFormatter.OrDash(coworking.PropertyRegistration),
                 ContractorLegalRepresentative = contractorLegalRepresentative,
                 PaymentClause = PdfFieldFormatter.FormatPaymentClause(contract.MonthlyValue, contract.CardPlanType),
                 SignatureCity = signatureCity,
                 SignatureDate = FiscalAddressContractPdfBuilder.FormatSignatureDate(DateTime.Now),
                 ClientSignatureName = variant == FiscalAddressContractVariant.WithCnpj
-                    ? (client.RazaoSocial ?? client.NomeFantasia ?? clientDisplayName)
-                    : clientDisplayName
+                    ? (client.RazaoSocial ?? client.NomeFantasia ?? clientPersonName ?? string.Empty)
+                    : (clientPersonName ?? string.Empty)
             };
 
             return model;
         }
 
-        private static byte[] BuildGenericContractPdf(Contract contract, IConfigurationSection docSettings)
+        private static byte[] BuildGenericContractPdf(Contract contract)
         {
             using var ms = new MemoryStream();
             var pdfDocument = new PdfDocument(PageSize.A4);
@@ -273,13 +264,14 @@ namespace KlyonHubPlatform.Application.Services
             pdfDocument.Open();
             var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 16);
             var companyFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
+            var coworking = contract.CoworkingAddress.Coworking;
             var title = new Paragraph("CONTRATO DE ENDEREÇO FISCAL", headerFont);
             title.Alignment = Element.ALIGN_CENTER;
             title.SpacingAfter = 20;
             pdfDocument.Add(title);
-            pdfDocument.Add(new Paragraph($"Empresa: {docSettings["CompanyName"]}", companyFont));
-            pdfDocument.Add(new Paragraph($"CNPJ: {docSettings["CompanyCNPJ"]}", companyFont));
-            pdfDocument.Add(new Paragraph($"Endereço: {docSettings["CompanyAddress"]}", companyFont));
+            pdfDocument.Add(new Paragraph($"Empresa: {PdfFieldFormatter.OrDash(coworking.Name)}", companyFont));
+            pdfDocument.Add(new Paragraph($"CNPJ: {PdfFieldFormatter.FormatCnpj(coworking.CNPJ)}", companyFont));
+            pdfDocument.Add(new Paragraph($"Endereço: {PdfFieldFormatter.BuildPartnerContractorAddress(coworking, contract.CoworkingAddress)}", companyFont));
             pdfDocument.Add(new Paragraph("\n"));
             pdfDocument.Add(new Paragraph($"Número do Contrato: {contract.ContractNumber}", companyFont));
             pdfDocument.Add(new Paragraph($"Data de Início: {contract.StartDate:dd/MM/yyyy}", companyFont));

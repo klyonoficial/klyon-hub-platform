@@ -3,10 +3,11 @@ namespace KlyonHubPlatform.Api.Constants
     public static class InfoMessages
     {
         public const string CompleteRegistration = "Complete seu cadastro para continuar.";
-        public const string CompleteRegistrationWithFields = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar.";
-        public const string CompleteRegistrationWithFieldsShort = "Complete seu cadastro (CPF ou CNPJ, Nome Completo e Estado) para continuar.";
-        public const string CompleteRegistrationForFiscalAddress = "Complete seu cadastro para continuar com a contratação do endereço fiscal.";
-        public const string CompleteRegistrationForContract = "Complete seu cadastro (CPF ou CNPJ, Nome Completo, Telefone e Estado) para continuar com a contratação.";
+        public const string CompleteRegistrationWithFields = "Complete os dados do contratante (nome ou razão social, CPF/CNPJ, endereço completo, telefone e e-mail) em uma única tela para continuar.";
+        public const string CompleteRegistrationWithFieldsShort = "Complete os dados do contratante (nome ou razão social, CPF/CNPJ e endereço) para continuar.";
+        public const string CompleteRegistrationForFiscalAddress = "Complete os dados do contratante para continuar com a contratação do endereço fiscal.";
+        public const string CompleteRegistrationForContract = "Informe CPF ou CNPJ e telefone na tela de cadastro para continuar com a contratação.";
+        public const string CompleteContractPartyData = "Preencha os dados do contratante em uma única tela. Esses dados vão para o contrato e a declaração.";
         public const string SystemNoLongerUsesCredits = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";
         public const string TableAddressDeclarationsAlreadyExists = "A tabela AddressDeclarations já existe no banco de dados.";
         public const string NoPendingMigrations = "Não há migrations pendentes. O banco já está atualizado.";

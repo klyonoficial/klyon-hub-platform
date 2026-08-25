@@ -10,10 +10,20 @@ namespace KlyonHubPlatform.Application.Services
     public class AppHomeService : IAppHomeService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICoworkingService _coworkingService;
 
-        public AppHomeService(ApplicationDbContext context)
+        public AppHomeService(ApplicationDbContext context, ICoworkingService coworkingService)
         {
             _context = context;
+            _coworkingService = coworkingService;
+        }
+
+        public async Task<int?> GetSolePublishedAddressIdAsync(CancellationToken cancellationToken = default)
+        {
+            var addresses = await _coworkingService.GetAvailableAddressesAsync(null, cancellationToken);
+            if (addresses.Count != 1)
+                return null;
+            return addresses[0].Id;
         }
 
         public async Task<MarketplaceListResult?> GetMarketplaceListAsync(MarketplaceSearchDto search, CancellationToken cancellationToken = default)

@@ -513,6 +513,7 @@
                 var btn = f.querySelector('button[type="submit"]');
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processando...';
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
                 try {
                     var createRes = await fetch('@Url.Action(ActionNames.CreateCreditCardPurchase, ControllerNames.Client)', {
                         method: 'POST',
@@ -521,6 +522,7 @@
                     });
                     var createData = await createRes.json();
                     if (!createData.success || !createData.purchaseId) {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                         showErrorMessage(createData.error || 'Erro ao iniciar pagamento.', true);
                         btn.disabled = false;
                         btn.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Pagamento';
@@ -561,9 +563,11 @@
                             window.location.href = '@Url.Action(ActionNames.BuyCredits, ControllerNames.Client)';
                         }, 2000);
                     } else {
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                         showErrorMessage(payData.error || 'Falha no pagamento. Verifique os dados do cartão e tente novamente.', true);
                     }
                 } catch (err) {
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                     showErrorMessage('Erro de conexão: ' + err.message, true);
                 }
                 btn.disabled = false;

@@ -110,7 +110,7 @@
                                 }
                                 else
                                 {
-                                    <form method="post" action="@Url.Action(ActionNames.CreateContract, ControllerNames.Client)" class="contract-form no-loading" data-already-contracted="@(alreadyContracted ? "true" : "false")" data-client-has-active-contract="@(clientHasActiveContract ? "true" : "false")">
+                                    <form method="post" action="@Url.Action(ActionNames.CreateContract, ControllerNames.Client)" class="contract-form" data-already-contracted="@(alreadyContracted ? "true" : "false")" data-client-has-active-contract="@(clientHasActiveContract ? "true" : "false")">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="coworkingAddressId" value="@address.Id">
                                         <button type="submit" class="btn btn-primary rounded-pill px-4 contract-btn">
@@ -149,6 +149,7 @@ document.addEventListener('submit', function(e) {
     if (alreadyContracted || clientHasActiveContract) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
         if (typeof showToast === 'function') showToast(msgJaContratado, 'info', 6000);
         return;
     }
@@ -171,6 +172,7 @@ document.addEventListener('submit', function(e) {
                 return;
             }
             if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar.', 'error', 5000);
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-all"></i> Contratar'; }
         })
         .catch(function() {

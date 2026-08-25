@@ -6,9 +6,9 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
         [JsonPropertyName("email")]
-        public string Email { get; set; } = string.Empty;
+        public string? Email { get; set; }
         [JsonPropertyName("cpfCnpj")]
-        public string CpfCnpj { get; set; } = string.Empty;
+        public string? CpfCnpj { get; set; }
         [JsonPropertyName("phone")]
         public string? Phone { get; set; }
         [JsonPropertyName("mobilePhone")]

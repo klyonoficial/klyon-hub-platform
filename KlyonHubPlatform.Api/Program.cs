@@ -15,6 +15,7 @@ using KlyonHubPlatform.Api.Constants;
 using KlyonHubPlatform.Domain.Core.Constants;
 using Microsoft.Extensions.Options;
 using KlyonHubPlatform.Application.Options;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
@@ -24,6 +25,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
+});
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = UploadRequestLimits.MaxRequestBodyBytes;
+});
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = UploadRequestLimits.MaxRequestBodyBytes;
 });
 if (builder.Environment.IsDevelopment())
 {
@@ -193,7 +202,15 @@ builder.Services.AddScoped<IContractDocumentsEnsureService, ContractDocumentsEns
 builder.Services.AddScoped<IClientMenuService, ClientMenuService>();
 builder.Services.AddScoped<IClientDashboardService, ClientDashboardService>();
 builder.Services.AddScoped<IClientAppService, ClientAppService>();
+builder.Services.AddScoped<IClientProfileService, ClientProfileService>();
+builder.Services.AddScoped<FluentValidation.IValidator<KlyonHubPlatform.Application.DTOs.ClientProfile.ClientProfileSaveInput>, KlyonHubPlatform.Application.Validators.ClientProfileSaveInputValidator>();
+builder.Services.AddScoped<FluentValidation.IValidator<KlyonHubPlatform.Application.DTOs.Payments.CreditCardHolderBillingInput>, KlyonHubPlatform.Application.Validators.CreditCardHolderBillingInputValidator>();
 builder.Services.AddScoped<IAppHomeService, AppHomeService>();
+builder.Services.AddScoped<IPartnerListingService, PartnerListingService>();
+builder.Services.AddScoped<IContractPartnerDocumentService, ContractPartnerDocumentService>();
+builder.Services.AddScoped<IClientOnboardingDocumentService, ClientOnboardingDocumentService>();
+builder.Services.AddScoped<IContractHistoryService, ContractHistoryService>();
+builder.Services.AddScoped<IContractTimelineService, ContractTimelineService>();
 builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
 builder.Services.AddScoped<AWSStorageService>();
 builder.Services.AddScoped<FTPStorageService>();

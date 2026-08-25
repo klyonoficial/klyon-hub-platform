@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -27,16 +28,16 @@ namespace KlyonHubPlatform.Application.Services
         {
             var client = await _context.Clients
                 .AsNoTracking()
+                .Include(c => c.User)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
             if (client == null)
                 return new ClientRegistrationStatus(false, ClientRegistrationMessageKeys.CompleteRegistration, "RegisterClient");
-            var hasDocument = !string.IsNullOrWhiteSpace(client.CPF) || !string.IsNullOrWhiteSpace(client.CNPJ);
-            var missingRequired = !hasDocument ||
-                string.IsNullOrWhiteSpace(client.ContactPhone) ||
-                string.IsNullOrWhiteSpace(client.ContactName) ||
-                string.IsNullOrWhiteSpace(client.State);
-            if (missingRequired)
-                return new ClientRegistrationStatus(false, ClientRegistrationMessageKeys.CompleteRegistrationWithFields, "RegisterClient");
+            var hasPaidContract = await _context.Contracts
+                .AsNoTracking()
+                .AnyAsync(c => c.ClientId == client.Id &&
+                    (c.Status == ContractStatus.Active || c.Status == ContractStatus.PendingCancellation));
+            if (hasPaidContract && !ClientContractPartyRules.ClientContractPartyIsComplete(client))
+                return new ClientRegistrationStatus(false, ClientRegistrationMessageKeys.CompleteRegistrationWithFields, "Profile");
             return new ClientRegistrationStatus(true, null, null);
         }
     }

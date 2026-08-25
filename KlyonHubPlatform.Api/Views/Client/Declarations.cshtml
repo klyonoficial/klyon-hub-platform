@@ -197,6 +197,12 @@ else
                                             </button>
                                         </form>
                                     }
+                                    else if (contract.Status == ContractStatus.Active && contractsWithPaidPayments.Contains(contract.Id) && !contract.DocumentsApproved)
+                                    {
+                                        <a class="btn btn-warning btn-sm" href="@Url.Action(ActionNames.UploadDocuments, ControllerNames.Client, new { contractId = contract.Id })" onclick="event.stopPropagation();">
+                                            <i class="bi bi-cloud-arrow-up"></i> Enviar documentos
+                                        </a>
+                                    }
                                     else if (contract.Status == ContractStatus.Active && !contractsWithPaidPayments.Contains(contract.Id))
                                     {
                                         <span class="badge bg-warning text-dark">

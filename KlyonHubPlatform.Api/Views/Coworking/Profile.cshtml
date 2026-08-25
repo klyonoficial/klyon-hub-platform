@@ -174,9 +174,12 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     <input type="hidden" name="activeTab" value="basic" />
                     
                     <h5 class="mb-3"><i class="bi bi-building"></i> Informações da Empresa</h5>
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-info-circle"></i> Razão Social, CNPJ, Inscrição Imobiliária e Representante Legal aparecem no contrato e na declaração.
+                    </p>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
+                            <label for="Name" class="form-label">Razão Social <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="Name" name="Name" value="@(ViewBag.UserFullName ?? Model.Name)" required>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -189,6 +192,16 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         <div class="col-md-6 mb-3">
                             <label for="TradeName" class="form-label">Nome Fantasia</label>
                             <input type="text" class="form-control" id="TradeName" name="TradeName" value="@Model.TradeName">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="LegalRepresentative" class="form-label">Representante Legal <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="LegalRepresentative" name="LegalRepresentative" value="@Model.LegalRepresentative" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="PropertyRegistration" class="form-label">Inscrição Imobiliária <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="PropertyRegistration" name="PropertyRegistration" value="@Model.PropertyRegistration" maxlength="50" required>
                         </div>
                     </div>
                     <div class="mb-4">
@@ -259,18 +272,18 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     <h5 class="mb-3"><i class="bi bi-geo-alt"></i> Endereço da Sede</h5>
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <label for="AddressZipCode" class="form-label">CEP</label>
+                            <label for="AddressZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="AddressZipCode" name="AddressZipCode" value="@Model.AddressZipCode" placeholder="00000-000" maxlength="9"
-                                   onkeypress="return onlyNumbersCEP(event)" onblur="buscarCEPProfile(this.value)">
+                                   onkeypress="return onlyNumbersCEP(event)" onblur="buscarCEPProfile(this.value)" required>
                             <small class="form-text text-muted">Digite o CEP para preencher endereço, bairro, cidade e estado automaticamente.</small>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="Address" class="form-label">Endereço</label>
-                            <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address">
+                            <label for="Address" class="form-label">Endereço <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="AddressNumber" class="form-label">Número</label>
-                            <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@Model.AddressNumber">
+                            <label for="AddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="AddressNumber" name="AddressNumber" value="@Model.AddressNumber" required>
                         </div>
                     </div>
                     <div class="row">
@@ -279,18 +292,18 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                             <input type="text" class="form-control" id="AddressComplement" name="AddressComplement" value="@Model.AddressComplement">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="AddressNeighborhood" class="form-label">Bairro</label>
-                            <input type="text" class="form-control" id="AddressNeighborhood" name="AddressNeighborhood" value="@Model.AddressNeighborhood">
+                            <label for="AddressNeighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="AddressNeighborhood" name="AddressNeighborhood" value="@Model.AddressNeighborhood" required>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="AddressCity" class="form-label">Cidade</label>
-                            <input type="text" class="form-control" id="AddressCity" name="AddressCity" value="@Model.AddressCity">
+                            <label for="AddressCity" class="form-label">Cidade <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="AddressCity" name="AddressCity" value="@Model.AddressCity" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="AddressState" class="form-label">Estado (UF)</label>
-                            <select class="form-select" id="AddressState" name="AddressState">
+                            <label for="AddressState" class="form-label">Estado (UF) <span class="text-danger">*</span></label>
+                            <select class="form-select" id="AddressState" name="AddressState" required>
                                 <option value="">Selecione</option>
                                 @{
                                     var states = BrazilianUfs.All;
@@ -734,9 +747,11 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     var requiredDocuments = new[]
                     {
                         (CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
-                        (CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                        (CoworkingDocumentType.AddressProof, "IPTU", "IPTU emitido em nome do coworking (últimos 90 dias)"),
                         (CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
-                        (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+                        (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal"),
+                        (CoworkingDocumentType.OperatingLicense, "Alvará de funcionamento", "Alvará de funcionamento do espaço (exibido na página do parceiro)"),
+                        (CoworkingDocumentType.FireDepartmentLicense, "Alvará dos bombeiros", "Alvará do corpo de bombeiros (exibido na página do parceiro)")
                     };
 
                     var existingDocuments = Model.Documents?.ToDictionary(d => d.Type) ?? new Dictionary<CoworkingDocumentType, CoworkingDocument>();
@@ -1174,6 +1189,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                         e.preventDefault();
                         e.stopPropagation();
                         e.stopImmediatePropagation();
+                        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                            window.KlyonLoading.hide();
+                        }
                         showToast(validationResult.errorMessage || 'Por favor, preencha todos os campos obrigatórios corretamente.', 'error');
                         return false;
                     }
@@ -1184,6 +1202,9 @@ else if (Model.ApprovalStatus == CoworkingApprovalStatus.Approved && Model.HasPe
                     e.preventDefault();
                     e.stopPropagation();
                     form.classList.add('was-validated');
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                        window.KlyonLoading.hide();
+                    }
                     // Focar no primeiro campo inválido
                     const firstInvalid = form.querySelector(':invalid');
                     if (firstInvalid) {

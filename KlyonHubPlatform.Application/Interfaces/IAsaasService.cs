@@ -16,6 +16,19 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<(bool Success, int StatusCode, string Message)> TestCreateCreditCardPaymentAsync();
         /// <summary>Obtém ou cria o cliente no Asaas e retorna o id. Use externalReference estável (ex: "client_123") para reutilizar o mesmo cliente.</summary>
         Task<string> GetOrCreateAsaasCustomerIdAsync(string clientName, string clientEmail, string clientTaxId, string? clientPhone, PagBankAddress? clientAddress, string externalReference);
+        /// <summary>
+        /// Atualiza o customer já existente no Asaas (PUT /customers/{id}), localizado por <paramref name="asaasCustomerId"/> ou <paramref name="externalReference"/> (ex: "client_123").
+        /// Não cria cliente novo. Não lança: Skipped se não existir, Failed se a API falhar ou a chave não estiver configurada.
+        /// </summary>
+        Task<AsaasCustomerSyncOutcome> TryUpdateExistingCustomerAsync(
+            string externalReference,
+            string clientName,
+            string? clientEmail,
+            string? clientTaxId,
+            string? clientPhone,
+            PagBankAddress? clientAddress,
+            string? asaasCustomerId = null,
+            CancellationToken cancellationToken = default);
         /// <summary>Tokeniza um cartão no Asaas para cobranças com cartão salvo. Retorna o token ou null em caso de erro.</summary>
         Task<string?> TokenizeCreditCardAsync(string asaasCustomerId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string email, string cpfCnpj, string postalCode, string addressNumber, string? phone, string remoteIp);
         /// <param name="customerExternalReference">Referência estável do cliente no Asaas (ex: "client_8"). Quando informada, reutiliza o mesmo cadastro para todas as cobranças desse cliente. Se omitida, usa referenceId (pode criar duplicatas).</param>

@@ -1,5 +1,6 @@
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Application.DTOs.Payments;
 using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -10,6 +11,7 @@ using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json;
 using System.Security.Claims;
+using FluentValidation;
 namespace KlyonHubPlatform.Application.Services
 {
     public class PaymentService : IPaymentService
@@ -29,6 +31,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IHttpContextAccessor? _httpContextAccessor;
         private readonly IFiscalOnboardingService? _fiscalOnboardingService;
         private readonly IPaymentRealtimeNotifier? _paymentRealtimeNotifier;
+        private readonly IValidator<CreditCardHolderBillingInput> _cardHolderBillingValidator;
         public PaymentService(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
@@ -38,6 +41,7 @@ namespace KlyonHubPlatform.Application.Services
             IAsaasService asaasService,
             ApplicationDbContext context,
             ISystemConfigurationService systemConfigurationService,
+            IValidator<CreditCardHolderBillingInput> cardHolderBillingValidator,
             IAddressDeclarationService? addressDeclarationService = null,
             IDocumentService? documentService = null,
             IContractDocumentsWorkQueue? contractDocumentsWorkQueue = null,
@@ -61,15 +65,7 @@ namespace KlyonHubPlatform.Application.Services
             _httpContextAccessor = httpContextAccessor;
             _fiscalOnboardingService = fiscalOnboardingService;
             _paymentRealtimeNotifier = paymentRealtimeNotifier;
-        }
-
-        private async Task EnqueueContractDocumentsAsync(IEnumerable<int> contractIds)
-        {
-            if (_contractDocumentsWorkQueue == null)
-                return;
-
-            foreach (var contractId in contractIds.Distinct())
-                await _contractDocumentsWorkQueue.EnqueueAsync(contractId);
+            _cardHolderBillingValidator = cardHolderBillingValidator;
         }
 
         /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
@@ -84,6 +80,54 @@ namespace KlyonHubPlatform.Application.Services
             {
                 return DateTime.UtcNow.AddHours(-3);
             }
+        }
+
+        private (string PostalCode, string AddressNumber) RequireCardHolderBilling(string? postalCode, string? addressNumber, bool addressHasNoNumber)
+        {
+            var input = new CreditCardHolderBillingInput
+            {
+                PostalCode = postalCode,
+                AddressNumber = addressNumber,
+                AddressHasNoNumber = addressHasNoNumber
+            };
+            var validation = _cardHolderBillingValidator.Validate(input);
+            if (!validation.IsValid)
+                throw new InvalidOperationException(validation.Errors[0].ErrorMessage);
+            if (!CreditCardHolderBilling.TryNormalize(postalCode, addressNumber, addressHasNoNumber, out var digits, out var number, out var error))
+                throw new InvalidOperationException(error);
+            return (digits, number);
+        }
+
+        /// <summary>
+        /// Usa billing do request quando válido; senão, CEP/número já salvos no cartão.
+        /// Se o cartão ainda não tinha billing e o request trouxe, persiste no cartão.
+        /// </summary>
+        private async Task<(string PostalCode, string AddressNumber)> ResolveBillingForSavedCardAsync(
+            CreditCard card,
+            string? postalCode,
+            string? addressNumber,
+            bool addressHasNoNumber,
+            CancellationToken cancellationToken = default)
+        {
+            string holderPostal;
+            string holderNumber;
+            var fromRequest = CreditCardHolderBilling.TryNormalize(postalCode, addressNumber, addressHasNoNumber, out holderPostal, out holderNumber, out _);
+            if (!fromRequest)
+            {
+                if (CreditCardHolderBilling.TryReadStored(card.PostalCode, card.AddressNumber, out holderPostal, out holderNumber))
+                    return (holderPostal, holderNumber);
+                return RequireCardHolderBilling(postalCode, addressNumber, addressHasNoNumber);
+            }
+
+            if (!CreditCardHolderBilling.TryReadStored(card.PostalCode, card.AddressNumber, out _, out _))
+            {
+                card.PostalCode = holderPostal;
+                card.AddressNumber = holderNumber;
+                card.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            return (holderPostal, holderNumber);
         }
 
         /// <summary>Converte um DateTime (assumido UTC) para horário de Brasília.</summary>
@@ -214,7 +258,6 @@ namespace KlyonHubPlatform.Application.Services
             return await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await _context.Database.BeginTransactionAsync();
-                var contractIdsToEnsureDocuments = new List<int>();
                 try
                 {
                     var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -272,7 +315,6 @@ namespace KlyonHubPlatform.Application.Services
                                         }
                                         _context.CoworkingAddresses.Update(contract.CoworkingAddress);
                                     }
-                                    contractIdsToEnsureDocuments.Add(contract.Id);
                                     await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
                                 }
                                 else
@@ -307,7 +349,6 @@ namespace KlyonHubPlatform.Application.Services
                     await _commissionService.CreateCommissionAsync(payment.Id);
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
-                    await EnqueueContractDocumentsAsync(contractIdsToEnsureDocuments);
                     return payment;
                 }
                 catch
@@ -565,69 +606,22 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
-            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
-            if (string.IsNullOrWhiteSpace(clientName))
-            {
-                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
-            }
-            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientName = PaymentGatewayCustomer.ResolveName(client);
+            var clientEmail = PaymentGatewayCustomer.ResolveEmail(client);
             if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
             {
-                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+                throw new InvalidOperationException("Email do cliente inválido. Informe um e-mail válido na tela de cadastro.");
             }
-            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-            if (!string.IsNullOrWhiteSpace(clientTaxId))
-            {
-                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
-                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
-                {
-                    clientTaxId = "";
-                }
-            }
+            var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
             if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
             {
-                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Informe um documento válido na tela de cadastro.");
             }
-            var clientPhone = client.ContactPhone ?? client.User.Phone;
+            var clientPhone = client.ContactPhone ?? client.User?.Phone;
             var validation = _asaasService.ValidateCustomerDataForPayment(clientName, clientEmail, clientTaxId, clientPhone, payment.Amount);
             if (!validation.IsValid)
                 throw new InvalidOperationException(validation.Message);
-            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
-            {
-                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
-            }
-            var street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado);
-            var number = "S/N";
-            var locality = DefaultDisplayStrings.NaoInformado;
-            var city = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado);
-            var regionCode = "SP";
-            if (!string.IsNullOrWhiteSpace(client.State))
-            {
-                var stateTemp = client.State.Trim().ToUpper();
-                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
-                    regionCode = stateTemp.Substring(0, 2);
-            }
-            var postalCode = "00000000";
-            if (!string.IsNullOrWhiteSpace(client.ZipCode))
-            {
-                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                if (postalCodeTemp.Length >= 8 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp.Length > 8 ? postalCodeTemp.Substring(0, 8) : postalCodeTemp;
-                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp.PadLeft(8, '0');
-            }
-            var clientAddress = new PagBankAddress
-            {
-                Street = street,
-                Number = number,
-                Complement = null,
-                Locality = locality,
-                City = city,
-                RegionCode = regionCode,
-                Country = "BRA",
-                PostalCode = postalCode
-            };
+            var clientAddress = PaymentGatewayCustomer.ResolveAddress(client);
 
             // Decisão explícita: PIX recorrente anual -> POST /api/v3/pix/automatic/authorizations | PIX (pagamento único) -> POST /api/v3/payments
             var effectivePixPlan = pixPlanType.HasValue ? pixPlanType.Value : (contract.CardPlanType ?? ContractCardPlanType.None);
@@ -791,85 +785,19 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
-            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
-            if (string.IsNullOrWhiteSpace(clientName))
-            {
-                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
-            }
-            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientName = PaymentGatewayCustomer.ResolveName(client);
+            var clientEmail = PaymentGatewayCustomer.ResolveEmail(client);
             if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
             {
-                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+                throw new InvalidOperationException("Email do cliente inválido. Informe um e-mail válido na tela de cadastro.");
             }
-            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-            if (!string.IsNullOrWhiteSpace(clientTaxId))
-            {
-                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
-                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
-                {
-                    clientTaxId = "";
-                }
-            }
+            var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
             if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
             {
-                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Informe um documento válido na tela de cadastro.");
             }
-            var clientPhone = client.ContactPhone ?? client.User.Phone;
-            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
-            {
-                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
-            }
-            var street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado);
-            var number = "S/N";
-            var locality = DefaultDisplayStrings.NaoInformado;
-            var city = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado);
-            var regionCode = "SP";
-            if (!string.IsNullOrWhiteSpace(client.State))
-            {
-                var stateTemp = client.State.Trim().ToUpper();
-                if (stateTemp.Length >= 2)
-                {
-                    stateTemp = stateTemp.Substring(0, 2);
-                    if (BrazilianUfs.All.Contains(stateTemp))
-                    {
-                        regionCode = stateTemp;
-                    }
-                }
-            }
-            var country = "BRA";
-            var postalCode = "00000000";
-            if (!string.IsNullOrWhiteSpace(client.ZipCode))
-            {
-                var postalCodeTemp = client.ZipCode
-                    .Replace("-", "")
-                    .Replace(".", "")
-                    .Replace(" ", "")
-                    .Trim();
-                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
-                {
-                    postalCode = postalCodeTemp;
-                }
-                else if (postalCodeTemp.Length > 8)
-                {
-                    postalCode = postalCodeTemp.Substring(0, 8);
-                }
-                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
-                {
-                    postalCode = postalCodeTemp.PadLeft(8, '0');
-                }
-            }
-            var clientAddress = new PagBankAddress
-            {
-                Street = street,
-                Number = number,
-                Complement = null,
-                Locality = locality,
-                City = city,
-                RegionCode = regionCode,
-                Country = country,
-                PostalCode = postalCode
-            };
+            var clientPhone = client.ContactPhone ?? client.User?.Phone;
+            var clientAddress = PaymentGatewayCustomer.ResolveAddress(client);
             var orderResponse = await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: payment.Amount,
@@ -903,7 +831,7 @@ namespace KlyonHubPlatform.Application.Services
             await _paymentRepository.UpdateAsync(payment);
             return payment.BoletoCode ?? payment.BoletoBarcode ?? "";
         }
-        public async Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null)
+        public async Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
@@ -923,68 +851,20 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
             if (client == null)
                 throw new InvalidOperationException("Cliente não encontrado");
-            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User.FullName;
-            if (string.IsNullOrWhiteSpace(clientName))
-            {
-                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil' com Razão Social, Nome Fantasia ou Nome do Contato.");
-            }
-            var clientEmail = client.ContactEmail ?? client.User.Email;
+            var clientName = PaymentGatewayCustomer.ResolveName(client);
+            var clientEmail = PaymentGatewayCustomer.ResolveEmail(client);
             if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
             {
-                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil' com um email válido.");
+                throw new InvalidOperationException("Email do cliente inválido. Informe um e-mail válido na tela de cadastro.");
             }
-            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-            if (!string.IsNullOrWhiteSpace(clientTaxId))
-            {
-                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                if (BrazilianTaxIdPlaceholders.IsPlaceholder(clientTaxId) ||
-                    clientTaxId.All(c => c == '0') || clientTaxId.All(c => c == '9'))
-                {
-                    clientTaxId = "";
-                }
-            }
+            var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
             if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
             {
-                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil' com um CPF ou CNPJ válido.");
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Informe um documento válido na tela de cadastro.");
             }
-            var clientPhone = client.ContactPhone ?? client.User.Phone;
-            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
-            {
-                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
-            }
-            var postalCode = "00000000";
-            if (!string.IsNullOrWhiteSpace(client.ZipCode))
-            {
-                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp;
-                else if (postalCodeTemp.Length > 8)
-                    postalCode = postalCodeTemp.Substring(0, 8);
-                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp.PadLeft(8, '0');
-            }
-            if (postalCode == "00000000" || string.IsNullOrWhiteSpace(client.ZipCode))
-            {
-                throw new InvalidOperationException("CEP não informado. Atualize em 'Meu Perfil' com o CEP do titular do cartão.");
-            }
-            var regionCode = "SP";
-            if (!string.IsNullOrWhiteSpace(client.State))
-            {
-                var stateTemp = client.State.Trim().ToUpper();
-                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
-                    regionCode = stateTemp.Substring(0, 2);
-            }
-            var clientAddress = new PagBankAddress
-            {
-                Street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado),
-                Number = "S/N",
-                Complement = null,
-                Locality = DefaultDisplayStrings.NaoInformado,
-                City = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado),
-                RegionCode = regionCode,
-                Country = "BRA",
-                PostalCode = postalCode
-            };
+            var clientPhone = client.ContactPhone ?? client.User?.Phone;
+            var (holderPostalCode, holderAddressNumber) = RequireCardHolderBilling(postalCode, addressNumber, addressHasNoNumber);
+            var clientAddress = PaymentGatewayCustomer.BuildCardHolderAddress(client, holderPostalCode, holderAddressNumber);
             decimal amountToCharge = payment.Amount;
             var feePercentageStr = await _systemConfigurationService.GetValueAsync(PaymentConfigKey.CreditCardFeePercentage.ToConfigKey());
             if (!string.IsNullOrWhiteSpace(feePercentageStr) && decimal.TryParse(feePercentageStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fee) && fee > 0)
@@ -1032,7 +912,7 @@ namespace KlyonHubPlatform.Application.Services
             return payment;
         }
 
-        public async Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null)
+        public async Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
@@ -1058,53 +938,16 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException("Cartão não encontrado.");
             if (string.IsNullOrEmpty(card.AsaasToken))
                 throw new InvalidOperationException("Este cartão não está habilitado para pagamento rápido. Remova e cadastre-o novamente para usar esta opção.");
-            var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
-            if (string.IsNullOrWhiteSpace(clientName))
-                throw new InvalidOperationException("Nome do cliente não informado. Complete seu cadastro em 'Meu Perfil'.");
-            var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
+            var clientName = PaymentGatewayCustomer.ResolveName(client);
+            var clientEmail = PaymentGatewayCustomer.ResolveEmail(client) ?? "";
             if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
-                throw new InvalidOperationException("Email do cliente inválido. Complete seu cadastro em 'Meu Perfil'.");
-            var clientTaxId = client.CNPJ ?? client.CPF ?? "";
-            if (!string.IsNullOrWhiteSpace(clientTaxId))
-                clientTaxId = clientTaxId.Replace(".", "").Replace("/", "").Replace("-", "").Trim();
+                throw new InvalidOperationException("Email do cliente inválido. Informe um e-mail válido na tela de cadastro.");
+            var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
             if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
-                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Complete seu cadastro em 'Meu Perfil'.");
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Informe um documento válido na tela de cadastro.");
             var clientPhone = client.ContactPhone ?? client.User?.Phone;
-            string GetValueOrDefault(string? value, string defaultValue = DefaultDisplayStrings.NaoInformado)
-            {
-                return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
-            }
-            var postalCode = "00000000";
-            if (!string.IsNullOrWhiteSpace(client.ZipCode))
-            {
-                var postalCodeTemp = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                if (postalCodeTemp.Length == 8 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp;
-                else if (postalCodeTemp.Length > 8)
-                    postalCode = postalCodeTemp.Substring(0, 8);
-                else if (postalCodeTemp.Length > 0 && postalCodeTemp.All(char.IsDigit))
-                    postalCode = postalCodeTemp.PadLeft(8, '0');
-            }
-            if (postalCode == "00000000" || string.IsNullOrWhiteSpace(client.ZipCode))
-                throw new InvalidOperationException("CEP não informado. Atualize em 'Meu Perfil' com o CEP do titular do cartão.");
-            var regionCode = "SP";
-            if (!string.IsNullOrWhiteSpace(client.State))
-            {
-                var stateTemp = client.State.Trim().ToUpper();
-                if (stateTemp.Length >= 2 && BrazilianUfs.All.Contains(stateTemp.Substring(0, 2)))
-                    regionCode = stateTemp.Substring(0, 2);
-            }
-            var clientAddress = new PagBankAddress
-            {
-                Street = GetValueOrDefault(client.Address, DefaultDisplayStrings.NaoInformado),
-                Number = "S/N",
-                Complement = null,
-                Locality = DefaultDisplayStrings.NaoInformado,
-                City = GetValueOrDefault(client.City, DefaultDisplayStrings.NaoInformado),
-                RegionCode = regionCode,
-                Country = "BRA",
-                PostalCode = postalCode
-            };
+            var (holderPostalCode, holderAddressNumber) = await ResolveBillingForSavedCardAsync(card, postalCode, addressNumber, addressHasNoNumber);
+            var clientAddress = PaymentGatewayCustomer.BuildCardHolderAddress(client, holderPostalCode, holderAddressNumber);
             var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
                 clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
             decimal amountToCharge = payment.Amount;
@@ -1150,6 +993,59 @@ namespace KlyonHubPlatform.Application.Services
             return payment;
         }
 
+        public async Task<CreditCardTokenizeResult> TokenizeCreditCardForClientAsync(
+            int clientId,
+            string cardNumber,
+            string expiryMonth,
+            string expiryYear,
+            string cvv,
+            string holderName,
+            string? postalCode,
+            string? addressNumber,
+            bool addressHasNoNumber,
+            string remoteIp,
+            CancellationToken cancellationToken = default)
+        {
+            var (holderPostalCode, holderAddressNumber) = RequireCardHolderBilling(postalCode, addressNumber, addressHasNoNumber);
+            var client = await _context.Clients
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == clientId, cancellationToken);
+            if (client == null)
+                throw new InvalidOperationException("Cliente não encontrado");
+            var clientName = PaymentGatewayCustomer.ResolveName(client);
+            var clientEmail = PaymentGatewayCustomer.ResolveEmail(client);
+            if (string.IsNullOrWhiteSpace(clientEmail) || !clientEmail.Contains("@"))
+                throw new InvalidOperationException("Email do cliente inválido. Informe um e-mail válido na tela de cadastro.");
+            var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
+            if (string.IsNullOrWhiteSpace(clientTaxId) || clientTaxId.Length < 11)
+                throw new InvalidOperationException("CPF ou CNPJ não informado ou inválido. Informe um documento válido na tela de cadastro.");
+            var clientPhone = client.ContactPhone ?? client.User?.Phone;
+            var clientAddress = PaymentGatewayCustomer.BuildCardHolderAddress(client, holderPostalCode, holderAddressNumber);
+            var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
+                clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
+            var token = await _asaasService.TokenizeCreditCardAsync(
+                asaasCustomerId,
+                cardNumber,
+                expiryMonth,
+                expiryYear,
+                cvv,
+                holderName.Trim(),
+                clientEmail,
+                clientTaxId,
+                holderPostalCode,
+                holderAddressNumber,
+                clientPhone,
+                remoteIp);
+            if (string.IsNullOrEmpty(token))
+                throw new InvalidOperationException("Não foi possível tokenizar o cartão. Verifique os dados e tente novamente.");
+            return new CreditCardTokenizeResult
+            {
+                Token = token,
+                PostalCode = holderPostalCode,
+                AddressNumber = holderAddressNumber
+            };
+        }
+
         public async Task<List<Payment>> GetPendingPaymentsAsync()
         {
             return await _paymentRepository.GetPendingPaymentsAsync();
@@ -1160,17 +1056,32 @@ namespace KlyonHubPlatform.Application.Services
             return await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await _context.Database.BeginTransactionAsync();
-                var contractIdsToEnsureDocuments = new List<int>();
                 try
                 {
                     var payment = await _paymentRepository.GetByIdAsync(paymentId);
                     if (payment == null)
                         throw new InvalidOperationException("Pagamento não encontrado");
-                    if (payment.Status == PaymentStatus.Paid)
+
+                    // Cartão (e alguns webhooks) podem marcar Paid antes de chamar Confirm.
+                    // Nesse caso ainda precisamos ativar o contrato / comissão se estiverem pendentes.
+                    var alreadyPaid = payment.Status == PaymentStatus.Paid;
+                    if (alreadyPaid)
                     {
-                        await transaction.CommitAsync();
+                        var healed = await HealAlreadyPaidPaymentSideEffectsAsync(payment, paymentId, transactionId);
+                        if (healed)
+                        {
+                            await _context.SaveChangesAsync();
+                            await transaction.CommitAsync();
+                            if (_paymentRealtimeNotifier != null)
+                                await _paymentRealtimeNotifier.NotifyPaymentConfirmedAsync(paymentId);
+                        }
+                        else
+                        {
+                            await transaction.CommitAsync();
+                        }
                         return payment;
                     }
+
                     var oldStatus = payment.Status;
                     var oldPaidAt = payment.PaidAt;
                     var oldTransactionId = payment.TransactionId;
@@ -1206,81 +1117,7 @@ namespace KlyonHubPlatform.Application.Services
                         ActionBy = userId,
                         ActionAt = DateTime.UtcNow
                     });
-                    if (payment.SubscriptionId.HasValue)
-                    {
-                        var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
-                        if (subscription != null)
-                        {
-                            subscription.LastBillingDate = DateTime.UtcNow;
-                            var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
-                                ? subscription.LastBillingDate.Value.AddYears(1)
-                                : subscription.LastBillingDate.Value.AddMonths(1);
-                            subscription.FailedPaymentAttempts = 0;
-                            if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
-                            {
-                                subscription.Status = SubscriptionStatus.Active;
-                            }
-                            subscription.UpdatedAt = DateTime.UtcNow;
-                            _context.Subscriptions.Update(subscription);
-                            var contract = await _context.Contracts
-                                .Include(c => c.CoworkingAddress)
-                                .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                            if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
-                            {
-                                var previousPaidPayments = await _context.Payments
-                                    .Where(p => p.SubscriptionId == subscription.Id &&
-                                               p.Id != paymentId &&
-                                               p.Status == PaymentStatus.Paid)
-                                    .CountAsync();
-                                if (previousPaidPayments == 0)
-                                {
-                                    var originalStatus = contract.Status;
-                                    contract.Status = ContractStatus.Active;
-                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                                    contract.UpdatedAt = DateTime.UtcNow;
-                                    _context.Contracts.Update(contract);
-                                    if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
-                                    {
-                                        contract.CoworkingAddress.CurrentContracts++;
-                                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
-                                        {
-                                            contract.CoworkingAddress.IsAvailable = false;
-                                        }
-                                        _context.CoworkingAddresses.Update(contract.CoworkingAddress);
-                                    }
-                                    contractIdsToEnsureDocuments.Add(contract.Id);
-                                    await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
-                                }
-                                else
-                                {
-                                    if (contract.ExpiryDate.HasValue)
-                                    {
-                                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                                    }
-                                    else
-                                    {
-                                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                                    }
-                                    contract.UpdatedAt = DateTime.UtcNow;
-                                    _context.Contracts.Update(contract);
-                                }
-                            }
-                            else if (contract != null && contract.Status == ContractStatus.Active)
-                            {
-                                if (contract.ExpiryDate.HasValue)
-                                {
-                                    contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
-                                }
-                                else
-                                {
-                                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
-                                }
-                                contract.UpdatedAt = DateTime.UtcNow;
-                                _context.Contracts.Update(contract);
-                            }
-                        }
-                    }
+                    await ApplySubscriptionAndContractOnPaidAsync(payment, paymentId);
                     if (payment.FiscalOnboardingLeadId.HasValue && _fiscalOnboardingService != null)
                     {
                         await _fiscalOnboardingService.HandleAdhesionPaymentConfirmedAsync(payment.Id, CancellationToken.None);
@@ -1293,7 +1130,6 @@ namespace KlyonHubPlatform.Application.Services
                     await transaction.CommitAsync();
                     if (_paymentRealtimeNotifier != null)
                         await _paymentRealtimeNotifier.NotifyPaymentConfirmedAsync(paymentId);
-                    await EnqueueContractDocumentsAsync(contractIdsToEnsureDocuments);
                     return payment;
                 }
                 catch
@@ -1302,6 +1138,155 @@ namespace KlyonHubPlatform.Application.Services
                     throw;
                 }
             });
+        }
+
+        /// <summary>
+        /// Quando o pagamento já está Paid (ex.: charge de cartão setou Paid antes do Confirm),
+        /// aplica efeitos colaterais faltantes: ativar contrato PendingPayment, histórico, comissão.
+        /// Retorna true se algo foi alterado.
+        /// </summary>
+        private async Task<bool> HealAlreadyPaidPaymentSideEffectsAsync(Payment payment, int paymentId, string? transactionId)
+        {
+            var changed = false;
+            if (!string.IsNullOrEmpty(transactionId) && string.IsNullOrEmpty(payment.TransactionId))
+            {
+                payment.TransactionId = transactionId;
+                payment.UpdatedAt = DateTime.UtcNow;
+                _context.Payments.Update(payment);
+                changed = true;
+            }
+
+            var hasApprovedHistory = await _context.PaymentHistories
+                .AnyAsync(h => h.PaymentId == payment.Id && h.Action == PaymentHistoryActions.Approved);
+            if (!hasApprovedHistory)
+            {
+                int? userId = null;
+                var userIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var parsedUserId))
+                    userId = parsedUserId;
+                _context.PaymentHistories.Add(new PaymentHistory
+                {
+                    PaymentId = payment.Id,
+                    Action = PaymentHistoryActions.Approved,
+                    ActionBy = userId,
+                    ActionAt = DateTime.UtcNow
+                });
+                changed = true;
+            }
+
+            var contractActivatedOrUpdated = await ApplySubscriptionAndContractOnPaidAsync(payment, paymentId, onlyIfContractNeedsActivation: true);
+            if (contractActivatedOrUpdated)
+                changed = true;
+
+            if (payment.FiscalOnboardingLeadId.HasValue && _fiscalOnboardingService != null)
+            {
+                await _fiscalOnboardingService.HandleAdhesionPaymentConfirmedAsync(payment.Id, CancellationToken.None);
+            }
+            else
+            {
+                var hasCommission = await _context.Commissions.AnyAsync(c => c.PaymentId == payment.Id);
+                if (!hasCommission)
+                {
+                    await _commissionService.CreateCommissionAsync(payment.Id);
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Atualiza assinatura e ativa/renova contrato após pagamento confirmado.
+        /// Se <paramref name="onlyIfContractNeedsActivation"/>, só age quando o contrato ainda está PendingPayment/Suspended
+        /// (evita estender ExpiryDate em reentradas idempotentes de webhook).
+        /// </summary>
+        private async Task<bool> ApplySubscriptionAndContractOnPaidAsync(Payment payment, int paymentId, bool onlyIfContractNeedsActivation = false)
+        {
+            if (!payment.SubscriptionId.HasValue)
+                return false;
+
+            var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
+            if (subscription == null)
+                return false;
+
+            var contract = await _context.Contracts
+                .Include(c => c.CoworkingAddress)
+                .FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+
+            if (onlyIfContractNeedsActivation)
+            {
+                if (contract == null ||
+                    (contract.Status != ContractStatus.PendingPayment && contract.Status != ContractStatus.Suspended))
+                    return false;
+            }
+
+            subscription.LastBillingDate = DateTime.UtcNow;
+            var contractForCycle = contract ?? await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
+            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
+                ? subscription.LastBillingDate.Value.AddYears(1)
+                : subscription.LastBillingDate.Value.AddMonths(1);
+            subscription.FailedPaymentAttempts = 0;
+            if (subscription.Status == SubscriptionStatus.PastDue || subscription.Status == SubscriptionStatus.Suspended)
+            {
+                subscription.Status = SubscriptionStatus.Active;
+            }
+            subscription.UpdatedAt = DateTime.UtcNow;
+            _context.Subscriptions.Update(subscription);
+
+            if (contract != null && (contract.Status == ContractStatus.Suspended || contract.Status == ContractStatus.PendingPayment))
+            {
+                var previousPaidPayments = await _context.Payments
+                    .Where(p => p.SubscriptionId == subscription.Id &&
+                               p.Id != paymentId &&
+                               p.Status == PaymentStatus.Paid)
+                    .CountAsync();
+                if (previousPaidPayments == 0)
+                {
+                    var originalStatus = contract.Status;
+                    contract.Status = ContractStatus.Active;
+                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    contract.UpdatedAt = DateTime.UtcNow;
+                    _context.Contracts.Update(contract);
+                    if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
+                    {
+                        contract.CoworkingAddress.CurrentContracts++;
+                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
+                        {
+                            contract.CoworkingAddress.IsAvailable = false;
+                        }
+                        _context.CoworkingAddresses.Update(contract.CoworkingAddress);
+                    }
+                    await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
+                }
+                else
+                {
+                    if (contract.ExpiryDate.HasValue)
+                    {
+                        contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                    }
+                    else
+                    {
+                        contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                    }
+                    contract.UpdatedAt = DateTime.UtcNow;
+                    _context.Contracts.Update(contract);
+                }
+            }
+            else if (contract != null && contract.Status == ContractStatus.Active && !onlyIfContractNeedsActivation)
+            {
+                if (contract.ExpiryDate.HasValue)
+                {
+                    contract.ExpiryDate = contract.ExpiryDate.Value.AddYears(1);
+                }
+                else
+                {
+                    contract.ExpiryDate = DateTime.UtcNow.AddYears(1);
+                }
+                contract.UpdatedAt = DateTime.UtcNow;
+                _context.Contracts.Update(contract);
+            }
+
+            return true;
         }
         public async Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId)
         {

@@ -37,11 +37,22 @@ namespace KlyonHubPlatform.Domain.Entities
         public int? AssistedSaleAdminId { get; set; }
         /// <summary>Tipo de plano no cartão (1x anual, mensal ou 12x) para definir recorrência da cobrança.</summary>
         public ContractCardPlanType? CardPlanType { get; set; }
+        /// <summary>
+        /// Documentos de identidade/residência do cliente aprovados pelo parceiro ou admin.
+        /// Contrato e declaração PDF só são gerados quando verdadeiro.
+        /// </summary>
+        public bool DocumentsApproved { get; set; }
+        public int? DocumentsReviewedByUserId { get; set; }
+        public DateTime? DocumentsReviewedAt { get; set; }
+        public string? DocumentsRejectionReason { get; set; }
         public virtual Client Client { get; set; } = null!;
         public virtual CoworkingAddress CoworkingAddress { get; set; } = null!;
         public virtual Service? Service { get; set; }
         public virtual Subscription? Subscription { get; set; }
         public virtual User? AssistedSaleAdmin { get; set; }
+        public virtual User? DocumentsReviewedByUser { get; set; }
         public virtual ICollection<Document> Documents { get; set; } = new List<Document>();
+        public virtual ICollection<ClientOnboardingDocument> OnboardingDocuments { get; set; } = new List<ClientOnboardingDocument>();
+        public virtual ICollection<ContractHistory> HistoryEvents { get; set; } = new List<ContractHistory>();
     }
 }

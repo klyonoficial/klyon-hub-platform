@@ -1,0 +1,89 @@
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.DTOs.ClientOnboarding
+@using KlyonHubPlatform.Application.Helpers
+@using KlyonHubPlatform.Domain.Core.Enums
+@model ClientOnboardingPageResult
+@{
+    ViewData[ViewDataKeys.Title] = "Revisar documentos";
+    Layout = LayoutPaths.Layout;
+    var isAdmin = ViewBag.IsAdmin as bool? == true;
+    var controller = isAdmin ? ControllerNames.Admin : ControllerNames.Coworking;
+    var contract = Model.Contract!;
+    var latest = ClientOnboardingDocumentRules.RelevantLatest(Model.Documents);
+    var clientName = contract.Client?.NomeFantasia ?? contract.Client?.RazaoSocial ?? contract.Client?.User?.FullName ?? "Cliente";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-check"></i> Revisar documentos</h2>
+    <a class="btn btn-outline-secondary" href="@Url.Action(ActionNames.OnboardingDocuments, controller)">Voltar</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <p class="mb-1"><strong>Contrato:</strong> @contract.ContractNumber</p>
+        <p class="mb-1"><strong>Cliente:</strong> @clientName</p>
+        <p class="mb-1"><strong>Parceiro:</strong> @(contract.CoworkingAddress?.Coworking?.TradeName ?? contract.CoworkingAddress?.Coworking?.Name)</p>
+        <p class="mb-1"><strong>Identidade:</strong>
+            @(Model.IdentityPath == ClientOnboardingIdentityPath.Cnh ? "CNH (substitui RG e CPF)" : "RG (frente e verso) e CPF")
+        </p>
+        <p class="mb-0"><strong>Status:</strong>
+            @if (Model.SetStatus == ClientOnboardingSetStatus.Approved)
+            {
+                <span class="badge bg-success">Aprovado</span>
+            }
+            else if (Model.SetStatus == ClientOnboardingSetStatus.AwaitingApproval)
+            {
+                <span class="badge bg-warning text-dark">Aguardando aprovação</span>
+            }
+            else if (Model.SetStatus == ClientOnboardingSetStatus.Rejected)
+            {
+                <span class="badge bg-danger">Rejeitado</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">Pendente de envio</span>
+            }
+        </p>
+        @if (!string.IsNullOrWhiteSpace(Model.RejectionReason))
+        {
+            <p class="mt-2 mb-0 text-danger"><strong>Motivo da rejeição:</strong> @Model.RejectionReason</p>
+        }
+    </div>
+</div>
+
+<div class="row">
+    @foreach (var doc in latest)
+    {
+        <div class="col-md-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5>@doc.Type.ToDisplayString()</h5>
+                    <p class="mb-1">@doc.FileName</p>
+                    <p class="mb-2"><span class="badge bg-@(doc.Status == ClientOnboardingDocumentStatus.Approved ? "success" : doc.Status == ClientOnboardingDocumentStatus.Rejected ? "danger" : "warning")">@doc.Status</span></p>
+                    <a class="btn btn-sm btn-outline-primary" target="_blank" href="@Url.Action(ActionNames.ViewOnboardingDocument, controller, new { id = doc.Id })">Ver</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="@Url.Action(ActionNames.ViewOnboardingDocument, controller, new { id = doc.Id, download = true })">Baixar</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (Model.SetStatus == ClientOnboardingSetStatus.AwaitingApproval || Model.SetStatus == ClientOnboardingSetStatus.Rejected)
+{
+    <div class="card mt-3">
+        <div class="card-body">
+            <form method="post" asp-action="@ActionNames.ApproveOnboardingDocuments" asp-controller="@controller" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="contractId" value="@contract.Id" />
+                <button type="submit" class="btn btn-success" style="min-height:44px;">Aprovar e gerar contrato</button>
+            </form>
+            <form method="post" asp-action="@ActionNames.RejectOnboardingDocuments" asp-controller="@controller" class="mt-3">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="contractId" value="@contract.Id" />
+                <label class="form-label" for="reason">Motivo da rejeição</label>
+                <textarea id="reason" name="reason" class="form-control mb-2" required rows="3"></textarea>
+                <button type="submit" class="btn btn-outline-danger" style="min-height:44px;">Rejeitar</button>
+            </form>
+        </div>
+    </div>
+}

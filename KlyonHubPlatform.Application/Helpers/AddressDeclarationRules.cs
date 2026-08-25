@@ -44,6 +44,8 @@ namespace KlyonHubPlatform.Application.Helpers
         {
             if (!hasPaidPayment)
                 return false;
+            if (!contract.DocumentsApproved)
+                return false;
             if (!IsContractWithinValidity(contract, referenceUtc))
                 return false;
 

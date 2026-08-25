@@ -1,6 +1,7 @@
 @model KlyonHubPlatform.Domain.Entities.Payment
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.Helpers
 @{
     ViewData[ViewDataKeys.Title] = "Detalhes do Pagamento";
     var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
@@ -40,7 +41,39 @@
         (Model.Method == PaymentMethod.BankTransfer && showBoletoInDropdown) ||
         (Model.Method == PaymentMethod.PIX && !showPixInDropdown && !showCreditCardInDropdown && showBoletoInDropdown) ||
         (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showBoletoInDropdown));
+    var cardHolderPostalCode = ViewBag.CardHolderPostalCode as string ?? "";
+    var cardHolderAddressNumber = ViewBag.CardHolderAddressNumber as string ?? "";
+    var cardHolderHasNoNumber = ViewBag.CardHolderHasNoNumber as bool? ?? false;
 }
+
+<style>
+    .card-holder-billing .form-label { font-size: 1.05rem; font-weight: 600; }
+    .card-holder-billing .form-control,
+    #payWithCardModal .form-control,
+    #payWithCardModal .form-select,
+    #payWithCardModal .btn,
+    #addCardModal .form-control,
+    #addCardModal .form-select,
+    #addCardModal .btn {
+        min-height: 44px;
+    }
+    .card-holder-billing .form-check {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .card-holder-billing .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-top: 0;
+        flex-shrink: 0;
+    }
+    .card-holder-billing .form-check-label {
+        font-size: 1rem;
+        padding: 8px 0;
+    }
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-credit-card"></i> Detalhes do Pagamento</h2>
@@ -213,7 +246,7 @@
                             <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
-                                <select name="method" class="form-select d-inline-block" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue">
+                                <select name="method" id="paymentMethodSelect" class="form-select d-inline-block no-select2" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue">
                                     @if (showPixInDropdown)
                                     {
                                         if (isPix)
@@ -780,7 +813,7 @@
 
                             <p class="text-muted small mt-3">
                                 <i class="bi bi-info-circle"></i> 
-                                O pagamento é processado na hora pelo Asaas. Cartões cadastrados têm nome e validade preenchidos automaticamente no modal; informe apenas número e CVV.
+                                O pagamento é processado na hora pelo Asaas. Informe o CEP e o número do titular; cartões cadastrados preenchem nome e validade.
                             </p>
                         }
                         else
@@ -889,7 +922,7 @@
                                     </h6>
                                     <small>@history.ActionAt.ToString(DateFormatConstants.DisplayDateAndTime)</small>
                                 </div>
-                                <p class="mb-1"><strong>Por:</strong> @(history.ActionByUser?.FullName ?? "Sistema")</p>
+                                <p class="mb-1"><strong>Por:</strong> @(history.Action == PaymentHistoryActions.Approved ? PaymentHistoryDisplayHelper.FormatActionByLabel(history, Model.Method) : (history.ActionByUser?.FullName ?? "Sistema"))</p>
                                 @if (!string.IsNullOrEmpty(history.RejectionReason))
                                 {
                                     <p class="mb-0"><strong>Motivo:</strong> @history.RejectionReason</p>
@@ -1103,6 +1136,25 @@
                         <input type="text" class="form-control" id="cvv" name="cvv" 
                                placeholder="000" maxlength="4" required>
                     </div>
+                    <div class="card-holder-billing border rounded p-3 mb-3">
+                        <p class="small text-muted mb-2">Endereço do titular (obrigatório para o cartão). Não é necessário rua, bairro ou cidade.</p>
+                        <div class="mb-3">
+                            <label for="addCardPostalCode" class="form-label">CEP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="addCardPostalCode" name="postalCode"
+                                   value="@cardHolderPostalCode" placeholder="00000-000" maxlength="9"
+                                   inputmode="numeric" autocomplete="postal-code" required>
+                        </div>
+                        <div class="mb-2">
+                            <label for="addCardAddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="addCardAddressNumber" name="addressNumber"
+                                   value="@cardHolderAddressNumber" placeholder="123" maxlength="20"
+                                   inputmode="text" autocomplete="address-line2" @(cardHolderHasNoNumber ? "disabled" : "required")>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="addCardNoNumber" name="addressHasNoNumber" value="true" @(cardHolderHasNoNumber ? "checked" : "")>
+                            <label class="form-check-label" for="addCardNoNumber">Sem número (enviar S/N)</label>
+                        </div>
+                    </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="isDefault" name="isDefault" value="true">
                         <label class="form-check-label" for="isDefault">
@@ -1144,6 +1196,9 @@
                 brand = c.Brand ?? "",
                 nickname = string.IsNullOrWhiteSpace(c.Nickname) ? null : c.Nickname.Trim(),
                 hasToken = !string.IsNullOrEmpty(c.AsaasToken),
+                hasBilling = KlyonHubPlatform.Application.Helpers.CreditCardHolderBilling.TryReadStored(c.PostalCode, c.AddressNumber, out _, out _),
+                postalCode = KlyonHubPlatform.Application.Helpers.CreditCardHolderBilling.FormatMasked(c.PostalCode),
+                addressNumber = c.AddressNumber,
                 isDefault = c.IsDefault
             })
             .ToList();
@@ -1196,7 +1251,7 @@
                 <div id="payModalSavedCardsSection" class="mb-3 d-none">
                     <label class="form-label">Selecione o cartão:</label>
                     <div id="payModalSavedCardsList" class="list-group"></div>
-                    <p id="payModalSavedCardConfirmMsg" class="text-muted small mt-2 mb-0 d-none">O pagamento será processado com o cartão escolhido (token salvo).</p>
+                    <p id="payModalSavedCardConfirmMsg" class="text-muted small mt-2 mb-0 d-none">O pagamento será processado com o cartão escolhido.</p>
                 </div>
                 <div id="payModalRevalidateMsg" class="alert alert-warning py-2 mb-2 d-none">Este cartão precisa ser revalidado. Informe o número e o CVV abaixo.</div>
                 <div id="payModalNewCardSection">
@@ -1252,6 +1307,23 @@
                             <label class="form-check-label" for="payModalSetDefault">Marcar como cartão padrão</label>
                         </div>
                     </form>
+                </div>
+                <div id="payModalBillingSection" class="card-holder-billing border rounded p-3 mb-3">
+                    <p class="small text-muted mb-2" id="payModalBillingHint">CEP e número do titular, exigidos pelo cartão. PIX e boleto não pedem estes dados.</p>
+                    <div class="mb-3">
+                        <label for="payCardPostalCode" class="form-label">CEP <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardPostalCode" name="payCardPostalCode" placeholder="00000-000" maxlength="9"
+                               value="@cardHolderPostalCode" inputmode="numeric" autocomplete="postal-code">
+                    </div>
+                    <div class="mb-2">
+                        <label for="payCardAddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardAddressNumber" name="payCardAddressNumber" placeholder="123" maxlength="20"
+                               value="@cardHolderAddressNumber" inputmode="text" autocomplete="address-line2" @(cardHolderHasNoNumber ? "disabled" : null)>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="payCardNoNumber" @(cardHolderHasNoNumber ? "checked" : null)>
+                        <label class="form-check-label" for="payCardNoNumber">Sem número (enviar S/N)</label>
+                    </div>
                 </div>
                 <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
             </div>
@@ -1340,9 +1412,37 @@
             if (el) { el.style.display = 'none'; el.classList.add('hidden'); }
         }
 
+        var confirmedPaymentMethod = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(currentMethodValue ?? ""));
+
+        function restorePaymentMethodSelect(selectElement, previousValue) {
+            if (!selectElement) return;
+            var value = (previousValue || confirmedPaymentMethod || '').trim();
+            selectElement.value = value;
+            selectElement.dataset.previousValue = value;
+            if (typeof $ !== 'undefined' && $(selectElement).hasClass('select2-hidden-accessible')) {
+                $(selectElement).val(value).trigger('change.select2');
+            }
+        }
+
+        function bindPaymentMethodSelectSnapshot(selectElement) {
+            if (!selectElement || selectElement.dataset.methodSnapshotBound === 'true') return;
+            selectElement.dataset.methodSnapshotBound = 'true';
+            function snapshotConfirmed() {
+                selectElement.dataset.previousValue = confirmedPaymentMethod || selectElement.value || '';
+            }
+            selectElement.addEventListener('focus', snapshotConfirmed);
+            selectElement.addEventListener('mousedown', snapshotConfirmed);
+            selectElement.addEventListener('keydown', snapshotConfirmed);
+            if (typeof $ !== 'undefined') {
+                $(selectElement).on('select2:opening select2:selecting', snapshotConfirmed);
+            }
+        }
+
+        bindPaymentMethodSelectSnapshot(document.getElementById('paymentMethodSelect') || document.querySelector('#paymentMethodForm select[name="method"]'));
+
         window.updatePaymentMethod = async function(selectElement) {
-            // Valor atual (antes da alteração): ao mudar o option, value já é o novo; usar data-previous-value da página
-            const previousValue = (selectElement.dataset.previousValue || selectElement.value || '').trim();
+            // Método vigente confirmado no pagamento (não o option recém-clicado)
+            const previousValue = (confirmedPaymentMethod || selectElement.dataset.previousValue || '').trim();
             const pixPreviousPlan = selectElement.dataset.pixPreviousPlan || '';
             const pixNewPlan = selectElement.dataset.pixNewPlan || '';
             
@@ -1371,6 +1471,7 @@
                 const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value
                     || document.querySelector('input[name="__RequestVerificationToken"]')?.value;
                 if (!token) {
+                    restorePaymentMethodSelect(selectElement, previousValue);
                     showToast('Token de segurança não encontrado. Recarregue a página e tente novamente.', 'error');
                     return;
                 }
@@ -1401,6 +1502,7 @@
                                 if (newRadio) newRadio.checked = true;
                                 wrap.setAttribute('data-current-pix-plan', pixNewPlan);
                             }
+                            confirmedPaymentMethod = 'PIX';
                             selectElement.dataset.previousValue = 'PIX';
                             selectElement.dataset.pixPreviousPlan = pixNewPlan;
                             selectElement.dataset.pixNewPlan = '';
@@ -1413,7 +1515,8 @@
                             setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
                         } else {
                             await updatePaymentMethodSections();
-                            selectElement.dataset.previousValue = selectElement.value;
+                            confirmedPaymentMethod = (selectElement.value || '').trim();
+                            selectElement.dataset.previousValue = confirmedPaymentMethod;
                             showToast('Método de pagamento atualizado com sucesso!', 'success');
                         }
                     } else if ((response.type === 'opaqueredirect' || response.status === 0) && isCreditOrBoleto) {
@@ -1424,10 +1527,7 @@
                         paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
                         setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
                     } else {
-                        // Reverter dropdown para a opção anterior em caso de erro
-                        selectElement.value = previousValue;
-                        selectElement.dataset.previousValue = previousValue;
-                        // Reverter radio de PIX para o plano anterior, se aplicável
+                        restorePaymentMethodSelect(selectElement, previousValue);
                         if (pixPreviousPlan) {
                             const wrap = document.getElementById('pagePixPlanOptionWrap');
                             if (wrap) {
@@ -1445,10 +1545,7 @@
                         showToast(errMsg, 'error');
                     }
                 } catch (error) {
-                    // Reverter dropdown para a opção anterior em caso de exceção (rede, etc.)
-                    selectElement.value = previousValue;
-                    selectElement.dataset.previousValue = previousValue;
-                    // Reverter radio de PIX para o plano anterior, se aplicável
+                    restorePaymentMethodSelect(selectElement, previousValue);
                     if (pixPreviousPlan) {
                         const wrap = document.getElementById('pagePixPlanOptionWrap');
                         if (wrap) {
@@ -1461,13 +1558,10 @@
                     showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
                     console.error('Erro:', error);
                 } finally {
-                    // complete: esconder o loading após terminar (sucesso ou erro)
                     hidePaymentLoading();
                 }
             } else {
-                // Restaurar valor anterior sem recarregar a página
-                selectElement.value = previousValue;
-                // Usuário cancelou: restaurar radio de PIX para o plano anterior, se aplicável
+                restorePaymentMethodSelect(selectElement, previousValue);
                 if (pixPreviousPlan) {
                     const wrap = document.getElementById('pagePixPlanOptionWrap');
                     if (wrap) {
@@ -1550,8 +1644,11 @@
                     if (updatedSelect) {
                         if (currentSelectValue)
                             updatedSelect.value = currentSelectValue;
-                        updatedSelect.dataset.previousValue = updatedSelect.value || '';
+                        confirmedPaymentMethod = (updatedSelect.value || confirmedPaymentMethod || '').trim();
+                        updatedSelect.dataset.previousValue = confirmedPaymentMethod;
+                        updatedSelect.classList.add('no-select2');
                         updatedSelect.onchange = function() { window.updatePaymentMethod(this); };
+                        bindPaymentMethodSelectSnapshot(updatedSelect);
                     }
                 }
                 
@@ -1777,6 +1874,9 @@
                                 radio.value = id;
                                 radio.className = 'form-check-input me-2';
                                 radio.dataset.hasToken = c.hasToken ? '1' : '0';
+                                radio.dataset.hasBilling = c.hasBilling ? '1' : '0';
+                                if (c.postalCode) radio.dataset.postalCode = c.postalCode;
+                                if (c.addressNumber) radio.dataset.addressNumber = c.addressNumber;
                                 if (id === (defaultCard.id || defaultCard.Id)) radio.checked = true;
                                 item.appendChild(radio);
                                 var text = document.createElement('span');
@@ -1816,6 +1916,48 @@
             }
             window.attachPayWithCardModalOnShow = attachPayWithCardModalOnShow;
             if (modalEl) attachPayWithCardModalOnShow(modalEl);
+            function payModalNeedsBillingInput() {
+                var useSaved = document.getElementById('payModalOptionSaved')?.checked;
+                if (!useSaved) return true;
+                var savedRadio = document.querySelector('input[name="payModalSavedCardId"]:checked');
+                if (!savedRadio) return true;
+                var hasBilling = savedRadio.dataset.hasBilling === '1';
+                return !hasBilling;
+            }
+            window.payModalNeedsBillingInput = payModalNeedsBillingInput;
+            function updatePayModalBillingVisibility() {
+                var billingSection = document.getElementById('payModalBillingSection');
+                var hint = document.getElementById('payModalBillingHint');
+                if (!billingSection) return;
+                var need = payModalNeedsBillingInput();
+                billingSection.classList.toggle('d-none', !need);
+                if (hint) {
+                    var useSaved = document.getElementById('payModalOptionSaved')?.checked;
+                    hint.textContent = useSaved && need
+                        ? 'Este cartão ainda não tem CEP/número salvos. Informe uma vez para concluir o pagamento.'
+                        : 'CEP e número do titular, exigidos pelo cartão. PIX e boleto não pedem estes dados.';
+                }
+                if (need) {
+                    var savedRadio = document.querySelector('input[name="payModalSavedCardId"]:checked');
+                    var cepEl = document.getElementById('payCardPostalCode');
+                    var numEl = document.getElementById('payCardAddressNumber');
+                    var noNumEl = document.getElementById('payCardNoNumber');
+                    if (savedRadio && savedRadio.dataset.postalCode && cepEl && !(cepEl.value || '').replace(/\D/g, '')) {
+                        cepEl.value = savedRadio.dataset.postalCode;
+                    }
+                    if (savedRadio && savedRadio.dataset.addressNumber && numEl && noNumEl) {
+                        var storedNum = savedRadio.dataset.addressNumber;
+                        if (storedNum.toUpperCase() === 'S/N') {
+                            noNumEl.checked = true;
+                            applyNoNumberToggle(noNumEl, numEl);
+                        } else if (!(numEl.value || '').trim()) {
+                            noNumEl.checked = false;
+                            applyNoNumberToggle(noNumEl, numEl);
+                            numEl.value = storedNum;
+                        }
+                    }
+                }
+            }
             function updateModalSavedVsNewCardVisibility() {
                 var sectionSaved = document.getElementById('payModalSavedCardsSection');
                 var sectionNew = document.getElementById('payModalNewCardSection');
@@ -1830,6 +1972,7 @@
                     if (payModalRevalidateMsg) payModalRevalidateMsg.classList.add('d-none');
                     if (savedCardConfirmMsg) savedCardConfirmMsg.classList.add('d-none');
                     if (newCardIntro) newCardIntro.classList.remove('d-none');
+                    updatePayModalBillingVisibility();
                     return;
                 }
                 sectionSaved.classList.remove('d-none');
@@ -1857,7 +2000,10 @@
                     sectionNew.classList.add('d-none');
                     if (payModalRevalidateMsg) payModalRevalidateMsg.classList.add('d-none');
                     if (newCardIntro) newCardIntro.classList.add('d-none');
+                    if (savedCardConfirmMsg && savedRadio && savedRadio.dataset.hasBilling === '1')
+                        savedCardConfirmMsg.classList.remove('d-none');
                 }
+                updatePayModalBillingVisibility();
             }
             document.body.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'payModalOption') {
@@ -1905,6 +2051,114 @@
         }, true);
 
         // Modal Pagar com cartão: formatação e envio
+        function maskBrazilianCep(value) {
+            var d = (value || '').replace(/\D/g, '').substring(0, 8);
+            return d.length > 5 ? d.substring(0, 5) + '-' + d.substring(5) : d;
+        }
+        function applyNoNumberToggle(checkEl, numberEl) {
+            if (!checkEl || !numberEl) return;
+            numberEl.disabled = checkEl.checked;
+            if (checkEl.checked) {
+                numberEl.removeAttribute('required');
+                numberEl.value = '';
+            } else {
+                numberEl.setAttribute('required', 'required');
+            }
+        }
+        document.body.addEventListener('input', function(e) {
+            if (!e.target) return;
+            if (e.target.id === 'payCardPostalCode' || e.target.id === 'addCardPostalCode') {
+                e.target.value = maskBrazilianCep(e.target.value);
+            }
+            if (e.target.id === 'payCardNumber' || e.target.id === 'cardNumber') {
+                var v = e.target.value.replace(/\D/g, '');
+                e.target.value = (v.match(/.{1,4}/g) || []).join(' ').substring(0, 19);
+            }
+            if (e.target.id === 'payCardCvv' || e.target.id === 'cvv') {
+                e.target.value = e.target.value.replace(/\D/g, '');
+            }
+        });
+        document.body.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'payCardNoNumber') {
+                applyNoNumberToggle(e.target, document.getElementById('payCardAddressNumber'));
+            }
+            if (e.target && e.target.id === 'addCardNoNumber') {
+                applyNoNumberToggle(e.target, document.getElementById('addCardAddressNumber'));
+            }
+        });
+        applyNoNumberToggle(document.getElementById('payCardNoNumber'), document.getElementById('payCardAddressNumber'));
+        applyNoNumberToggle(document.getElementById('addCardNoNumber'), document.getElementById('addCardAddressNumber'));
+        document.body.addEventListener('submit', function(e) {
+            var form = e.target;
+            if (!form || form.id !== 'addCardForm') return;
+            var cepEl = document.getElementById('addCardPostalCode');
+            var numEl = document.getElementById('addCardAddressNumber');
+            var noNumEl = document.getElementById('addCardNoNumber');
+            var cep = ((cepEl && cepEl.value) || '').replace(/\D/g, '');
+            if (cepEl) cepEl.setCustomValidity('');
+            if (numEl) numEl.setCustomValidity('');
+            if (cep.length !== 8 || /^0+$/.test(cep)) {
+                e.preventDefault();
+                if (cepEl) {
+                    cepEl.setCustomValidity('Informe um CEP válido (8 dígitos). O CEP 00000-000 não é aceito.');
+                    cepEl.reportValidity();
+                }
+                return;
+            }
+            if (!(noNumEl && noNumEl.checked) && !((numEl && numEl.value) || '').trim()) {
+                e.preventDefault();
+                if (numEl) {
+                    numEl.setCustomValidity('Informe o número do endereço ou marque "sem número".');
+                    numEl.reportValidity();
+                }
+            }
+        });
+        function collectCardHolderBilling(errEl) {
+            if (typeof payModalNeedsBillingInput === 'function' && !payModalNeedsBillingInput()) {
+                return { skip: true };
+            }
+            var billingSection = document.getElementById('payModalBillingSection');
+            var cepEl = billingSection
+                ? billingSection.querySelector('#payCardPostalCode')
+                : document.getElementById('payCardPostalCode');
+            var numEl = billingSection
+                ? billingSection.querySelector('#payCardAddressNumber')
+                : document.getElementById('payCardAddressNumber');
+            var noNumEl = billingSection
+                ? billingSection.querySelector('#payCardNoNumber')
+                : document.getElementById('payCardNoNumber');
+            var cepRaw = (cepEl && cepEl.value != null) ? String(cepEl.value) : '';
+            var cep = cepRaw.replace(/\D/g, '').substring(0, 8);
+            var noNumber = !!(noNumEl && noNumEl.checked);
+            var number = ((numEl && numEl.value) || '').trim();
+            if (cep.length !== 8 || /^0+$/.test(cep)) {
+                if (errEl) {
+                    errEl.textContent = 'Informe um CEP válido (8 dígitos). O CEP 00000-000 não é aceito.';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                if (cepEl) {
+                    cepEl.focus();
+                    if (billingSection && billingSection.classList.contains('d-none'))
+                        billingSection.classList.remove('d-none');
+                }
+                return null;
+            }
+            if (!noNumber && !number) {
+                if (errEl) {
+                    errEl.textContent = 'Informe o número do endereço ou marque "sem número".';
+                    errEl.classList.remove('d-none');
+                    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                if (numEl) numEl.focus();
+                return null;
+            }
+            return {
+                postalCode: cep,
+                addressNumber: noNumber ? 'S/N' : number,
+                addressHasNoNumber: noNumber
+            };
+        }
         document.getElementById('payCardNumber')?.addEventListener('input', function(e) {
             let v = e.target.value.replace(/\D/g, '');
             e.target.value = (v.match(/.{1,4}/g) || []).join(' ').substring(0, 19);
@@ -2060,8 +2314,17 @@
                 payload.setAsDefault = !!(setDefaultChk && setDefaultChk.checked);
             }
 
+            var billing = collectCardHolderBilling(errEl);
+            if (!billing) return;
+            if (!billing.skip) {
+                payload.postalCode = billing.postalCode;
+                payload.addressNumber = billing.addressNumber;
+                payload.addressHasNoNumber = billing.addressHasNoNumber;
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
             try {
                 var response = await fetch('@Url.Action("ProcessPaymentWithCard", "Client")', {
                     method: 'POST',
@@ -2073,6 +2336,7 @@
                 var result = null;
                 try { result = text ? JSON.parse(text) : null; } catch (_) { }
                 if (!result) {
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                     errEl.textContent = response.ok ? 'Resposta inválida do servidor. Tente novamente.' : ('Erro ' + response.status + (text && text.length < 200 ? ': ' + text : '. Verifique os dados e tente novamente.'));
                     errEl.classList.remove('d-none');
                     errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2081,11 +2345,13 @@
                     return;
                 }
                 if (result.success) {
-                    if (typeof showToast === 'function') showToast(result.message || 'Pagamento processado!', 'success');
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                     var modal = bootstrap.Modal.getInstance(document.getElementById('payWithCardModal'));
                     if (modal) modal.hide();
-                    window.location.reload();
+                    var targetUrl = result.redirectUrl || '@Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = Model.Id })';
+                    window.setTimeout(function () { window.location.href = targetUrl; }, 400);
                 } else {
+                    if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                     errEl.textContent = result.error || 'Erro ao processar pagamento.';
                     errEl.classList.remove('d-none');
                     errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2093,6 +2359,7 @@
                     btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
                 }
             } catch (e) {
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
                 errEl.textContent = 'Erro de conexão: ' + (e.message || 'Tente novamente.');
                 errEl.classList.remove('d-none');
                 errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

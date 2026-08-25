@@ -1,4 +1,5 @@
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Helpers;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -41,7 +42,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName)
+                new Claim(ClaimTypes.Name, ClientDisplayName.Resolve(user.FullName, user.Email))
             };
             foreach (var role in roles)
             {
@@ -72,11 +73,12 @@ namespace KlyonHubPlatform.Application.Services
                 return false;
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
             var emailVerificationToken = Guid.NewGuid().ToString();
+            var safeFullName = ClientDisplayName.NullIfPlaceholder(fullName, email) ?? string.Empty;
             var user = new User
             {
                 Email = email,
                 PasswordHash = passwordHash,
-                FullName = fullName,
+                FullName = safeFullName,
                 EmailVerificationToken = emailVerificationToken,
                 IsActive = true,
                 EmailVerified = false,
@@ -132,7 +134,7 @@ namespace KlyonHubPlatform.Application.Services
                             CNPJ = cnpjFormatted,
                             CPF = cpfFormatted,
                             ContactEmail = email,
-                            ContactName = fullName,
+                            ContactName = ClientDisplayName.NullIfPlaceholder(safeFullName, email),
                             IsActive = true,
                             CreatedAt = DateTime.UtcNow
                         };
@@ -144,7 +146,7 @@ namespace KlyonHubPlatform.Application.Services
 
             try
             {
-                await _emailService.SendVerificationEmailAsync(email, fullName, emailVerificationToken, returnUrl);
+                await _emailService.SendVerificationEmailAsync(email, ClientDisplayName.Resolve(safeFullName, email), emailVerificationToken, returnUrl);
             }
             catch (Exception)
             {

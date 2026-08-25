@@ -54,6 +54,7 @@ namespace KlyonHubPlatform.Application.Services
         {
             var contract = await _context.Contracts
                 .Include(c => c.Client)
+                    .ThenInclude(cl => cl.User)
                 .Include(c => c.Service)
                 .Include(c => c.Subscription)
                 .Include(c => c.CoworkingAddress)
@@ -62,6 +63,10 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(c => c.Id == contractId);
             if (contract == null)
                 throw new InvalidOperationException("Contrato não encontrado");
+
+            var party = ClientContractPartyRules.Evaluate(contract.Client);
+            if (!party.IsComplete)
+                throw new InvalidOperationException(party.ErrorMessage ?? ClientContractPartyRules.IncompleteMessage);
 
             var declarations = await _context.AddressDeclarations
                 .Where(d => d.ContractId == contractId)
@@ -74,6 +79,14 @@ namespace KlyonHubPlatform.Application.Services
             if (!AddressDeclarationRules.CanGenerateDeclaration(contract, declarations, hasPaidPayment))
                 throw new InvalidOperationException(
                     "Não é possível gerar declaração: o contrato precisa estar vigente, com pagamento confirmado e sem declaração válida para o tipo de serviço atual.");
+
+            var validExisting = declarations.FirstOrDefault(d =>
+                AddressDeclarationRules.IsDeclarationValidForCurrentService(
+                    d,
+                    contract.ServiceId,
+                    contract.Service?.Code));
+            if (validExisting != null)
+                return validExisting;
 
             if (contract.ExpiryDate == null)
             {
@@ -132,20 +145,27 @@ namespace KlyonHubPlatform.Application.Services
                     p.CPF ?? DefaultDisplayStrings.NaoInformado))
                 .ToList() ?? [];
 
+            if (signatories.Count == 0 && !string.IsNullOrWhiteSpace(coworking.LegalRepresentative))
+            {
+                signatories.Add((
+                    coworking.LegalRepresentative.Trim(),
+                    "Representante Legal",
+                    DefaultDisplayStrings.NaoInformado));
+            }
+
             return AddressDeclarationPdfRenderer.Build(new AddressDeclarationPdfRenderOptions
             {
                 Title = AddressDeclarationLabels.PdfTitle(serviceCode),
                 DeclarationNumber = declarationNumber,
                 ContractNumber = contract.ContractNumber,
                 ClientName = GetClientDisplayName(contract.Client),
-                ClientCnpjCpf = !string.IsNullOrEmpty(contract.Client.CNPJ)
-                    ? contract.Client.CNPJ
-                    : contract.Client.CPF ?? DefaultDisplayStrings.NaoInformado,
+                ClientCnpjCpf = PdfFieldFormatter.FormatCnpjOrCpf(
+                    !string.IsNullOrEmpty(contract.Client.CNPJ) ? contract.Client.CNPJ : contract.Client.CPF),
                 StartDate = contract.StartDate,
                 EndDate = contract.ExpiryDate!.Value,
                 IsCommercial = isCommercial,
                 CoworkingName = coworking.Name,
-                CoworkingCnpj = coworking.CNPJ,
+                CoworkingCnpj = PdfFieldFormatter.FormatCnpj(coworking.CNPJ),
                 CoworkingFullAddress = BuildCoworkingFullAddress(coworkingAddress),
                 SignatureCity = $"{coworkingAddress.City}/{coworkingAddress.State}",
                 SignatureDate = signatureDate,
@@ -173,11 +193,19 @@ namespace KlyonHubPlatform.Application.Services
             return coworkingFullAddress;
         }
 
-        private static string GetClientDisplayName(Client client) =>
-            !string.IsNullOrWhiteSpace(client.RazaoSocial) ? client.RazaoSocial
-            : !string.IsNullOrWhiteSpace(client.NomeFantasia) ? client.NomeFantasia
-            : !string.IsNullOrWhiteSpace(client.ContactName) ? client.ContactName
-            : DefaultDisplayStrings.NaoInformado;
+        private static string GetClientDisplayName(Client client)
+        {
+            if (!string.IsNullOrWhiteSpace(client.RazaoSocial))
+                return client.RazaoSocial;
+            if (!string.IsNullOrWhiteSpace(client.NomeFantasia))
+                return client.NomeFantasia;
+
+            return PdfFieldFormatter.ResolveClientPersonName(
+                client.ContactName,
+                client.User?.FullName,
+                client.ContactEmail,
+                client.User?.Email) ?? string.Empty;
+        }
 
         private string GenerateDigitalSignature(string data)
         {

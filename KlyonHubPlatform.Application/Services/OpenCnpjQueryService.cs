@@ -1,9 +1,7 @@
-using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using KlyonHubPlatform.Application.DTOs.OpenCnpj;
 using KlyonHubPlatform.Application.Interfaces;
-using KlyonHubPlatform.Domain.Core.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace KlyonHubPlatform.Application.Services
@@ -59,9 +57,7 @@ namespace KlyonHubPlatform.Application.Services
                     return OpenCnpjValidationResult.Fail($"Situação cadastral não permitida para contratação: {situacao}.");
                 }
 
-                if (FiscalOnboardingCnaeRules.AnyCnaeBlocked(dto.CnaePrincipal, dto.CnaesSecundarios, out var cnaeReason))
-                    return OpenCnpjValidationResult.Fail(cnaeReason);
-
+                // Endereço fiscal não restringe CNAE (indústria/fabricação pode usar o endereço só para notas e cadastros).
                 return OpenCnpjValidationResult.Ok(dto.RazaoSocial?.Trim(), dto.CnaePrincipal?.Trim());
             }
             catch (OperationCanceledException)

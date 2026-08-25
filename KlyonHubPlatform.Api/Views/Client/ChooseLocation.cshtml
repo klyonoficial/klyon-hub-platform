@@ -205,9 +205,12 @@
                                     var pendingPaymentId = pendingPaymentByAddressId.ContainsKey(address.Id) ? (int?)pendingPaymentByAddressId[address.Id] : null;
                                     var pendingStatus = pendingPaymentId.HasValue && pendingPaymentStatusByAddressId.ContainsKey(address.Id) ? pendingPaymentStatusByAddressId[address.Id] : (PaymentStatus?)null;
                                 }
-                                @if (pendingPaymentId.HasValue)
+                                @if (pendingPaymentId.HasValue && pendingStatus.HasValue
+                                    && (pendingStatus == PaymentStatus.Pending
+                                        || pendingStatus == PaymentStatus.Processing
+                                        || pendingStatus == PaymentStatus.AwaitingValidation))
                                 {
-                                    @* Mesmos nomes e cores de MyPayments: Aguardando Pagamento (bg-pending-payment), Aguardando Validação (bg-pending-payment), Processando (bg-suspended) *@
+                                    @* Mesmos nomes e cores de MyPayments: Aguardando Pagamento, Aguardando Validação, Processando *@
                                     var isAwaitingValidation = pendingStatus == PaymentStatus.AwaitingValidation;
                                     var isProcessing = pendingStatus == PaymentStatus.Processing;
                                     var badgeClass = isProcessing ? "bg-suspended" : "bg-pending-payment";
@@ -320,6 +323,7 @@ document.addEventListener('submit', function(e) {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof showToast === 'function') showToast(msgJaContratado, 'info', 6000);
+        if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
         return;
     }
     e.preventDefault();
@@ -344,11 +348,12 @@ document.addEventListener('submit', function(e) {
             return r.json();
         })
         .then(function(data) {
-            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
             if (data.success && data.redirectUrl) {
                 window.location.href = data.redirectUrl;
+                if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) window.KlyonLoading.show();
                 return;
             }
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
             if (typeof showToast === 'function') showToast(data.message || 'Erro ao processar.', 'error', 5000);
             if (btn) { btn.disabled = false; btn.classList.remove('contract-btn-loading'); btn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i> Contratar'; }
         })

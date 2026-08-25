@@ -1,5 +1,6 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.DTOs.ClientOnboarding
 @{
 	ViewData[ViewDataKeys.Title] = "Detalhes do Contrato";
 	Layout = LayoutPaths.Layout;
@@ -7,6 +8,8 @@
 	var declarationKindLabel = AddressDeclarationLabels.IsCommercial(Model.Service?.Code) ? "comercial" : "fiscal";
 	var canGenerateDeclaration = ViewBag.CanGenerateDeclaration as bool? ?? false;
 	var canGenerateContract = ViewBag.CanGenerateContract as bool? ?? false;
+	var onboardingBanner = ViewBag.OnboardingBanner as ClientOnboardingClientBanner;
+	var onboardingDocumentsUrl = ViewBag.OnboardingDocumentsUrl as string;
 	var contractKindLabel = AddressDeclarationLabels.IsCommercial(Model.Service?.Code) ? "comercial" : "fiscal";
 	var contractDocuments = Model.Documents?.Where(d => d.Type == DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
 	var otherDocuments = Model.Documents?.Where(d => d.Type != DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
@@ -20,6 +23,40 @@
 		<i class="bi bi-arrow-left"></i> Voltar
 	</a>
 </div>
+
+@if (onboardingBanner?.Visible == true)
+{
+	var alertClass = onboardingBanner.Tone switch
+	{
+		ClientOnboardingBannerTone.Info => "alert-info",
+		ClientOnboardingBannerTone.Danger => "alert-danger",
+		_ => "alert-warning"
+	};
+	var buttonClass = onboardingBanner.Tone switch
+	{
+		ClientOnboardingBannerTone.Info => "btn-info",
+		ClientOnboardingBannerTone.Danger => "btn-danger",
+		_ => "btn-warning"
+	};
+	var iconClass = onboardingBanner.SetStatus switch
+	{
+		ClientOnboardingSetStatus.AwaitingApproval => "bi-hourglass-split",
+		ClientOnboardingSetStatus.Rejected => "bi-exclamation-triangle",
+		_ => "bi-cloud-arrow-up"
+	};
+	<div class="alert @alertClass">
+		<i class="bi @iconClass me-1"></i>
+		<strong>@onboardingBanner.Title</strong> @onboardingBanner.Message
+		@if (!string.IsNullOrWhiteSpace(onboardingBanner.RejectionReason))
+		{
+			<div class="mt-2"><strong>Motivo:</strong> @onboardingBanner.RejectionReason</div>
+		}
+		@if (onboardingBanner.ShowActionButton && !string.IsNullOrEmpty(onboardingDocumentsUrl))
+		{
+			<a class="btn btn-sm @buttonClass ms-2" href="@onboardingDocumentsUrl">@onboardingBanner.ActionButtonLabel</a>
+		}
+	</div>
+}
 
 <div class="row">
 	<div class="col-md-6 mb-4">
@@ -226,31 +263,47 @@
 				<h5 class="card-title-tight"><i class="bi bi-file-earmark-pdf me-1"></i> Documentos</h5>
 			</div>
 			<div class="card-body">
+				<style>
+					.contract-doc-actions .btn {
+						min-width: 7.25rem;
+						justify-content: center;
+					}
+				</style>
 				@if (contractDocuments.Any())
 				{
 					<h6 class="mb-3">Contrato:</h6>
 					<ul class="list-group mb-3">
 						@foreach (var doc in contractDocuments)
 						{
-							<li class="list-group-item d-flex justify-content-between align-items-center">
-								<div>
-									<span class="fw-bold">@(string.IsNullOrWhiteSpace(doc.Description) ? "Contrato" : doc.Description)</span><br>
-									<small class="text-muted">@doc.GeneratedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
+							<li class="list-group-item">
+								<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+									<div>
+										<span class="fw-bold">@(string.IsNullOrWhiteSpace(doc.Description) ? "Contrato" : doc.Description)</span><br>
+										<small class="text-muted">@doc.GeneratedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
+									</div>
+									@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
+									{
+										<div class="contract-doc-actions d-flex flex-wrap gap-2">
+											<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id, download = false })"
+											   class="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
+											   target="_blank" rel="noopener">
+												<i class="bi bi-eye me-1"></i> Visualizar
+											</a>
+											<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })"
+											   class="btn btn-sm btn-primary d-inline-flex align-items-center">
+												<i class="bi bi-download me-1"></i> Download
+											</a>
+										</div>
+									}
+									else if (Model.Status == ContractStatus.PendingPayment)
+									{
+										<span class="text-muted small">Disponível após pagamento</span>
+									}
+									else
+									{
+										<span class="text-muted small">—</span>
+									}
 								</div>
-								@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
-								{
-									<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })" class="btn btn-sm btn-primary">
-										<i class="bi bi-download"></i> Download
-									</a>
-								}
-								else if (Model.Status == ContractStatus.PendingPayment)
-								{
-									<span class="text-muted small">Disponível após pagamento</span>
-								}
-								else
-								{
-									<span class="text-muted small">—</span>
-								}
 							</li>
 						}
 					</ul>
@@ -309,23 +362,32 @@
 					<ul class="list-group mb-3">
 						@foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
 						{
-							<li class="list-group-item d-flex justify-content-between align-items-center">
-								<div>
-									<span class="fw-bold">@declaration.DeclarationNumber</span><br>
-									<small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
-								</div>
-								<div class="d-flex align-items-center gap-2">
-									@if (declaration.IsValid)
-									{
-										<span class="badge bg-success">Válida</span>
-									}
-									else
-									{
-										<span class="badge bg-danger">Inválida</span>
-									}
-									<a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id })" class="btn btn-sm btn-primary">
-										<i class="bi bi-download"></i> Download
-									</a>
+							<li class="list-group-item">
+								<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+									<div>
+										<span class="fw-bold">@declaration.DeclarationNumber</span>
+										@if (declaration.IsValid)
+										{
+											<span class="badge bg-success ms-1">Válida</span>
+										}
+										else
+										{
+											<span class="badge bg-danger ms-1">Inválida</span>
+										}
+										<br>
+										<small class="text-muted">Versão @declaration.Version - @declaration.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
+									</div>
+									<div class="contract-doc-actions d-flex flex-wrap gap-2">
+										<a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id, download = false })"
+										   class="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
+										   target="_blank" rel="noopener">
+											<i class="bi bi-eye me-1"></i> Visualizar
+										</a>
+										<a href="@Url.Action(ActionNames.DownloadDeclaration, ControllerNames.Client, new { declarationId = declaration.Id })"
+										   class="btn btn-sm btn-primary d-inline-flex align-items-center">
+											<i class="bi bi-download me-1"></i> Download
+										</a>
+									</div>
 								</div>
 							</li>
 						}
@@ -350,22 +412,65 @@
 								DocumentType.TermsOfUse => "Termos de Uso",
 								_ => doc.Type.ToString()
 							};
-							<li class="list-group-item d-flex justify-content-between align-items-center">
-								<span>@documentTypeText</span>
-								@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
-								{
-									<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })" class="btn btn-sm btn-primary">
-										<i class="bi bi-download"></i> Download
-									</a>
-								}
-								else if (Model.Status == ContractStatus.PendingPayment)
-								{
-									<span class="text-muted small">Disponível após pagamento</span>
-								}
-								else
-								{
-									<span class="text-muted small">—</span>
-								}
+							<li class="list-group-item">
+								<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+									<span>@documentTypeText</span>
+									@if (Model.Status == ContractStatus.Active || Model.Status == ContractStatus.PendingCancellation)
+									{
+										<div class="contract-doc-actions d-flex flex-wrap gap-2">
+											<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id, download = false })"
+											   class="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
+											   target="_blank" rel="noopener">
+												<i class="bi bi-eye me-1"></i> Visualizar
+											</a>
+											<a href="@Url.Action(ActionNames.DownloadDocument, ControllerNames.Client, new { documentId = doc.Id })"
+											   class="btn btn-sm btn-primary d-inline-flex align-items-center">
+												<i class="bi bi-download me-1"></i> Download
+											</a>
+										</div>
+									}
+									else if (Model.Status == ContractStatus.PendingPayment)
+									{
+										<span class="text-muted small">Disponível após pagamento</span>
+									}
+									else
+									{
+										<span class="text-muted small">—</span>
+									}
+								</div>
+							</li>
+						}
+					</ul>
+				}
+
+				@{
+					var partnerDocuments = ViewBag.PartnerDocuments as IReadOnlyList<KlyonHubPlatform.Application.DTOs.Contracts.ContractPartnerDocumentDto>
+						?? Array.Empty<KlyonHubPlatform.Application.DTOs.Contracts.ContractPartnerDocumentDto>();
+				}
+				@if (partnerDocuments.Count > 0)
+				{
+					<h6 class="mb-3 mt-3">Documentos do parceiro:</h6>
+					<ul class="list-group">
+						@foreach (var partnerDoc in partnerDocuments)
+						{
+							<li class="list-group-item">
+								<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+									<div>
+										<span class="fw-bold">@partnerDoc.DisplayName</span><br>
+										<small class="text-muted">@partnerDoc.CreatedAt.ToString(DateFormatConstants.DisplayDateOnly)</small>
+									</div>
+									<div class="contract-doc-actions d-flex flex-wrap gap-2">
+										<a href="@Url.Action(ActionNames.DownloadContractPartnerDocument, ControllerNames.Client, new { contractId = Model.Id, documentId = partnerDoc.DocumentId, download = false })"
+										   class="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
+										   target="_blank" rel="noopener">
+											<i class="bi bi-eye me-1"></i> Visualizar
+										</a>
+										<a href="@Url.Action(ActionNames.DownloadContractPartnerDocument, ControllerNames.Client, new { contractId = Model.Id, documentId = partnerDoc.DocumentId })"
+										   class="btn btn-sm btn-primary d-inline-flex align-items-center">
+											<i class="bi bi-download me-1"></i> Download
+										</a>
+									</div>
+								</div>
 							</li>
 						}
 					</ul>

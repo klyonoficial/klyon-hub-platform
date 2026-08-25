@@ -28,7 +28,7 @@
                 <h5 class="mb-3"><i class="bi bi-building"></i> Dados da empresa</h5>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label for="Name" class="form-label">Nome do Coworking <span class="text-danger">*</span></label>
+                        <label for="Name" class="form-label">Razão Social <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="Name" name="Name" value="@ViewBag.UserFullName" required>
                     </div>
                     <div class="col-md-6 mb-3">
@@ -40,6 +40,16 @@
                     <div class="col-md-6 mb-3">
                         <label for="TradeName" class="form-label">Nome Fantasia</label>
                         <input type="text" class="form-control" id="TradeName" name="TradeName">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="LegalRepresentative" class="form-label">Representante Legal <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="LegalRepresentative" name="LegalRepresentative" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="PropertyRegistration" class="form-label">Inscrição Imobiliária <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="PropertyRegistration" name="PropertyRegistration" maxlength="50" required>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="ContactEmail" class="form-label">E-mail de contato <span class="text-danger">*</span></label>

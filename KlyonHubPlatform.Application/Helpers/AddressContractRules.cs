@@ -116,6 +116,10 @@ namespace KlyonHubPlatform.Application.Helpers
 
                 return false;
 
+            if (!contract.DocumentsApproved)
+
+                return false;
+
             if (!AddressDeclarationRules.IsContractWithinValidity(contract, referenceUtc))
 
                 return false;

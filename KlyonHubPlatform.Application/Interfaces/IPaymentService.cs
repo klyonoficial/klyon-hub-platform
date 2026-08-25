@@ -1,6 +1,7 @@
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Application.DTOs.PagBank;
+using KlyonHubPlatform.Application.DTOs.Payments;
 namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IPaymentService
@@ -20,9 +21,11 @@ namespace KlyonHubPlatform.Application.Interfaces
         /// <summary>Verifica se o código PIX (único ou recorrente anual) está vencido; se sim, faz nova requisição ao Asaas para obter novo(s) código(s) e persiste na base. Deve ser chamado ao exibir/uso do pagamento para garantir código válido.</summary>
         Task EnsurePixCodeValidAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
-        Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null);
+        Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false);
         /// <summary>Cobra o pagamento usando um cartão já tokenizado (AsaasToken).</summary>
-        Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null);
+        Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false);
+        /// <summary>Tokeniza o cartão no Asaas com CEP e número do form (creditCardHolderInfo). Não usa placeholder 00000-000. Retorna token e billing normalizado para persistir no cartão.</summary>
+        Task<CreditCardTokenizeResult> TokenizeCreditCardForClientAsync(int clientId, string cardNumber, string expiryMonth, string expiryYear, string cvv, string holderName, string? postalCode, string? addressNumber, bool addressHasNoNumber, string remoteIp, CancellationToken cancellationToken = default);
         Task<List<Payment>> GetPendingPaymentsAsync();
         Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId);
         Task<Payment?> GetPaymentByIdAsync(int paymentId);

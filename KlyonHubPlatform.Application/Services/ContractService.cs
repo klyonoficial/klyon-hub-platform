@@ -144,14 +144,12 @@ namespace KlyonHubPlatform.Application.Services
                     //if (cardPlanType == ContractCardPlanType.PixAnnual)
                     //{
                     var client = await _context.Clients.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == createdContract.ClientId);
-                    if (client != null)
+                    if (client != null && PaymentGatewayCustomer.CanCharge(client))
                     {
-                        var clientName = client.RazaoSocial ?? client.NomeFantasia ?? client.ContactName ?? client.User?.FullName ?? "";
-                        var clientEmail = client.ContactEmail ?? client.User?.Email ?? "";
-                        var clientTaxId = client.CPF ?? client.CNPJ ?? "";
+                        var clientName = PaymentGatewayCustomer.ResolveName(client);
+                        var clientEmail = PaymentGatewayCustomer.ResolveEmail(client) ?? "";
+                        var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
                         var clientPhone = client.ContactPhone;
-                        if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(clientEmail) || string.IsNullOrWhiteSpace(clientTaxId))
-                            throw new InvalidOperationException("Cliente sem nome, e-mail ou CPF/CNPJ. Complete o cadastro em Meu Perfil.");
 
                         if (cardPlanType == ContractCardPlanType.PixAnnual)
                         {
@@ -189,38 +187,7 @@ namespace KlyonHubPlatform.Application.Services
                         }
                         else if (cardPlanType == ContractCardPlanType.None)
                         {
-                            // PIX (pagamento único): criar cobrança via POST /payments e obter QR Code
-                            var clientTaxIdNormalized = (client.CPF ?? client.CNPJ ?? "").Replace(".", "").Replace("/", "").Replace("-", "").Trim();
-                            if (string.IsNullOrWhiteSpace(clientTaxIdNormalized) || clientTaxIdNormalized.Length < 11)
-                                throw new InvalidOperationException("CPF ou CNPJ do cliente inválido. Complete o cadastro em Meu Perfil.");
-                            string GetVal(string? value, string fallback = "S/N") => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
-                            var regionCode = "SP";
-                            if (!string.IsNullOrWhiteSpace(client.State))
-                            {
-                                var stateTrim = client.State.Trim().ToUpperInvariant();
-                                if (stateTrim.Length >= 2 && BrazilianUfs.All.Contains(stateTrim.Substring(0, 2)))
-                                    regionCode = stateTrim.Substring(0, 2);
-                            }
-                            var postalCode = "00000000";
-                            if (!string.IsNullOrWhiteSpace(client.ZipCode))
-                            {
-                                var zip = client.ZipCode.Replace("-", "").Replace(".", "").Replace(" ", "").Trim();
-                                if (zip.Length >= 8 && zip.All(char.IsDigit))
-                                    postalCode = zip.Length > 8 ? zip.Substring(0, 8) : zip;
-                                else if (zip.Length > 0 && zip.All(char.IsDigit))
-                                    postalCode = zip.PadLeft(8, '0');
-                            }
-                            var clientAddress = new PagBankAddress
-                            {
-                                Street = GetVal(client.Address, DefaultDisplayStrings.NaoInformado),
-                                Number = GetVal(client.AddressNumber, "S/N"),
-                                Complement = null,
-                                Locality = GetVal(client.Neighborhood, DefaultDisplayStrings.NaoInformado),
-                                City = GetVal(client.City, DefaultDisplayStrings.NaoInformado),
-                                RegionCode = regionCode,
-                                Country = "BRA",
-                                PostalCode = postalCode
-                            };
+                            var clientAddress = PaymentGatewayCustomer.ResolveAddress(client);
                             var pixReferenceId = $"pix_{payment.Id}_{DateTime.UtcNow:yyyyMMddHHmmss}";
                             var orderResponse = await _asaasService.CreateOrderAsync(
                                 referenceId: pixReferenceId,
@@ -228,7 +195,7 @@ namespace KlyonHubPlatform.Application.Services
                                 method: PaymentMethod.PIX,
                                 clientName: clientName,
                                 clientEmail: clientEmail,
-                                clientTaxId: clientTaxIdNormalized,
+                                clientTaxId: clientTaxId,
                                 clientPhone: clientPhone,
                                 clientAddress: clientAddress,
                                 customerExternalReference: $"client_{client.Id}"

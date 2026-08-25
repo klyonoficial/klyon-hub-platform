@@ -1,5 +1,6 @@
 using System.Data.Common;
 using KlyonHubPlatform.Application.Constants;
+using KlyonHubPlatform.Application.DTOs.Admin;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -310,6 +311,8 @@ namespace KlyonHubPlatform.Application.Services
         {
             var query = _context.PaymentHistories
                 .Include(h => h.ActionByUser)
+                    .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .Where(h => h.PaymentId == paymentId)
                 .OrderByDescending(h => h.ActionAt);
             var totalCount = await query.CountAsync(cancellationToken);
@@ -930,5 +933,114 @@ CREATE TABLE IF NOT EXISTS CreditPlans (
         }
 
         public ApplicationDbContext GetContext() => _context;
+
+        /// <inheritdoc />
+        public async Task<DuplicateContractArtifactsCleanupResult> CleanupDuplicateContractArtifactsAsync(
+            bool dryRun = false,
+            CancellationToken cancellationToken = default)
+        {
+            var result = new DuplicateContractArtifactsCleanupResult { DryRun = dryRun };
+            var affected = new HashSet<int>();
+
+            var contractDocuments = await _context.Documents
+                .AsNoTracking()
+                .Where(d => d.Type == DocumentType.Contract)
+                .Select(d => new { d.Id, d.ContractId })
+                .OrderBy(d => d.Id)
+                .ToListAsync(cancellationToken);
+
+            var duplicateDocumentIds = contractDocuments
+                .GroupBy(d => d.ContractId)
+                .Where(g => g.Count() > 1)
+                .SelectMany(g =>
+                {
+                    affected.Add(g.Key);
+                    return g.OrderBy(x => x.Id).Skip(1).Select(x => x.Id);
+                })
+                .ToList();
+
+            var generatedHistory = await _context.ContractHistories
+                .AsNoTracking()
+                .Where(h => h.Action == ContractHistoryActions.ContractGenerated)
+                .Select(h => new { h.Id, h.ContractId, h.ActionAt })
+                .OrderBy(h => h.Id)
+                .ToListAsync(cancellationToken);
+
+            var duplicateHistoryIds = generatedHistory
+                .GroupBy(h => h.ContractId)
+                .Where(g => g.Count() > 1)
+                .SelectMany(g =>
+                {
+                    affected.Add(g.Key);
+                    return g.OrderBy(x => x.ActionAt).ThenBy(x => x.Id).Skip(1).Select(x => x.Id);
+                })
+                .ToList();
+
+            var validDeclarations = await _context.AddressDeclarations
+                .AsNoTracking()
+                .Where(d => d.IsValid)
+                .Select(d => new { d.Id, d.ContractId, d.ServiceId, d.Version, d.CreatedAt })
+                .OrderBy(d => d.Id)
+                .ToListAsync(cancellationToken);
+
+            var duplicateDeclarationIds = validDeclarations
+                .GroupBy(d => new { d.ContractId, d.ServiceId, d.Version })
+                .Where(g => g.Count() > 1)
+                .SelectMany(g =>
+                {
+                    affected.Add(g.Key.ContractId);
+                    return g.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Skip(1).Select(x => x.Id);
+                })
+                .ToList();
+
+            result.RemovedDocumentIds = duplicateDocumentIds;
+            result.RemovedHistoryIds = duplicateHistoryIds;
+            result.RemovedDeclarationIds = duplicateDeclarationIds;
+            result.DocumentsRemoved = duplicateDocumentIds.Count;
+            result.HistoryEntriesRemoved = duplicateHistoryIds.Count;
+            result.DeclarationsRemoved = duplicateDeclarationIds.Count;
+            result.AffectedContractIds = affected.OrderBy(id => id).ToList();
+
+            if (dryRun || result.TotalRemoved == 0)
+                return result;
+
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                if (duplicateDocumentIds.Count > 0)
+                {
+                    var docs = await _context.Documents
+                        .Where(d => duplicateDocumentIds.Contains(d.Id))
+                        .ToListAsync(cancellationToken);
+                    _context.Documents.RemoveRange(docs);
+                }
+
+                if (duplicateHistoryIds.Count > 0)
+                {
+                    var histories = await _context.ContractHistories
+                        .Where(h => duplicateHistoryIds.Contains(h.Id))
+                        .ToListAsync(cancellationToken);
+                    _context.ContractHistories.RemoveRange(histories);
+                }
+
+                if (duplicateDeclarationIds.Count > 0)
+                {
+                    var declarations = await _context.AddressDeclarations
+                        .Where(d => duplicateDeclarationIds.Contains(d.Id))
+                        .ToListAsync(cancellationToken);
+                    _context.AddressDeclarations.RemoveRange(declarations);
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            return result;
+        }
     }
 }

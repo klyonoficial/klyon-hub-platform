@@ -1,0 +1,49 @@
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.Helpers
+@{
+    ViewData[ViewDataKeys.Title] = "Arquivos muito grandes";
+    Layout = LayoutPaths.LandingLayout;
+}
+
+<style>
+.upload-page { padding: 110px 16px 120px; max-width: 720px; margin: 0 auto; }
+.upload-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 24px;
+}
+.upload-title { color: #f8fafc; font-weight: 700; font-size: 1.8rem; margin-bottom: 8px; }
+.upload-sub { color: #94a3b8; margin-bottom: 24px; line-height: 1.6; }
+.upload-status { border-radius: 14px; padding: 16px; margin-bottom: 20px; }
+.upload-status.rejected { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+.upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #1a4d7a 0%, #2d6ba3 100%);
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+}
+.upload-btn:hover { color: #fff; }
+</style>
+
+<section class="upload-page">
+    <h1 class="upload-title">Arquivos muito grandes</h1>
+    <div class="upload-status rejected">
+        <strong><i class="bi bi-exclamation-triangle me-1"></i> O envio ultrapassou o limite</strong>
+        <p class="mb-0 mt-2">@ClientOnboardingDocumentRules.TotalTooLargeMessage</p>
+    </div>
+    <div class="upload-card">
+        <p class="upload-sub mb-4">
+            Envie PDF, JPG ou PNG cuja soma (identidade + comprovante) fique em até
+            @ClientOnboardingDocumentRules.MaxTotalSetSizeMb MB. Se as fotos da câmera estiverem pesadas,
+            escolha imagens menores ou compacte o PDF antes de enviar.
+        </p>
+        <a class="upload-btn" href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)">Voltar aos meus contratos</a>
+    </div>
+</section>

@@ -23,6 +23,11 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             var enableCoworkingMenus = (await _systemConfig.GetValueAsync(FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey(), cancellationToken))?.Trim();
             ViewData[ViewDataKeys.EnableCoworkingMenus] = !StringBooleanValue.IsFalse(enableCoworkingMenus);
+            var soleAddressId = await _appHome.GetSolePublishedAddressIdAsync(cancellationToken);
+            if (soleAddressId.HasValue)
+            {
+                return RedirectToAction(ActionNames.AddressDetail, ControllerNames.Client, new { coworkingAddressId = soleAddressId.Value });
+            }
             return View();
         }
         [ResponseCache(NoStore = true, Duration = 0, Location = ResponseCacheLocation.None)]
@@ -213,6 +218,13 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         public IActionResult Privacy()
         {
+            return View();
+        }
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult RequestEntityTooLarge()
+        {
+            Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
             return View();
         }
         [AllowAnonymous]

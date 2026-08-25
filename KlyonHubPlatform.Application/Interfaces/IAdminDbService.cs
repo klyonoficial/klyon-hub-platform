@@ -1,3 +1,4 @@
+using KlyonHubPlatform.Application.DTOs.Admin;
 using KlyonHubPlatform.Domain.Entities;
 using System.Data.Common;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -9,6 +10,15 @@ namespace KlyonHubPlatform.Application.Interfaces
     /// </summary>
     public interface IAdminDbService
     {
+        /// <summary>
+        /// Remove duplicatas de PDF de contrato (Documents Type=Contract), entradas ContractGenerated no histórico
+        /// e declarações válidas repetidas (mesmo ContractId + ServiceId + Version). Mantém o menor Id de cada grupo.
+        /// Não apaga arquivos no Oracle — apenas registros no banco.
+        /// </summary>
+        Task<DuplicateContractArtifactsCleanupResult> CleanupDuplicateContractArtifactsAsync(
+            bool dryRun = false,
+            CancellationToken cancellationToken = default);
+
         Task<Payment?> GetPaymentForStatementAsync(int paymentId, CancellationToken cancellationToken = default);
         Task<Reservation?> GetReservationForStatementAsync(int reservationId, CancellationToken cancellationToken = default);
         Task<(Reservation? Reservation, ReservationCommission? Commission, Transfer? Transfer, List<AuditLog> AuditLogs)> GetReservationFinancialDetailAsync(int reservationId, CancellationToken cancellationToken = default);

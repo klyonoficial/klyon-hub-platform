@@ -10,6 +10,8 @@ namespace KlyonHubPlatform.Api.Dtos.Admin
         public string Name { get; set; } = string.Empty;
         public string CNPJ { get; set; } = string.Empty;
         public string? TradeName { get; set; }
+        public string? PropertyRegistration { get; set; }
+        public string? LegalRepresentative { get; set; }
         public string? ContactEmail { get; set; }
         public string? ContactPhone { get; set; }
         public string? SecondaryEmail { get; set; }

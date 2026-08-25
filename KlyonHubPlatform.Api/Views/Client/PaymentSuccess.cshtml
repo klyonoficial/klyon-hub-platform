@@ -1,11 +1,16 @@
 @model KlyonHubPlatform.Domain.Entities.Payment
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.DTOs.ClientOnboarding
 @{
     ViewData[ViewDataKeys.Title] = "Pedido confirmado";
     Layout = LayoutPaths.LandingLayout;
     var isPaid = ViewBag.IsPaid as bool? == true;
     var isAwaitingValidation = ViewBag.IsAwaitingValidation as bool? == true;
+    var onboardingBanner = ViewBag.OnboardingBanner as ClientOnboardingClientBanner;
+    var onboardingDocumentsUrl = ViewBag.OnboardingDocumentsUrl as string;
+    var autoRedirectUrl = ViewBag.AutoRedirectUrl as string;
+    var autoRedirectDelaySeconds = ViewBag.AutoRedirectDelaySeconds as int? ?? 4;
     var contract = Model.Subscription?.Contract;
     var partnerName = contract?.CoworkingAddress?.Coworking?.Name ?? "Parceiro Klyon";
     var addressLabel = contract?.CoworkingAddress != null
@@ -19,11 +24,37 @@
             <div class="col-lg-7 text-center">
                 @if (isPaid)
                 {
-                    <div class="display-1 text-success mb-3"><i class="bi bi-check-circle-fill"></i></div>
-                    <h1 class="lp-section-title mb-3">Pagamento confirmado!</h1>
+                    var headingTone = onboardingBanner?.Visible == true ? onboardingBanner.Tone : (ClientOnboardingBannerTone?)null;
+                    var headingClass = headingTone == ClientOnboardingBannerTone.Danger
+                        ? "text-danger"
+                        : headingTone == ClientOnboardingBannerTone.Info
+                            ? "text-info"
+                            : "text-success";
+                    var headingIcon = headingTone == ClientOnboardingBannerTone.Danger
+                        ? "bi-exclamation-triangle-fill"
+                        : headingTone == ClientOnboardingBannerTone.Info
+                            ? "bi-hourglass-split"
+                            : "bi-check-circle-fill";
+                    <div class="display-1 @headingClass mb-3"><i class="bi @headingIcon"></i></div>
+                    <h1 class="lp-section-title mb-3">
+                        @(onboardingBanner?.Visible == true ? onboardingBanner.Title.TrimEnd('.') : "Pagamento confirmado!")
+                    </h1>
                     <p class="lp-section-subtitle mx-auto mb-4">
-                        Seu contrato de endereço fiscal está ativo. Em breve você receberá orientações por e-mail.
+                        @if (onboardingBanner?.Visible == true)
+                        {
+                            @onboardingBanner.Message
+                        }
+                        else
+                        {
+                            <text>Pagamento confirmado. O contrato e a declaração ficam disponíveis nos detalhes do contrato.</text>
+                        }
                     </p>
+                    @if (!string.IsNullOrWhiteSpace(onboardingBanner?.RejectionReason))
+                    {
+                        <div class="alert alert-danger text-start mb-4">
+                            <strong>Motivo:</strong> @onboardingBanner.RejectionReason
+                        </div>
+                    }
                 }
                 else if (isAwaitingValidation)
                 {
@@ -67,9 +98,25 @@
                     }
                     else
                     {
-                        <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="lp-btn-primary" data-funnel="success_my_contracts">
-                            <i class="bi bi-file-earmark-text me-1"></i> Ver meus contratos
-                        </a>
+                        var uploadContractId = Model.Subscription?.ContractId;
+                        if (isPaid && onboardingBanner?.Visible == true && onboardingBanner.ShowActionButton && !string.IsNullOrEmpty(onboardingDocumentsUrl))
+                        {
+                            <a href="@onboardingDocumentsUrl" class="lp-btn-primary" data-funnel="success_upload_docs">
+                                <i class="bi bi-cloud-arrow-up me-1"></i> @onboardingBanner.ActionButtonLabel
+                            </a>
+                        }
+                        else if (isPaid && uploadContractId.HasValue)
+                        {
+                            <a href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = uploadContractId.Value })" class="lp-btn-primary" data-funnel="success_contract_details">
+                                <i class="bi bi-file-earmark-text me-1"></i> Ver contrato
+                            </a>
+                        }
+                        else
+                        {
+                            <a href="@Url.Action(ActionNames.MyContracts, ControllerNames.Client)" class="lp-btn-primary" data-funnel="success_my_contracts">
+                                <i class="bi bi-file-earmark-text me-1"></i> Ver meus contratos
+                            </a>
+                        }
                     }
                     <a href="@Url.Action(ActionNames.ChooseLocation, ControllerNames.Client)" class="lp-btn-secondary" data-funnel="success_home">
                         Voltar ao início
@@ -83,7 +130,46 @@
                         Verifique seu e-mail para definir sua senha e acessar correspondências e declarações.
                     </p>
                 }
+
+                @if (isPaid && !string.IsNullOrEmpty(autoRedirectUrl))
+                {
+                    <div id="paymentSuccessAutoRedirect" class="alert alert-success border-0 shadow-sm mt-4 mb-0" role="status" aria-live="polite">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+                            <div class="text-start">
+                                <strong>Pagamento realizado com sucesso!</strong>
+                                <p class="mb-0 small mt-1">
+                                    Redirecionando em <span id="paymentSuccessCountdown">@autoRedirectDelaySeconds</span> segundos…
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
 </section>
+
+@if (isPaid && !string.IsNullOrEmpty(autoRedirectUrl))
+{
+    <script>
+        (function () {
+            var redirectUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(autoRedirectUrl));
+            var secondsLeft = @autoRedirectDelaySeconds;
+            var countdownEl = document.getElementById('paymentSuccessCountdown');
+            if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) {
+                window.KlyonLoading.hide();
+            }
+            function tick() {
+                if (secondsLeft <= 0) {
+                    window.location.href = redirectUrl;
+                    return;
+                }
+                if (countdownEl) countdownEl.textContent = String(secondsLeft);
+                secondsLeft -= 1;
+                window.setTimeout(tick, 1000);
+            }
+            tick();
+        })();
+    </script>
+}

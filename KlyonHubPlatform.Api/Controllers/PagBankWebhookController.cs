@@ -173,13 +173,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     return false;
                 }
                 webhookLog.PaymentId = payment.Id;
-                if (payment.Status == PaymentStatus.Paid)
-                {
-                    _logger.LogInformation($"Pagamento {payment.Id} já está pago. Ignorando webhook.");
-                    webhookLog.ProcessingStatus = WebhookProcessingStatus.Ignored;
-                    webhookLog.ErrorMessage = "Pagamento já estava com status Paid";
-                    return true;
-                }
+                // Confirm é idempotente: se já Paid, ainda ativa contrato PendingPayment (race do cartão).
                 await _paymentService.ConfirmPaymentAsync(payment.Id, resource.Id);
                 webhookLog.ProcessingStatus = WebhookProcessingStatus.Processed;
                 _logger.LogInformation($"Pagamento {payment.Id} confirmado via webhook PagBank");

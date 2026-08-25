@@ -23,6 +23,7 @@ using KlyonHubPlatform.Api.Extensions;
 using KlyonHubPlatform.Api.Requests;
 using KlyonHubPlatform.Application.Commands;
 using KlyonHubPlatform.Application.Constants;
+using KlyonHubPlatform.Application.Helpers;
 namespace KlyonHubPlatform.Api.Controllers
 {
     [Authorize(Roles = Administrator)]
@@ -53,6 +54,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IAdminDbService _adminDbService;
         private readonly StorageServiceFactory _storageFactory;
         private readonly ICorrespondenceService _correspondenceService;
+        private readonly IClientOnboardingDocumentService _clientOnboardingDocumentService;
         public AdminController(
             IUserService userService,
             IReportService reportService,
@@ -78,7 +80,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAdminDataService adminDataService,
             IAdminDbService adminDbService,
             StorageServiceFactory storageFactory,
-            ICorrespondenceService correspondenceService)
+            ICorrespondenceService correspondenceService,
+            IClientOnboardingDocumentService clientOnboardingDocumentService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -106,6 +109,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _adminDbService = adminDbService;
             _storageFactory = storageFactory;
             _correspondenceService = correspondenceService;
+            _clientOnboardingDocumentService = clientOnboardingDocumentService;
         }
 
         private IActionResult ApplyAdminResult(AdminCommandResult result, bool isAjax = false, string? exceptionMessage = null)
@@ -138,6 +142,7 @@ namespace KlyonHubPlatform.Api.Controllers
         {
             var model = await _adminDashboardService.GetDashboardViewModelAsync(cancellationToken);
             this.SetDashboardViewBag(model);
+            ViewBag.PendingOnboardingDocumentsCount = await _clientOnboardingDocumentService.CountPendingForAdminAsync(cancellationToken);
             return View();
         }
         [HttpGet]
@@ -466,9 +471,11 @@ namespace KlyonHubPlatform.Api.Controllers
             var requiredDocTypes = new[]
             {
                 (CoworkingDocumentType.AddressCessionContract, "Contrato de cessão de endereço", "Documento que comprova a cessão do endereço para uso fiscal"),
-                (CoworkingDocumentType.AddressProof, "Comprovante de endereço do coworking", "Conta de água, luz ou IPTU emitido em nome do coworking (últimos 90 dias)"),
+                (CoworkingDocumentType.AddressProof, "IPTU", "IPTU emitido em nome do coworking (últimos 90 dias)"),
                 (CoworkingDocumentType.CNPJCard, "Cartão CNPJ do coworking", "Documento que comprova que o coworking está ativo e possui CNAE compatível"),
-                (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal")
+                (CoworkingDocumentType.AddressAuthorization, "Declaração de autorização", "Declaração de autorização de uso de endereço fiscal"),
+                (CoworkingDocumentType.OperatingLicense, "Alvará de funcionamento", "Alvará de funcionamento do espaço"),
+                (CoworkingDocumentType.FireDepartmentLicense, "Alvará dos bombeiros", "Alvará do corpo de bombeiros")
             };
             var totalDocuments = requiredDocTypes.Length;
             var totalPages = (int)Math.Ceiling(totalDocuments / (double)pageSize);
@@ -764,7 +771,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 var command = new KlyonHubPlatform.Application.Commands.UpdateCoworkingCommand
                 {
-                    Name = dto.Name, CNPJ = dto.CNPJ, TradeName = dto.TradeName, ContactEmail = dto.ContactEmail,
+                    Name = dto.Name, CNPJ = dto.CNPJ, TradeName = dto.TradeName,
+                    PropertyRegistration = dto.PropertyRegistration, LegalRepresentative = dto.LegalRepresentative,
+                    ContactEmail = dto.ContactEmail,
                     ContactPhone = dto.ContactPhone, SecondaryEmail = dto.SecondaryEmail, SecondaryPhone = dto.SecondaryPhone,
                     BankName = dto.BankName, BankAgency = dto.BankAgency, BankAccount = dto.BankAccount, BankAccountType = dto.BankAccountType,
                     BankPixKey = dto.BankPixKey, Description = dto.Description, Website = dto.Website, Instagram = dto.Instagram,
@@ -1576,11 +1585,21 @@ namespace KlyonHubPlatform.Api.Controllers
         public async Task<IActionResult> GetPaymentHistory(int paymentId, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageSize = FixedPageSize;
+            var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
             var (history, totalItems) = await _adminDbService.GetPaymentHistoryPagedAsync(paymentId, page, pageSize, cancellationToken);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            var items = _mapper.Map<List<PaymentHistoryItemDto>>(history);
+            if (payment != null)
+            {
+                foreach (var (entry, dto) in history.Zip(items))
+                {
+                    if (entry.Action == PaymentHistoryActions.Approved)
+                        dto.ActionBy = PaymentHistoryDisplayHelper.FormatActionByLabel(entry, payment.Method);
+                }
+            }
             return Json(new
             {
-                items = _mapper.Map<List<PaymentHistoryItemDto>>(history),
+                items,
                 pagination = new
                 {
                     currentPage = page,
@@ -1656,6 +1675,39 @@ namespace KlyonHubPlatform.Api.Controllers
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.MigrationsExecuted(message);
             return RedirectToAction(ActionNames.Dashboard);
         }
+
+        /// <summary>
+        /// One-shot: remove PDFs de contrato, ContractGenerated e declarações válidas duplicados (mantém o menor Id).
+        /// Soft cleanup no DB — não apaga objetos no Oracle.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CleanupDuplicateContractArtifacts(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await _adminDbService.CleanupDuplicateContractArtifactsAsync(dryRun: false, cancellationToken);
+                if (result.TotalRemoved == 0)
+                {
+                    TempData[TempDataKeys.Info] = InfoMessages.Generic("Nenhuma duplicata de contrato/histórico/declaração encontrada.");
+                    return RedirectToAction(ActionNames.Dashboard);
+                }
+
+                var contracts = result.AffectedContractIds.Count == 0
+                    ? ""
+                    : $" Contratos: {string.Join(", ", result.AffectedContractIds)}.";
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.Generic(
+                    $"Limpeza de duplicatas concluída. Removidos: {result.DocumentsRemoved} documento(s), "
+                    + $"{result.HistoryEntriesRemoved} histórico(s), {result.DeclarationsRemoved} declaração(ões)."
+                    + contracts);
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("limpar duplicatas de contrato", ex.Message);
+            }
+            return RedirectToAction(ActionNames.Dashboard);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyCoworkingOperatingHours(CancellationToken cancellationToken = default)
@@ -4482,6 +4534,65 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             return RedirectToAction(ActionNames.InvoiceValidation);
         }
+
+        [HttpGet]
+        public async Task<IActionResult> OnboardingDocuments(CancellationToken cancellationToken = default)
+        {
+            var items = await _clientOnboardingDocumentService.ListPendingForAdminAsync(cancellationToken);
+            ViewBag.IsAdmin = true;
+            return View("~/Views/Coworking/OnboardingDocuments.cshtml", items);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ReviewOnboardingDocuments(int contractId, CancellationToken cancellationToken = default)
+        {
+            var page = await _clientOnboardingDocumentService.GetReviewPageAsync(contractId, null, true, cancellationToken);
+            if (!page.Success || page.Contract == null)
+            {
+                TempData[ErrorMessages.TempDataKey] = page.ErrorMessage ?? "Contrato não encontrado.";
+                return RedirectToAction(ActionNames.OnboardingDocuments);
+            }
+            ViewBag.IsAdmin = true;
+            return View("~/Views/Coworking/ReviewOnboardingDocuments.cshtml", page);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveOnboardingDocuments(int contractId, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var result = await _clientOnboardingDocumentService.ApproveAsync(contractId, userId, null, true, cancellationToken);
+            if (!result.Success)
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+            else
+                TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
+            return RedirectToAction(ActionNames.ReviewOnboardingDocuments, new { contractId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectOnboardingDocuments(int contractId, string reason, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var result = await _clientOnboardingDocumentService.RejectAsync(contractId, userId, reason, null, true, cancellationToken);
+            if (!result.Success)
+                TempData[ErrorMessages.TempDataKey] = result.ErrorMessage;
+            else
+                TempData[SuccessMessage.TempDataKey] = result.SuccessMessage;
+            return RedirectToAction(ActionNames.ReviewOnboardingDocuments, new { contractId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewOnboardingDocument(int id, bool download = false, CancellationToken cancellationToken = default)
+        {
+            var file = await _clientOnboardingDocumentService.GetFileAsync(id, null, null, true, cancellationToken);
+            if (file == null)
+                return NotFound();
+            if (download)
+                return File(file.Content, file.ContentType, file.FileName);
+            return File(file.Content, file.ContentType);
+        }
+
         #endregion
     }
 }

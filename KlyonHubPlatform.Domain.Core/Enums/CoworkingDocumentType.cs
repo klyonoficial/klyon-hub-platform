@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         AddressProof,
         CNPJCard,
         AddressAuthorization,
-        UtilityBill
+        UtilityBill,
+        OperatingLicense,
+        FireDepartmentLicense
     }
 }

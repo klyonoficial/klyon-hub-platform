@@ -30,5 +30,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual ICollection<Contract> Contracts { get; set; } = new List<Contract>();
         public virtual ICollection<CreditCard> CreditCards { get; set; } = new List<CreditCard>();
         public virtual ICollection<ClientRegistrationDocument> RegistrationDocuments { get; set; } = new List<ClientRegistrationDocument>();
+        public virtual ICollection<ClientOnboardingDocument> OnboardingDocuments { get; set; } = new List<ClientOnboardingDocument>();
     }
 }
