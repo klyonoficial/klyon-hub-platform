@@ -159,7 +159,7 @@ namespace KlyonHubPlatform.Application.Services
                 .FirstOrDefaultAsync(a => a.Id == request.CoworkingAddressId, cancellationToken);
             if (addressEntity == null)
                 return FiscalOnboardingStartResult.Fail("Endereço não encontrado.");
-            if (!addressEntity.Coworking.IsActive || addressEntity.AddressStatus != AddressStatus.Active || !addressEntity.IsAvailable || addressEntity.CurrentContracts >= addressEntity.MaxContracts)
+            if (!addressEntity.Coworking.IsActive || addressEntity.AddressStatus != AddressStatus.Active || !addressEntity.IsAvailable)
                 return FiscalOnboardingStartResult.Fail("Este endereço não está disponível para contratação no momento.");
 
             string? cnpjRazaoSnapshot = null;

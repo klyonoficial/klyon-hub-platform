@@ -12,5 +12,9 @@ public class CardPriceRequestListItemDto
     public decimal? PreviousCardPrice1x { get; set; }
     public decimal? PreviousCardPriceMonthly { get; set; }
     public decimal? PreviousCardPrice12x { get; set; }
+    public decimal? RequestedBasePrice { get; set; }
+    public decimal? PreviousBasePrice { get; set; }
+    public decimal? RequestedCardMonthlySurchargePercent { get; set; }
+    public decimal? PreviousCardMonthlySurchargePercent { get; set; }
     public string CreatedAtFormatted { get; set; } = string.Empty;
 }

@@ -1,0 +1,117 @@
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Entities
+@model List<KlyonHubPlatform.Application.DTOs.PromoCode.PromoCodeDto>
+@{
+    ViewData[ViewDataKeys.Title] = "Cupons Globais";
+    Layout = LayoutPaths.Layout;
+    var coworkings = ViewBag.Coworkings as List<Coworking> ?? new List<Coworking>();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-ticket-perforated"></i> Cupons de Desconto</h2>
+    <a href="@Url.Action(ActionNames.Dashboard, ControllerNames.Admin)" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Dashboard</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><strong>Novo cupom (admin)</strong></div>
+    <div class="card-body">
+        <form method="post" action="@Url.Action(ActionNames.CreatePromoCode, ControllerNames.Admin)" class="row g-3" id="adminPromoForm">
+            @Html.AntiForgeryToken()
+            <div class="col-md-2">
+                <label class="form-label">Código</label>
+                <input type="text" name="code" class="form-control text-uppercase" maxlength="50" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Escopo</label>
+                <select name="scope" id="promoScope" class="form-select">
+                    <option value="@PromoScope.Global">Global</option>
+                    <option value="@PromoScope.Coworking">Coworking específico</option>
+                </select>
+            </div>
+            <div class="col-md-3" id="coworkingSelectWrap" style="display:none;">
+                <label class="form-label">Coworking</label>
+                <select name="coworkingId" class="form-select">
+                    <option value="">Selecione...</option>
+                    @foreach (var c in coworkings.OrderBy(x => x.Name))
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <select name="type" class="form-select">
+                    <option value="@PromoDiscountType.Percent">Percentual (%)</option>
+                    <option value="@PromoDiscountType.Fixed">Valor fixo (R$)</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Valor</label>
+                <input type="number" name="value" class="form-control" step="0.01" min="0.01" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Válido de</label>
+                <input type="date" name="validFrom" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Válido até</label>
+                <input type="date" name="validTo" class="form-control" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Máx. usos</label>
+                <input type="number" name="maxRedemptions" class="form-control" min="1" />
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Criar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Escopo</th>
+                    <th>Desconto</th>
+                    <th>Validade</th>
+                    <th>Usos</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Model)
+                {
+                    <tr>
+                        <td><code>@p.Code</code></td>
+                        <td>@(p.Scope == PromoScope.Global ? "Global" : (p.CoworkingName ?? "Coworking"))</td>
+                        <td>@(p.Type == PromoDiscountType.Percent ? $"{p.Value:N2}%" : $"R$ {p.Value:N2}")</td>
+                        <td>@p.ValidFrom.ToString("dd/MM/yyyy") @(p.ValidTo.HasValue ? $"– {p.ValidTo:dd/MM/yyyy}" : "")</td>
+                        <td>@p.RedemptionCount @(p.MaxRedemptions.HasValue ? $"/ {p.MaxRedemptions}" : "")</td>
+                        <td><span class="badge bg-@(p.IsActive ? "success" : "secondary")">@(p.IsActive ? "Ativo" : "Inativo")</span></td>
+                        <td class="text-end">
+                            @if (p.IsActive)
+                            {
+                                <form method="post" action="@Url.Action(ActionNames.DeactivatePromoCode, ControllerNames.Admin)" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Desativar cupom?');">Desativar</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('promoScope')?.addEventListener('change', function() {
+    var wrap = document.getElementById('coworkingSelectWrap');
+    if (wrap) wrap.style.display = this.value === '@((int)PromoScope.Coworking)' ? '' : 'none';
+});
+</script>

@@ -35,6 +35,7 @@ namespace KlyonHubPlatform.Application.ViewModels
         public string ActionController { get; set; } = string.Empty;
         public string ActionName { get; set; } = string.Empty;
         public object? ActionRouteValues { get; set; }
+        public string? ActionUrl { get; set; }
         public string ActionText { get; set; } = string.Empty;
     }
 }

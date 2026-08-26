@@ -67,13 +67,6 @@ namespace KlyonHubPlatform.Application.Services
                 .CountAsync(cancellationToken);
         }
 
-        public async Task<List<CoworkingAddress>> GetCoworkingAddressesWithCapacityPendingOrRejectedAsync(int coworkingId, CancellationToken cancellationToken = default)
-        {
-            return await _context.CoworkingAddresses
-                .Where(a => a.CoworkingId == coworkingId && (a.CapacityApprovalStatus == CapacityApprovalStatus.Pending || a.CapacityApprovalStatus == CapacityApprovalStatus.Rejected))
-                .ToListAsync(cancellationToken);
-        }
-
         public async Task<Coworking?> GetCoworkingWithAddressesAsync(int coworkingId, CancellationToken cancellationToken = default)
         {
             return await _context.Coworkings
@@ -327,30 +320,6 @@ namespace KlyonHubPlatform.Application.Services
         public void AddCardPriceChangeRequest(CardPriceChangeRequest request)
         {
             _context.CardPriceChangeRequests.Add(request);
-        }
-
-        public async Task<CoworkingAddress?> GetAddressWithMaxContractsRequestsAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default)
-        {
-            return await _context.CoworkingAddresses
-                .Include(a => a.Location)
-                .Include(a => a.MaxContractsChangeRequests)
-                .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId, cancellationToken);
-        }
-
-        public void AddMaxContractsChangeRequest(MaxContractsChangeRequest request)
-        {
-            _context.MaxContractsChangeRequests.Add(request);
-        }
-
-        public async Task<CoworkingAddress?> GetAddressForCapacityChangeAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default)
-        {
-            return await _context.CoworkingAddresses
-                .FirstOrDefaultAsync(a => a.Id == addressId && a.CoworkingId == coworkingId, cancellationToken);
-        }
-
-        public void AddCapacityChangeRequest(CapacityChangeRequest request)
-        {
-            _context.CapacityChangeRequests.Add(request);
         }
 
         public async Task<(List<Contract> Items, int TotalItems)> GetContractsPagedAsync(int coworkingId, string? search, string? status, int? locationId, string? clientName, DateTime? startDateFrom, DateTime? startDateTo, int page, int pageSize, CancellationToken cancellationToken = default)

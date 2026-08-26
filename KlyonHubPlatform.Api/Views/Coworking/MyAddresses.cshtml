@@ -28,14 +28,6 @@
     var coworkingRejectionReason = ViewBag.CoworkingRejectionReason as string;
     var isAwaitingAdjustment = coworkingApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CoworkingApprovalStatus.AwaitingAdjustment;
     var cardPriceRejectionByAddress = ViewBag.CardPriceRejectionReasonByAddress as Dictionary<int, string> ?? new Dictionary<int, string>();
-
-    // Verificar endereços que estão próximos do limite (faltando 10% ou menos)
-    var addressesNearLimit = Model.Where(a => 
-        a.MaxContracts > 0 && 
-        a.CurrentContracts >= Math.Ceiling(a.MaxContracts * 0.9m) &&
-        a.CurrentContracts < a.MaxContracts &&
-        a.AddressStatus == AddressStatus.Active
-    ).ToList();
 }
 
 @if (isAwaitingAdjustment)
@@ -50,32 +42,6 @@
             <p class="mb-0 mt-1">@coworkingRejectionReason</p>
         }
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-    </div>
-}
-
-@if (addressesNearLimit.Any())
-{
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-        <h5 class="alert-heading">
-            <i class="bi bi-exclamation-triangle-fill"></i> Atenção: Capacidade Próxima do Limite
-        </h5>
-        <p class="mb-2">Os seguintes endereços estão próximos da capacidade máxima (faltando 10% ou menos):</p>
-        <ul class="mb-2">
-            @foreach (var address in addressesNearLimit)
-            {
-                var percentageUsed = address.MaxContracts > 0 ? (address.CurrentContracts * 100.0 / address.MaxContracts) : 0;
-                var remaining = address.MaxContracts - address.CurrentContracts;
-                <li>
-                    <strong>@address.Address, @address.City/@address.State</strong> - 
-                    @address.CurrentContracts de @address.MaxContracts contratos 
-                    (@percentageUsed.ToString(NumberFormatConstants.OneDecimal)% utilizado, faltam @remaining)
-                    <a href="/Parceiro/EditMaxContracts?id=@address.Id" class="btn btn-sm btn-warning ms-2">
-                        <i class="bi bi-pencil"></i> Ajustar Quantidade
-                    </a>
-                </li>
-            }
-        </ul>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 }
 
@@ -146,7 +112,7 @@
                             <th>Cidade/Estado</th>
                             <th>Localidade</th>
                             <th>Preço Base</th>
-                            <th>Contratos</th>
+                            <th>Contratos Ativos</th>
                             <th>Status</th>
                             <th>Ações</th>
                         </tr>
@@ -173,8 +139,7 @@
                                 AddressStatus.Removed => "secondary",
                                 _ => "danger"
                             };
-                            var capApprovalLabel = address.CapacityApprovalStatus.ToDisplayString();
-                            var maxContractsApprovalLabel = address.MaxContractsApprovalStatus.ToDisplayString();
+
                             <tr class="row-address-detail"
                                 data-address="@address.Address"
                                 data-number="@address.Number"
@@ -188,12 +153,6 @@
                                 data-status-label="@addressStatusLabel"
                                 data-status-badge="@addressStatusBadge"
                                 data-current-contracts="@address.CurrentContracts"
-                                data-max-contracts="@address.MaxContracts"
-                                data-requested-fiscal-capacity="@address.RequestedFiscalCapacity"
-                                data-approved-fiscal-capacity="@address.ApprovedFiscalCapacity"
-                                data-capacity-approval-status="@capApprovalLabel"
-                                data-requested-max-contracts="@address.RequestedMaxContracts"
-                                data-max-contracts-approval-status="@maxContractsApprovalLabel"
                                 data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
                                 data-shared-price="@(address.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                 data-shared-seats="@(address.SharedRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
@@ -226,22 +185,7 @@
                                 </td>
                                 <td><strong>R$ @address.BasePrice.ToString(NumberFormatConstants.TwoDecimals)</strong></td>
                                 <td>
-                                    @{
-                                        var warningThreshold = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9) : 0;
-                                        var badgeColor = address.CurrentContracts >= address.MaxContracts ? "danger" 
-                                            : (address.CurrentContracts >= warningThreshold ? "warning" : "secondary");
-                                    }
-                                    <span class="badge bg-@badgeColor">
-                                        @address.CurrentContracts / @address.MaxContracts
-                                        @if (address.CurrentContracts >= address.MaxContracts)
-                                        {
-                                            <i class="bi bi-exclamation-triangle-fill ms-1" title="Capacidade máxima atingida"></i>
-                                        }
-                                        else if (address.CurrentContracts >= warningThreshold)
-                                        {
-                                            <i class="bi bi-exclamation-triangle-fill ms-1" title="Próximo da capacidade máxima (faltando 10%)"></i>
-                                        }
-                                    </span>
+                                    <span class="badge bg-secondary">@address.CurrentContracts</span>
                                 </td>
                                 <td>
                                     @{
@@ -271,37 +215,17 @@
                                     @{
                                         var activeContractsDict = ViewBag.ActiveContractsByAddress as Dictionary<int, int> ?? new Dictionary<int, int>();
                                         var hasActiveContracts = activeContractsDict.ContainsKey(address.Id) && activeContractsDict[address.Id] > 0;
-                                        var warningThresholdActions = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9m) : 0;
-                                        var isNearLimit = address.MaxContracts > 0 && 
-                                                          address.CurrentContracts >= warningThresholdActions && 
-                                                          address.CurrentContracts < address.MaxContracts &&
-                                                          address.AddressStatus == AddressStatus.Active;
                                     }
-                                    <a href="/Parceiro/CardPrices?id=@address.Id" class="btn btn-sm btn-outline-info me-1" title="Preços no cartão">
-                                        <i class="bi bi-credit-card"></i> Preços Cartão
+                                    <a href="/Parceiro/EditAddress?id=@address.Id#precos" class="btn btn-sm btn-outline-info me-1" title="Editar preços">
+                                        <i class="bi bi-currency-dollar"></i> Preços
                                         @if (address.CardPricesApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending)
                                         {
                                             <span class="badge bg-warning text-dark ms-1" title="Aguardando aprovação">!</span>
                                         }
                                     </a>
-                                    @if (!hasActiveContracts)
-                                    {
-                                        <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary" title="Editar">
-                                            <i class="bi bi-pencil"></i> Editar
-                                        </a>
-                                    }
-                                    else if (isNearLimit)
-                                    {
-                                        <a href="/Parceiro/EditMaxContracts?id=@address.Id" class="btn btn-sm btn-warning" title="Ajustar quantidade máxima de contratos">
-                                            <i class="bi bi-pencil"></i> Ajustar Quantidade
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted" title="Não é possível editar endereço com contrato ativo">
-                                            <i class="bi bi-lock"></i> Bloqueado
-                                        </span>
-                                    }
+                                    <a href="/Parceiro/EditAddress?id=@address.Id" class="btn btn-sm btn-primary me-1" title="@(hasActiveContracts ? "Editar preços e visualizar endereço" : "Editar endereço")">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </a>
                                 </td>
                             </tr>
                         }
@@ -442,28 +366,8 @@
                         <p class="mb-0" id="viewAddrStatus">—</p>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Contratos (atual / máximo)</label>
+                        <label class="form-label fw-bold text-muted small">Contratos ativos</label>
                         <p class="mb-0" id="viewAddrContracts">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Capacidade fiscal solicitada</label>
-                        <p class="mb-0" id="viewAddrRequestedFiscal">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Capacidade fiscal aprovada</label>
-                        <p class="mb-0" id="viewAddrApprovedFiscal">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Status aprovação capacidade</label>
-                        <p class="mb-0" id="viewAddrCapacityApproval">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Máx. contratos solicitado</label>
-                        <p class="mb-0" id="viewAddrRequestedMax">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Status aprovação máx. contratos</label>
-                        <p class="mb-0" id="viewAddrMaxContractsApproval">—</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Preços no cartão</label></div>
                     <div class="col-md-4 mb-3">
@@ -537,12 +441,7 @@
                 var statusLabel = val('data-status-label');
                 var statusBadge = val('data-status-badge');
                 document.getElementById('viewAddrStatus').innerHTML = '<span class="badge bg-' + statusBadge + '">' + statusLabel + '</span>';
-                document.getElementById('viewAddrContracts').textContent = val('data-current-contracts') + ' / ' + val('data-max-contracts');
-                document.getElementById('viewAddrRequestedFiscal').textContent = val('data-requested-fiscal-capacity');
-                document.getElementById('viewAddrApprovedFiscal').textContent = val('data-approved-fiscal-capacity');
-                document.getElementById('viewAddrCapacityApproval').textContent = val('data-capacity-approval-status');
-                document.getElementById('viewAddrRequestedMax').textContent = val('data-requested-max-contracts');
-                document.getElementById('viewAddrMaxContractsApproval').textContent = val('data-max-contracts-approval-status');
+                document.getElementById('viewAddrContracts').textContent = val('data-current-contracts');
                 var card1x = val('data-card-1x');
                 var cardMon = val('data-card-monthly');
                 document.getElementById('viewAddrCard1x').textContent = card1x !== '—' ? 'R$ ' + card1x : '—';

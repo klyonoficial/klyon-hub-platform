@@ -28,6 +28,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public DateTime? CancellationApprovedAt { get; set; }
         public string? CancellationRejectionReason { get; set; }
         public decimal SnapshotMonthlyValue { get; set; }
+        /// <summary>Preço de lista (anual) no momento da contratação, antes de descontos.</summary>
+        public decimal SnapshotListPrice { get; set; }
+        /// <summary>Acréscimo mensal no cartão (%) congelado na contratação.</summary>
+        public decimal? SnapshotCardMonthlySurchargePercent { get; set; }
         public decimal SnapshotPlatformCommissionPercentage { get; set; }
         public decimal SnapshotCoworkingCommissionPercentage { get; set; }
         public string SnapshotAddress { get; set; } = string.Empty;

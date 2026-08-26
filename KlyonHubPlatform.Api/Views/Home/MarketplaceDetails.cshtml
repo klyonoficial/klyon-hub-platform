@@ -4,7 +4,7 @@
     Layout = LayoutPaths.Layout;
 
     var isClientLogged = ViewBag.IsClientLogged ?? false;
-    var isAvailable = Model.Address.IsAvailable && Model.Address.CurrentContracts < Model.Address.MaxContracts;
+    var isAvailable = Model.Address.IsAvailable;
     var returnUrl = Model.ReturnUrl ?? Url.Action(ActionNames.Marketplace, ControllerNames.Home)!;
     
     // Verificar se o coworking oferece aluguel de sala
@@ -23,7 +23,6 @@
         maxCapacity = Math.Max(maxCapacity, Model.Address.SharedRoomMaxSeats.Value);
     if (Model.Address.OffersPrivateRoom && Model.Address.PrivateRoomMaxSeats.HasValue)
         maxCapacity = Math.Max(maxCapacity, Model.Address.PrivateRoomMaxSeats.Value);
-    if (maxCapacity == 0) maxCapacity = Model.Address.MaxContracts;
     
     // Créditos disponíveis do cliente
     var availableCredits = ViewBag.AvailableCredits as int? ?? 0;

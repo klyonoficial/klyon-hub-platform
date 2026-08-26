@@ -18,6 +18,17 @@
 
 @{
     var hasActiveContracts = ViewBag.HasActiveContracts as bool? ?? false;
+    var prices = ViewBag.Prices as KlyonHubPlatform.Application.DTOs.Pricing.AddressPricesDto;
+    var pendingPriceRequest = Model?.CardPriceChangeRequests?.FirstOrDefault(r => r.Status == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending);
+    var hasPendingPriceRequest = pendingPriceRequest != null;
+    var rejectedPriceRequest = Model?.CardPriceChangeRequests?
+        .Where(r => r.Status == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected && !string.IsNullOrEmpty(r.RejectionReason))
+        .OrderByDescending(r => r.ReviewedAt ?? r.UpdatedAt ?? r.CreatedAt)
+        .FirstOrDefault();
+    var isPricesRejected = Model?.CardPricesApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected;
+    var displayBasePrice = hasPendingPriceRequest ? (pendingPriceRequest!.RequestedBasePrice ?? Model!.BasePrice) : Model!.BasePrice;
+    var displaySurcharge = hasPendingPriceRequest ? pendingPriceRequest!.RequestedCardMonthlySurchargePercent : Model!.CardMonthlySurchargePercent;
+    var isAdmin = User.IsInRole(RoleNames.Administrator);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -29,46 +40,148 @@
 
 @if (hasActiveContracts)
 {
-    <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção:</strong> Este endereço possui contrato(s) ativo(s). Não é possível alterar os dados do endereço enquanto houver contrato ativo.
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> <strong>Contrato(s) ativo(s):</strong> os dados físicos do endereço (CEP, rua, etc.) estão bloqueados. Você ainda pode alterar os <a href="#precos" class="alert-link">preços</a> abaixo — as mudanças passam por aprovação administrativa.
     </div>
 }
 
 <div class="card">
+    <div class="card-header bg-primary text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Dados do endereço</h5>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="small text-white">Contratos ativos</span>
+                <span class="badge bg-light text-dark" title="Quantidade de contratos ativos neste endereço (somente leitura)">@Model.CurrentContracts</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="small text-white">Status</span>
+                @if (hasActiveContracts)
+                {
+                    <span class="badge bg-@(Model.IsAvailable ? "success" : "danger")">
+                        @(Model.IsAvailable ? "Disponível" : "Indisponível")
+                    </span>
+                }
+                else
+                {
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="IsAvailableHeader" form="editAddressForm"
+                               name="IsAvailable" value="true" @(Model.IsAvailable ? "checked" : "")>
+                        <label class="form-check-label small text-white" for="IsAvailableHeader">Disponível</label>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
     <div class="card-body">
-        <form method="post" action="/Parceiro/EditAddress?id=@Model.Id">
+        <form method="post" action="/Parceiro/EditAddress?id=@Model.Id" id="editAddressForm">
             @Html.AntiForgeryToken()
-            <!-- CEP como primeiro campo -->
-            <div class="row">
-                <div class="col-md-4 mb-3">
+            @if (!hasActiveContracts)
+            {
+                <input type="hidden" name="IsAvailable" value="false">
+            }
+
+            <div class="row g-3">
+                <div class="col-md-4">
                     <label for="ZipCode" class="form-label">CEP <span class="text-danger">*</span></label>
                     @if (hasActiveContracts)
                     {
-                        <div class="form-control-plaintext">@Model.ZipCode</div>
+                        <input type="text" class="form-control" id="ZipCode" value="@Model.ZipCode" readonly disabled>
                     }
                     else
                     {
-                        <input type="text" class="form-control" id="ZipCode" name="ZipCode" 
+                        <input type="text" class="form-control" id="ZipCode" name="ZipCode"
                                value="@Model.ZipCode" placeholder="00000-000" maxlength="9" required
                                onkeypress="return onlyNumbers(event)"
                                onblur="buscarCEP(this.value)">
-                        <small class="form-text text-muted">Digite o CEP para buscar o endereço automaticamente</small>
+                        <small class="form-text text-muted">Busca automática do endereço</small>
                     }
                 </div>
-                <div class="col-md-8 mb-3">
+                <div class="col-md-4">
+                    <label for="Address" class="form-label">Endereço <span class="text-danger">*</span></label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="Address" value="@Model.Address" readonly disabled>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
+                    }
+                </div>
+                <div class="col-md-4">
+                    <label for="Number" class="form-label">Número <span class="text-danger">*</span></label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="Number" value="@Model.Number" readonly disabled>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Number" name="Number" value="@Model.Number" required>
+                    }
+                </div>
+
+                <div class="col-md-4">
+                    <label for="Complement" class="form-label">Complemento</label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="Complement" value="@(Model.Complement ?? "-")" readonly disabled>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement">
+                    }
+                </div>
+                <div class="col-md-4">
+                    <label for="Neighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="Neighborhood" value="@Model.Neighborhood" readonly disabled>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood" required>
+                    }
+                </div>
+                <div class="col-md-4">
+                    <label for="City" class="form-label">Cidade <span class="text-danger">*</span></label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="City" value="@Model.City" readonly disabled>
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control" id="City" name="City" value="@Model.City" required>
+                    }
+                </div>
+
+                <div class="col-md-4">
+                    <label for="State" class="form-label">UF <span class="text-danger">*</span></label>
+                    @if (hasActiveContracts)
+                    {
+                        <input type="text" class="form-control" id="State" value="@Model.State" readonly disabled>
+                    }
+                    else
+                    {
+                        <select class="form-select" id="State" name="State" required>
+                            <option value="">UF</option>
+                            @{
+                                var states = BrazilianUfs.All;
+                                var stateNames = BrazilianUfs.Names;
+                            }
+                            @for (int i = 0; i < states.Length; i++)
+                            {
+                                var isSelected = Model.State == states[i];
+                                <option value="@states[i]" selected="@isSelected">@states[i] - @stateNames[i]</option>
+                            }
+                        </select>
+                    }
+                </div>
+                <div class="col-md-8">
                     <label for="LocationId" class="form-label">Localidade <span class="text-danger">*</span></label>
                     @if (hasActiveContracts)
                     {
-                        <div class="form-control-plaintext">
-                            @if (Model.Location != null)
-                            {
-                                @($"{Model.Location.City}/{Model.Location.State}")
-                            }
-                            else
-                            {
-                                <span class="text-muted">N/A</span>
-                            }
-                        </div>
+                        <input type="text" class="form-control" id="LocationId"
+                               value="@(Model.Location != null ? $"{Model.Location.City}/{Model.Location.State}" : "N/A")"
+                               readonly disabled>
                     }
                     else
                     {
@@ -89,257 +202,16 @@
                 </div>
             </div>
 
-            <!-- Endereço -->
-            <div class="row">
-                <div class="col-md-8 mb-3">
-                    <label for="Address" class="form-label">Endereço <span class="text-danger">*</span></label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">@Model.Address</div>
-                    }
-                    else
-                    {
-                        <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" required>
-                    }
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="Number" class="form-label">Número <span class="text-danger">*</span></label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">@Model.Number</div>
-                    }
-                    else
-                    {
-                        <input type="text" class="form-control" id="Number" name="Number" value="@Model.Number" required>
-                    }
-                </div>
-            </div>
-
-            <!-- Complemento e Bairro -->
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="Complement" class="form-label">Complemento</label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">@(Model.Complement ?? "-")</div>
-                    }
-                    else
-                    {
-                        <input type="text" class="form-control" id="Complement" name="Complement" value="@Model.Complement">
-                    }
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="Neighborhood" class="form-label">Bairro <span class="text-danger">*</span></label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">@Model.Neighborhood</div>
-                    }
-                    else
-                    {
-                        <input type="text" class="form-control" id="Neighborhood" name="Neighborhood" value="@Model.Neighborhood" required>
-                    }
-                </div>
-            </div>
-
-            <!-- Cidade e Estado -->
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="City" class="form-label">Cidade <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="City" name="City" value="@Model.City" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="State" class="form-label">Estado (UF) <span class="text-danger">*</span></label>
-                    <select class="form-select" id="State" name="State" required>
-                        <option value="">Selecione o estado</option>
-                        @{
-                            var states = BrazilianUfs.All;
-                            var stateNames = BrazilianUfs.Names;
-                        }
-                        @for (int i = 0; i < states.Length; i++)
-                        {
-                            var isSelected = Model.State == states[i];
-                            <option value="@states[i]" selected="@isSelected">@states[i] - @stateNames[i]</option>
-                        }
-                    </select>
-                </div>
-            </div>
-
-            <!-- Preço e Máximo de Contratos -->
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="BasePrice" class="form-label">Preço Base (R$) <span class="text-danger">*</span></label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">R$ @Model.BasePrice.ToString(NumberFormatConstants.TwoDecimals)</div>
-                    }
-                    else
-                    {
-                        <input type="number" step="0.01" min="0" class="form-control" id="BasePrice" name="BasePrice" 
-                               value="@Model.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" required>
-                        <small class="form-text text-muted">O valor deve ser maior ou igual a zero</small>
-                    }
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="MaxContracts" class="form-label">Máximo de Contratos <span class="text-danger">*</span></label>
-                    @if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">@Model.MaxContracts</div>
-                    }
-                    else
-                    {
-                        <input type="number" step="1" min="@Model.CurrentContracts" class="form-control" id="MaxContracts" name="MaxContracts" 
-                               value="@Model.MaxContracts" required title="Somente números inteiros">
-                        <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
-                    }
-                </div>
-            </div>
-
-            <!-- Capacidade Fiscal -->
-            <div class="card mb-3 border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#capacidadeFiscalBody" aria-expanded="true" aria-controls="capacidadeFiscalBody">
-                    <span><i class="bi bi-building"></i> Capacidade Fiscal</span>
-                    <i class="bi bi-chevron-down"></i>
-                </div>
-                <div class="card-body collapse show" id="capacidadeFiscalBody">
-                    @{
-                        var capStatus = Model.CapacityApprovalStatus;
-                        var addressInAnalysis = Model.AddressStatus == KlyonHubPlatform.Domain.Core.Enums.AddressStatus.PendingApproval;
-                        var capacityStatusText = addressInAnalysis
-                            ? "Em análise"
-                            : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending
-                                ? "Em análise"
-                                : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected
-                                    ? "Aprovada (vigente)"
-                                    : "Aprovada";
-                        var capacityStatusWarning = addressInAnalysis || capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending;
-                        var capacityHelpText = capacityStatusWarning
-                            ? (addressInAnalysis ? "Endereço em análise pelo administrador" : "Valor em análise pelo administrador")
-                            : "Capacidade fiscal aprovada pela plataforma";
-                    }
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Capacidade <span class="badge @(capacityStatusWarning ? "bg-warning text-dark" : capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Rejected ? "bg-secondary" : "bg-success")">@capacityStatusText</span></label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" value="@Model.ApprovedFiscalCapacity" readonly>
-                                <span class="input-group-text">
-                                    @if (capacityStatusWarning)
-                                    {
-                                        <i class="bi bi-hourglass-split text-warning" title="Em análise"></i>
-                                    }
-                                    else if (capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Approved || capStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.None)
-                                    {
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    }
-                                    else
-                                    {
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    }
-                                </span>
-                            </div>
-                            <small class="form-text text-muted">@capacityHelpText</small>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Contratos Ativos</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" value="@Model.CurrentContracts" readonly>
-                                <span class="input-group-text">
-                                    <i class="bi bi-people"></i>
-                                </span>
-                            </div>
-                            <small class="form-text text-muted">Contratos ativos no momento</small>
-                        </div>
-                    </div>
-                    @{
-                        var hasPendingRequest = Model.CapacityApprovalStatus == KlyonHubPlatform.Domain.Core.Enums.CapacityApprovalStatus.Pending;
-                        var canRequestChange = !addressInAnalysis && !hasPendingRequest && Model.RequestedFiscalCapacity != Model.ApprovedFiscalCapacity;
-                    }
-                    @if (addressInAnalysis)
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-hourglass-split"></i> <strong>Endereço em análise:</strong> Este endereço está aguardando aprovação administrativa. A capacidade fiscal será definida após a aprovação do endereço.
-                        </div>
-                    }
-                    else if (hasPendingRequest)
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-clock-history"></i> <strong>Solicitação pendente:</strong> Você solicitou alteração da capacidade fiscal para <strong>@Model.RequestedFiscalCapacity</strong>. Aguardando aprovação administrativa.
-                        </div>
-                    }
-                    else if (canRequestChange)
-                    {
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> Você pode solicitar alteração da capacidade fiscal. A alteração requer aprovação administrativa.
-                        </div>
-                    }
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="RequestedFiscalCapacity" class="form-label">Nova Capacidade Solicitada</label>
-                            <input type="number" class="form-control" id="RequestedFiscalCapacity" 
-                                   value="@Model.RequestedFiscalCapacity" min="@Model.CurrentContracts" step="1"
-                                   @(hasPendingRequest ? "readonly" : "")>
-                            <small class="form-text text-muted">Mínimo: @Model.CurrentContracts (contratos ativos)</small>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="CapacityJustification" class="form-label">Justificativa</label>
-                            <textarea class="form-control" id="CapacityJustification" rows="3" 
-                                      placeholder="Explique o motivo da solicitação de alteração de capacidade..." 
-                                      @(hasPendingRequest ? "readonly" : "")></textarea>
-                            <small class="form-text text-muted">Obrigatório ao solicitar alteração</small>
-                        </div>
-                    </div>
-                    @if (!addressInAnalysis && !hasPendingRequest)
-                    {
-                        <button type="button" class="btn btn-primary" id="btnRequestCapacityChange">
-                            <i class="bi bi-send"></i> Solicitar Alteração de Capacidade
-                        </button>
-                    }
-                </div>
-            </div>
-
             @if (ViewBag.HasRoomRental == true)
             {
-                <div class="alert alert-info mb-3">
+                <div class="alert alert-info mt-3 mb-0">
                     <i class="bi bi-info-circle"></i> Para oferecer <strong>salas para aluguel</strong> (compartilhada, privativa, auditório) com fotos, capacidade, créditos e gestão individual de cada sala, configure em <a href="/Parceiro/Products">Produtos &gt; Aluguéis de Sala</a>.
                 </div>
             }
 
-            <!-- Status: checkbox DEVE vir antes do hidden para o model binder usar "true" quando marcado. Não exibir quando capacidade estiver em análise. -->
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Status</label>
-                    @if (capacityStatusWarning)
-                    {
-                        <div class="form-control-plaintext text-muted">
-                            <small>O status (disponível/indisponível) poderá ser alterado após a aprovação da capacidade fiscal.</small>
-                        </div>
-                        <input type="hidden" name="IsAvailable" value="@(Model.IsAvailable ? "true" : "false")">
-                    }
-                    else if (hasActiveContracts)
-                    {
-                        <div class="form-control-plaintext">
-                            <span class="badge bg-@(Model.IsAvailable ? "success" : "danger")">
-                                @(Model.IsAvailable ? "Disponível" : "Indisponível")
-                            </span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="IsAvailable" name="IsAvailable" 
-                                   value="true" @(Model.IsAvailable ? "checked" : "")>
-                            <label class="form-check-label" for="IsAvailable">
-                                Endereço Disponível
-                            </label>
-                        </div>
-                        <input type="hidden" name="IsAvailable" value="false">
-                        <small class="form-text text-muted">Desmarque para tornar o endereço indisponível</small>
-                    }
-                </div>
-            </div>
-
             @if (!hasActiveContracts)
             {
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary mt-3">
                     <i class="bi bi-check-circle"></i> Atualizar Endereço
                 </button>
             }
@@ -347,7 +219,84 @@
     </div>
 </div>
 
+<div class="card mt-4" id="precos">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-currency-dollar"></i> Preços (PIX / Cartão / Boleto)</h5>
+    </div>
+    <div class="card-body">
+        @if (isPricesRejected && rejectedPriceRequest != null)
+        {
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i> <strong>Preços reprovados:</strong> @rejectedPriceRequest.RejectionReason
+            </div>
+        }
+        @if (hasPendingPriceRequest)
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-clock-history"></i> <strong>Solicitação pendente:</strong> preço anual R$ @(pendingPriceRequest!.RequestedBasePrice?.ToString(NumberFormatConstants.TwoDecimals) ?? Model.BasePrice.ToString(NumberFormatConstants.TwoDecimals))
+                @if (pendingPriceRequest.RequestedCardMonthlySurchargePercent.HasValue)
+                {
+                    <span> · acréscimo mensal @pendingPriceRequest.RequestedCardMonthlySurchargePercent.Value.ToString(NumberFormatConstants.TwoDecimals)%</span>
+                }
+                <span class="d-block mt-1 small">Aguardando aprovação administrativa.</span>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Preço anual (PIX, cartão 1x e boleto) e acréscimo opcional para parcela mensal no cartão. Alterações exigem aprovação administrativa.
+            </div>
+        }
+
+        <form method="post" action="/Parceiro/SubmitPriceChange?id=@Model.Id" id="submitPriceChangeForm" data-admin-direct="@(isAdmin ? "true" : "false")">
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="PriceBasePrice" class="form-label">Preço anual — PIX / cartão 1x / boleto (R$) <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" min="0" class="form-control price-input" id="PriceBasePrice" name="BasePrice"
+                           value="@displayBasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
+                           @(hasPendingPriceRequest ? "readonly" : "") required>
+                    <small class="form-text text-muted">Valor anual cobrado via PIX, boleto ou cartão à vista (1x).</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="CardMonthlySurchargePercent" class="form-label">Acréscimo mensal no cartão (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" class="form-control price-input" id="CardMonthlySurchargePercent" name="CardMonthlySurchargePercent"
+                           value="@(displaySurcharge?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                           placeholder="Ex: 10" @(hasPendingPriceRequest ? "readonly" : "")>
+                    <small class="form-text text-muted">Opcional. Aplica-se sobre o preço anual para calcular a parcela mensal.</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Preview — parcela mensal (R$)</label>
+                    <div class="form-control bg-light" id="MonthlyPreview">R$ @(prices?.CardPriceMonthly.ToString(NumberFormatConstants.TwoDecimals) ?? "0,00")</div>
+                    <small class="form-text text-muted">Fórmula: (preço anual × (1 + acréscimo%)) ÷ 12</small>
+                </div>
+            </div>
+            @if (!hasPendingPriceRequest)
+            {
+                @if (isAdmin)
+                {
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Aplicar preços
+                    </button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Enviar preços para aprovação
+                    </button>
+                }
+            }
+            else if (prices != null)
+            {
+                <p class="text-muted mb-0 small">Valores vigentes para clientes: anual (PIX / 1x / boleto) R$ @prices.PixPrice.ToString(NumberFormatConstants.TwoDecimals) · mensal R$ @prices.CardPriceMonthly.ToString(NumberFormatConstants.TwoDecimals)</p>
+            }
+        </form>
+    </div>
+</div>
+
 <script>
+var hasActiveContracts = @(hasActiveContracts ? "true" : "false");
+
 // Formatar CEP
 function formatarCEP(cep) {
     cep = cep.replace(/\D/g, '');
@@ -444,191 +393,51 @@ function preencherEstado() {
     }
 }
 
-// Validar preço base (não permitir valores negativos)
-if (!hasActiveContracts) {
-    var basePriceInput = document.getElementById('BasePrice');
-    if (basePriceInput) {
-        basePriceInput.addEventListener('input', function(e) {
-            const value = parseFloat(e.target.value);
-            if (value < 0) {
-                e.target.setCustomValidity('O preço base não pode ser negativo.');
-                e.target.value = '';
-            } else {
-                e.target.setCustomValidity('');
-            }
-        });
+// Preview de preço mensal (atualiza em tempo real ao digitar)
+(function() {
+    function formatCurrencyPtBr(value) {
+        return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // Validar maxContracts: somente inteiro e não pode ser menor que currentContracts
-    var maxContractsInput = document.getElementById('MaxContracts');
-    if (maxContractsInput) {
-        maxContractsInput.addEventListener('keydown', allowOnlyIntegerInput);
-        maxContractsInput.addEventListener('input', stripDecimalChars);
-        maxContractsInput.addEventListener('input', function(e) {
-            var raw = e.target.value;
-            if (raw === '' || raw === '-') {
-                e.target.setCustomValidity('');
-                return;
-            }
-            var num = parseFloat(raw);
-            if (!Number.isInteger(num) || num !== Math.floor(num)) {
-                e.target.setCustomValidity('O máximo de contratos deve ser um número inteiro.');
-                return;
-            }
-            var minValue = parseInt(e.target.min, 10);
-            if (!isNaN(minValue) && num < minValue) {
-                e.target.setCustomValidity('O máximo de contratos não pode ser menor que ' + minValue + '.');
-            } else {
-                e.target.setCustomValidity('');
-            }
-        });
+    function calcMonthlyPreview() {
+        var baseEl = document.getElementById('PriceBasePrice');
+        var surchargeEl = document.getElementById('CardMonthlySurchargePercent');
+        var previewEl = document.getElementById('MonthlyPreview');
+        if (!baseEl || !previewEl) return;
+        var base = parseFloat(baseEl.value) || 0;
+        var surcharge = surchargeEl && surchargeEl.value !== '' ? parseFloat(surchargeEl.value) : 0;
+        if (isNaN(surcharge) || surcharge < 0) surcharge = 0;
+        if (surcharge > 100) surcharge = 100;
+        var monthly = (base * (1 + surcharge / 100)) / 12;
+        previewEl.textContent = 'R$ ' + formatCurrencyPtBr(monthly);
     }
 
-    // Validar antes de enviar o formulário
-    var form = document.querySelector('form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            const basePrice = parseFloat(document.getElementById('BasePrice').value);
-            if (basePrice < 0) {
-                e.preventDefault();
-                showToast('O preço base não pode ser negativo. Por favor, informe um valor maior ou igual a zero.', 'warning');
-                document.getElementById('BasePrice').focus();
-                return false;
-            }
+    document.querySelectorAll('.price-input').forEach(function(el) {
+        el.addEventListener('input', calcMonthlyPreview);
+        el.addEventListener('change', calcMonthlyPreview);
+    });
+    calcMonthlyPreview();
+})();
 
-            var maxContractsEl = document.getElementById('MaxContracts');
-            if (maxContractsEl) {
-                var maxContractsVal = maxContractsEl.value.trim();
-                var maxContractsNum = parseFloat(maxContractsVal);
-                if (maxContractsVal === '' || isNaN(maxContractsNum)) {
-                    e.preventDefault();
-                    showToast('Informe o máximo de contratos.', 'warning');
-                    maxContractsEl.focus();
-                    return false;
-                }
-                if (!Number.isInteger(maxContractsNum) || maxContractsNum !== Math.floor(maxContractsNum)) {
-                    e.preventDefault();
-                    showToast('O campo Máximo de Contratos aceita somente números inteiros.', 'warning');
-                    maxContractsEl.focus();
-                    return false;
-                }
-                var minContracts = parseInt(maxContractsEl.min, 10);
-                if (!isNaN(minContracts) && maxContractsNum < minContracts) {
-                    e.preventDefault();
-                    showToast('O máximo de contratos não pode ser menor que ' + minContracts + '.', 'warning');
-                    maxContractsEl.focus();
-                    return false;
-                }
-            }
+// Confirmação antes de enviar solicitação de preços (parceiro; admin aplica direto)
+(function() {
+    var form = document.getElementById('submitPriceChangeForm');
+    if (!form || form.getAttribute('data-admin-direct') === 'true') return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formRef = form;
+        showConfirm(
+            'As alterações de preço exigem aprovação administrativa. Deseja enviar a solicitação?',
+            'Confirmar Ação',
+            'warning'
+        ).then(function(ok) {
+            if (ok) formRef.submit();
         });
-    }
+    });
+})();
+
+if (window.location.hash === '#precos') {
+    var precosEl = document.getElementById('precos');
+    if (precosEl) precosEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-
-// Nova Capacidade Solicitada: bloquear vírgula e ponto
-(function() {
-    function initIntegerOnlyCapacity() {
-        var capInput = document.getElementById('RequestedFiscalCapacity');
-        if (capInput && !capInput.readOnly) {
-            capInput.addEventListener('keydown', allowOnlyIntegerInput);
-            capInput.addEventListener('input', stripDecimalChars);
-        }
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initIntegerOnlyCapacity);
-    } else {
-        initIntegerOnlyCapacity();
-    }
-})();
-
-// Solicitar alteração de capacidade fiscal (registrar após DOM pronto)
-(function() {
-    function initRequestCapacityChange() {
-        var btn = document.getElementById('btnRequestCapacityChange');
-        if (!btn) return;
-
-        btn.addEventListener('click', async function() {
-            var rawValue = document.getElementById('RequestedFiscalCapacity').value;
-            var requestedCapacity = parseInt(rawValue, 10);
-            var justification = (document.getElementById('CapacityJustification').value || '').trim();
-            var currentContracts = @Model.CurrentContracts;
-            var approvedCapacity = @Model.ApprovedFiscalCapacity;
-
-            if (rawValue === '' || isNaN(requestedCapacity) || requestedCapacity !== parseFloat(rawValue) || !Number.isInteger(requestedCapacity)) {
-                if (typeof showToast === 'function') showToast('Nova Capacidade Solicitada deve ser um número inteiro.', 'warning');
-                else alert('Nova Capacidade Solicitada deve ser um número inteiro.');
-                document.getElementById('RequestedFiscalCapacity').focus();
-                return;
-            }
-
-            if (requestedCapacity < currentContracts) {
-                if (typeof showToast === 'function') showToast('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').', 'warning');
-                else alert('A capacidade solicitada deve ser maior ou igual ao número de contratos ativos (' + currentContracts + ').');
-                document.getElementById('RequestedFiscalCapacity').focus();
-                return;
-            }
-
-            if (requestedCapacity === approvedCapacity) {
-                if (typeof showToast === 'function') showToast('A capacidade solicitada é igual à capacidade aprovada. Não é necessário solicitar alteração.', 'info');
-                else alert('A capacidade solicitada é igual à capacidade aprovada.');
-                return;
-            }
-
-            if (!justification) {
-                if (typeof showToast === 'function') showToast('Por favor, informe a justificativa para a alteração de capacidade.', 'warning');
-                else alert('Por favor, informe a justificativa para a alteração de capacidade.');
-                document.getElementById('CapacityJustification').focus();
-                return;
-            }
-
-            if (!confirm('Deseja solicitar alteração da capacidade fiscal de ' + approvedCapacity + ' para ' + requestedCapacity + '?')) {
-                return;
-            }
-
-            var form = btn.closest('form');
-            var tokenEl = form ? form.querySelector('input[name="__RequestVerificationToken"]') : document.querySelector('input[name="__RequestVerificationToken"]');
-            var token = tokenEl ? tokenEl.value : '';
-            if (!token) {
-                if (typeof showToast === 'function') showToast('Token de segurança não encontrado. Recarregue a página e tente novamente.', 'error');
-                else alert('Token de segurança não encontrado. Recarregue a página e tente novamente.');
-                return;
-            }
-
-            try {
-                var response = await fetch('@Url.Action("RequestCapacityChange", "Coworking")', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'RequestVerificationToken': token
-                    },
-                    body: JSON.stringify({
-                        addressId: @Model.Id,
-                        requestedCapacity: requestedCapacity,
-                        justification: justification
-                    })
-                });
-
-                var result = await response.json().catch(function() { return { success: false, message: 'Resposta inválida do servidor.' }; });
-
-                if (result.success) {
-                    if (typeof showToast === 'function') showToast('Solicitação de alteração de capacidade enviada com sucesso! Aguardando aprovação administrativa.', 'success');
-                    else alert('Solicitação enviada com sucesso!');
-                    setTimeout(function() { window.location.reload(); }, 1500);
-                } else {
-                    if (typeof showToast === 'function') showToast(result.message || 'Erro ao enviar solicitação.', 'error');
-                    else alert(result.message || 'Erro ao enviar solicitação.');
-                }
-            } catch (error) {
-                console.error('Erro ao solicitar alteração de capacidade:', error);
-                if (typeof showToast === 'function') showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
-                else alert('Erro ao enviar solicitação. Tente novamente.');
-            }
-        });
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initRequestCapacityChange);
-    } else {
-        initRequestCapacityChange();
-    }
-})();
 </script>

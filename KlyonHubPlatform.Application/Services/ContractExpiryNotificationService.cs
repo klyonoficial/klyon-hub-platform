@@ -85,10 +85,6 @@ namespace KlyonHubPlatform.Application.Services
                     if (contract.CoworkingAddress != null)
                     {
                         contract.CoworkingAddress.CurrentContracts = Math.Max(0, contract.CoworkingAddress.CurrentContracts - 1);
-                        if (contract.CoworkingAddress.CurrentContracts < contract.CoworkingAddress.MaxContracts)
-                        {
-                            contract.CoworkingAddress.IsAvailable = true;
-                        }
                     }
                     _logger.LogInformation($"Contrato {contract.ContractNumber} revogado automaticamente por vencimento");
                 }

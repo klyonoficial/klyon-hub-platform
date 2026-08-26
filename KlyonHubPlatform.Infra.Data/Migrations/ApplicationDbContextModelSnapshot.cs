@@ -221,6 +221,13 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<decimal?>("PreviousBasePrice")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal?>("PreviousCardMonthlySurchargePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<decimal?>("PreviousCardPrice12x")
                         .HasColumnType("decimal(65,30)");
 
@@ -233,6 +240,13 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(2000)
                         .HasColumnType("varchar(2000)");
+
+                    b.Property<decimal?>("RequestedBasePrice")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal?>("RequestedCardMonthlySurchargePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal?>("RequestedCardPrice12x")
                         .HasColumnType("decimal(65,30)");
@@ -888,10 +902,17 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<int>("SnapshotCapacityConsumed")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("SnapshotCardMonthlySurchargePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<decimal>("SnapshotCommissionPercentage")
                         .HasColumnType("decimal(65,30)");
 
                     b.Property<decimal>("SnapshotCoworkingCommissionPercentage")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SnapshotListPrice")
                         .HasColumnType("decimal(65,30)");
 
                     b.Property<decimal>("SnapshotMonthlyValue")
@@ -1209,6 +1230,10 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
 
                     b.Property<int>("CapacityApprovalStatus")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("CardMonthlySurchargePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal?>("CardPrice12x")
                         .HasColumnType("decimal(65,30)");
@@ -2873,11 +2898,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<DateTime?>("PixExpiresAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("PromoCodeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PromoCodeSnapshot")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<string>("ReceiptFilePath")
                         .HasColumnType("longtext");
 
                     b.Property<int?>("ReservationId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("SnapshotDiscountAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SnapshotListPrice")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2903,6 +2941,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("FiscalOnboardingLeadId");
+
+                    b.HasIndex("PromoCodeId");
 
                     b.HasIndex("ReservationId");
 
@@ -2961,6 +3001,69 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("PlatformCreditBalances");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PromoCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("AllowedPaymentMethods")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int?>("CoworkingId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RedemptionCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ValidFrom")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ValidTo")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CoworkingId", "IsActive");
+
+                    b.ToTable("PromoCodes");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Reservation", b =>
@@ -4253,6 +4356,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .HasForeignKey("FiscalOnboardingLeadId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.PromoCode", "PromoCode")
+                        .WithMany("Payments")
+                        .HasForeignKey("PromoCodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("KlyonHubPlatform.Domain.Entities.Reservation", "Reservation")
                         .WithMany()
                         .HasForeignKey("ReservationId")
@@ -4269,6 +4377,8 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("FiscalOnboardingLead");
+
+                    b.Navigation("PromoCode");
 
                     b.Navigation("Reservation");
 
@@ -4293,6 +4403,24 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("ActionByUser");
 
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PromoCode", b =>
+                {
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.Coworking", "Coworking")
+                        .WithMany()
+                        .HasForeignKey("CoworkingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("KlyonHubPlatform.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Coworking");
+
+                    b.Navigation("CreatedByUser");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Reservation", b =>
@@ -4487,6 +4615,11 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Navigation("PartnerInvoices");
 
                     b.Navigation("SettlementCommissions");
+                });
+
+            modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.PromoCode", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("KlyonHubPlatform.Domain.Entities.Service", b =>

@@ -160,6 +160,8 @@ builder.Services.AddScoped<ICommissionService, CommissionService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ILocationService, LocationService>();
+builder.Services.AddScoped<IAddressPricingService, AddressPricingService>();
+builder.Services.AddScoped<IPromoCodeService, PromoCodeService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IQuickClientRegistrationService, QuickClientRegistrationService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();

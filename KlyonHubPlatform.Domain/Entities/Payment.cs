@@ -10,6 +10,10 @@ namespace KlyonHubPlatform.Domain.Entities
         public int? FiscalOnboardingLeadId { get; set; }
         public string ExternalPaymentId { get; set; } = string.Empty;
         public decimal Amount { get; set; }
+        public int? PromoCodeId { get; set; }
+        public string? PromoCodeSnapshot { get; set; }
+        public decimal SnapshotDiscountAmount { get; set; }
+        public decimal SnapshotListPrice { get; set; }
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
         public PaymentMethod Method { get; set; }
         public DateTime DueDate { get; set; }
@@ -37,5 +41,6 @@ namespace KlyonHubPlatform.Domain.Entities
         public virtual Reservation? Reservation { get; set; }
         public virtual FiscalOnboardingLead? FiscalOnboardingLead { get; set; }
         public virtual User? Validator { get; set; }
+        public virtual PromoCode? PromoCode { get; set; }
     }
 }

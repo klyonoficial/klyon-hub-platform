@@ -253,6 +253,10 @@ namespace KlyonHubPlatform.Application.Services
                     PreviousCardPrice1x = r.PreviousCardPrice1x,
                     PreviousCardPriceMonthly = r.PreviousCardPriceMonthly,
                     PreviousCardPrice12x = r.PreviousCardPrice12x,
+                    RequestedBasePrice = r.RequestedBasePrice,
+                    PreviousBasePrice = r.PreviousBasePrice,
+                    RequestedCardMonthlySurchargePercent = r.RequestedCardMonthlySurchargePercent,
+                    PreviousCardMonthlySurchargePercent = r.PreviousCardMonthlySurchargePercent,
                     CreatedAtFormatted = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
                 })
                 .ToListAsync(cancellationToken);
@@ -281,6 +285,10 @@ namespace KlyonHubPlatform.Application.Services
                 PreviousCardPrice1x = r.PreviousCardPrice1x,
                 PreviousCardPriceMonthly = r.PreviousCardPriceMonthly,
                 PreviousCardPrice12x = r.PreviousCardPrice12x,
+                RequestedBasePrice = r.RequestedBasePrice,
+                PreviousBasePrice = r.PreviousBasePrice,
+                RequestedCardMonthlySurchargePercent = r.RequestedCardMonthlySurchargePercent,
+                PreviousCardMonthlySurchargePercent = r.PreviousCardMonthlySurchargePercent,
                 CreatedAtFormatted = r.CreatedAt.ToString("dd/MM/yyyy HH:mm")
             };
         }
@@ -317,24 +325,7 @@ namespace KlyonHubPlatform.Application.Services
                 .Distinct()
                 .ToListAsync(cancellationToken);
             hasPendingPercentages = ids.ToDictionary(id => id, id => coworkingsWithPendingPercentages.Contains(id));
-
-            if (filterCapacityAlert)
-            {
-                var coworkingsAtMaxCapacity = await _context.CoworkingAddresses
-                    .AsNoTracking()
-                    .Where(a => a.AddressStatus == AddressStatus.Active &&
-                           ids.Contains(a.CoworkingId) &&
-                           ((a.MaxContracts > 0 && a.CurrentContracts >= a.MaxContracts) ||
-                            (a.ApprovedFiscalCapacity > 0 && a.CurrentContracts >= a.ApprovedFiscalCapacity)))
-                    .Select(a => a.CoworkingId)
-                    .Distinct()
-                    .ToListAsync(cancellationToken);
-                hasMaxCapacity = ids.ToDictionary(id => id, id => coworkingsAtMaxCapacity.Contains(id));
-            }
-            else
-            {
-                hasMaxCapacity = ids.ToDictionary(id => id, _ => false);
-            }
+            hasMaxCapacity = ids.ToDictionary(id => id, _ => false);
 
             return (servicesCount, hasPendingPercentages, hasMaxCapacity);
         }

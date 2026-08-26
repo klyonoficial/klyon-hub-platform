@@ -133,17 +133,11 @@
                                 {
                                     var locationLabel = addr.Location != null ? $"{addr.Location.City}/{addr.Location.State}" : DefaultDisplayStrings.NotAvailable;
                                     var coworkingName = addr.Coworking?.Name ?? DefaultDisplayStrings.NotAvailable;
-                                    var vacancies = addr.MaxContracts - addr.CurrentContracts;
                                     <option value="@addr.Id" 
                                             data-location="@locationLabel" 
                                             data-coworking="@coworkingName" 
-                                            data-vacancies="@vacancies"
                                             data-base-price="@addr.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)">
                                         @coworkingName - @addr.Address, @addr.Number (@locationLabel) - R$ @addr.BasePrice.ToString(NumberFormatConstants.TwoDecimals)
-                                        @if (vacancies <= 2)
-                                        {
-                                            <text> - Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")</text>
-                                        }
                                     </option>
                                 }
                             }
@@ -245,14 +239,10 @@
             if (option && option.value) {
                 const location = option.getAttribute('data-location');
                 const coworking = option.getAttribute('data-coworking');
-                const vacancies = option.getAttribute('data-vacancies');
                 const basePrice = option.getAttribute('data-base-price');
                 
-                console.log('Dados do endereço:', { location, coworking, vacancies, basePrice });
-                
-                // Atualizar informações do endereço
                 if (info) {
-                    info.textContent = `${coworking} - ${location} (${vacancies} ${vacancies == 1 ? 'vaga disponível' : 'vagas disponíveis'})`;
+                    info.textContent = `${coworking} - ${location}`;
                     info.className = 'form-text text-muted';
                 }
                 

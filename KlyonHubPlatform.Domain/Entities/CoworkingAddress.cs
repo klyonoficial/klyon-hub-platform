@@ -14,6 +14,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string State { get; set; } = string.Empty;
         public string ZipCode { get; set; } = string.Empty;
         public decimal BasePrice { get; set; }
+        /// <summary>Percentual de acréscimo para cartão mensal (0–100). Null = sem acréscimo.</summary>
+        public decimal? CardMonthlySurchargePercent { get; set; }
         public bool IsAvailable { get; set; } = true;
         public AddressStatus AddressStatus { get; set; } = AddressStatus.PendingApproval;
         public int MaxContracts { get; set; } = 1;
@@ -30,7 +32,9 @@ namespace KlyonHubPlatform.Domain.Entities
         public bool OffersPrivateRoom { get; set; } = false;
         public decimal? PrivateRoomPricePerHour { get; set; }
         public int? PrivateRoomMaxSeats { get; set; }
+        /// <summary>Legado/derivado — fonte de verdade é <see cref="BasePrice"/> (PIX e cartão 1x anual).</summary>
         public decimal? CardPrice1x { get; set; }
+        /// <summary>Legado/derivado — calculado por <see cref="CardMonthlySurchargePercent"/> sobre <see cref="BasePrice"/>.</summary>
         public decimal? CardPriceMonthly { get; set; }
         public decimal? CardPrice12x { get; set; }
         public DateTime CreatedAt { get; set; }

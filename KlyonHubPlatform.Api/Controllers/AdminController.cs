@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Application.DTOs;
+using KlyonHubPlatform.Application.DTOs.PromoCode;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.Services;
 using KlyonHubPlatform.Domain.Entities;
@@ -55,6 +56,7 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly StorageServiceFactory _storageFactory;
         private readonly ICorrespondenceService _correspondenceService;
         private readonly IClientOnboardingDocumentService _clientOnboardingDocumentService;
+        private readonly IPromoCodeService _promoCodeService;
         public AdminController(
             IUserService userService,
             IReportService reportService,
@@ -81,7 +83,8 @@ namespace KlyonHubPlatform.Api.Controllers
             IAdminDbService adminDbService,
             StorageServiceFactory storageFactory,
             ICorrespondenceService correspondenceService,
-            IClientOnboardingDocumentService clientOnboardingDocumentService)
+            IClientOnboardingDocumentService clientOnboardingDocumentService,
+            IPromoCodeService promoCodeService)
         {
             _userService = userService;
             _reportService = reportService;
@@ -110,6 +113,7 @@ namespace KlyonHubPlatform.Api.Controllers
             _storageFactory = storageFactory;
             _correspondenceService = correspondenceService;
             _clientOnboardingDocumentService = clientOnboardingDocumentService;
+            _promoCodeService = promoCodeService;
         }
 
         private IActionResult ApplyAdminResult(AdminCommandResult result, bool isAjax = false, string? exceptionMessage = null)
@@ -195,6 +199,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     previousCardPrice1x = r.PreviousCardPrice1x,
                     previousCardPriceMonthly = r.PreviousCardPriceMonthly,
                     previousCardPrice12x = r.PreviousCardPrice12x,
+                    requestedBasePrice = r.RequestedBasePrice,
+                    previousBasePrice = r.PreviousBasePrice,
+                    requestedCardMonthlySurchargePercent = r.RequestedCardMonthlySurchargePercent,
+                    previousCardMonthlySurchargePercent = r.PreviousCardMonthlySurchargePercent,
                     createdAt = r.CreatedAtFormatted
                 }).ToList();
                 return Json(new { success = true, data });
@@ -226,6 +234,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     previousCardPrice1x = r.PreviousCardPrice1x,
                     previousCardPriceMonthly = r.PreviousCardPriceMonthly,
                     previousCardPrice12x = r.PreviousCardPrice12x,
+                    requestedBasePrice = r.RequestedBasePrice,
+                    previousBasePrice = r.PreviousBasePrice,
+                    requestedCardMonthlySurchargePercent = r.RequestedCardMonthlySurchargePercent,
+                    previousCardMonthlySurchargePercent = r.PreviousCardMonthlySurchargePercent,
                     createdAt = r.CreatedAtFormatted
                 };
                 return Json(new { success = true, data = detail });
@@ -558,76 +570,6 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveCapacityChange(int requestId, CancellationToken cancellationToken = default)
-        {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            try
-            {
-                var result = await _adminApprovalService.ApproveCapacityChangeAsync(requestId, userId, cancellationToken);
-                return ApplyAdminResult(result);
-            }
-            catch (Exception ex)
-            {
-                return ApplyAdminResult(new AdminCommandResult(), exceptionMessage: ErrorMessages.ErrorWithException("aprovar alteração de capacidade", ex.Message));
-            }
-        }
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectCapacityChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(rejectionReason))
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.InformReprovalReason;
-                return RedirectToAction(ActionNames.Dashboard);
-            }
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            try
-            {
-                var result = await _adminApprovalService.RejectCapacityChangeAsync(requestId, rejectionReason, userId, cancellationToken);
-                return ApplyAdminResult(result);
-            }
-            catch (Exception ex)
-            {
-                return ApplyAdminResult(new AdminCommandResult(), exceptionMessage: ErrorMessages.ErrorWithException("reprovar alteração de capacidade", ex.Message));
-            }
-        }
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveMaxContractsChange(int requestId, CancellationToken cancellationToken = default)
-        {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            try
-            {
-                var result = await _adminApprovalService.ApproveMaxContractsChangeAsync(requestId, userId, cancellationToken);
-                return ApplyAdminResult(result);
-            }
-            catch (Exception ex)
-            {
-                return ApplyAdminResult(new AdminCommandResult(), exceptionMessage: ErrorMessages.ErrorWithException("aprovar alteração de quantidade máxima", ex.Message));
-            }
-        }
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectMaxContractsChange(int requestId, string rejectionReason, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(rejectionReason))
-            {
-                TempData[ErrorMessages.TempDataKey] = ErrorMessages.InformReprovalReason;
-                return RedirectToAction(ActionNames.Dashboard);
-            }
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            try
-            {
-                var result = await _adminApprovalService.RejectMaxContractsChangeAsync(requestId, rejectionReason, userId, cancellationToken);
-                return ApplyAdminResult(result);
-            }
-            catch (Exception ex)
-            {
-                return ApplyAdminResult(new AdminCommandResult(), exceptionMessage: ErrorMessages.ErrorWithException("reprovar alteração de quantidade máxima", ex.Message));
-            }
-        }
-        [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApproveCardPriceChange(int requestId, CancellationToken cancellationToken = default)
         {
             var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
@@ -664,6 +606,60 @@ namespace KlyonHubPlatform.Api.Controllers
                 return ApplyAdminResult(new AdminCommandResult(), isAjax, exceptionMessage: ErrorMessages.ErrorWithException("reprovar preços no cartão", ex.Message));
             }
         }
+
+        [HttpGet]
+        public async Task<IActionResult> PromoCodes(CancellationToken cancellationToken = default)
+        {
+            var promos = await _promoCodeService.ListAsync(null, includeGlobal: true, cancellationToken);
+            ViewBag.Coworkings = await _coworkingService.GetAllAsync();
+            return View(promos);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreatePromoCode(string code, PromoDiscountType type, decimal value, PromoScope scope, DateTime validFrom, DateTime? validTo, int? maxRedemptions, int? coworkingId, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            try
+            {
+                await _promoCodeService.CreateAsync(new PromoCodeCreateInput
+                {
+                    Code = code,
+                    Type = type,
+                    Value = value,
+                    Scope = scope,
+                    ValidFrom = validFrom,
+                    ValidTo = validTo,
+                    MaxRedemptions = maxRedemptions,
+                    CoworkingId = scope == PromoScope.Coworking ? coworkingId : null,
+                    CreatedByUserId = userId,
+                    IsAdmin = true
+                }, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PromoCodeCreated;
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+            }
+            return RedirectToAction(ActionNames.PromoCodes);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeactivatePromoCode(int id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await _promoCodeService.DeactivateAsync(id, null, cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = SuccessMessage.PromoCodeDeactivated;
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+            }
+            return RedirectToAction(ActionNames.PromoCodes);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SetAddressStatus(int addressId, int coworkingId, string status, CancellationToken cancellationToken = default)

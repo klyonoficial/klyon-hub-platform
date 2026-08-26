@@ -7,5 +7,6 @@ namespace KlyonHubPlatform.Domain.Core.Constants
         public const string Cancelled = "Cancelled";
         public const string Approved = "Approved";
         public const string Rejected = "Rejected";
+        public const string PromoRedeemed = "PromoRedeemed";
     }
 }

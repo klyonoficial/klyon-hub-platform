@@ -15,7 +15,7 @@ namespace KlyonHubPlatform.Api.Mappers
                 .ForMember(d => d.CoworkingName, o => o.MapFrom(s => s.Coworking != null ? s.Coworking.Name : ""))
                 .ForMember(d => d.City, o => o.MapFrom(s => s.Location != null ? s.Location.City : s.City))
                 .ForMember(d => d.State, o => o.MapFrom(s => s.Location != null ? s.Location.State : s.State))
-                .ForMember(d => d.Vacancies, o => o.MapFrom(s => s.MaxContracts - s.CurrentContracts))
+                .ForMember(d => d.Vacancies, o => o.MapFrom(_ => 0))
                 .ForMember(d => d.DisplayText, o => o.MapFrom(s =>
                     $"{(s.Coworking != null ? s.Coworking.Name : "")} - {s.Address}, {s.Number} ({(s.Location != null ? s.Location.City : s.City)}/{(s.Location != null ? s.Location.State : s.State)}) - R$ {s.BasePrice:F2}"));
             CreateMap<CardPriceChangeRequest, CardPriceRequestDashboardItemDto>()

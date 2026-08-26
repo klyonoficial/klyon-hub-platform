@@ -37,7 +37,6 @@
             var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
             var yearlyPrice = address.BasePrice;
             var monthlyEquivalent = address.BasePrice / 12;
-            var vacancies = address.MaxContracts - address.CurrentContracts;
             var coworkingName = address.Coworking?.Name ?? "Coworking";
             var locationLabel = address.Location != null ? $"{address.Location.City}/{address.Location.State}" : $"{address.City}/{address.State}";
             
@@ -46,12 +45,6 @@
                     @if (hasMainPhoto && mainPhoto != null)
                     {
                         <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; overflow: hidden; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                            @if (vacancies <= 2)
-                            {
-                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
-                                </span>
-                            }
                             <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
                             <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = mainPhoto.Id })" 
                                  alt="@coworkingName" 
@@ -63,12 +56,6 @@
                     else
                     {
                         <div class="position-relative d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                            @if (vacancies <= 2)
-                            {
-                                <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga" : "vagas")
-                                </span>
-                            }
                             <span class="position-absolute top-0 end-0 m-2 badge bg-dark bg-opacity-75 rounded-pill">@locationLabel</span>
                             <div class="text-center text-white opacity-75">
                                 <i class="bi bi-building" style="font-size: 3rem;"></i>
@@ -119,10 +106,6 @@
                                     </form>
                                 }
                             </div>
-                            @if (vacancies > 0 && vacancies <= 5)
-                            {
-                                <p class="small text-muted mb-0"><i class="bi bi-people"></i> @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</p>
-                            }
                         </div>
                     </div>
                 </div>

@@ -5,6 +5,10 @@ namespace KlyonHubPlatform.Domain.Entities
     {
         public int Id { get; set; }
         public int CoworkingAddressId { get; set; }
+        public decimal? RequestedBasePrice { get; set; }
+        public decimal? PreviousBasePrice { get; set; }
+        public decimal? RequestedCardMonthlySurchargePercent { get; set; }
+        public decimal? PreviousCardMonthlySurchargePercent { get; set; }
         public decimal? RequestedCardPrice1x { get; set; }
         public decimal? RequestedCardPriceMonthly { get; set; }
         public decimal? RequestedCardPrice12x { get; set; }

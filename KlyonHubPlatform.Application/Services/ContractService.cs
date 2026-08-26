@@ -101,7 +101,7 @@ namespace KlyonHubPlatform.Application.Services
                         throw new InvalidOperationException("O parceiro está suspenso. Não é possível criar novos contratos.");
                     if (address.AddressStatus != AddressStatus.Active)
                         throw new InvalidOperationException("O endereço não está ativo para novas vendas (suspenso ou removido). Contratos em andamento continuam válidos.");
-                    if (!address.IsAvailable || address.CurrentContracts >= address.MaxContracts)
+                    if (!address.IsAvailable)
                         throw new InvalidOperationException("Endereço não disponível para contrato");
                     decimal commissionPercentage = await GetCommissionPercentageAsync(address);
                     decimal platformCommissionPercentage = commissionPercentage;
@@ -122,6 +122,8 @@ namespace KlyonHubPlatform.Application.Services
                         AssistedSaleAdminId = assistedSaleAdminId,
                         CardPlanType = cardPlanType,
                         SnapshotMonthlyValue = monthlyValue,
+                        SnapshotListPrice = address.BasePrice,
+                        SnapshotCardMonthlySurchargePercent = address.CardMonthlySurchargePercent,
                         SnapshotPlatformCommissionPercentage = platformCommissionPercentage,
                         SnapshotCoworkingCommissionPercentage = coworkingCommissionPercentage,
                         SnapshotAddress = snapshotAddress,
@@ -138,7 +140,8 @@ namespace KlyonHubPlatform.Application.Services
                     var payment = await _paymentService.CreatePaymentAsync(
                         subscription.Id,
                         monthlyValue,
-                        cardPlanType == ContractCardPlanType.PixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX)
+                        cardPlanType == ContractCardPlanType.PixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX),
+                        snapshotListPrice: address.BasePrice
                     );
 
                     //if (cardPlanType == ContractCardPlanType.PixAnnual)
@@ -273,8 +276,6 @@ namespace KlyonHubPlatform.Application.Services
             if (address != null)
             {
                 address.CurrentContracts = Math.Max(0, address.CurrentContracts - 1);
-                if (address.AddressStatus == AddressStatus.Active && address.CurrentContracts < address.MaxContracts)
-                    address.IsAvailable = true;
                 await _coworkingRepository.UpdateAddressAsync(address);
             }
             if (contract.Subscription != null)

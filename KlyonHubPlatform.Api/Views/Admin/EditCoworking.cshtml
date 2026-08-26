@@ -272,11 +272,7 @@
                                             data-baseprice="@address.BasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
                                             data-isavailable="@(address.IsAvailable ? "Sim" : "Não")"
                                             data-addressstatus="@label"
-                                            data-maxcontracts="@address.MaxContracts"
                                             data-currentcontracts="@address.CurrentContracts"
-                                            data-requestedfiscalcapacity="@address.RequestedFiscalCapacity"
-                                            data-approvedfiscalcapacity="@address.ApprovedFiscalCapacity"
-                                            data-requestedmaxcontracts="@address.RequestedMaxContracts"
                                             data-offerssharedroom="@(address.OffersSharedRoom ? "Sim" : "Não")"
                                             data-sharedroomprice="@(address.SharedRoomPricePerHour?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                             data-sharedroommaxseats="@(address.SharedRoomMaxSeats?.ToString() ?? DefaultDisplayStrings.EmptyPlaceholder)"
@@ -298,7 +294,7 @@
                                                     @(address.IsAvailable ? "Sim" : "Não")
                                                 </span>
                                             </td>
-                                            <td>@address.CurrentContracts / @address.MaxContracts</td>
+                                            <td><span class="badge bg-secondary">@address.CurrentContracts</span></td>
                                             <td onclick="event.stopPropagation();">
                                                 <a href="@Url.Action(ActionNames.EditAddress, ControllerNames.Coworking, new { id = address.Id })" class="btn btn-sm btn-outline-primary me-1" title="Preço Base (R$)">Preço base</a>
                                                 <a href="@Url.Action(ActionNames.CardPrices, ControllerNames.Coworking, new { id = address.Id })" class="btn btn-sm btn-outline-info" title="Valores para venda no cartão">Preços no cartão</a>
@@ -426,10 +422,7 @@
                 { label: 'Venda mensal (cartão)', value: val('cardpricemonthly') === '—' ? '—' : 'R$ ' + parseFloat(val('cardpricemonthly')).toFixed(2).replace('.', ',') },
                 { label: 'Disponível', value: val('isavailable') },
                 { label: 'Status do endereço', value: val('addressstatus') },
-                { label: 'Contratos', value: val('currentcontracts') + ' / ' + val('maxcontracts') },
-                { label: 'Capacidade fiscal solicitada', value: val('requestedfiscalcapacity') },
-                { label: 'Capacidade fiscal aprovada', value: val('approvedfiscalcapacity') },
-                { label: 'Máx. contratos solicitado', value: val('requestedmaxcontracts') },
+                { label: 'Contratos ativos', value: val('currentcontracts') },
                 { label: 'Oferece sala compartilhada', value: val('offerssharedroom') },
                 { label: 'Preço/hora sala compartilhada', value: val('sharedroomprice') === '—' ? '—' : 'R$ ' + parseFloat(val('sharedroomprice')).toFixed(2).replace('.', ',') },
                 { label: 'Lugares sala compartilhada', value: val('sharedroommaxseats') },

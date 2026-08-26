@@ -94,7 +94,9 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CoworkingRegistered = "Coworking cadastrado com sucesso!";
         public const string AddressRegistered = "Endereço cadastrado com sucesso!";
         public const string AddressUpdated = "Endereço atualizado com sucesso!";
-        public const string CardPriceChangeRequestSent = "Solicitação de alteração de preços no cartão enviada com sucesso! Os valores só serão exibidos aos clientes após aprovação administrativa.";
+        public const string CardPriceChangeRequestSent = "Solicitação de alteração de preços enviada com sucesso! Os valores só serão exibidos aos clientes após aprovação administrativa.";
+        public const string PromoCodeCreated = "Cupom criado com sucesso.";
+        public const string PromoCodeDeactivated = "Cupom desativado com sucesso.";
         public const string MaxQuantityRequestSent = "Solicitação de alteração de quantidade máxima enviada com sucesso! Aguardando aprovação administrativa.";
         public const string ReservationStatusUpdated = "Status da reserva atualizado com sucesso!";
         public const string ReservationCompletedCreditsTransferred = "Reserva já concluída e créditos repassados.";

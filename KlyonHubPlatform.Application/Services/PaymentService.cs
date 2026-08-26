@@ -32,6 +32,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IFiscalOnboardingService? _fiscalOnboardingService;
         private readonly IPaymentRealtimeNotifier? _paymentRealtimeNotifier;
         private readonly IValidator<CreditCardHolderBillingInput> _cardHolderBillingValidator;
+        private readonly IPromoCodeService _promoCodeService;
         public PaymentService(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
@@ -42,6 +43,7 @@ namespace KlyonHubPlatform.Application.Services
             ApplicationDbContext context,
             ISystemConfigurationService systemConfigurationService,
             IValidator<CreditCardHolderBillingInput> cardHolderBillingValidator,
+            IPromoCodeService promoCodeService,
             IAddressDeclarationService? addressDeclarationService = null,
             IDocumentService? documentService = null,
             IContractDocumentsWorkQueue? contractDocumentsWorkQueue = null,
@@ -66,6 +68,7 @@ namespace KlyonHubPlatform.Application.Services
             _fiscalOnboardingService = fiscalOnboardingService;
             _paymentRealtimeNotifier = paymentRealtimeNotifier;
             _cardHolderBillingValidator = cardHolderBillingValidator;
+            _promoCodeService = promoCodeService;
         }
 
         /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
@@ -220,7 +223,14 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
         }
-        public async Task<Payment> CreatePaymentAsync(int? subscriptionId, decimal amount, PaymentMethod method)
+        public async Task<Payment> CreatePaymentAsync(
+            int? subscriptionId,
+            decimal amount,
+            PaymentMethod method,
+            decimal snapshotListPrice = 0,
+            string? promoCodeSnapshot = null,
+            decimal snapshotDiscountAmount = 0,
+            int? promoCodeId = null)
         {
             DateTime dueDate;
             if (subscriptionId.HasValue)
@@ -241,6 +251,10 @@ namespace KlyonHubPlatform.Application.Services
             {
                 SubscriptionId = subscriptionId,
                 Amount = amount,
+                SnapshotListPrice = snapshotListPrice > 0 ? snapshotListPrice : amount,
+                PromoCodeSnapshot = promoCodeSnapshot,
+                SnapshotDiscountAmount = snapshotDiscountAmount,
+                PromoCodeId = promoCodeId,
                 Method = method,
                 Status = PaymentStatus.Pending,
                 DueDate = dueDate,
@@ -309,10 +323,6 @@ namespace KlyonHubPlatform.Application.Services
                                     if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
                                     {
                                         contract.CoworkingAddress.CurrentContracts++;
-                                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
-                                        {
-                                            contract.CoworkingAddress.IsAvailable = false;
-                                        }
                                         _context.CoworkingAddresses.Update(contract.CoworkingAddress);
                                     }
                                     await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);
@@ -1126,6 +1136,10 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         await _commissionService.CreateCommissionAsync(payment.Id);
                     }
+                    if (payment.PromoCodeId.HasValue)
+                    {
+                        await _promoCodeService.TryRecordRedemptionForPaymentAsync(payment.Id, payment.PromoCodeId.Value);
+                    }
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
                     if (_paymentRealtimeNotifier != null)
@@ -1192,6 +1206,17 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
+            if (payment.PromoCodeId.HasValue)
+            {
+                var hadPromoRedemption = await _context.PaymentHistories
+                    .AnyAsync(h => h.PaymentId == payment.Id && h.Action == PaymentHistoryActions.PromoRedeemed);
+                if (!hadPromoRedemption)
+                {
+                    await _promoCodeService.TryRecordRedemptionForPaymentAsync(payment.Id, payment.PromoCodeId.Value);
+                    changed = true;
+                }
+            }
+
             return changed;
         }
 
@@ -1250,10 +1275,6 @@ namespace KlyonHubPlatform.Application.Services
                     if (contract.CoworkingAddress != null && originalStatus == ContractStatus.PendingPayment)
                     {
                         contract.CoworkingAddress.CurrentContracts++;
-                        if (contract.CoworkingAddress.CurrentContracts >= contract.CoworkingAddress.MaxContracts)
-                        {
-                            contract.CoworkingAddress.IsAvailable = false;
-                        }
                         _context.CoworkingAddresses.Update(contract.CoworkingAddress);
                     }
                     await CancelOtherPendingPaymentContractsForClientAsync(contract.ClientId, contract.Id);

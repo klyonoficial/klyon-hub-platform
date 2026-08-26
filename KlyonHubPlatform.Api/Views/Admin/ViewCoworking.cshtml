@@ -197,7 +197,7 @@
                 <div class="card-body">
                     @if (hasPendingCardPrices)
                     {
-                        <p class="text-muted small mb-3">O parceiro solicitou alteração dos preços de venda no cartão. Os valores só serão exibidos aos clientes após sua aprovação.</p>
+                        <p class="text-muted small mb-3">O parceiro solicitou alteração dos preços (base anual e/ou acréscimo mensal no cartão). Os valores só serão exibidos aos clientes após sua aprovação.</p>
                     }
                     <div class="table-responsive">
                         <table class="table table-sm">
@@ -221,9 +221,10 @@
                                         <td>
                                             @if (pendingReq != null)
                                             {
-                                                @if (pendingReq.RequestedCardPrice1x.HasValue) { <span class="badge bg-info">1x: R$ @pendingReq.RequestedCardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                                @if (pendingReq.RequestedBasePrice.HasValue) { <span class="badge bg-info">Anual: R$ @pendingReq.RequestedBasePrice.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                                @if (pendingReq.RequestedCardMonthlySurchargePercent.HasValue) { <span class="badge bg-info">Acréscimo mensal: @pendingReq.RequestedCardMonthlySurchargePercent.Value.ToString(NumberFormatConstants.TwoDecimals)%</span> }
                                                 @if (pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @pendingReq.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                                @if (!pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">—</span> }
+                                                @if (!pendingReq.RequestedBasePrice.HasValue && !pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">—</span> }
                                             }
                                             else
                                             {
@@ -231,9 +232,10 @@
                                             }
                                         </td>
                                         <td>
-                                            @if (addr.CardPrice1x.HasValue) { <span class="badge bg-secondary">1x: R$ @addr.CardPrice1x.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (addr.BasePrice > 0) { <span class="badge bg-secondary">Anual: R$ @addr.BasePrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
+                                            @if (addr.CardMonthlySurchargePercent.HasValue) { <span class="badge bg-secondary">Acréscimo: @addr.CardMonthlySurchargePercent.Value.ToString(NumberFormatConstants.TwoDecimals)%</span> }
                                             @if (addr.CardPriceMonthly.HasValue) { <span class="badge bg-secondary">Mensal: R$ @addr.CardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                            @if (!addr.CardPrice1x.HasValue && !addr.CardPriceMonthly.HasValue) { <span class="text-muted">Nenhum</span> }
+                                            @if (addr.BasePrice <= 0 && !addr.CardPriceMonthly.HasValue) { <span class="text-muted">Nenhum</span> }
                                         </td>
                                         @if (hasPendingCardPrices)
                                         {
@@ -335,9 +337,7 @@
                                         data-available="@(address.IsAvailable ? "Sim" : "Não")"
                                         data-status-label="@label"
                                         data-status-badge="@badge"
-                                        data-max-contracts="@address.MaxContracts"
                                         data-current-contracts="@address.CurrentContracts"
-                                        data-fiscal-capacity="@address.ApprovedFiscalCapacity"
                                         data-created-at="@address.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime)"
                                         data-updated-at="@(address.UpdatedAt?.ToString(DateFormatConstants.DisplayDateAndTime) ?? DefaultDisplayStrings.EmptyPlaceholder)"
                                         data-shared-room="@(address.OffersSharedRoom ? "Sim" : "Não")"
@@ -373,46 +373,7 @@
                                             </span>
                                         </td>
                                         <td>
-                                            @{
-                                                // Calcular 90% da capacidade (quando falta 10%)
-                                                var warningThresholdContracts = address.MaxContracts > 0 ? Math.Ceiling(address.MaxContracts * 0.9) : 0;
-                                                var warningThresholdFiscal = address.ApprovedFiscalCapacity > 0 ? Math.Ceiling(address.ApprovedFiscalCapacity * 0.9) : 0;
-                                                
-                                                var isAtMaxContracts = address.MaxContracts > 0 && address.CurrentContracts >= address.MaxContracts;
-                                                var isAtMaxFiscalCapacity = address.ApprovedFiscalCapacity > 0 && address.CurrentContracts >= address.ApprovedFiscalCapacity;
-                                                var isNearMaxContracts = address.MaxContracts > 0 && address.CurrentContracts >= warningThresholdContracts && address.CurrentContracts < address.MaxContracts;
-                                                var isNearMaxFiscalCapacity = address.ApprovedFiscalCapacity > 0 && address.CurrentContracts >= warningThresholdFiscal && address.CurrentContracts < address.ApprovedFiscalCapacity;
-                                                
-                                                var isAtMaxCapacity = isAtMaxContracts || isAtMaxFiscalCapacity;
-                                                var isNearMaxCapacity = isNearMaxContracts || isNearMaxFiscalCapacity;
-                                            }
-                                            <div>
-                                                <span class="@(isAtMaxCapacity ? "text-danger fw-bold" : isNearMaxCapacity ? "text-warning fw-bold" : "")">
-                                                    @address.CurrentContracts / @address.MaxContracts
-                                                </span>
-                                                @if (isAtMaxCapacity)
-                                                {
-                                                    <i class="bi bi-exclamation-triangle-fill text-danger" title="Capacidade máxima atingida"></i>
-                                                }
-                                                else if (isNearMaxCapacity)
-                                                {
-                                                    <i class="bi bi-exclamation-triangle-fill text-warning" title="Próximo da capacidade máxima (faltando 10%)"></i>
-                                                }
-                                            </div>
-                                            @if (address.ApprovedFiscalCapacity > 0 && address.ApprovedFiscalCapacity != address.MaxContracts)
-                                            {
-                                                <small class="text-muted d-block">
-                                                    Fiscal: @address.CurrentContracts / @address.ApprovedFiscalCapacity
-                                                    @if (isAtMaxFiscalCapacity)
-                                                    {
-                                                        <span class="text-danger">(Máx. fiscal atingida)</span>
-                                                    }
-                                                    else if (isNearMaxFiscalCapacity)
-                                                    {
-                                                        <span class="text-warning">(Próximo do limite fiscal - faltando 10%)</span>
-                                                    }
-                                                </small>
-                                            }
+                                            <span class="badge bg-secondary">@address.CurrentContracts</span>
                                         </td>
                                         <td class="text-end no-row-click">
                                             <form asp-action="SetAddressStatus" asp-controller="Admin" method="post" class="d-inline" onclick="event.stopPropagation();">
@@ -888,12 +849,8 @@
                         <p class="mb-0" id="viewAddrStatus">—</p>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Contratos</label>
+                        <label class="form-label fw-bold text-muted small">Contratos ativos</label>
                         <p class="mb-0" id="viewAddrContracts">—</p>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold text-muted small">Capacidade fiscal aprovada</label>
-                        <p class="mb-0" id="viewAddrFiscalCapacity">—</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
                     <div class="col-md-6 mb-3">
@@ -1029,8 +986,7 @@
             var statusLabel = this.getAttribute('data-status-label') || '—';
             var statusBadge = this.getAttribute('data-status-badge') || 'secondary';
             document.getElementById('viewAddrStatus').innerHTML = '<span class="badge bg-' + statusBadge + '">' + statusLabel + '</span>';
-            document.getElementById('viewAddrContracts').textContent = (this.getAttribute('data-current-contracts') || '0') + ' / ' + (this.getAttribute('data-max-contracts') || '0');
-            document.getElementById('viewAddrFiscalCapacity').textContent = this.getAttribute('data-fiscal-capacity') || '—';
+            document.getElementById('viewAddrContracts').textContent = this.getAttribute('data-current-contracts') || '0';
             var shared = this.getAttribute('data-shared-room');
             var sharedPrice = this.getAttribute('data-shared-price');
             var sharedSeats = this.getAttribute('data-shared-seats');

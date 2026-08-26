@@ -158,6 +158,10 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ExecuteSql = "ExecuteSql";
         public const string MyAddresses = "MyAddresses";
         public const string CardPrices = "CardPrices";
+        public const string SubmitPriceChange = "SubmitPriceChange";
+        public const string PromoCodes = "PromoCodes";
+        public const string CreatePromoCode = "CreatePromoCode";
+        public const string DeactivatePromoCode = "DeactivatePromoCode";
         public const string ActiveContracts = "ActiveContracts";
         public const string Reservations = "Reservations";
         public const string Commissions = "Commissions";

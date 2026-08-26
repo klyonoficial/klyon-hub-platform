@@ -1,5 +1,6 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.ViewModels
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @{
     ViewData[ViewDataKeys.Title] = "Dashboard Administrativo";
@@ -79,7 +80,7 @@
 }
 
 @{
-    var adminAlerts = ViewBag.AdminAlerts as List<dynamic> ?? new List<dynamic>();
+    var adminAlerts = ViewBag.AdminAlerts as List<AdminAlertDto> ?? new List<AdminAlertDto>();
 }
 @if (adminAlerts.Any())
 {
@@ -1085,8 +1086,10 @@ async function loadCardPricePendingList() {
         let html = '<div class="table-responsive"><table class="table table-hover table-sm"><thead class="table-light"><tr><th>Coworking</th><th>Endereço</th><th>Valores solicitados</th><th>Data</th><th class="text-end">Ações</th></tr></thead><tbody>';
         data.forEach(function(item) {
             const req = [];
-            if (item.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(item.requestedCardPrice1x).toFixed(2).replace('.', ','));
+            if (item.requestedBasePrice != null) req.push('Anual: R$ ' + parseFloat(item.requestedBasePrice).toFixed(2).replace('.', ','));
+            if (item.requestedCardMonthlySurchargePercent != null) req.push('Acréscimo: ' + parseFloat(item.requestedCardMonthlySurchargePercent).toFixed(2).replace('.', ',') + '%');
             if (item.requestedCardPriceMonthly != null) req.push('Mensal: R$ ' + parseFloat(item.requestedCardPriceMonthly).toFixed(2).replace('.', ','));
+            if (req.length === 0 && item.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(item.requestedCardPrice1x).toFixed(2).replace('.', ','));
             const reqText = req.length ? req.join(' · ') : '—';
             html += '<tr class="card-price-row align-middle" data-request-id="' + item.id + '" style="cursor: pointer;">';
             html += '<td>' + (item.coworkingName || '—') + '</td>';
@@ -1131,10 +1134,14 @@ async function loadCardPriceDetail(requestId) {
         }
         const d = result.data;
         const req = [], prev = [];
-        if (d.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(d.requestedCardPrice1x).toFixed(2).replace('.', ','));
+        if (d.requestedBasePrice != null) req.push('Anual: R$ ' + parseFloat(d.requestedBasePrice).toFixed(2).replace('.', ','));
+        if (d.requestedCardMonthlySurchargePercent != null) req.push('Acréscimo mensal: ' + parseFloat(d.requestedCardMonthlySurchargePercent).toFixed(2).replace('.', ',') + '%');
         if (d.requestedCardPriceMonthly != null) req.push('Mensal: R$ ' + parseFloat(d.requestedCardPriceMonthly).toFixed(2).replace('.', ','));
-        if (d.previousCardPrice1x != null) prev.push('1x: R$ ' + parseFloat(d.previousCardPrice1x).toFixed(2).replace('.', ','));
+        if (d.previousBasePrice != null) prev.push('Anual: R$ ' + parseFloat(d.previousBasePrice).toFixed(2).replace('.', ','));
+        if (d.previousCardMonthlySurchargePercent != null) prev.push('Acréscimo: ' + parseFloat(d.previousCardMonthlySurchargePercent).toFixed(2).replace('.', ',') + '%');
         if (d.previousCardPriceMonthly != null) prev.push('Mensal: R$ ' + parseFloat(d.previousCardPriceMonthly).toFixed(2).replace('.', ','));
+        if (req.length === 0 && d.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(d.requestedCardPrice1x).toFixed(2).replace('.', ','));
+        if (prev.length === 0 && d.previousCardPrice1x != null) prev.push('1x: R$ ' + parseFloat(d.previousCardPrice1x).toFixed(2).replace('.', ','));
         let html = '<div class="mb-3"><strong>Coworking</strong><br>' + (d.coworkingName || '—') + '</div>';
         html += '<div class="mb-3"><strong>Endereço</strong><br>' + (d.addressLabel || '—') + '</div>';
         html += '<div class="mb-3"><strong>Valores atuais (antes da solicitação)</strong><br><span class="text-muted">' + (prev.length ? prev.join(' · ') : 'Nenhum') + '</span></div>';

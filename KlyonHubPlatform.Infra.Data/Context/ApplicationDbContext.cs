@@ -168,6 +168,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
         public DbSet<CapacityChangeRequest> CapacityChangeRequests { get; set; }
         public DbSet<MaxContractsChangeRequest> MaxContractsChangeRequests { get; set; }
         public DbSet<CardPriceChangeRequest> CardPriceChangeRequests { get; set; }
+        public DbSet<PromoCode> PromoCodes { get; set; }
         public DbSet<ChatFaqItem> ChatFaqItems { get; set; }
         public DbSet<ChatConversation> ChatConversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
@@ -225,6 +226,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId);
                 entity.HasIndex(e => new { e.CoworkingId, e.Address }).IsUnique();
                 entity.Property(e => e.MaxContractsApprovalStatus).HasColumnType("int");
+                entity.Property(e => e.CardMonthlySurchargePercent).HasPrecision(5, 2);
             });
             modelBuilder.Entity<Client>(entity =>
             {
@@ -259,6 +261,7 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.DocumentsReviewedByUser).WithMany().HasForeignKey(e => e.DocumentsReviewedByUserId).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.DocumentsRejectionReason).HasMaxLength(2000);
+                entity.Property(e => e.SnapshotCardMonthlySurchargePercent).HasPrecision(5, 2);
             });
             modelBuilder.Entity<ClientOnboardingDocument>(entity =>
             {
@@ -281,8 +284,10 @@ namespace KlyonHubPlatform.Infra.Data.Context
                 entity.HasOne(e => e.Reservation).WithMany().HasForeignKey(e => e.ReservationId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.FiscalOnboardingLead).WithMany(l => l.Payments).HasForeignKey(e => e.FiscalOnboardingLeadId).OnDelete(DeleteBehavior.SetNull);
                 entity.HasOne(e => e.Validator).WithMany().HasForeignKey(e => e.ValidatedBy).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.PromoCode).WithMany(p => p.Payments).HasForeignKey(e => e.PromoCodeId).OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.Method).HasColumnType("int");
+                entity.Property(e => e.PromoCodeSnapshot).HasMaxLength(50);
             });
             modelBuilder.Entity<FiscalOnboardingLead>(entity =>
             {
@@ -759,8 +764,29 @@ namespace KlyonHubPlatform.Infra.Data.Context
                     .OnDelete(DeleteBehavior.SetNull);
                 entity.Property(e => e.Status).HasColumnType("int");
                 entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+                entity.Property(e => e.RequestedCardMonthlySurchargePercent).HasPrecision(5, 2);
+                entity.Property(e => e.PreviousCardMonthlySurchargePercent).HasPrecision(5, 2);
                 entity.HasIndex(e => e.CoworkingAddressId);
                 entity.HasIndex(e => e.Status);
+            });
+            modelBuilder.Entity<PromoCode>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.AllowedPaymentMethods).HasMaxLength(200);
+                entity.Property(e => e.Type).HasColumnType("int");
+                entity.Property(e => e.Scope).HasColumnType("int");
+                entity.Property(e => e.Value).HasPrecision(18, 2);
+                entity.HasOne(e => e.Coworking)
+                    .WithMany()
+                    .HasForeignKey(e => e.CoworkingId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(e => e.Code);
+                entity.HasIndex(e => new { e.CoworkingId, e.IsActive });
             });
             modelBuilder.Entity<ChatFaqItem>(entity =>
             {

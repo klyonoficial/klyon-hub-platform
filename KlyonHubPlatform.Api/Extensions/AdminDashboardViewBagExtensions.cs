@@ -41,19 +41,14 @@ namespace KlyonHubPlatform.Api.Extensions
             controller.ViewBag.PartnersWithoutPercentage = model.PartnersWithoutPercentage;
             controller.ViewBag.ServicesAwaitingPercentage = model.ServicesAwaitingPercentage;
             controller.ViewBag.PendingRemovalRequests = model.PendingRemovalRequests;
-            controller.ViewBag.AdminAlerts = model.AdminAlerts
-                .Select(a => new
-                {
-                    a.Type,
-                    a.Icon,
-                    a.Title,
-                    a.Message,
-                    a.Count,
-                    a.ActionKey,
-                    ActionUrl = controller.Url?.Action(a.ActionName, a.ActionController, a.ActionRouteValues),
-                    a.ActionText
-                })
-                .ToList();
+            // Assign concrete AdminAlertDto list (not anonymous types): Razor `as List<dynamic>`
+            // fails for List<TAnonymous> and would drop all admin alerts including pending prices.
+            foreach (var alert in model.AdminAlerts)
+            {
+                if (!string.IsNullOrEmpty(alert.ActionName) && !string.IsNullOrEmpty(alert.ActionController))
+                    alert.ActionUrl = controller.Url?.Action(alert.ActionName, alert.ActionController, alert.ActionRouteValues);
+            }
+            controller.ViewBag.AdminAlerts = model.AdminAlerts;
         }
     }
 }

@@ -188,7 +188,6 @@ namespace KlyonHubPlatform.Application.Services
             var alerts = new List<AdminAlertDto>();
             await AddPendingCommissionsAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
             await AddOverduePaymentsAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
-            await AddCapacityAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
             await AddCoworkingsUnderReviewAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
             await AddPaymentsAwaitingValidationAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
             await AddPendingCardPriceAlertAsync(alerts, cancellationToken).ConfigureAwait(false);
@@ -265,44 +264,6 @@ namespace KlyonHubPlatform.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erro ao carregar alerta de pagamentos atrasados");
-            }
-        }
-        private async Task AddCapacityAlertAsync(List<AdminAlertDto> alerts, CancellationToken cancellationToken)
-        {
-            try
-            {
-                const decimal capacityThreshold = 0.8m;
-                var addressesNearCapacity = await _context.CoworkingAddresses
-                    .AsNoTracking()
-                    .Include(a => a.Coworking)
-                    .Include(a => a.Location)
-                    .Where(a => a.AddressStatus == AddressStatus.Active &&
-                               ((a.MaxContracts > 0 && (decimal)a.CurrentContracts / a.MaxContracts >= capacityThreshold) ||
-                                (a.ApprovedFiscalCapacity > 0 && (decimal)a.CurrentContracts / a.ApprovedFiscalCapacity >= capacityThreshold)))
-                    .ToListAsync(cancellationToken).ConfigureAwait(false);
-                if (addressesNearCapacity.Count > 0)
-                {
-                    var atCapacityCount = addressesNearCapacity.Count(a =>
-                        (a.MaxContracts > 0 && a.CurrentContracts >= a.MaxContracts) ||
-                        (a.ApprovedFiscalCapacity > 0 && a.CurrentContracts >= a.ApprovedFiscalCapacity));
-                    alerts.Add(new AdminAlertDto
-                    {
-                        Type = BootstrapBadgeCss.Info,
-                        Icon = "bi-info-circle-fill",
-                        Title = "Capacidade Próxima do Limite",
-                        Message = $"{addressesNearCapacity.Count} endereço(s) com capacidade próxima ou no limite (≥80%). {atCapacityCount} endereço(s) já atingiram a capacidade máxima.",
-                        Count = addressesNearCapacity.Count,
-                        ActionKey = null,
-                        ActionController = AdminDashboardRouteNames.Controller,
-                        ActionName = AdminDashboardRouteNames.Coworkings,
-                        ActionRouteValues = new { capacityAlert = StringBooleanValue.True },
-                        ActionText = "Ver Coworkings"
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Erro ao carregar alerta de capacidade");
             }
         }
         private async Task AddCoworkingsUnderReviewAlertAsync(List<AdminAlertDto> alerts, CancellationToken cancellationToken)
@@ -404,8 +365,8 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Type = BootstrapBadgeCss.Warning,
                         Icon = "bi-credit-card",
-                        Title = "Preços no Cartão Aguardando Aprovação",
-                        Message = $"{pendingCardPriceCount} solicitação(ões) de alteração de preços no cartão aguardando aprovação.",
+                        Title = "Preços Aguardando Aprovação",
+                        Message = $"{pendingCardPriceCount} solicitação(ões) de alteração de preços (base anual / acréscimo mensal) aguardando aprovação.",
                         Count = pendingCardPriceCount,
                         ActionKey = AdminDashboardAlertKeys.CardPricePending,
                         ActionController = AdminDashboardRouteNames.Controller,

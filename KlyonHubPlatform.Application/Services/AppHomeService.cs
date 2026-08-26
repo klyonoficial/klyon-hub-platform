@@ -59,11 +59,15 @@ namespace KlyonHubPlatform.Application.Services
             }
             if (search.MinPeople.HasValue && search.MinPeople.Value > 0)
             {
-                baseQuery = baseQuery.Where(a => a.MaxContracts >= search.MinPeople.Value);
+                baseQuery = baseQuery.Where(a =>
+                    (a.OffersSharedRoom && a.SharedRoomMaxSeats >= search.MinPeople.Value) ||
+                    (a.OffersPrivateRoom && a.PrivateRoomMaxSeats >= search.MinPeople.Value));
             }
             if (search.MaxPeople.HasValue && search.MaxPeople.Value > 0)
             {
-                baseQuery = baseQuery.Where(a => a.MaxContracts <= search.MaxPeople.Value);
+                baseQuery = baseQuery.Where(a =>
+                    (a.OffersSharedRoom && a.SharedRoomMaxSeats <= search.MaxPeople.Value) ||
+                    (a.OffersPrivateRoom && a.PrivateRoomMaxSeats <= search.MaxPeople.Value));
             }
             var allStates = await _context.CoworkingAddresses
                 .Where(a => a.Coworking.IsActive &&
@@ -117,8 +121,6 @@ namespace KlyonHubPlatform.Application.Services
                     maxCapacity = Math.Max(maxCapacity, a.SharedRoomMaxSeats.Value);
                 if (a.OffersPrivateRoom && a.PrivateRoomMaxSeats.HasValue)
                     maxCapacity = Math.Max(maxCapacity, a.PrivateRoomMaxSeats.Value);
-                if (maxCapacity == 0)
-                    maxCapacity = a.MaxContracts;
                 return new MarketplaceCardDto
                 {
                     CoworkingAddressId = a.Id,
@@ -126,9 +128,9 @@ namespace KlyonHubPlatform.Application.Services
                     Subtitle = a.Neighborhood ?? "",
                     CityState = $"{a.City}/{a.State}",
                     BasePrice = a.BasePrice,
-                    IsAvailable = a.IsAvailable && a.CurrentContracts < a.MaxContracts,
+                    IsAvailable = a.IsAvailable,
                     CurrentContracts = a.CurrentContracts,
-                    MaxContracts = a.MaxContracts,
+                    MaxContracts = 0,
                     MaxPeople = maxCapacity,
                     MainPhotoId = mainPhoto?.Id,
                     OffersSharedRoom = a.OffersSharedRoom,

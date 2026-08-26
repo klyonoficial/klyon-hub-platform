@@ -172,7 +172,7 @@ namespace KlyonHubPlatform.Application.Services
                 return QuickClientRegistrationResult.Fail(FailureKeyPartnerSuspendedNoNewContracts);
             if (selectedAddress.AddressStatus != AddressStatus.Active)
                 return QuickClientRegistrationResult.Fail(FailureKeyAddressNotActiveForSales);
-            if (!selectedAddress.IsAvailable || selectedAddress.CurrentContracts >= selectedAddress.MaxContracts)
+            if (!selectedAddress.IsAvailable)
                 return QuickClientRegistrationResult.Fail(FailureKeyAddressNotAvailableForContractSelected);
             return null;
         }

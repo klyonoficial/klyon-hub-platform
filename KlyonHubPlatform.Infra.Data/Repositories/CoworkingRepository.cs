@@ -86,7 +86,6 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .Include(a => a.Location)
                 .Where(a => a.IsAvailable 
                     && a.AddressStatus == AddressStatus.Active
-                    && a.CurrentContracts < a.MaxContracts
                     && a.Coworking.IsActive 
                     && a.Coworking.IsPartner
                     && a.Coworking.ApprovalStatus == CoworkingApprovalStatus.Approved

@@ -26,8 +26,6 @@
         ? $"{Model.Location.City}/{Model.Location.State}"
         : $"{Model.City}/{Model.State}";
     var yearlyPrice = Model.BasePrice;
-    var monthlyEquivalent = yearlyPrice / 12;
-    var vacancies = Model.MaxContracts - Model.CurrentContracts;
     var fullAddress = $"{Model.Address}, {Model.Number}"
         + (!string.IsNullOrEmpty(Model.Complement) ? $", {Model.Complement}" : "")
         + $" — {Model.Neighborhood}, {Model.City}/{Model.State} — CEP {Model.ZipCode}";
@@ -845,10 +843,7 @@ body { overflow-x: hidden; }
             <i class="bi bi-building" style="color:#c69844;"></i>
             <span>@fullAddress</span>
         </div>
-        @if (vacancies > 0 && vacancies <= 5)
-        {
-            <div class="ad-badge-vacancy mb-3"><i class="bi bi-exclamation-triangle-fill"></i> Apenas @vacancies @(vacancies == 1 ? "vaga disponível" : "vagas disponíveis")</div>
-        }
+        @* Badge de vagas removido — limite de contratos não é mais aplicado *@
 
         <div class="mb-4">
             <div class="ad-section-label">Documentos de confiança</div>
@@ -879,8 +874,7 @@ body { overflow-x: hidden; }
     </div>
     <aside class="ad-sticky-card">
         <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">A partir de</div>
-        <div class="ad-price-yearly mb-2">R$ @yearlyPrice.ToString("N2") <small>/ano</small></div>
-        <div class="ad-price-monthly mb-3">Equiv. R$ @monthlyEquivalent.ToString("N2")/mês</div>
+        <div class="ad-price-yearly mb-3">R$ @yearlyPrice.ToString("N2") <small>/ano</small></div>
         <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal w-100 justify-content-center" data-funnel="cta_address_detail_contratar" data-show-loading>
             <i class="bi bi-bank"></i> Contratar
         </a>
@@ -893,7 +887,6 @@ body { overflow-x: hidden; }
 <div class="ad-mobile-cta">
     <div>
         <div style="color:#f8fafc; font-weight:700;">R$ @yearlyPrice.ToString("N2") <small style="color:#94a3b8; font-weight:400;">/ano</small></div>
-        <div style="color:#10b981; font-size:0.8rem;">R$ @monthlyEquivalent.ToString("N2")/mês</div>
     </div>
     <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:12px 18px; white-space:nowrap;" data-funnel="cta_address_detail_mobile" data-show-loading>Contratar</a>
 </div>

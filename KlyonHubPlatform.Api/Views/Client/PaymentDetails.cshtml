@@ -20,8 +20,11 @@
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
     var showPixInDropdown = showPixAnnualInDropdown || showPixSingleInDropdown;
-    var addressHasCard1x = contract?.CoworkingAddress?.CardPrice1x.HasValue == true && contract.CoworkingAddress.CardPrice1x!.Value > 0;
-    var addressHasCardMonthly = contract?.CoworkingAddress?.CardPriceMonthly.HasValue == true && contract.CoworkingAddress.CardPriceMonthly!.Value > 0;
+    var snapshotListPrice = ViewBag.SnapshotListPrice as decimal? ?? (contract?.SnapshotListPrice > 0 ? contract.SnapshotListPrice : Model.SnapshotListPrice > 0 ? Model.SnapshotListPrice : Model.Amount);
+    var snapshotPrice1x = ViewBag.SnapshotPrice1x as decimal? ?? snapshotListPrice;
+    var snapshotPriceMonthly = ViewBag.SnapshotPriceMonthly as decimal? ?? snapshotListPrice;
+    var addressHasCard1x = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("Card1x");
+    var addressHasCardMonthly = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("CardMonthly");
     var showCreditCardInDropdown = (addressHasCard1x || addressHasCardMonthly) && (!hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly"));
     var showCard1x = addressHasCard1x && !hiddenPaymentOptions.Contains("Card1x");
     var showCardMonthly = addressHasCardMonthly && !hiddenPaymentOptions.Contains("CardMonthly");
@@ -183,17 +186,15 @@
                     <dd class="col-sm-8">
                         @if (showCreditCardSection && isPending)
                         {
-                            var addrVal = Model.Subscription?.Contract?.CoworkingAddress;
-                            var price1xVal = addrVal?.CardPrice1x;
-                            var priceMonthlyVal = addrVal?.CardPriceMonthly;
-                            var has1xVal = price1xVal.HasValue && price1xVal.Value > 0;
-                            var hasMonthlyVal = priceMonthlyVal.HasValue && priceMonthlyVal.Value > 0;
-                            if (!has1xVal && !hasMonthlyVal) { has1xVal = true; price1xVal = Model.Amount; }
+                            var price1xVal = snapshotPrice1x;
+                            var priceMonthlyVal = snapshotPriceMonthly;
+                            var has1xVal = showCard1x;
+                            var hasMonthlyVal = showCardMonthly;
                             var use1xAsInitial = showCard1x;
-                            var initialVal = use1xAsInitial ? (price1xVal ?? Model.Amount) : (priceMonthlyVal ?? 0);
+                            var initialVal = use1xAsInitial ? price1xVal : priceMonthlyVal;
                             var initialLabel = use1xAsInitial ? "recorrência anual — equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
-                            var price1xStr = price1xVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-                            var priceMonthlyStr = priceMonthlyVal?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                            var price1xStr = price1xVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
+                            var priceMonthlyStr = priceMonthlyVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
                             <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr">
                                 <h4 class="text-primary mb-0">R$ <span id="paymentInfoValorDisplay">@initialVal.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></h4>
                                 <small class="text-muted d-block mt-1" id="paymentInfoValorLabel">@initialLabel</small>
@@ -220,6 +221,16 @@
                         else
                         {
                             <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                            @if (Model.SnapshotDiscountAmount > 0)
+                            {
+                                <small class="text-success d-block mt-1">
+                                    <i class="bi bi-tag"></i> Cupom @Model.PromoCodeSnapshot aplicado — desconto de R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
+                                    @if (Model.SnapshotListPrice > Model.Amount)
+                                    {
+                                        <span class="text-muted">(de R$ @Model.SnapshotListPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
+                                    }
+                                </small>
+                            }
                             @if (Model.Method == PaymentMethod.PIX)
                             {
                                 var pixMonthly = Model.Amount / 12m;
@@ -232,6 +243,25 @@
                             }
                         }
                     </dd>
+
+                    @if (isPending && isPaymentOwner && contract != null && string.IsNullOrEmpty(Model.PromoCodeSnapshot))
+                    {
+                        <dt class="col-sm-4">Cupom:</dt>
+                        <dd class="col-sm-8">
+                            <form method="post" action="@Url.Action("ApplyPromoCode", "Client")" class="row g-2 align-items-center">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="paymentId" value="@Model.Id" />
+                                <div class="col-auto flex-grow-1" style="min-width: 180px;">
+                                    <input type="text" name="promoCode" class="form-control" placeholder="Código promocional" maxlength="50" autocomplete="off" />
+                                </div>
+                                <div class="col-auto">
+                                    <button type="submit" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-tag"></i> Aplicar
+                                    </button>
+                                </div>
+                            </form>
+                        </dd>
+                    }
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
@@ -338,21 +368,13 @@
                             }
                             @if (showCreditCardSection)
                             {
-                                var pageAddr = Model.Subscription?.Contract?.CoworkingAddress;
-                                var pagePrice1x = pageAddr?.CardPrice1x;
-                                var pagePriceMonthly = pageAddr?.CardPriceMonthly;
-                                var pageHas1x = pagePrice1x.HasValue && pagePrice1x.Value > 0;
-                                var pageHasMonthly = pagePriceMonthly.HasValue && pagePriceMonthly.Value > 0;
-                                if (!pageHas1x && !pageHasMonthly) { pageHas1x = true; pagePrice1x = Model.Amount; }
-                                // Exibir opções 1x/mensal quando a seção de cartão está visível (método atual ou fallback por opção oculta)
-                                var pageShowCard1x = (showCard1x && pageHas1x) || (showCreditCardSection && pageHas1x);
-                                var pageShowCardMonthly = (showCardMonthly && pageHasMonthly) || (showCreditCardSection && pageHasMonthly);
-                                if (showCreditCardSection && !pageShowCard1x && !pageShowCardMonthly)
-                                {
-                                    pageShowCard1x = true;
-                                    pagePrice1x = Model.Amount;
-                                }
-                                var pageCardFirstChecked = pageShowCard1x ? "1x" : (pageShowCardMonthly ? "monthly" : "");
+                                var pagePrice1x = snapshotPrice1x;
+                                var pagePriceMonthly = snapshotPriceMonthly;
+                                var pageHas1x = showCard1x;
+                                var pageHasMonthly = showCardMonthly;
+                                var pageShowCard1x = showCard1x;
+                                var pageShowCardMonthly = showCardMonthly;
+                                var pageCardFirstChecked = contract?.CardPlanType == ContractCardPlanType.CardMonthly ? "monthly" : (pageShowCard1x ? "1x" : (pageShowCardMonthly ? "monthly" : ""));
                                 <div class="mt-3 pt-2 border-top" id="pageCardPlanOptionWrap">
                                     @if (!pageShowCard1x && !pageShowCardMonthly)
                                     {
@@ -364,17 +386,17 @@
                                         <div id="pageCardPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Selecione a forma de cobrança antes de clicar em "Pagar com cartão".</div>
                                         @if (pageShowCard1x)
                                         {
-                                            var pageMonthly1x = ((pagePrice1x ?? Model.Amount) / 12m);
+                                            var pageMonthly1x = pagePrice1x / 12m;
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" @(pageCardFirstChecked == "1x" ? "checked" : "")>
-                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @((pagePrice1x ?? Model.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @pagePrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
                                             </div>
                                         }
                                         @if (pageShowCardMonthly)
                                         {
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlanMonthly" value="monthly" @(pageCardFirstChecked == "monthly" ? "checked" : "")>
-                                                <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @((pagePriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
+                                                <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @pagePriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                                             </div>
                                         }
                                     }
@@ -1176,12 +1198,10 @@
 @if (isPending && showCreditCardSection)
 {
     var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
-    var addressCard = Model.Subscription?.Contract?.CoworkingAddress;
-    decimal? cardPrice1x = addressCard?.CardPrice1x;
-    decimal? cardPriceMonthly = addressCard?.CardPriceMonthly;
-    var has1x = cardPrice1x.HasValue && cardPrice1x.Value > 0;
-    var hasMonthly = cardPriceMonthly.HasValue && cardPriceMonthly.Value > 0;
-    if (!has1x && !hasMonthly) { has1x = true; cardPrice1x = (decimal)totalAmountForCard; }
+    var cardPrice1x = snapshotPrice1x;
+    var cardPriceMonthly = snapshotPriceMonthly;
+    var has1x = showCard1x;
+    var hasMonthly = showCardMonthly;
     var creditCardsJson = "[]";
     if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
     {
@@ -1205,7 +1225,7 @@
         creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
     }
 <!-- Modal Pagar com cartão (processar pagamento no Asaas) -->
-<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))" data-card-price-1x="@(cardPrice1x?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")" data-card-price-monthly="@(cardPriceMonthly?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")">
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true" data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))" data-card-price-1x="@(cardPrice1x.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))" data-card-price-monthly="@(cardPriceMonthly.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -1223,17 +1243,17 @@
                     <div id="payModalPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Campo obrigatório.</div>
                     @if (has1x && showCard1x)
                     {
-                        var modalMonthly1x = ((cardPrice1x ?? totalAmountForCard) / 12m);
+                        var modalMonthly1x = cardPrice1x / 12m;
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" checked>
-                            <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual) — R$ @((cardPrice1x ?? totalAmountForCard).ToString(NumberFormatConstants.CurrencyTwoDecimals)) — equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" @(contract?.CardPlanType != ContractCardPlanType.CardMonthly ? "checked" : "")>
+                            <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual) — R$ @cardPrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
                         </div>
                     }
                     @if (hasMonthly && showCardMonthly)
                     {
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(!showCard1x ? "checked" : "")>
-                            <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal) — R$ @((cardPriceMonthly ?? 0).ToString(NumberFormatConstants.CurrencyTwoDecimals))</label>
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @((!showCard1x || contract?.CardPlanType == ContractCardPlanType.CardMonthly) ? "checked" : "")>
+                            <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal) — R$ @cardPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                         </div>
                     }
                 </div>

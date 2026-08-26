@@ -1,0 +1,104 @@
+@using KlyonHubPlatform.Domain.Core.Enums
+@model List<KlyonHubPlatform.Application.DTOs.PromoCode.PromoCodeDto>
+@{
+    ViewData[ViewDataKeys.Title] = "Cupons de Desconto";
+    Layout = LayoutPaths.Layout;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-ticket-perforated"></i> Cupons do Coworking</h2>
+    <a href="/Parceiro/MyAddresses" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Crie cupons válidos apenas para o seu coworking. Cada código deve ser único entre os cupons ativos no sistema.
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><strong>Novo cupom</strong></div>
+    <div class="card-body">
+        <form method="post" action="/Parceiro/CreatePromoCode" class="row g-3">
+            @Html.AntiForgeryToken()
+            <div class="col-md-3">
+                <label class="form-label">Código</label>
+                <input type="text" name="code" class="form-control text-uppercase" maxlength="50" required placeholder="EX: VERAO2026" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <select name="type" class="form-select">
+                    <option value="@PromoDiscountType.Percent">Percentual (%)</option>
+                    <option value="@PromoDiscountType.Fixed">Valor fixo (R$)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Valor</label>
+                <input type="number" name="value" class="form-control" step="0.01" min="0.01" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Válido de</label>
+                <input type="date" name="validFrom" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Válido até</label>
+                <input type="date" name="validTo" class="form-control" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Máx. usos</label>
+                <input type="number" name="maxRedemptions" class="form-control" min="1" placeholder="∞" />
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Criar cupom</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Desconto</th>
+                            <th>Validade</th>
+                            <th>Usos</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in Model)
+                        {
+                            <tr>
+                                <td><code>@p.Code</code></td>
+                                <td>@(p.Type == PromoDiscountType.Percent ? $"{p.Value:N2}%" : $"R$ {p.Value:N2}")</td>
+                                <td>@p.ValidFrom.ToString("dd/MM/yyyy") @(p.ValidTo.HasValue ? $"– {p.ValidTo:dd/MM/yyyy}" : "– sem fim")</td>
+                                <td>@p.RedemptionCount @(p.MaxRedemptions.HasValue ? $"/ {p.MaxRedemptions}" : "")</td>
+                                <td>
+                                    <span class="badge bg-@(p.IsActive ? "success" : "secondary")">@(p.IsActive ? "Ativo" : "Inativo")</span>
+                                </td>
+                                <td class="text-end">
+                                    @if (p.IsActive)
+                                    {
+                                        <form method="post" action="/Parceiro/DeactivatePromoCode" class="d-inline" onsubmit="return confirm('Desativar este cupom?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@p.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Desativar</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mb-0">Nenhum cupom cadastrado para seu coworking.</p>
+        }
+    </div>
+</div>

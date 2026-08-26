@@ -59,6 +59,8 @@ namespace KlyonHubPlatform.Api.Controllers
         private readonly IClientOnboardingDocumentService _clientOnboardingDocumentService;
         private readonly IContractTimelineService _contractTimelineService;
         private readonly IClientProfileService _clientProfileService;
+        private readonly IPromoCodeService _promoCodeService;
+        private readonly IAddressPricingService _addressPricingService;
         public ClientController(
             IContractService contractService,
             ICoworkingService coworkingService,
@@ -88,7 +90,9 @@ namespace KlyonHubPlatform.Api.Controllers
             IContractPartnerDocumentService contractPartnerDocumentService,
             IClientOnboardingDocumentService clientOnboardingDocumentService,
             IContractTimelineService contractTimelineService,
-            IClientProfileService clientProfileService)
+            IClientProfileService clientProfileService,
+            IPromoCodeService promoCodeService,
+            IAddressPricingService addressPricingService)
         {
             _contractService = contractService;
             _coworkingService = coworkingService;
@@ -119,6 +123,8 @@ namespace KlyonHubPlatform.Api.Controllers
             _clientOnboardingDocumentService = clientOnboardingDocumentService;
             _contractTimelineService = contractTimelineService;
             _clientProfileService = clientProfileService;
+            _promoCodeService = promoCodeService;
+            _addressPricingService = addressPricingService;
         }
         private async Task<long> GetMaxPhotoSizeBytesAsync()
         {
@@ -137,6 +143,153 @@ namespace KlyonHubPlatform.Api.Controllers
 
         private object CardPaymentSuccessJson(Payment payment, string message) =>
             new { success = true, message, redirectUrl = PaymentSuccessUrl(payment.Id) };
+
+        private async Task<decimal?> GetAddressSurchargePercentAsync(int coworkingAddressId, CancellationToken cancellationToken = default) =>
+            await _context.CoworkingAddresses.AsNoTracking()
+                .Where(a => a.Id == coworkingAddressId)
+                .Select(a => a.CardMonthlySurchargePercent)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        private async Task<decimal?> GetContractSurchargePercentAsync(Contract contract, CancellationToken cancellationToken = default)
+        {
+            if (contract.SnapshotCardMonthlySurchargePercent.HasValue)
+                return contract.SnapshotCardMonthlySurchargePercent;
+            return await GetAddressSurchargePercentAsync(contract.CoworkingAddressId, cancellationToken);
+        }
+
+        private static decimal GetDiscountedBasePrice(decimal snapshotListPrice, decimal snapshotDiscountAmount) =>
+            Math.Max(0, snapshotListPrice - snapshotDiscountAmount);
+
+        private decimal ResolvePromoBaseAmount(
+            decimal snapshotListPrice,
+            decimal? surchargePercent,
+            PaymentMethod method,
+            ContractCardPlanType? cardPlanType)
+        {
+            if (method == PaymentMethod.CreditCard && cardPlanType == ContractCardPlanType.CardMonthly)
+                return _addressPricingService.GetMonthlyInstallment(snapshotListPrice, surchargePercent);
+            return snapshotListPrice;
+        }
+
+        private decimal CalculateCheckoutAmount(
+            decimal snapshotListPrice,
+            decimal snapshotDiscountAmount,
+            decimal? surchargePercent,
+            PaymentMethod method,
+            ContractCardPlanType? cardPlanType)
+        {
+            if (method == PaymentMethod.CreditCard && cardPlanType == ContractCardPlanType.CardMonthly)
+            {
+                var monthlyBeforeDiscount = _addressPricingService.GetMonthlyInstallment(snapshotListPrice, surchargePercent);
+                return Math.Max(0, monthlyBeforeDiscount - snapshotDiscountAmount);
+            }
+
+            var discountedBase = GetDiscountedBasePrice(snapshotListPrice, snapshotDiscountAmount);
+            if (method == PaymentMethod.BankTransfer)
+                return _addressPricingService.GetBoletoPrice(discountedBase);
+            return _addressPricingService.GetAnnualPrice(discountedBase);
+        }
+
+        private async Task SyncCheckoutAmountFromSnapshotAsync(
+            Payment payment,
+            Contract contract,
+            PaymentMethod method,
+            ContractCardPlanType? cardPlanType,
+            CancellationToken cancellationToken)
+        {
+            var snapshotListPrice = ResolveSnapshotListPrice(payment, contract);
+            var surcharge = await GetContractSurchargePercentAsync(contract, cancellationToken);
+            var effectiveCardPlan = cardPlanType ?? contract.CardPlanType;
+
+            var amount = CalculateCheckoutAmount(
+                snapshotListPrice,
+                payment.SnapshotDiscountAmount,
+                surcharge,
+                method,
+                method == PaymentMethod.CreditCard ? effectiveCardPlan : null);
+
+            var previousAmount = payment.Amount;
+            payment.Amount = amount;
+            payment.UpdatedAt = DateTime.UtcNow;
+
+            if (method == PaymentMethod.BankTransfer && previousAmount != amount)
+            {
+                payment.BoletoCode = null;
+                payment.BoletoBarcode = null;
+                payment.BoletoExpiresAt = null;
+                payment.BankSlipUrl = null;
+            }
+
+            contract.MonthlyValue = amount;
+            contract.SnapshotMonthlyValue = amount;
+
+            if (method == PaymentMethod.PIX && cardPlanType.HasValue)
+                contract.CardPlanType = cardPlanType.Value;
+            else if (method == PaymentMethod.CreditCard)
+                contract.CardPlanType = effectiveCardPlan ?? ContractCardPlanType.Card1x;
+
+            if (payment.SubscriptionId.HasValue)
+            {
+                var subscription = await _context.Subscriptions.FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value, cancellationToken);
+                if (subscription != null)
+                    subscription.MonthlyAmount = amount;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private Task<(decimal ChargeAmount, PaymentMethod InitialPaymentMethod, ContractCardPlanType? CardPlanType)> ResolveInitialContractPricingAsync(
+            decimal basePrice,
+            string option,
+            decimal? surchargePercent,
+            CancellationToken cancellationToken = default)
+        {
+            (decimal ChargeAmount, PaymentMethod InitialPaymentMethod, ContractCardPlanType? CardPlanType) result = option switch
+            {
+                "Card1x" => (
+                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.Card1x),
+                    PaymentMethod.CreditCard,
+                    (ContractCardPlanType?)ContractCardPlanType.Card1x),
+                "CardMonthly" => (
+                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.CardMonthly),
+                    PaymentMethod.CreditCard,
+                    (ContractCardPlanType?)ContractCardPlanType.CardMonthly),
+                "PixAnnual" => (
+                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.PixAnnual),
+                    PaymentMethod.PIX,
+                    (ContractCardPlanType?)ContractCardPlanType.PixAnnual),
+                "PIX" => (
+                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.None),
+                    PaymentMethod.PIX,
+                    (ContractCardPlanType?)ContractCardPlanType.None),
+                _ => (
+                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.PixAnnual),
+                    PaymentMethod.PIX,
+                    (ContractCardPlanType?)ContractCardPlanType.PixAnnual)
+            };
+            return Task.FromResult(result);
+        }
+
+        private decimal ResolveSnapshotListPrice(Payment payment, Contract? contract) =>
+            payment.SnapshotListPrice > 0
+                ? payment.SnapshotListPrice
+                : contract?.SnapshotListPrice > 0
+                    ? contract.SnapshotListPrice
+                    : contract?.MonthlyValue ?? payment.Amount;
+
+        private async Task<(decimal Price1x, decimal PriceMonthly)> ResolveSnapshotCardPricesAsync(
+            Payment payment,
+            Contract? contract,
+            CancellationToken cancellationToken = default)
+        {
+            var listPrice = ResolveSnapshotListPrice(payment, contract);
+            var surcharge = contract != null
+                ? await GetContractSurchargePercentAsync(contract, cancellationToken)
+                : null;
+            return (
+                _addressPricingService.GetChargeAmount(listPrice, surcharge, ContractCardPlanType.Card1x),
+                _addressPricingService.GetChargeAmount(listPrice, surcharge, ContractCardPlanType.CardMonthly));
+        }
 
         private async Task<string?> ResolvePostPaymentOnboardingRedirectUrlAsync(
             int userId,
@@ -1201,8 +1354,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 return CommercialOnboardingFullResult.Fail("Endereço não encontrado.");
             if (!addressEntity.Coworking.IsActive
                 || addressEntity.AddressStatus != AddressStatus.Active
-                || !addressEntity.IsAvailable
-                || addressEntity.CurrentContracts >= addressEntity.MaxContracts)
+                || !addressEntity.IsAvailable)
                 return CommercialOnboardingFullResult.Fail("Este endereço não está disponível para contratação no momento.");
 
             // Para Endereço Fiscal com CNPJ: validar situação cadastral via OpenCnpj (sem bloqueio por CNAE)
@@ -1724,7 +1876,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotFound;
                 return RedirectToAction(ActionNames.ChooseLocation);
             }
-            if (!addressEntity.Coworking.IsActive || addressEntity.AddressStatus != AddressStatus.Active || !addressEntity.IsAvailable || addressEntity.CurrentContracts >= addressEntity.MaxContracts)
+            if (!addressEntity.Coworking.IsActive || addressEntity.AddressStatus != AddressStatus.Active || !addressEntity.IsAvailable)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotAvailableForContract;
                 return RedirectToAction(ActionNames.ChooseLocation);
@@ -1759,46 +1911,21 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var hiddenRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
             var hiddenSet = (hiddenRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var hasCard1x = addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0;
-            var hasCardMonthly = addressEntity.CardPriceMonthly.HasValue && addressEntity.CardPriceMonthly.Value > 0;
+            var hasCard = _addressPricingService.SupportsCardPayment(addressEntity.BasePrice);
             string option;
             if (!hiddenSet.Contains("PixAnnual"))
                 option = "PixAnnual";
             else if (!hiddenSet.Contains("PIX"))
                 option = "PIX";
-            else if (hasCard1x && !hiddenSet.Contains("Card1x"))
+            else if (hasCard && !hiddenSet.Contains("Card1x"))
                 option = "Card1x";
-            else if (hasCardMonthly && !hiddenSet.Contains("CardMonthly"))
+            else if (hasCard && !hiddenSet.Contains("CardMonthly"))
                 option = "CardMonthly";
             else
                 option = "PIX";
-            decimal monthlyValueForContract;
-            PaymentMethod? initialPaymentMethod = null;
-            ContractCardPlanType? cardPlanType = null;
-            if (option == "Card1x")
-            {
-                monthlyValueForContract = addressEntity.CardPrice1x!.Value;
-                initialPaymentMethod = PaymentMethod.CreditCard;
-                cardPlanType = ContractCardPlanType.Card1x;
-            }
-            else if (option == "CardMonthly")
-            {
-                monthlyValueForContract = addressEntity.CardPriceMonthly!.Value;
-                initialPaymentMethod = PaymentMethod.CreditCard;
-                cardPlanType = ContractCardPlanType.CardMonthly;
-            }
-            else if (option == "PixAnnual")
-            {
-                monthlyValueForContract = addressEntity.BasePrice;
-                initialPaymentMethod = PaymentMethod.PIX;
-                cardPlanType = ContractCardPlanType.PixAnnual;
-            }
-            else
-            {
-                monthlyValueForContract = addressEntity.BasePrice;
-                initialPaymentMethod = PaymentMethod.PIX;
-                cardPlanType = ContractCardPlanType.None;
-            }
+            var surchargePercent = addressEntity.CardMonthlySurchargePercent;
+            var (monthlyValueForContract, initialPaymentMethod, cardPlanType) =
+                await ResolveInitialContractPricingAsync(addressEntity.BasePrice, option, surchargePercent, cancellationToken);
             var isCommercialFlow = string.Equals(serviceType?.Trim(), "comercial", StringComparison.OrdinalIgnoreCase);
             var contractServiceCode = isCommercialFlow ? ServiceCodes.CommercialAddressContracting : ServiceCodes.FiscalAddressContracting;
             var resolvedContractServiceId = await _context.Services.AsNoTracking()
@@ -1899,13 +2026,6 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = msg;
                     return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
                 }
-                if (addressEntity.CurrentContracts >= addressEntity.MaxContracts)
-                {
-                    var msg = "Este endereço atingiu o limite máximo de contratos.";
-                    if (isAjax) return Json(new { success = false, message = msg, redirectUrl = Url.Action(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId }) });
-                    TempData[ErrorMessages.TempDataKey] = msg;
-                    return RedirectToAction(ActionNames.AvailableAddresses, new { locationId = addressEntity.LocationId });
-                }
                 var existingContractForAddress = await _clientAppService.GetExistingContractForAddressAsync(client.Id, coworkingAddressId, cancellationToken);
                 if (existingContractForAddress != null)
                 {
@@ -1948,36 +2068,18 @@ namespace KlyonHubPlatform.Api.Controllers
                     return RedirectToAction(ActionNames.CreateContractAndGoToPayment, new { coworkingAddressId });
                 }
                 decimal monthlyValueForContract;
-                PaymentMethod? initialPaymentMethod = null;
-                ContractCardPlanType? cardPlanType = null;
-                if (option == "Card1x" && addressEntity.CardPrice1x.HasValue && addressEntity.CardPrice1x.Value > 0)
+                PaymentMethod? initialPaymentMethod;
+                ContractCardPlanType? cardPlanType;
+                var surchargePercent = addressEntity.CardMonthlySurchargePercent;
+                if (option == "Card1x" || option == "CardMonthly" || option == "PixAnnual" || option == "PIX")
                 {
-                    monthlyValueForContract = addressEntity.CardPrice1x.Value;
-                    initialPaymentMethod = PaymentMethod.CreditCard;
-                    cardPlanType = ContractCardPlanType.Card1x;
-                }
-                else if (option == "CardMonthly" && addressEntity.CardPriceMonthly.HasValue && addressEntity.CardPriceMonthly.Value > 0)
-                {
-                    monthlyValueForContract = addressEntity.CardPriceMonthly.Value;
-                    initialPaymentMethod = PaymentMethod.CreditCard;
-                    cardPlanType = ContractCardPlanType.CardMonthly;
-                }
-                else if (option == "PixAnnual")
-                {
-                    monthlyValueForContract = addressEntity.BasePrice;
-                    initialPaymentMethod = PaymentMethod.PIX;
-                    cardPlanType = ContractCardPlanType.PixAnnual;
-                }
-                else if (option == "PIX")
-                {
-                    monthlyValueForContract = addressEntity.BasePrice;
-                    initialPaymentMethod = PaymentMethod.PIX;
-                    cardPlanType = ContractCardPlanType.None;
+                    (monthlyValueForContract, initialPaymentMethod, cardPlanType) =
+                        await ResolveInitialContractPricingAsync(addressEntity.BasePrice, option, surchargePercent, cancellationToken);
                 }
                 else
                 {
-                    monthlyValueForContract = addressEntity.BasePrice;
-                    initialPaymentMethod = PaymentMethod.PIX;
+                    (monthlyValueForContract, initialPaymentMethod, cardPlanType) =
+                        await ResolveInitialContractPricingAsync(addressEntity.BasePrice, "PixAnnual", surchargePercent, cancellationToken);
                 }
                 var fiscalSvcId = await _context.Services.AsNoTracking()
                     .Where(s => s.Code == ServiceCodes.FiscalAddressContracting)
@@ -2490,13 +2592,20 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             var hiddenPaymentRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
             var hiddenPaymentSet = (hiddenPaymentRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var paymentContract = payment.Subscription?.Contract;
+            var snapshotListPrice = ResolveSnapshotListPrice(payment, paymentContract);
+            var cardMonthlySurcharge = paymentContract != null
+                ? await GetContractSurchargePercentAsync(paymentContract, cancellationToken)
+                : null;
+            var snapshotPrice1x = _addressPricingService.GetChargeAmount(snapshotListPrice, cardMonthlySurcharge, ContractCardPlanType.Card1x);
+            var snapshotPriceMonthly = _addressPricingService.GetChargeAmount(snapshotListPrice, cardMonthlySurcharge, ContractCardPlanType.CardMonthly);
+            var supportsCard = _addressPricingService.SupportsCardPayment(snapshotListPrice);
             if (isAuthorized && payment.Status == PaymentStatus.Pending && isAsaasConfigured)
             {
                 var showPixInDropdownEarly = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
                 var showBoletoInDropdownEarly = !hiddenPaymentSet.Contains("Boleto");
-                var addressHasCardPricesEarly = payment.Subscription?.Contract?.CoworkingAddress is { } addrE && ((addrE.CardPrice1x.HasValue && addrE.CardPrice1x.Value > 0) || (addrE.CardPriceMonthly.HasValue && addrE.CardPriceMonthly.Value > 0));
-                var hasCard1xEarly = payment.Subscription?.Contract?.CoworkingAddress?.CardPrice1x is { } p1xE && p1xE > 0;
-                var hasCardMonthlyEarly = payment.Subscription?.Contract?.CoworkingAddress?.CardPriceMonthly is { } pMonE && pMonE > 0;
+                var hasCard1xEarly = supportsCard && !hiddenPaymentSet.Contains("Card1x");
+                var hasCardMonthlyEarly = supportsCard && !hiddenPaymentSet.Contains("CardMonthly");
                 var showCreditCardInDropdownEarly = (hasCard1xEarly || hasCardMonthlyEarly) && (!hiddenPaymentSet.Contains("Card1x") || !hiddenPaymentSet.Contains("CardMonthly"));
                 var showPixCardCore = (payment.Method == PaymentMethod.PIX && showPixInDropdownEarly) ||
                     (payment.Method == PaymentMethod.BankTransfer && !showBoletoInDropdownEarly && showPixInDropdownEarly) ||
@@ -2558,11 +2667,15 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
             }
             ViewBag.HiddenPaymentOptions = hiddenPaymentSet;
+            ViewBag.SnapshotListPrice = snapshotListPrice;
+            ViewBag.SnapshotPrice1x = snapshotPrice1x;
+            ViewBag.SnapshotPriceMonthly = snapshotPriceMonthly;
+            ViewBag.SnapshotBoletoPrice = _addressPricingService.GetBoletoPrice(
+                GetDiscountedBasePrice(snapshotListPrice, payment.SnapshotDiscountAmount));
             var showPixInDropdownCore = !hiddenPaymentSet.Contains("PixAnnual") || !hiddenPaymentSet.Contains("PIX");
             var showBoletoInDropdownCore = !hiddenPaymentSet.Contains("Boleto");
-            var addressHasCardPrices = payment.Subscription?.Contract?.CoworkingAddress is { } addr && ((addr.CardPrice1x.HasValue && addr.CardPrice1x.Value > 0) || (addr.CardPriceMonthly.HasValue && addr.CardPriceMonthly.Value > 0));
-            var hasCard1x = payment.Subscription?.Contract?.CoworkingAddress?.CardPrice1x is { } p1x && p1x > 0;
-            var hasCardMonthly = payment.Subscription?.Contract?.CoworkingAddress?.CardPriceMonthly is { } pMon && pMon > 0;
+            var hasCard1x = supportsCard && !hiddenPaymentSet.Contains("Card1x");
+            var hasCardMonthly = supportsCard && !hiddenPaymentSet.Contains("CardMonthly");
             var showCreditCardInDropdownCore = (hasCard1x || hasCardMonthly) && (!hiddenPaymentSet.Contains("Card1x") || !hiddenPaymentSet.Contains("CardMonthly"));
             var showCreditCardSectionCore = (payment.Method == PaymentMethod.CreditCard && showCreditCardInDropdownCore) ||
                 (payment.Method == PaymentMethod.PIX && !showPixInDropdownCore && showCreditCardInDropdownCore) ||
@@ -2588,19 +2701,17 @@ namespace KlyonHubPlatform.Api.Controllers
             }
             string? creditCardPlanLabel = null;
             string? creditCardRecurrence = null;
-            if (payment.Method == PaymentMethod.CreditCard && payment.Subscription?.Contract?.CoworkingAddress != null)
+            if (payment.Method == PaymentMethod.CreditCard && paymentContract != null)
             {
-                var address = payment.Subscription.Contract.CoworkingAddress;
                 var amount = payment.Amount;
-                const decimal tolerance = 0.01m;
-                if (address.CardPrice1x.HasValue && Math.Abs(amount - address.CardPrice1x.Value) <= tolerance)
+                if (paymentContract.CardPlanType == ContractCardPlanType.Card1x)
                 {
-                    creditCardPlanLabel = $"À vista (1x no cartão) — R$ {address.CardPrice1x.Value:N2} — recorrência anual cobrada no cartão de crédito";
+                    creditCardPlanLabel = $"À vista (1x no cartão) — R$ {amount:N2} — recorrência anual cobrada no cartão de crédito";
                     creditCardRecurrence = "annual";
                 }
-                else if (address.CardPriceMonthly.HasValue && Math.Abs(amount - address.CardPriceMonthly.Value) <= tolerance)
+                else if (paymentContract.CardPlanType == ContractCardPlanType.CardMonthly)
                 {
-                    creditCardPlanLabel = $"Venda mensal — R$ {address.CardPriceMonthly.Value:N2} — recorrência mensal no cartão de crédito";
+                    creditCardPlanLabel = $"Venda mensal — R$ {amount:N2} — recorrência mensal no cartão de crédito";
                     creditCardRecurrence = "monthly";
                 }
             }
@@ -2822,12 +2933,10 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 if (paymentMethod == PaymentMethod.CreditCard && contract != null)
                 {
-                    var address = await _context.CoworkingAddresses.FindAsync(contract.CoworkingAddressId);
-                    var hasCard1x = address?.CardPrice1x is { } p1x && p1x > 0;
-                    var hasCardMonthly = address?.CardPriceMonthly is { } pMon && pMon > 0;
-                    if (!hasCard1x && !hasCardMonthly)
+                    var listPrice = contract.SnapshotListPrice > 0 ? contract.SnapshotListPrice : contract.MonthlyValue;
+                    if (!_addressPricingService.SupportsCardPayment(listPrice))
                     {
-                        var msg = "O parceiro não configurou opções de pagamento no cartão para este endereço. Disponível PIX (recorrente anual ou único).";
+                        var msg = "Pagamento no cartão não disponível para este contrato. Utilize PIX ou boleto.";
                         TempData[ErrorMessages.TempDataKey] = msg;
                         if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
                             return StatusCode(400, new { error = msg });
@@ -2839,6 +2948,18 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.BoletoNoLongerAvailable;
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
+
+                ContractCardPlanType? checkoutCardPlan = paymentMethod switch
+                {
+                    PaymentMethod.CreditCard => contract.CardPlanType ?? ContractCardPlanType.Card1x,
+                    PaymentMethod.PIX => pixPlanType ?? contract.CardPlanType,
+                    _ => contract.CardPlanType
+                };
+                var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
+                var trackedContract = await _context.Contracts.FirstOrDefaultAsync(c => c.Id == contract.Id, cancellationToken);
+                if (trackedPayment != null && trackedContract != null)
+                    await SyncCheckoutAmountFromSnapshotAsync(trackedPayment, trackedContract, paymentMethod, checkoutCardPlan, cancellationToken);
+
                 await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod, pixPlanType);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentMethodUpdated;
                 if (Request.Headers[HttpHeaderNames.XRequestedWith] == HttpHeaderNames.XRequestedWithValue)
@@ -3247,30 +3368,26 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Json(new { success = false, error = ErrorJson.PaymentNotBelongToProfile });
                 }
-                var address = contract.CoworkingAddress;
                 var cardPlanOption = (request.CardPlanOption ?? "").Trim().ToLowerInvariant();
-                decimal amountToCharge = payment.Amount;
-                ContractCardPlanType? newCardPlanType = null;
-                if (address != null)
+                var newCardPlanType = cardPlanOption == "monthly"
+                    ? ContractCardPlanType.CardMonthly
+                    : ContractCardPlanType.Card1x;
+                var snapshotListPrice = ResolveSnapshotListPrice(payment, contract);
+                var surcharge = await GetContractSurchargePercentAsync(contract, cancellationToken);
+                var newAmount = CalculateCheckoutAmount(
+                    snapshotListPrice,
+                    payment.SnapshotDiscountAmount,
+                    surcharge,
+                    PaymentMethod.CreditCard,
+                    newCardPlanType);
+                if (contract.CardPlanType != newCardPlanType || payment.Amount != newAmount)
                 {
-                    if (cardPlanOption == "monthly" && address.CardPriceMonthly.HasValue && address.CardPriceMonthly.Value > 0)
-                    {
-                        amountToCharge = address.CardPriceMonthly.Value;
-                        newCardPlanType = ContractCardPlanType.CardMonthly;
-                    }
-                    else if (address.CardPrice1x.HasValue && address.CardPrice1x.Value > 0)
-                    {
-                        amountToCharge = address.CardPrice1x.Value;
-                        newCardPlanType = ContractCardPlanType.Card1x;
-                    }
-                }
-                if (newCardPlanType.HasValue)
-                {
-                    contract.CardPlanType = newCardPlanType.Value;
-                    if (payment.Amount != amountToCharge)
-                    {
-                        payment.Amount = amountToCharge;
-                    }
+                    contract.CardPlanType = newCardPlanType;
+                    payment.Amount = newAmount;
+                    contract.MonthlyValue = newAmount;
+                    contract.SnapshotMonthlyValue = newAmount;
+                    if (payment.Subscription != null)
+                        payment.Subscription.MonthlyAmount = newAmount;
                     await _context.SaveChangesAsync(cancellationToken);
                 }
                 const int installmentsForGateway = 1;
@@ -4555,6 +4672,94 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
             return View(removalRequests);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApplyPromoCode(int paymentId, string promoCode, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+                if (payment == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.PaymentNotFound;
+                    return RedirectToAction(ActionNames.MyPayments);
+                }
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+                if (client == null)
+                    return RedirectToAction(ActionNames.RegisterClient);
+                var contract = payment.SubscriptionId.HasValue
+                    ? await _clientAppService.GetContractByIdAsync(
+                        (await _context.Subscriptions.AsNoTracking()
+                            .Where(s => s.Id == payment.SubscriptionId.Value)
+                            .Select(s => s.ContractId)
+                            .FirstOrDefaultAsync(cancellationToken)),
+                        cancellationToken)
+                    : null;
+                if (contract == null || contract.ClientId != client.Id)
+                    return Forbid();
+                if (payment.Status != PaymentStatus.Pending)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Cupom só pode ser aplicado em pagamentos pendentes.";
+                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                var listPrice = ResolveSnapshotListPrice(payment, contract);
+                var surcharge = await GetContractSurchargePercentAsync(contract, cancellationToken);
+                var promoBaseAmount = ResolvePromoBaseAmount(
+                    listPrice,
+                    surcharge,
+                    payment.Method,
+                    payment.Method == PaymentMethod.CreditCard ? contract.CardPlanType : null);
+                var address = await _context.CoworkingAddresses.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.Id == contract.CoworkingAddressId, cancellationToken);
+                if (address == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.AddressNotFound;
+                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                var result = await _promoCodeService.ValidateAndApplyAsync(
+                    promoCode,
+                    address.CoworkingId,
+                    address.Id,
+                    payment.Method,
+                    promoBaseAmount,
+                    cancellationToken);
+                if (!result.IsValid)
+                {
+                    TempData[ErrorMessages.TempDataKey] = result.ErrorMessage ?? "Cupom inválido.";
+                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                payment.PromoCodeId = result.PromoCodeId;
+                payment.PromoCodeSnapshot = result.PromoCodeSnapshot;
+                payment.SnapshotDiscountAmount = result.DiscountAmount;
+                payment.SnapshotListPrice = listPrice;
+                var chargeAmount = CalculateCheckoutAmount(
+                    listPrice,
+                    result.DiscountAmount,
+                    surcharge,
+                    payment.Method,
+                    payment.Method == PaymentMethod.CreditCard ? contract.CardPlanType : null);
+                payment.Amount = chargeAmount;
+                payment.UpdatedAt = DateTime.UtcNow;
+                contract.MonthlyValue = chargeAmount;
+                contract.SnapshotMonthlyValue = chargeAmount;
+                if (payment.SubscriptionId.HasValue)
+                {
+                    var subscription = await _context.Subscriptions.FirstOrDefaultAsync(s => s.Id == payment.SubscriptionId.Value, cancellationToken);
+                    if (subscription != null)
+                        subscription.MonthlyAmount = chargeAmount;
+                }
+                await _context.SaveChangesAsync(cancellationToken);
+                TempData[SuccessMessage.TempDataKey] = $"Cupom aplicado. Desconto de R$ {result.DiscountAmount:N2}.";
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("aplicar cupom", ex.Message);
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
         }
 
         /// <summary>

@@ -22,7 +22,6 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<List<CoworkingDocument>> GetPendingCoworkingDocumentsAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<int> GetPendingPaymentsWithoutFiscalNoteCountAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<int> GetRejectedFiscalNotesCountAsync(int coworkingId, CancellationToken cancellationToken = default);
-        Task<List<CoworkingAddress>> GetCoworkingAddressesWithCapacityPendingOrRejectedAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<Coworking?> GetCoworkingWithAddressesAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<List<Contract>> GetContractsForDashboardAsync(int coworkingId, CancellationToken cancellationToken = default);
         Task<int> GetPendingPaymentsCountForCoworkingAsync(int coworkingId, CancellationToken cancellationToken = default);
@@ -66,14 +65,6 @@ namespace KlyonHubPlatform.Application.Interfaces
         /// <summary>Obtém endereço por id (para uso do administrador, sem filtrar por coworking).</summary>
         Task<CoworkingAddress?> GetAddressWithCardPriceRequestsByAddressIdAsync(int addressId, CancellationToken cancellationToken = default);
         void AddCardPriceChangeRequest(CardPriceChangeRequest request);
-
-        // EditMaxContracts
-        Task<CoworkingAddress?> GetAddressWithMaxContractsRequestsAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default);
-        void AddMaxContractsChangeRequest(MaxContractsChangeRequest request);
-
-        // RequestCapacityChange
-        Task<CoworkingAddress?> GetAddressForCapacityChangeAsync(int addressId, int coworkingId, CancellationToken cancellationToken = default);
-        void AddCapacityChangeRequest(CapacityChangeRequest request);
 
         // ActiveContracts
         Task<(List<Contract> Items, int TotalItems)> GetContractsPagedAsync(int coworkingId, string? search, string? status, int? locationId, string? clientName, DateTime? startDateFrom, DateTime? startDateTo, int page, int pageSize, CancellationToken cancellationToken = default);
