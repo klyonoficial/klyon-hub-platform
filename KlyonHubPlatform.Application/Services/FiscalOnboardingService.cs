@@ -595,7 +595,7 @@ namespace KlyonHubPlatform.Application.Services
 <p>O link expira em 7 dias e só pode ser usado uma vez.</p>";
             try
             {
-                await _emailService.SendEmailAsync(lead.ContactEmail, "Klyon — Acesse sua conta (endereço fiscal)", body, true);
+                await _emailService.SendEmailAsync(lead.ContactEmail, "Klyon: acesse sua conta (endereço fiscal)", body, true);
             }
             catch (Exception ex)
             {

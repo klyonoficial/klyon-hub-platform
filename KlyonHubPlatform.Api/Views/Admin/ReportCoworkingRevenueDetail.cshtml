@@ -1,7 +1,7 @@
 @using KlyonHubPlatform.Application.Interfaces
 @model CoworkingRevenueDetailDto
 @{
-    ViewData[ViewDataKeys.Title] = "Drill-Down – Relatório de Reservas por Coworking";
+    ViewData[ViewDataKeys.Title] = "Drill-Down - Relatório de Reservas por Coworking";
     Layout = LayoutPaths.Layout;
     var dateFrom = ViewBag.DateFrom as DateTime?;
     var dateTo = ViewBag.DateTo as DateTime?;
@@ -50,7 +50,7 @@
             <div>
                 <h1 class="fw-bold mb-2">
                     <i class="bi bi-building text-primary me-2"></i>
-                    Drill-Down – Relatório de Reservas por Coworking
+                    Drill-Down - Relatório de Reservas por Coworking
                 </h1>
                 <p class="text-muted mb-0">
                     <i class="bi bi-info-circle"></i> Aqui você "abre" o coworking: <strong>@(Model?.CoworkingName ?? "Coworking")</strong>
@@ -129,7 +129,7 @@
             <div class="section-header">
                 <h3 class="mb-0">
                     <i class="bi bi-list-ul text-primary me-2"></i>
-                    Reservas (sala privativa, compartilhada ou auditório — data e cliente)
+                    Reservas (sala privativa, compartilhada ou auditório: data e cliente)
                 </h3>
                 <p class="text-muted mb-0 mt-2">
                     <i class="bi bi-chevron-right"></i> Clique na reserva para ver o detalhe financeiro completo

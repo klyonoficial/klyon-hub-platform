@@ -364,8 +364,7 @@ namespace KlyonHubPlatform.Application.Services
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Tokenização de cartão Asaas: {StatusCode} - {Content}", response.StatusCode, content);
-                var errMsg = ParseAsaasError(content);
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(errMsg) ? "Cartão recusado na tokenização. Verifique os dados ou use outro cartão." : errMsg);
+                throw new InvalidOperationException(ParseAsaasCreditCardError(content));
             }
             var tokenResponse = JsonSerializer.Deserialize<AsaasTokenizeCardResponse>(content, JsonOptions);
             return tokenResponse?.CreditCardToken;
@@ -471,7 +470,9 @@ namespace KlyonHubPlatform.Application.Services
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
                 if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-                    throw new InvalidOperationException(ParseAsaasError(content));
+                    throw new InvalidOperationException(method == PaymentMethod.CreditCard
+                        ? ParseAsaasCreditCardError(content)
+                        : ParseAsaasError(content));
                 throw new HttpRequestException($"Erro ao criar cobrança Asaas: {response.StatusCode}");
             }
             var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
@@ -645,7 +646,7 @@ namespace KlyonHubPlatform.Application.Services
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
                 if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-                    throw new InvalidOperationException(ParseAsaasError(content));
+                    throw new InvalidOperationException(ParseAsaasCreditCardError(content));
                 throw new HttpRequestException($"Erro ao criar assinatura Asaas: {response.StatusCode}");
             }
 
@@ -1148,6 +1149,31 @@ namespace KlyonHubPlatform.Application.Services
             }
             catch { }
             return "Dados inválidos. Verifique os dados em 'Meu Perfil' (CPF/CNPJ, Nome, Email).";
+        }
+
+        private static string ParseAsaasCreditCardError(string content)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("errors", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                {
+                    string? firstCode = null;
+                    var descriptions = new List<string>();
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        if (firstCode == null && item.TryGetProperty("code", out var codeEl))
+                            firstCode = codeEl.GetString();
+                        var desc = item.TryGetProperty("description", out var d) ? d.GetString() : null;
+                        if (!string.IsNullOrEmpty(desc)) descriptions.Add(desc);
+                    }
+                    var raw = descriptions.Count > 0 ? string.Join(" ", descriptions) : null;
+                    return AsaasCreditCardErrorMapper.ToUserFriendlyMessage(raw, firstCode);
+                }
+            }
+            catch { }
+            return AsaasCreditCardErrorMapper.ToUserFriendlyMessage(null, null);
         }
     }
 }

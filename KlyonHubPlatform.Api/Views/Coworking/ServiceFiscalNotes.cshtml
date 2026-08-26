@@ -126,7 +126,7 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted">-</span>
                                     }
                                 </td>
                                 <td>
@@ -218,7 +218,7 @@
                         }
                     </ul>
                     <p class="text-center text-muted small mt-2 mb-0">
-                        Exibindo página @ViewBag.CurrentPage de @ViewBag.TotalPages — @ViewBag.TotalItems registro(s) no total
+                        Exibindo página @ViewBag.CurrentPage de @ViewBag.TotalPages (@ViewBag.TotalItems registro(s) no total)
                     </p>
                 </nav>
             }
@@ -266,7 +266,7 @@
                     <p class="text-muted small">Use quando a NF foi emitida pelo contador. Envie o PDF da nota para validação do administrador.</p>
                     <div class="mb-3">
                         <label class="form-label">Pagamento / Cliente</label>
-                        <p class="form-control-plaintext fw-bold" id="importNfClientInfo">—</p>
+                        <p class="form-control-plaintext fw-bold" id="importNfClientInfo">-</p>
                     </div>
                     <div class="mb-3">
                         <label for="importNfPdf" class="form-label">PDF da NF <span class="text-danger">*</span></label>
@@ -286,7 +286,7 @@
 <script>
     (function() {
         function fmtDate(d) {
-            if (!d) return '—';
+            if (!d) return '-';
             var dt = new Date(d);
             return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
@@ -307,12 +307,12 @@
             if (data.contract) {
                 html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-file-text"></i> Contrato (Endereço Fiscal)</h6>';
                 html += '<table class="table table-sm table-borderless mb-3"><tbody>';
-                html += '<tr><td class="text-muted">Código</td><td>' + (data.contract.contractNumber || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Código</td><td>' + (data.contract.contractNumber || '-') + '</td></tr>';
                 html += '<tr><td class="text-muted">Início</td><td>' + fmtDate(data.contract.startDate) + '</td></tr>';
                 html += '<tr><td class="text-muted">Fim</td><td>' + fmtDate(data.contract.endDate) + '</td></tr>';
                 html += '<tr><td class="text-muted">Valor mensal</td><td>R$ ' + parseFloat(data.contract.monthlyValue).toFixed(2).replace('.', ',') + '</td></tr>';
-                html += '<tr><td class="text-muted">Status</td><td>' + (data.contract.status || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.contract.address || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Status</td><td>' + (data.contract.status || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.contract.address || '-') + '</td></tr>';
                 if (data.contract.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (data.contract.location.city || '') + '/' + (data.contract.location.state || '') + '</td></tr>';
                 html += '</tbody></table>';
             }
@@ -321,27 +321,27 @@
                 html += '<table class="table table-sm table-borderless mb-3"><tbody>';
                 html += '<tr><td class="text-muted">ID</td><td>#' + data.reservation.id + '</td></tr>';
                 html += '<tr><td class="text-muted">Data</td><td>' + fmtDate(data.reservation.reservationDate) + '</td></tr>';
-                html += '<tr><td class="text-muted">Horário</td><td>' + (data.reservation.startTime || '—') + ' a ' + (data.reservation.endTime || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">Tipo sala</td><td>' + (data.reservation.roomType || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Horário</td><td>' + (data.reservation.startTime || '-') + ' a ' + (data.reservation.endTime || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">Tipo sala</td><td>' + (data.reservation.roomType || '-') + '</td></tr>';
                 html += '<tr><td class="text-muted">Valor</td><td>R$ ' + parseFloat(data.reservation.totalValue).toFixed(2).replace('.', ',') + '</td></tr>';
-                html += '<tr><td class="text-muted">Status</td><td>' + (data.reservation.status || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.reservation.address || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Status</td><td>' + (data.reservation.status || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">Endereço</td><td>' + (data.reservation.address || '-') + '</td></tr>';
                 if (data.reservation.location) html += '<tr><td class="text-muted">Localidade</td><td>' + (data.reservation.location.city || '') + '/' + (data.reservation.location.state || '') + '</td></tr>';
                 html += '</tbody></table>';
             }
             if (data.client) {
                 html += '<h6 class="border-bottom pb-1 mb-2"><i class="bi bi-person"></i> Cliente</h6>';
                 html += '<table class="table table-sm table-borderless mb-3"><tbody>';
-                html += '<tr><td class="text-muted">Nome / Razão Social</td><td>' + (data.client.name || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Nome / Razão Social</td><td>' + (data.client.name || '-') + '</td></tr>';
                 if (data.client.razaoSocial) html += '<tr><td class="text-muted">Razão Social</td><td>' + data.client.razaoSocial + '</td></tr>';
                 if (data.client.nomeFantasia) html += '<tr><td class="text-muted">Nome Fantasia</td><td>' + data.client.nomeFantasia + '</td></tr>';
-                html += '<tr><td class="text-muted">Contato</td><td>' + (data.client.contactName || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">CNPJ/CPF</td><td>' + (data.client.cnpj || data.client.cpf || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">Email</td><td>' + (data.client.contactEmail || '—') + '</td></tr>';
-                html += '<tr><td class="text-muted">Telefone</td><td>' + (data.client.contactPhone || '—') + '</td></tr>';
+                html += '<tr><td class="text-muted">Contato</td><td>' + (data.client.contactName || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">CNPJ/CPF</td><td>' + (data.client.cnpj || data.client.cpf || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">Email</td><td>' + (data.client.contactEmail || '-') + '</td></tr>';
+                html += '<tr><td class="text-muted">Telefone</td><td>' + (data.client.contactPhone || '-') + '</td></tr>';
                 html += '</tbody></table>';
             }
-            html += '<p class="text-muted small mb-0"><strong>Tipo de serviço:</strong> ' + (data.serviceType || '—') + '</p>';
+            html += '<p class="text-muted small mb-0"><strong>Tipo de serviço:</strong> ' + (data.serviceType || '-') + '</p>';
             return html;
         }
         document.querySelectorAll('.payment-row').forEach(function(row) {
@@ -380,7 +380,7 @@
         var netAmount = btn.getAttribute('data-net-amount');
         var clientName = btn.getAttribute('data-client-name');
         document.getElementById('importNfPaymentId').value = paymentId || '';
-        document.getElementById('importNfClientInfo').textContent = (clientName || '—') + (netAmount ? ' — Valor total: R$ ' + parseFloat(netAmount).toFixed(2) : '');
+        document.getElementById('importNfClientInfo').textContent = (clientName || '-') + (netAmount ? ', Valor total: R$ ' + parseFloat(netAmount).toFixed(2) : '');
         document.getElementById('importNfPdf').value = '';
     });
 </script>

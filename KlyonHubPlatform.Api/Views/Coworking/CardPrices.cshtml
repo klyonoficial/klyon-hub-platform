@@ -62,7 +62,7 @@ else
 
 <div class="card mb-3">
     <div class="card-body">
-        <p class="mb-0"><strong>Endereço:</strong> @Model.Address, @Model.Number @(string.IsNullOrEmpty(Model.Complement) ? "" : "- " + Model.Complement) — @Model.Neighborhood, @Model.City/@Model.State</p>
+        <p class="mb-0"><strong>Endereço:</strong> @Model.Address, @Model.Number @(string.IsNullOrEmpty(Model.Complement) ? "" : "- " + Model.Complement), @Model.Neighborhood, @Model.City/@Model.State</p>
         @if (Model.Location != null)
         {
             <p class="mb-0 mt-1 text-muted"><small>Localidade: @Model.Location.City/@Model.Location.State</small></p>
@@ -81,14 +81,14 @@ else
 
             <div class="row">
                 <div class="col-md-4 mb-3">
-                    <label for="CardPrice1x" class="form-label">Venda à vista (1x no cartão) — R$</label>
+                    <label for="CardPrice1x" class="form-label">Venda à vista (1x no cartão) (R$)</label>
                     <input type="number" step="0.01" min="0" class="form-control" id="CardPrice1x" name="CardPrice1x"
                            value="@((hasPendingRequest ? pendingRequest.RequestedCardPrice1x : Model.CardPrice1x)?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                            placeholder="Ex: 1200,00" @(hasPendingRequest ? "readonly" : "")>
                     <small class="form-text text-muted">Cobrança recorrente anual no cartão (1x por ano).</small>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="CardPriceMonthly" class="form-label">Venda mensal — R$</label>
+                    <label for="CardPriceMonthly" class="form-label">Venda mensal (R$)</label>
                     <input type="number" step="0.01" min="0" class="form-control" id="CardPriceMonthly" name="CardPriceMonthly"
                            value="@((hasPendingRequest ? pendingRequest.RequestedCardPriceMonthly : Model.CardPriceMonthly)?.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                            placeholder="Ex: 120,00" @(hasPendingRequest ? "readonly" : "")>

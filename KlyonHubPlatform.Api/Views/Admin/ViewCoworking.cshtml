@@ -217,18 +217,18 @@
                                 {
                                     var pendingReq = addr.CardPriceChangeRequests?.FirstOrDefault(r => r.Status == CapacityApprovalStatus.Pending);
                                     <tr>
-                                        <td>@addr.Address, @addr.Number — @addr.City/@addr.State</td>
+                                        <td>@addr.Address, @addr.Number, @addr.City/@addr.State</td>
                                         <td>
                                             @if (pendingReq != null)
                                             {
                                                 @if (pendingReq.RequestedBasePrice.HasValue) { <span class="badge bg-info">Anual: R$ @pendingReq.RequestedBasePrice.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
                                                 @if (pendingReq.RequestedCardMonthlySurchargePercent.HasValue) { <span class="badge bg-info">Acréscimo mensal: @pendingReq.RequestedCardMonthlySurchargePercent.Value.ToString(NumberFormatConstants.TwoDecimals)%</span> }
                                                 @if (pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="badge bg-info">Mensal: R$ @pendingReq.RequestedCardPriceMonthly.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span> }
-                                                @if (!pendingReq.RequestedBasePrice.HasValue && !pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">—</span> }
+                                                @if (!pendingReq.RequestedBasePrice.HasValue && !pendingReq.RequestedCardPrice1x.HasValue && !pendingReq.RequestedCardPriceMonthly.HasValue) { <span class="text-muted">-</span> }
                                             }
                                             else
                                             {
-                                                <span class="text-muted">—</span>
+                                                <span class="text-muted">-</span>
                                             }
                                         </td>
                                         <td>
@@ -253,7 +253,7 @@
                                                 }
                                                 else
                                                 {
-                                                    <span class="text-muted">—</span>
+                                                    <span class="text-muted">-</span>
                                                 }
                                             </td>
                                         }
@@ -511,7 +511,7 @@
                                         }
                                         else
                                         {
-                                            <span class="text-muted">—</span>
+                                            <span class="text-muted">-</span>
                                         }
                                     </td>
                                     <td class="text-end">
@@ -534,7 +534,7 @@
                                         }
                                         else
                                         {
-                                            <span class="text-muted">—</span>
+                                            <span class="text-muted">-</span>
                                         }
                                     </td>
                                 </tr>
@@ -779,19 +779,19 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label fw-bold text-muted small">Serviço</label>
-                    <p class="mb-0" id="viewServiceName">—</p>
+                    <p class="mb-0" id="viewServiceName">-</p>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold text-muted small">Descrição</label>
-                    <p class="mb-0" id="viewServiceDesc">—</p>
+                    <p class="mb-0" id="viewServiceDesc">-</p>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold text-muted small">Percentagem (%)</label>
-                    <p class="mb-0"><span class="badge bg-primary" id="viewServicePercentage">—</span></p>
+                    <p class="mb-0"><span class="badge bg-primary" id="viewServicePercentage">-</span></p>
                 </div>
                 <div class="mb-0">
                     <label class="form-label fw-bold text-muted small">Data do contrato</label>
-                    <p class="mb-0" id="viewServiceCreatedAt">—</p>
+                    <p class="mb-0" id="viewServiceCreatedAt">-</p>
                 </div>
             </div>
         </div>
@@ -810,64 +810,64 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Endereço</label>
-                        <p class="mb-0" id="viewAddrStreet">—</p>
+                        <p class="mb-0" id="viewAddrStreet">-</p>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label fw-bold text-muted small">Número</label>
-                        <p class="mb-0" id="viewAddrNumber">—</p>
+                        <p class="mb-0" id="viewAddrNumber">-</p>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label fw-bold text-muted small">Complemento</label>
-                        <p class="mb-0" id="viewAddrComplement">—</p>
+                        <p class="mb-0" id="viewAddrComplement">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Bairro</label>
-                        <p class="mb-0" id="viewAddrNeighborhood">—</p>
+                        <p class="mb-0" id="viewAddrNeighborhood">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Cidade</label>
-                        <p class="mb-0" id="viewAddrCity">—</p>
+                        <p class="mb-0" id="viewAddrCity">-</p>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label fw-bold text-muted small">Estado</label>
-                        <p class="mb-0" id="viewAddrState">—</p>
+                        <p class="mb-0" id="viewAddrState">-</p>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label fw-bold text-muted small">CEP</label>
-                        <p class="mb-0" id="viewAddrZip">—</p>
+                        <p class="mb-0" id="viewAddrZip">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Preço base</label>
-                        <p class="mb-0" id="viewAddrBasePrice">—</p>
+                        <p class="mb-0" id="viewAddrBasePrice">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Disponível</label>
-                        <p class="mb-0" id="viewAddrAvailable">—</p>
+                        <p class="mb-0" id="viewAddrAvailable">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Status do endereço</label>
-                        <p class="mb-0" id="viewAddrStatus">—</p>
+                        <p class="mb-0" id="viewAddrStatus">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Contratos ativos</label>
-                        <p class="mb-0" id="viewAddrContracts">—</p>
+                        <p class="mb-0" id="viewAddrContracts">-</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
-                        <p class="mb-0" id="viewAddrSharedRoom">—</p>
+                        <p class="mb-0" id="viewAddrSharedRoom">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala privada</label>
-                        <p class="mb-0" id="viewAddrPrivateRoom">—</p>
+                        <p class="mb-0" id="viewAddrPrivateRoom">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Cadastrado em</label>
-                        <p class="mb-0" id="viewAddrCreatedAt">—</p>
+                        <p class="mb-0" id="viewAddrCreatedAt">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Atualizado em</label>
-                        <p class="mb-0" id="viewAddrUpdatedAt">—</p>
+                        <p class="mb-0" id="viewAddrUpdatedAt">-</p>
                     </div>
                 </div>
             </div>
@@ -955,13 +955,13 @@
     document.querySelectorAll('.row-service-detail').forEach(function(row) {
         row.addEventListener('click', function(e) {
             if (e.target.closest('.no-row-click') || e.target.closest('button') || e.target.closest('form')) return;
-            var name = this.getAttribute('data-service-name') || '—';
-            var desc = this.getAttribute('data-service-desc') || '—';
-            var pct = this.getAttribute('data-percentage') || '—';
-            var created = this.getAttribute('data-created-at') || '—';
+            var name = this.getAttribute('data-service-name') || '-';
+            var desc = this.getAttribute('data-service-desc') || '-';
+            var pct = this.getAttribute('data-percentage') || '-';
+            var created = this.getAttribute('data-created-at') || '-';
             document.getElementById('viewServiceName').textContent = name;
-            document.getElementById('viewServiceDesc').textContent = desc ? desc : '—';
-            document.getElementById('viewServicePercentage').textContent = pct !== '—' ? pct + '%' : '—';
+            document.getElementById('viewServiceDesc').textContent = desc ? desc : '-';
+            document.getElementById('viewServicePercentage').textContent = pct !== '-' ? pct + '%' : '-';
             document.getElementById('viewServiceCreatedAt').textContent = created;
             var modal = new bootstrap.Modal(document.getElementById('viewServiceModal'));
             modal.show();
@@ -972,18 +972,18 @@
     document.querySelectorAll('.row-address-detail').forEach(function(row) {
         row.addEventListener('click', function(e) {
             if (e.target.closest('.no-row-click') || e.target.closest('select') || e.target.closest('form')) return;
-            document.getElementById('viewAddrStreet').textContent = this.getAttribute('data-address') || '—';
-            document.getElementById('viewAddrNumber').textContent = this.getAttribute('data-number') || '—';
-            document.getElementById('viewAddrComplement').textContent = this.getAttribute('data-complement') || '—';
-            document.getElementById('viewAddrNeighborhood').textContent = this.getAttribute('data-neighborhood') || '—';
-            document.getElementById('viewAddrCity').textContent = this.getAttribute('data-city') || '—';
-            document.getElementById('viewAddrState').textContent = this.getAttribute('data-state') || '—';
-            document.getElementById('viewAddrZip').textContent = this.getAttribute('data-zip') || '—';
+            document.getElementById('viewAddrStreet').textContent = this.getAttribute('data-address') || '-';
+            document.getElementById('viewAddrNumber').textContent = this.getAttribute('data-number') || '-';
+            document.getElementById('viewAddrComplement').textContent = this.getAttribute('data-complement') || '-';
+            document.getElementById('viewAddrNeighborhood').textContent = this.getAttribute('data-neighborhood') || '-';
+            document.getElementById('viewAddrCity').textContent = this.getAttribute('data-city') || '-';
+            document.getElementById('viewAddrState').textContent = this.getAttribute('data-state') || '-';
+            document.getElementById('viewAddrZip').textContent = this.getAttribute('data-zip') || '-';
             var basePrice = this.getAttribute('data-base-price');
-            document.getElementById('viewAddrBasePrice').textContent = basePrice ? 'R$ ' + basePrice : '—';
+            document.getElementById('viewAddrBasePrice').textContent = basePrice ? 'R$ ' + basePrice : '-';
             document.getElementById('viewAddrAvailable').innerHTML = (this.getAttribute('data-available') === 'Sim')
                 ? '<span class="badge bg-success">Sim</span>' : '<span class="badge bg-danger">Não</span>';
-            var statusLabel = this.getAttribute('data-status-label') || '—';
+            var statusLabel = this.getAttribute('data-status-label') || '-';
             var statusBadge = this.getAttribute('data-status-badge') || 'secondary';
             document.getElementById('viewAddrStatus').innerHTML = '<span class="badge bg-' + statusBadge + '">' + statusLabel + '</span>';
             document.getElementById('viewAddrContracts').textContent = this.getAttribute('data-current-contracts') || '0';
@@ -991,14 +991,14 @@
             var sharedPrice = this.getAttribute('data-shared-price');
             var sharedSeats = this.getAttribute('data-shared-seats');
             document.getElementById('viewAddrSharedRoom').textContent = shared === 'Sim'
-                ? 'Sim — R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
+                ? 'Sim: R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
             var priv = this.getAttribute('data-private-room');
             var privPrice = this.getAttribute('data-private-price');
             var privSeats = this.getAttribute('data-private-seats');
             document.getElementById('viewAddrPrivateRoom').textContent = priv === 'Sim'
-                ? 'Sim — R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
-            document.getElementById('viewAddrCreatedAt').textContent = this.getAttribute('data-created-at') || '—';
-            document.getElementById('viewAddrUpdatedAt').textContent = this.getAttribute('data-updated-at') || '—';
+                ? 'Sim: R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
+            document.getElementById('viewAddrCreatedAt').textContent = this.getAttribute('data-created-at') || '-';
+            document.getElementById('viewAddrUpdatedAt').textContent = this.getAttribute('data-updated-at') || '-';
             var modal = new bootstrap.Modal(document.getElementById('viewAddressModal'));
             modal.show();
         });

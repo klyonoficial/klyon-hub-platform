@@ -39,7 +39,7 @@
                            @(currentProducts.Contains("RoomRental") ? "checked" : "") onchange="toggleAddressSection()">
                     <label class="form-check-label" for="product_rental">
                         <strong>Aluguéis de Sala</strong>
-                        <small class="text-muted d-block">Sala compartilhada, privativa e auditório — com fotos, capacidade, créditos e gestão individual. Cada sala pode ser reservada apenas se não houver outra reserva no mesmo horário.</small>
+                        <small class="text-muted d-block">Sala compartilhada, privativa e auditório, com fotos, capacidade, créditos e gestão individual. Cada sala pode ser reservada apenas se não houver outra reserva no mesmo horário.</small>
                     </label>
                 </div>
             </div>
@@ -73,7 +73,7 @@
     </div>
     <div class="card-body">
         <p class="text-muted">
-            Para oferecer salas, cada sala fica vinculada a um <strong>endereço</strong>. Os dados do endereço (rua, número, bairro, cidade, UF) precisam estar corretos — eles são exibidos para o cliente ao reservar. Gerencie as salas de cada endereço individualmente: tipo (compartilhada, privativa, auditório), capacidade, créditos por hora e fotos.
+            Para oferecer salas, cada sala fica vinculada a um <strong>endereço</strong>. Os dados do endereço (rua, número, bairro, cidade, UF) precisam estar corretos: eles são exibidos para o cliente ao reservar. Gerencie as salas de cada endereço individualmente: tipo (compartilhada, privativa, auditório), capacidade, créditos por hora e fotos.
         </p>
         @if (addresses.Any())
         {

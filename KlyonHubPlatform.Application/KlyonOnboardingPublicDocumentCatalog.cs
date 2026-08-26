@@ -11,7 +11,7 @@ namespace KlyonHubPlatform.Application
                 new(
                     Slug: "cartao-cnpj-klyon",
                     FileName: "cartao-cnpj-klyon.pdf",
-                    Title: "Cartão CNPJ atualizado — Klyon",
+                    Title: "Cartão CNPJ atualizado (Klyon)",
                     ValidUntilUtc: null),
                 new(
                     Slug: "iptu-2026",

@@ -1,3 +1,4 @@
+@using KlyonHubPlatform.Application.DTOs.Pricing
 @{
     ViewData[ViewDataKeys.Title] = "Endereços Disponíveis";
     Layout = LayoutPaths.Layout;
@@ -20,6 +21,7 @@
     var urlContratoAtivo = activeContractId.HasValue
         ? Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = activeContractId.Value })
         : Url.Action(ActionNames.MyContracts, ControllerNames.Client);
+    var pricesByAddressId = ViewBag.PricesByAddressId as Dictionary<int, AddressPricesDto> ?? new Dictionary<int, AddressPricesDto>();
 }
 
 @if (Model.Any())
@@ -35,8 +37,9 @@
             var alreadyContracted = contractedAddressIds.Contains(address.Id);
             var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
             var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
-            var yearlyPrice = address.BasePrice;
-            var monthlyEquivalent = address.BasePrice / 12;
+            var addressPrices = pricesByAddressId.TryGetValue(address.Id, out var priced) ? priced : null;
+            var yearlyPrice = addressPrices?.PixPrice ?? address.BasePrice;
+            var monthlyPrice = addressPrices?.CardPriceMonthly ?? 0m;
             var coworkingName = address.Coworking?.Name ?? "Coworking";
             var locationLabel = address.Location != null ? $"{address.Location.City}/{address.Location.State}" : $"{address.City}/{address.State}";
             
@@ -76,17 +79,20 @@
 
                         <ul class="list-unstyled small mb-3 flex-grow-1">
                             <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Endereço fiscal para CNPJ</li>
-                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Contrato anual — preço fixo</li>
+                            <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Contrato anual, preço fixo</li>
                             <li class="mb-1"><i class="bi bi-check2-circle text-success me-2"></i> Suporte Klyon incluído</li>
                         </ul>
 
                         <div class="mt-auto pt-3 border-top">
-                            <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
+                            <div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-2">
                                 <div>
-                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                                    <span class="text-muted">/ano</span>
-                                    <div class="small text-success fw-semibold">
-                                        <i class="bi bi-tag-fill"></i> Equiv. R$ @monthlyEquivalent.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                    <div class="text-uppercase text-muted small fw-semibold" style="letter-spacing: 0.06em; font-size: 0.7rem;">A partir de</div>
+                                    <div>
+                                        <span class="h4 text-primary mb-0 fw-bold">R$ @monthlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                        <span class="text-muted">/mês</span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        ou R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano
                                     </div>
                                 </div>
                                 @if (alreadyContracted)

@@ -1,6 +1,7 @@
+@using KlyonHubPlatform.Application.DTOs.Pricing
 @using KlyonHubPlatform.Domain.Core.Enums
 @{
-    ViewData[ViewDataKeys.Title] = "Escolher Endereço — Fiscal ou Comercial";
+    ViewData[ViewDataKeys.Title] = "Escolher Endereço: Fiscal ou Comercial";
     Layout = LayoutPaths.Layout;
 }
 
@@ -25,6 +26,7 @@
     var totalItems = ViewBag.TotalItems as int? ?? 0;
     var pendingPaymentByAddressId = ViewBag.PendingPaymentByAddressId as Dictionary<int, int> ?? new Dictionary<int, int>();
     var pendingPaymentStatusByAddressId = ViewBag.PendingPaymentStatusByAddressId as Dictionary<int, PaymentStatus> ?? new Dictionary<int, PaymentStatus>();
+    var pricesByAddressId = ViewBag.PricesByAddressId as Dictionary<int, AddressPricesDto> ?? new Dictionary<int, AddressPricesDto>();
 }
 
 <style>
@@ -134,8 +136,9 @@
             var alreadyContracted = contractedAddressIds.Contains(address.Id);
             var hasMainPhoto = mainPhotos.ContainsKey(address.CoworkingId);
             var mainPhoto = hasMainPhoto ? mainPhotos[address.CoworkingId] : null;
-            var yearlyPrice = address.BasePrice;
-            var monthlyEquivalent = address.BasePrice / 12;
+            var addressPrices = pricesByAddressId.TryGetValue(address.Id, out var priced) ? priced : null;
+            var yearlyPrice = addressPrices?.PixPrice ?? address.BasePrice;
+            var monthlyPrice = addressPrices?.CardPriceMonthly ?? 0m;
             var coworkingName = address.Coworking?.Name ?? "Coworking";
             var locationLabel = address.Location != null ? $"{address.Location.City}/{address.Location.State}" : $"{address.City}/{address.State}";
 
@@ -176,16 +179,19 @@
                         <ul class="list-unstyled small mb-3 flex-grow-1">
                             <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Endereço Fiscal (uso no CNPJ) ou Comercial</li>
                             <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Recebimento de correspondência</li>
-                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Contrato anual — suporte Klyon</li>
+                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Contrato anual, suporte Klyon</li>
                         </ul>
 
                         <div class="mt-auto pt-3 border-top">
-                            <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
+                            <div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-2">
                                 <div>
-                                    <span class="h4 text-primary mb-0 fw-bold">R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
-                                    <span class="text-muted">/ano</span>
-                                    <div class="small text-success fw-semibold">
-                                        <i class="bi bi-tag-fill me-1"></i> Equiv. R$ @monthlyEquivalent.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                    <div class="text-uppercase text-muted small fw-semibold" style="letter-spacing: 0.06em; font-size: 0.7rem;">A partir de</div>
+                                    <div>
+                                        <span class="h4 text-primary mb-0 fw-bold">R$ @monthlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                        <span class="text-muted">/mês</span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        ou R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano
                                     </div>
                                 </div>
                                 @{

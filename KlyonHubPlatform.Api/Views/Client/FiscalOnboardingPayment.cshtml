@@ -3,13 +3,13 @@
 @model FiscalOnboardingPaymentView
 @{
     Layout = LayoutPaths.Layout;
-    ViewData[ViewDataKeys.Title] = "Pagamento PIX — adesão";
+    ViewData[ViewDataKeys.Title] = "Pagamento PIX: adesão";
     var pix = Model.PixCopyPaste ?? "";
 }
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <h2 class="mb-3"><i class="bi bi-qr-code"></i> Pagamento PIX — adesão</h2>
+        <h2 class="mb-3"><i class="bi bi-qr-code"></i> Pagamento PIX: adesão</h2>
         <p class="text-muted mb-4">Documento: <strong>@Model.TaxIdMasked</strong> · Valor: <strong>@Model.Amount.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</strong></p>
 
         @if (string.IsNullOrEmpty(pix))

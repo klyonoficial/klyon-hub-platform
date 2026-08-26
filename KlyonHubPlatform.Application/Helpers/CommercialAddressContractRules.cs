@@ -8,7 +8,7 @@ namespace KlyonHubPlatform.Application.Helpers
 
         public const string DescriptionWithCnpj = "Contrato Endereço Comercial (com CNPJ)";
 
-        public const string DescriptionWithoutCnpj = "Contrato Endereço Comercial (reserva — sem CNPJ)";
+        public const string DescriptionWithoutCnpj = "Contrato Endereço Comercial (reserva, sem CNPJ)";
 
 
 

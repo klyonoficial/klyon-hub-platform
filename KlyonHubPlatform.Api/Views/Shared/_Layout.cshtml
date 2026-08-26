@@ -868,7 +868,7 @@
          */
         function showToast(message, type, duration) {
             type = type || (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Info : 'info');
-            duration = duration || 5000;
+            duration = duration || (type === 'error' ? 11000 : 5000);
             const toastTypes = (typeof Klyon !== 'undefined' && Klyon.ToastTypes) ? Klyon.ToastTypes : {
                 success: { class: 'bg-success text-white', icon: 'bi-check-circle-fill', title: 'Sucesso', closeClass: 'btn-close btn-close-white' },
                 error: { class: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Erro', closeClass: 'btn-close btn-close-white' },
@@ -959,7 +959,7 @@
                 var err = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastError ?? ""));
                 if (err) {
                     var errDetail = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastErrorDetails ?? ""));
-                    showTempToast(errDetail ? (err + " " + errDetail) : err, 'error', 7000);
+                    showTempToast(errDetail ? (err + " " + errDetail) : err, 'error', 11000);
                 }
                 showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastWarning ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Warning : 'warning'));
                 showTempToast(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(_toastSuccess ?? "")), (typeof Klyon !== 'undefined' && Klyon.ToastType ? Klyon.ToastType.Success : 'success'));

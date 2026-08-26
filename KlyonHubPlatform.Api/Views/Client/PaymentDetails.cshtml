@@ -98,7 +98,7 @@
         <div class="d-flex align-items-start gap-2">
             <i class="bi bi-qr-code fs-4"></i>
             <div>
-                <strong>PIX recomendado</strong> — confirmação rápida e sem taxas extras.
+                <strong>PIX recomendado</strong>: confirmação rápida e sem taxas extras.
                 <span class="d-block small mt-1 opacity-75">Cartão e boleto ficam em <em>Outras formas de pagamento</em>, abaixo do QR Code.</span>
             </div>
         </div>
@@ -194,7 +194,7 @@
                             var hasMonthlyVal = showCardMonthly;
                             var use1xAsInitial = showCard1x;
                             var initialVal = use1xAsInitial ? price1xVal : priceMonthlyVal;
-                            var initialLabel = use1xAsInitial ? "recorrência anual — equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
+                            var initialLabel = use1xAsInitial ? "recorrência anual, equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
                             var price1xStr = price1xVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
                             var priceMonthlyStr = priceMonthlyVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
                             <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr">
@@ -227,7 +227,7 @@
                             {
                                 var grossBeforeDiscount = Model.Amount + Model.SnapshotDiscountAmount;
                                 <small class="text-success d-block mt-1">
-                                    <i class="bi bi-tag"></i> Cupom @Model.PromoCodeSnapshot aplicado — desconto de R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
+                                    <i class="bi bi-tag"></i> Cupom @Model.PromoCodeSnapshot aplicado: desconto de R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                     @if (grossBeforeDiscount > Model.Amount)
                                     {
                                         <span class="text-muted">(de R$ @grossBeforeDiscount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
@@ -272,7 +272,7 @@
                                         @(string.IsNullOrEmpty(Model.PromoCodeSnapshot) ? "Cupom aplicado" : Model.PromoCodeSnapshot)
                                         @if (Model.SnapshotDiscountAmount > 0)
                                         {
-                                            <text>— R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</text>
+                                            <text>- R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</text>
                                         }
                                     </span>
                                     <form method="post" action="@Url.Action("RemovePromoCode", "Client")" class="d-inline">
@@ -372,7 +372,7 @@
                                         <div class="form-check">
                                             <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @(pixPlanChecked == "PixAnnual" ? "checked" : "")>
                                             <label class="form-check-label" for="pagePixPlanAnnual">
-                                                PIX Automático (anual) — autorize uma vez; débitos anuais após a 1ª liquidação — R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                                PIX Automático (anual): autorize uma vez; débitos anuais após a 1ª liquidação. R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)
                                             </label>
                                         </div>
                                     }
@@ -381,7 +381,7 @@
                                         <div class="form-check">
                                             <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanMonthly" value="PixMonthly" @(pixPlanChecked == "PixMonthly" ? "checked" : "")>
                                             <label class="form-check-label" for="pagePixPlanMonthly">
-                                                PIX Automático (mensal) — autorize uma vez; débitos mensais após a 1ª liquidação — R$ @pixPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)
+                                                PIX Automático (mensal): autorize uma vez; débitos mensais após a 1ª liquidação. R$ @pixPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </label>
                                         </div>
                                     }
@@ -390,7 +390,7 @@
                                         <div class="form-check">
                                             <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @(pixPlanChecked == "PIX" ? "checked" : "")>
                                             <label class="form-check-label" for="pagePixPlanSingle">
-                                                PIX (pagamento único) — Pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma — R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                                PIX (pagamento único): pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma. R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)
                                             </label>
                                         </div>
                                     }
@@ -419,14 +419,14 @@
                                             var pageMonthly1x = pagePrice1x / 12m;
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" @(pageCardFirstChecked == "1x" ? "checked" : "")>
-                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual) — R$ @pagePrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual): R$ @pagePrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
                                             </div>
                                         }
                                         @if (pageShowCardMonthly)
                                         {
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlanMonthly" value="monthly" @(pageCardFirstChecked == "monthly" ? "checked" : "")>
-                                                <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal) — R$ @pagePriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
+                                                <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal): R$ @pagePriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                                             </div>
                                         }
                                     }
@@ -450,11 +450,11 @@
                                     <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
                                     @if (ViewBag.CreditCardPlanLabel != null)
                                     {
-                                        <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                        <span class="text-muted ms-2">(@ViewBag.CreditCardPlanLabel)</span>
                                     }
                                     @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                     {
-                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                        <span class="text-muted ms-2">(@Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                     }
                                     break;
                                 case PaymentMethod.BankTransfer:
@@ -478,11 +478,11 @@
                                     <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
                                     @if (ViewBag.CreditCardPlanLabel != null)
                                     {
-                                        <span class="text-muted ms-2">— @ViewBag.CreditCardPlanLabel</span>
+                                        <span class="text-muted ms-2">(@ViewBag.CreditCardPlanLabel)</span>
                                     }
                                     @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                     {
-                                        <span class="text-muted ms-2">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                        <span class="text-muted ms-2">(@Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                     }
                                     break;
                                 case PaymentMethod.BankTransfer:
@@ -747,7 +747,7 @@
                                                     @if (!string.IsNullOrWhiteSpace(card.Nickname))
                                                     {
                                                         <strong>@card.Nickname</strong>
-                                                        <span class="text-muted"> — @card.Brand •••• @card.LastFourDigits</span>
+                                                        <span class="text-muted"> (@card.Brand •••• @card.LastFourDigits)</span>
                                                     }
                                                     else
                                                     {
@@ -1105,7 +1105,7 @@
                 </div>
                 <div class="modal-body text-center">
                     <p class="text-muted mb-3" id="viewReceiptUploadDate">
-                        <i class="bi bi-calendar"></i> Enviado em: —
+                        <i class="bi bi-calendar"></i> Enviado em: -
                     </p>
                     <div class="border rounded p-3 text-center bg-light" style="min-height: 400px; max-height: 70vh; overflow: auto;">
                         @if (receiptIsPdf)
@@ -1328,14 +1328,14 @@
                         var modalMonthly1x = cardPrice1x / 12m;
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" @(contract?.CardPlanType != ContractCardPlanType.CardMonthly ? "checked" : "")>
-                            <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual) — R$ @cardPrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</label>
+                            <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual): R$ @cardPrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
                         </div>
                     }
                     @if (hasMonthly && showCardMonthly)
                     {
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @((!showCard1x || contract?.CardPlanType == ContractCardPlanType.CardMonthly) ? "checked" : "")>
-                            <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal) — R$ @cardPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
+                            <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal): R$ @cardPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                         </div>
                     }
                 </div>
@@ -1471,7 +1471,7 @@
         @if (isPending && showPixCard && !string.IsNullOrEmpty(effectivePixCode) && !isExpired)
         {
             <text>
-            // Gerar QR Code (só quando o card PIX está visível) — PIX único: Payment.PixCode; PIX Automático: Subscription.PixAutomaticPayload
+            // Gerar QR Code (só quando o card PIX está visível): PIX único = Payment.PixCode; PIX Automático = Subscription.PixAutomaticPayload
             new QRCode(document.getElementById("qrcode"), {
                 text: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(effectivePixCode)),
                 width: 200,
@@ -1903,7 +1903,7 @@
                         labelEl.textContent = 'recorrência mensal';
                     } else {
                         var monthlyEq = (amount / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        labelEl.textContent = 'recorrência anual — equivale a R$ ' + monthlyEq + '/mês';
+                        labelEl.textContent = 'recorrência anual, equivale a R$ ' + monthlyEq + '/mês';
                     }
                 }
             }
@@ -1997,7 +1997,7 @@
                                 if (id === (defaultCard.id || defaultCard.Id)) radio.checked = true;
                                 item.appendChild(radio);
                                 var text = document.createElement('span');
-                                var displayName = (c.nickname && c.nickname.trim()) ? (c.nickname.trim() + ' — ' + (c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || '')) : ((c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || ''));
+                                var displayName = (c.nickname && c.nickname.trim()) ? (c.nickname.trim() + ' - ' + (c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || '')) : ((c.brand || 'Cartão') + ' •••• ' + (c.lastFourDigits || ''));
                                 if (!c.hasToken) displayName += ' <span class="badge bg-warning text-dark ms-1">Revalidar</span>';
                                 text.innerHTML = displayName + (c.isDefault ? ' <span class="badge bg-primary ms-1">Padrão</span>' : '');
                                 item.appendChild(text);
@@ -2507,9 +2507,11 @@
                     window.setTimeout(function () { window.location.href = targetUrl; }, 400);
                 } else {
                     if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.hide) window.KlyonLoading.hide();
-                    errEl.textContent = result.error || 'Erro ao processar pagamento.';
+                    var payErrorMsg = result.error || 'Erro ao processar pagamento.';
+                    errEl.textContent = payErrorMsg;
                     errEl.classList.remove('d-none');
                     errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (typeof showToast === 'function') showToast(payErrorMsg, 'error', 12000);
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-credit-card"></i> Pagar agora';
                 }

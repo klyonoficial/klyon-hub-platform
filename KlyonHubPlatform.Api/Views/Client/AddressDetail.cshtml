@@ -3,7 +3,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Application.DTOs.PartnerListing
 @{
-    ViewData[ViewDataKeys.Title] = "Endereço fiscal";
+    ViewData[ViewDataKeys.Title] = "Endereço fiscal e comercial";
     Layout = LayoutPaths.LandingLayout;
 }
 
@@ -25,10 +25,13 @@
     var locationLabel = Model.Location != null
         ? $"{Model.Location.City}/{Model.Location.State}"
         : $"{Model.City}/{Model.State}";
-    var yearlyPrice = Model.BasePrice;
+    // Precificação via AddressPricingService no controller (mesma fórmula do preview Parceiro/EditAddress):
+    // parcela mensal = (BasePrice × (1 + CardMonthlySurchargePercent/100)) / 12
+    var yearlyPrice = ViewBag.YearlyPrice as decimal? ?? Model.BasePrice;
+    var monthlyPrice = ViewBag.MonthlyInstallmentPrice as decimal? ?? 0m;
     var fullAddress = $"{Model.Address}, {Model.Number}"
         + (!string.IsNullOrEmpty(Model.Complement) ? $", {Model.Complement}" : "")
-        + $" — {Model.Neighborhood}, {Model.City}/{Model.State} — CEP {Model.ZipCode}";
+        + $", {Model.Neighborhood}, {Model.City}/{Model.State}, CEP {Model.ZipCode}";
     var hasPhotos = photos.Any();
     var description = Model.Coworking?.Description;
 }
@@ -36,7 +39,7 @@
 <style>
 html { overflow-x: hidden; }
 body { overflow-x: hidden; }
-/* ============ Address Detail Landing — Klyon ============ */
+/* ============ Address Detail Landing / Klyon ============ */
 .ad-back-btn {
     position: fixed;
     top: 80px;
@@ -122,20 +125,35 @@ body { overflow-x: hidden; }
     gap: 12px;
     flex-wrap: wrap;
 }
-.ad-price-yearly {
+.ad-price-primary {
     font-size: 2rem;
     font-weight: 800;
     color: #f8fafc;
     line-height: 1;
 }
-.ad-price-yearly small { font-size: 0.9rem; color: #94a3b8; font-weight: 400; }
-.ad-price-monthly {
-    font-size: 0.9rem;
-    color: #10b981;
-    font-weight: 600;
-    padding: 4px 10px;
-    background: rgba(16,185,129,0.12);
-    border-radius: 20px;
+.ad-price-primary small { font-size: 0.9rem; color: #94a3b8; font-weight: 400; }
+.ad-price-secondary {
+    font-size: 0.88rem;
+    color: #94a3b8;
+    font-weight: 500;
+    margin-top: 6px;
+}
+.ad-mobile-cta-price-primary {
+    color: #f8fafc;
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1.2;
+}
+.ad-mobile-cta-price-primary small {
+    color: #94a3b8;
+    font-weight: 400;
+    font-size: 0.85rem;
+}
+.ad-mobile-cta-price-secondary {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 2px;
 }
 .ad-badge-vacancy {
     font-size: 0.8rem;
@@ -160,10 +178,42 @@ body { overflow-x: hidden; }
     background: #0a1f3a;
     height: 380px;
 }
-.ad-carousel-wrap img {
+.ad-carousel-stage {
+    position: relative;
+    height: 100%;
+    min-height: 280px;
+    overflow: hidden;
+}
+.ad-carousel-wrap img,
+.ad-carousel-slide {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+.ad-carousel-slide {
+    position: absolute;
+    inset: 0;
+    display: block;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(1.03);
+    transition:
+        opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0.75s;
+    pointer-events: none;
+    z-index: 0;
+}
+.ad-carousel-slide.is-active {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    transition:
+        opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+    pointer-events: auto;
+    z-index: 1;
 }
 .ad-carousel-empty {
     width: 100%;
@@ -210,6 +260,7 @@ body { overflow-x: hidden; }
     cursor: pointer;
     transition: background 0.2s;
     backdrop-filter: blur(4px);
+    z-index: 5;
 }
 .ad-carousel-nav:hover { background: rgba(0,0,0,0.75); }
 .ad-carousel-nav.prev { left: 12px; }
@@ -226,6 +277,7 @@ body { overflow-x: hidden; }
 .ad-gallery-counter {
     position: absolute; bottom: 16px; right: 16px;
     background: rgba(5,19,35,0.75); color: #fff; border-radius: 20px; padding: 6px 12px; font-size: 0.85rem;
+    z-index: 5;
 }
 .ad-listing-grid {
     max-width: 1200px; margin: 0 auto; padding: 40px 24px 120px;
@@ -478,6 +530,11 @@ body { overflow-x: hidden; }
     background: rgba(249,115,22,0.04);
 }
 .ad-result-card.not-recommended::before { background: #f97316; }
+.ad-result-card.evaluate {
+    border-color: rgba(198,152,68,0.45);
+    background: rgba(198,152,68,0.06);
+}
+.ad-result-card.evaluate::before { background: #c69844; }
 .ad-result-card-badge {
     position: absolute;
     top: 16px;
@@ -490,6 +547,23 @@ body { overflow-x: hidden; }
 }
 .badge-recommended { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
 .badge-not-recommended { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+.badge-evaluate { background: rgba(198,152,68,0.18); color: #e8c57a; border: 1px solid rgba(198,152,68,0.4); }
+.ad-result-card-list li .hint { color: #c69844; flex-shrink: 0; margin-top: 1px; }
+.ad-ideal-for {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+.ad-ideal-chip {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    padding: 6px 12px;
+}
 .ad-result-card-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .ad-result-card-title { font-size: 1.3rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
 .ad-result-card-desc { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.6; }
@@ -552,9 +626,108 @@ body { overflow-x: hidden; }
 .ad-compare-header-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
 .ad-compare-header-sub { font-size: 0.8rem; opacity: 0.8; }
 .compare-wrapper {
+    position: relative;
     border-radius: 20px;
     overflow: hidden;
     border: 1px solid rgba(255,255,255,0.08);
+}
+.compare-scroll {
+    width: 100%;
+    overflow-x: visible;
+}
+.compare-scroll-hint {
+    display: none;
+}
+@@media (max-width: 768px) {
+    .compare-scroll-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 12px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: #94a3b8;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .compare-scroll-hint i {
+        color: #c69844;
+        animation: compare-hint-nudge 1.6s ease-in-out infinite;
+    }
+    @@keyframes compare-hint-nudge {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(4px); }
+    }
+    .compare-wrapper {
+        overflow: hidden;
+    }
+    .compare-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 48px;
+        background: linear-gradient(90deg, transparent, #051323 85%);
+        pointer-events: none;
+        z-index: 3;
+        opacity: 1;
+        transition: opacity 0.25s ease;
+    }
+    .compare-wrapper.is-at-end::after {
+        opacity: 0;
+    }
+    .compare-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(198,152,68,0.5) rgba(255,255,255,0.04);
+    }
+    .compare-scroll::-webkit-scrollbar {
+        height: 6px;
+    }
+    .compare-scroll::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.04);
+    }
+    .compare-scroll::-webkit-scrollbar-thumb {
+        background: rgba(198,152,68,0.45);
+        border-radius: 999px;
+    }
+    .ad-compare-table {
+        min-width: 640px;
+        width: max-content;
+    }
+    .ad-compare-table th,
+    .ad-compare-table td {
+        padding: 14px 16px;
+        white-space: nowrap;
+    }
+    .ad-compare-table td:first-child,
+    .ad-compare-table th:first-child {
+        white-space: normal;
+        min-width: 140px;
+        max-width: 160px;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #0a1628 !important;
+        box-shadow: 6px 0 14px rgba(0,0,0,0.28);
+    }
+    .ad-compare-table th:first-child {
+        background: #0d1a2e !important;
+    }
+    .ad-compare-table tbody tr:hover td:first-child {
+        background: #0f1f35 !important;
+    }
+    .ad-compare-header {
+        padding: 14px 12px;
+    }
+    .ad-compare-header-title { font-size: 0.95rem; }
+    .ad-compare-header-sub { font-size: 0.72rem; }
 }
 
 /* ---- Benefits ---- */
@@ -646,12 +819,42 @@ body { overflow-x: hidden; }
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     padding: 0 20px;
     gap: 4px;
     color: #334155;
 }
 .ad-scenario-arrow i { font-size: 1.5rem; }
 .ad-scenario-arrow span { font-size: 0.7rem; color: #475569; }
+.ad-scenario-arrow .arrow-mobile { display: none; }
+@@media (max-width: 768px) {
+    .ad-scenario-box {
+        padding: 24px 16px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .ad-scenario-diagram {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        width: 100%;
+        gap: 12px;
+    }
+    .ad-scenario-node {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 18px 16px;
+    }
+    .ad-scenario-arrow {
+        width: 100%;
+        padding: 4px 0;
+    }
+    .ad-scenario-arrow .arrow-desktop { display: none; }
+    .ad-scenario-arrow .arrow-mobile { display: inline-block; }
+}
 
 /* ---- FAQ ---- */
 .ad-faq {
@@ -793,15 +996,14 @@ body { overflow-x: hidden; }
             @if (hasPhotos)
             {
                 <div class="ad-gallery-desktop">
-                    <div style="position:relative; height:100%; min-height:280px;">
+                    <div class="ad-carousel-stage">
                         @for (var i = 0; i < photos.Count; i++)
                         {
                             var photo = photos[i];
                             <img src="@Url.Action(ActionNames.GetPhoto, ControllerNames.Coworking, new { photoId = photo.Id })"
                                  alt="Foto @(i + 1) de @tradeName"
-                                 class="ad-carousel-slide"
+                                 class="ad-carousel-slide@(i == 0 ? " is-active" : "")"
                                  data-idx="@i"
-                                 style="display:@(i == 0 ? "block" : "none"); width:100%; height:100%; object-fit:cover;"
                                  onerror="this.style.opacity='0';" />
                         }
                         @if (photos.Count > 1)
@@ -838,12 +1040,15 @@ body { overflow-x: hidden; }
 <div class="ad-listing-grid">
     <div>
         <div class="ad-hero-meta"><i class="bi bi-geo-alt-fill"></i> @locationLabel</div>
-        <h1 class="ad-hero-title">@tradeName — Endereço fiscal</h1>
+        <h1 class="ad-hero-title">@tradeName: endereço fiscal</h1>
+        <p style="color:#94a3b8; font-size:1.05rem; line-height:1.7; margin-bottom:20px; max-width:640px;">
+            Escritório virtual com endereço profissional para o CNPJ: documentação inclusa, recebimento de correspondência e suporte da Klyon. Ideal para prestadores de serviço, profissionais liberais e negócios digitais.
+        </p>
         <div class="ad-hero-address">
             <i class="bi bi-building" style="color:#c69844;"></i>
             <span>@fullAddress</span>
         </div>
-        @* Badge de vagas removido — limite de contratos não é mais aplicado *@
+        @* Badge de vagas removido: limite de contratos não é mais aplicado *@
 
         <div class="mb-4">
             <div class="ad-section-label">Documentos de confiança</div>
@@ -858,7 +1063,7 @@ body { overflow-x: hidden; }
                     }
                     else
                     {
-                        <span class="ad-trust-btn ad-trust-soon"><i class="bi bi-clock"></i> @doc.DisplayName — em breve</span>
+                        <span class="ad-trust-btn ad-trust-soon"><i class="bi bi-clock"></i> @doc.DisplayName (em breve)</span>
                     }
                 }
             </div>
@@ -874,10 +1079,12 @@ body { overflow-x: hidden; }
     </div>
     <aside class="ad-sticky-card">
         <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.08em;">A partir de</div>
-        <div class="ad-price-yearly mb-3">R$ @yearlyPrice.ToString("N2") <small>/ano</small></div>
+        <div class="ad-price-primary">R$ @monthlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals) <small>/mês</small></div>
+        <div class="ad-price-secondary mb-3">ou R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</div>
         <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal w-100 justify-content-center" data-funnel="cta_address_detail_contratar" data-show-loading>
-            <i class="bi bi-bank"></i> Contratar
+            <i class="bi bi-bank"></i> Cadastrar e contratar
         </a>
+        <p class="small text-center mt-2 mb-0" style="color:#64748b; line-height:1.5;">Cadastre-se: nossa equipe avalia o seu caso e orienta o melhor caminho.</p>
         <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link d-block text-center mt-3 small" data-funnel="cta_address_detail_comercial" data-show-loading>
             Prefere endereço comercial?
         </a>
@@ -886,9 +1093,10 @@ body { overflow-x: hidden; }
 
 <div class="ad-mobile-cta">
     <div>
-        <div style="color:#f8fafc; font-weight:700;">R$ @yearlyPrice.ToString("N2") <small style="color:#94a3b8; font-weight:400;">/ano</small></div>
+        <div class="ad-mobile-cta-price-primary">R$ @monthlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals) <small>/mês</small></div>
+        <div class="ad-mobile-cta-price-secondary">ou R$ @yearlyPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals)/ano</div>
     </div>
-    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:12px 18px; white-space:nowrap;" data-funnel="cta_address_detail_mobile" data-show-loading>Contratar</a>
+    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:12px 18px; white-space:nowrap;" data-funnel="cta_address_detail_mobile" data-show-loading>Cadastrar</a>
 </div>
 
 <div class="ad-lightbox" id="adLightbox" role="dialog" aria-modal="true" aria-label="Galeria">
@@ -917,15 +1125,15 @@ body { overflow-x: hidden; }
     <div class="ad-section">
         <div style="text-align:center; margin-bottom:48px;">
             <div class="ad-section-label" style="justify-content:center; display:flex;">Guia Rápido</div>
-            <div class="ad-section-title" style="text-align:center;">Qual endereço é ideal para você?</div>
-            <div class="ad-section-subtitle" style="margin:0 auto 0;">Responda uma pergunta e descubra em segundos.</div>
+            <div class="ad-section-title" style="text-align:center;">Qual endereço faz mais sentido para você?</div>
+            <div class="ad-section-subtitle" style="margin:0 auto 0;">Uma pergunta para orientar. Cada caso é diferente: no cadastro a Klyon avalia e indica o caminho certo.</div>
         </div>
 
         <!-- Pergunta -->
         <div class="ad-guide-question-card" id="guideQuestion">
             <div class="ad-guide-question-icon">📦</div>
             <div class="ad-guide-question-text">Sua empresa tem, ou pretende ter, <strong>estoque físico</strong>?</div>
-            <div class="ad-guide-question-sub">Estoque físico = mercadorias, produtos para venda ou distribuição guardados em algum local.</div>
+            <div class="ad-guide-question-sub">Estoque físico = mercadorias, produtos para venda ou distribuição guardados em algum local. Dropshipping e serviços digitais, em geral, não entram aqui.</div>
             <div class="ad-guide-btn-group">
                 <button class="ad-guide-btn" id="btnSim" onclick="showGuide('sim')">
                     <i class="bi bi-check-circle"></i> SIM, tenho estoque
@@ -939,26 +1147,32 @@ body { overflow-x: hidden; }
         <!-- Resultado SIM -->
         <div class="ad-result" id="result-sim">
             <div class="ad-result-cards">
-                <div class="ad-result-card not-recommended">
-                    <span class="ad-result-card-badge badge-not-recommended">Não recomendado para CNPJ</span>
+                <div class="ad-result-card evaluate">
+                    <span class="ad-result-card-badge badge-evaluate">Vamos avaliar o seu caso</span>
                     <div class="ad-result-card-icon">🏢</div>
                     <div class="ad-result-card-title">Endereço Fiscal</div>
                     <div class="ad-result-card-desc">
-                        Empresas com estoque precisam que o CNPJ fique no local onde a operação acontece de fato.
-                        Usar nosso endereço como sede fiscal pode gerar problemas na prefeitura.
+                        Tem estoque? Não desanime. O local da operação física importa, mas cada CNAE e modelo de negócio é diferente:
+                        muitas empresas se encaixam com a estrutura adequada (por exemplo, matriz + filial) ou descobrem que o fiscal ainda faz sentido.
+                        Faça o cadastro: nossa equipe avalia e orienta o caminho correto.
                     </div>
                     <ul class="ad-result-card-list">
-                        <li><i class="bi bi-x-circle-fill cross"></i> CNPJ com estoque não pode usar endereço virtual como sede</li>
-                        <li><i class="bi bi-x-circle-fill cross"></i> Risco de autuação fiscal e cancelamento do CNPJ</li>
-                        <li><i class="bi bi-x-circle-fill cross"></i> CNAEs de comércio não são permitidos para endereço fiscal virtual</li>
+                        <li><i class="bi bi-info-circle-fill hint"></i> Cada caso é diferente: a Klyon analisa com você</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Cadastre-se para orientação personalizada</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Em vários cenários, matriz no fiscal + filial na operação funciona bem</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Documentação e suporte inclusos quando o fiscal for o caminho</li>
                     </ul>
+                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center;" data-show-loading>
+                        <i class="bi bi-bank"></i> Cadastrar para orientação
+                    </a>
                 </div>
                 <div class="ad-result-card recommended">
-                    <span class="ad-result-card-badge badge-recommended">Recomendado para você</span>
+                    <span class="ad-result-card-badge badge-recommended">Ótima opção também</span>
                     <div class="ad-result-card-icon">📍</div>
                     <div class="ad-result-card-title">Endereço Comercial</div>
                     <div class="ad-result-card-desc">
-                        Use nosso endereço para dar uma imagem profissional à sua empresa: cartão de visita, site, reuniões — sem precisar colocar no CNPJ.
+                        Quer imagem profissional já, sem colocar o endereço no CNPJ? Use no cartão de visita, site e reuniões,
+                        com recebimento de correspondências e apoio no dia a dia.
                     </div>
                     <ul class="ad-result-card-list">
                         <li><i class="bi bi-check-circle-fill check"></i> Endereço premium no cartão de visita e site</li>
@@ -984,30 +1198,44 @@ body { overflow-x: hidden; }
                     <div class="ad-result-card-icon">🏢</div>
                     <div class="ad-result-card-title">Endereço Fiscal</div>
                     <div class="ad-result-card-desc">
-                        Perfeito para prestadores de serviço! Use nosso endereço diretamente no seu CNPJ com documentação completa e suporte Klyon.
+                        Perfeito para quem presta serviços ou opera sem estoque próprio. Use nosso endereço no CNPJ com documentação completa e suporte Klyon,
+                        o caminho mais comum entre escritórios virtuais e profissionais liberais.
                     </div>
                     <ul class="ad-result-card-list">
-                        <li><i class="bi bi-check-circle-fill check"></i> Use no CNPJ — sede oficial da sua empresa</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Use no CNPJ: sede oficial da sua empresa</li>
                         <li><i class="bi bi-check-circle-fill check"></i> Documentação inclusa (IPTU, alvará, etc.)</li>
-                        <li><i class="bi bi-check-circle-fill check"></i> Aceito para prestadores de serviço (CNAEs de serviço)</li>
-                        <li><i class="bi bi-check-circle-fill check"></i> Suporte Klyon</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Ideal para serviços, consultoria e negócios digitais</li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Suporte Klyon do cadastro à regularização</li>
                         <li><i class="bi bi-check-circle-fill check"></i> Recebimento de correspondências</li>
                     </ul>
-                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center;" data-show-loading>
+                    <div class="ad-ideal-for" aria-label="Perfis ideais">
+                        <span class="ad-ideal-chip">Dropshipping</span>
+                        <span class="ad-ideal-chip">Agências</span>
+                        <span class="ad-ideal-chip">TI &amp; Design</span>
+                        <span class="ad-ideal-chip">Consultores</span>
+                        <span class="ad-ideal-chip">Advogados</span>
+                        <span class="ad-ideal-chip">Infoprodutores</span>
+                        <span class="ad-ideal-chip">Prestadores de serviço</span>
+                    </div>
+                    <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="width:100%; justify-content:center; margin-top:20px;" data-show-loading>
                         <i class="bi bi-bank"></i> Contratar Endereço Fiscal
                     </a>
                 </div>
                 <div class="ad-result-card" style="border-color:rgba(255,255,255,0.1); background:rgba(255,255,255,0.03);">
                     <div class="ad-result-card-icon" style="opacity:0.5;">📍</div>
-                    <div class="ad-result-card-title" style="color:#64748b;">Endereço Comercial</div>
+                    <div class="ad-result-card-title" style="color:#94a3b8;">Endereço Comercial</div>
                     <div class="ad-result-card-desc">
-                        Pode ser contratado como complemento, mas não é necessário se você já tem o Endereço Fiscal — ele já inclui uso para cartão de visita e site.
+                        Pode complementar a imagem da marca, mas se o Fiscal atender, ele já cobre uso em cartão de visita e site,
+                        sem precisar de um segundo plano.
                     </div>
                     <ul class="ad-result-card-list">
-                        <li><i class="bi bi-dash-circle" style="color:#475569; flex-shrink:0;"></i> <span style="color:#475569;">Não coloca no CNPJ</span></li>
-                        <li><i class="bi bi-dash-circle" style="color:#475569; flex-shrink:0;"></i> <span style="color:#475569;">Não inclui documentos</span></li>
-                        <li><i class="bi bi-check-circle-fill check"></i> Pode ser usado para cartão de visita e site</li>
+                        <li><i class="bi bi-dash-circle" style="color:#64748b; flex-shrink:0;"></i> <span style="color:#94a3b8;">Não coloca no CNPJ</span></li>
+                        <li><i class="bi bi-dash-circle" style="color:#64748b; flex-shrink:0;"></i> <span style="color:#94a3b8;">Não inclui documentos fiscais</span></li>
+                        <li><i class="bi bi-check-circle-fill check"></i> Excelente para imagem e recebimento de correspondência</li>
                     </ul>
+                    <a href="@commercialOnboardingUrl" class="btn-ad-outline" style="width:100%; justify-content:center;" data-show-loading>
+                        Ver Endereço Comercial
+                    </a>
                 </div>
             </div>
             <div style="text-align:center; margin-top:20px;">
@@ -1024,9 +1252,13 @@ body { overflow-x: hidden; }
     <div class="ad-section">
         <div class="ad-section-label">Comparativo</div>
         <div class="ad-section-title">Fiscal <span style="color:#334155;">vs</span> Comercial</div>
-        <div class="ad-section-subtitle">Entenda as diferenças antes de escolher. Sem letras miúdas.</div>
+        <div class="ad-section-subtitle">Entenda as diferenças com clareza. Na dúvida, cadastre-se: a Klyon orienta o melhor encaixe para o seu negócio.</div>
 
-        <div class="compare-wrapper">
+        <div class="compare-scroll-hint" aria-hidden="true">
+            <i class="bi bi-arrow-left-right"></i> Deslize para ver Fiscal e Comercial
+        </div>
+        <div class="compare-wrapper" id="compareWrapper">
+            <div class="compare-scroll" id="compareScroll">
             <table class="ad-compare-table">
                 <thead>
                     <tr>
@@ -1034,13 +1266,13 @@ body { overflow-x: hidden; }
                         <th class="col-fiscal" style="background:rgba(16,185,129,0.06);">
                             <div class="ad-compare-header fiscal-head">
                                 <div class="ad-compare-header-title">🏢 Endereço Fiscal</div>
-                                <div class="ad-compare-header-sub">Para quem presta serviços</div>
+                                <div class="ad-compare-header-sub">Sede no CNPJ + documentos</div>
                             </div>
                         </th>
                         <th class="col-comercial" style="background:rgba(249,115,22,0.04);">
                             <div class="ad-compare-header comercial-head">
                                 <div class="ad-compare-header-title">📍 Endereço Comercial</div>
-                                <div class="ad-compare-header-sub">Para apoio e imagem</div>
+                                <div class="ad-compare-header-sub">Imagem e apoio no dia a dia</div>
                             </div>
                         </th>
                     </tr>
@@ -1052,14 +1284,14 @@ body { overflow-x: hidden; }
                         <td style="background:rgba(249,115,22,0.02);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não</span></td>
                     </tr>
                     <tr>
-                        <td>Empresas sem estoque</td>
+                        <td>Prestadores de serviço / sem estoque</td>
                         <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Ideal</span></td>
                         <td style="background:rgba(249,115,22,0.02);"><span class="check-partial"><i class="bi bi-dash-circle-fill"></i> Disponível</span></td>
                     </tr>
                     <tr>
-                        <td>Empresas com estoque</td>
-                        <td style="background:rgba(16,185,129,0.04);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não permitido</span></td>
-                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Recomendado</span></td>
+                        <td>Empresas com estoque físico</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-partial"><i class="bi bi-info-circle-fill" style="color:#c69844;"></i> Avaliamos com você</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Ótima opção</span></td>
                     </tr>
                     <tr>
                         <td>Documentos (IPTU, Alvará)</td>
@@ -1078,13 +1310,13 @@ body { overflow-x: hidden; }
                     </tr>
                     <tr>
                         <td>CNAEs de prestação de serviço</td>
-                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Aceito</span></td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Perfil mais comum</span></td>
                         <td style="background:rgba(249,115,22,0.02);"><span class="check-partial"><i class="bi bi-dash-circle-fill"></i> Não aplicável</span></td>
                     </tr>
                     <tr>
-                        <td>Pode ser fiscalizado pela prefeitura</td>
-                        <td style="background:rgba(16,185,129,0.04);"><span class="check-partial"><i class="bi bi-exclamation-circle-fill" style="color:#fbbf24;"></i> Sim — sem estoque</span></td>
-                        <td style="background:rgba(249,115,22,0.02);"><span class="check-no"><i class="bi bi-x-circle-fill"></i> Não se aplica</span></td>
+                        <td>Orientação da equipe Klyon</td>
+                        <td style="background:rgba(16,185,129,0.04);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Inclusa no cadastro</span></td>
+                        <td style="background:rgba(249,115,22,0.02);"><span class="check-yes"><i class="bi bi-check-circle-fill"></i> Inclusa no cadastro</span></td>
                     </tr>
                     <tr>
                         <td>Suporte Klyon</td>
@@ -1093,6 +1325,7 @@ body { overflow-x: hidden; }
                     </tr>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </section>
@@ -1103,39 +1336,60 @@ body { overflow-x: hidden; }
 <section class="ad-benefits">
     <div class="ad-section">
         <div class="ad-section-label">O que está incluso</div>
-        <div class="ad-section-title">Tudo que você precisa para operar com profissionalismo</div>
-        <div class="ad-section-subtitle">Seja qual for o plano escolhido, esses são os pilares do seu contrato.</div>
+        <div class="ad-section-title">Tudo para operar com endereço profissional</div>
+        <div class="ad-section-subtitle">Do CNPJ à correspondência: os pilares do seu escritório virtual com a Klyon e o parceiro local.</div>
 
         <div class="ad-benefits-grid">
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">📬</span>
                 <div class="ad-benefit-title">Recebimento de Correspondência</div>
-                <div class="ad-benefit-desc">Receba cartas, documentos e encomendas no endereço. Notificação digital quando chegar.</div>
+                <div class="ad-benefit-desc">Cartas, documentos e encomendas no endereço, com aviso quando algo chegar.</div>
             </div>
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">🏛️</span>
                 <div class="ad-benefit-title">Endereço Profissional</div>
-                <div class="ad-benefit-desc">Use no cartão de visita, assinatura de e-mail, site e redes sociais com credibilidade.</div>
+                <div class="ad-benefit-desc">Use no cartão de visita, e-mail, site e redes com credibilidade, sem alugar um imóvel só para isso.</div>
             </div>
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">🤝</span>
                 <div class="ad-benefit-title">Apoio Administrativo</div>
-                <div class="ad-benefit-desc">Equipe do parceiro disponível para recepcionar clientes e apoiar no dia a dia.</div>
+                <div class="ad-benefit-desc">Equipe do parceiro para recepcionar e apoiar o dia a dia da sua empresa no local.</div>
             </div>
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">📋</span>
                 <div class="ad-benefit-title">Documentação Oficial</div>
-                <div class="ad-benefit-desc">Para Endereço Fiscal: IPTU, Alvará e documentos exigidos para abertura e manutenção do CNPJ.</div>
+                <div class="ad-benefit-desc">No Fiscal: IPTU, alvará e documentos usados na abertura e manutenção do CNPJ (conforme o município).</div>
             </div>
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">🛡️</span>
-                <div class="ad-benefit-title">Suporte Klyon</div>
-                <div class="ad-benefit-desc">Nossa equipe garante a regularidade do endereço e auxilia sempre que precisar.</div>
+                <div class="ad-benefit-title">Suporte e orientação Klyon</div>
+                <div class="ad-benefit-desc">Do cadastro à escolha do plano: avaliamos o seu perfil e ajudamos a seguir com segurança.</div>
             </div>
             <div class="ad-benefit-card">
                 <span class="ad-benefit-icon">🏢</span>
                 <div class="ad-benefit-title">Salas de Reunião</div>
-                <div class="ad-benefit-desc">Realize reuniões presenciais no local mediante contratação avulsa por hora.</div>
+                <div class="ad-benefit-desc">Encontros presenciais no espaço, mediante contratação avulsa por hora.</div>
+            </div>
+        </div>
+
+        <div style="margin-top:40px; padding:28px 32px; background:rgba(26,77,122,0.15); border:1px solid rgba(45,107,163,0.35); border-radius:20px;">
+            <div class="ad-section-label" style="margin-bottom:8px;">Ideal para</div>
+            <div style="font-size:1.15rem; font-weight:700; color:#f8fafc; margin-bottom:10px;">Muitos perfis usam endereço fiscal com tranquilidade</div>
+            <p style="color:#94a3b8; font-size:0.95rem; line-height:1.7; margin-bottom:16px;">
+                Escritório virtual e sede no CNPJ são especialmente comuns para quem presta serviços ou não mantém estoque próprio no local.
+                Na dúvida, cadastre-se: avaliamos juntos.
+            </p>
+            <div class="ad-ideal-for">
+                <span class="ad-ideal-chip">Dropshipping / sem estoque próprio</span>
+                <span class="ad-ideal-chip">Agência de carga / logística digital</span>
+                <span class="ad-ideal-chip">Programadores e designers</span>
+                <span class="ad-ideal-chip">Consultores</span>
+                <span class="ad-ideal-chip">Agências de marketing</span>
+                <span class="ad-ideal-chip">Arquitetos e psicólogos</span>
+                <span class="ad-ideal-chip">Representantes comerciais</span>
+                <span class="ad-ideal-chip">Advogados</span>
+                <span class="ad-ideal-chip">Infoprodutores</span>
+                <span class="ad-ideal-chip">Prestadores de serviço em geral</span>
             </div>
         </div>
     </div>
@@ -1146,18 +1400,18 @@ body { overflow-x: hidden; }
 <!-- ======================== CENÁRIO MATRIZ/FILIAL ======================== -->
 <section class="ad-scenario">
     <div class="ad-section">
-        <div class="ad-section-label">Solução para empresas com estoque</div>
-        <div class="ad-section-title">Tem estoque? Use nosso endereço como Sede Fiscal — com Filial operacional</div>
+        <div class="ad-section-label">Tem estoque? Ainda há caminho</div>
+        <div class="ad-section-title">Matriz no endereço fiscal + Filial na operação</div>
         <div class="ad-section-subtitle">
-            Muitas empresas adotam a estrutura Matriz + Filial para manter a regularidade fiscal e a operação separadas.
+            Muitas empresas separam sede administrativa e operação física. Avaliamos com você se essa estrutura (ou outra) encaixa no seu caso.
         </div>
 
         <div class="ad-scenario-box">
             <p class="ad-scenario-text">
-                Se a sua empresa tem estoque físico, o endereço no CNPJ precisa ser onde a
-                <em>operação acontece de fato</em>. Porém, nossa estrutura pode ser usada como
-                <em>sede administrativa</em> da empresa (Matriz), enquanto o estoque e a operação
-                ficam na Filial — cada um com seu CNPJ.
+                Quando há estoque físico, o endereço da operação importa. Mesmo assim, é comum usar nosso espaço como
+                <em>sede administrativa (Matriz)</em> e manter estoque/produção em uma
+                <em>Filial</em> no local da operação, cada uma com seu CNPJ.
+                Não é regra única: cadastre-se para a Klyon avaliar e orientar o melhor desenho.
             </p>
 
             <div class="ad-scenario-diagram">
@@ -1170,7 +1424,8 @@ body { overflow-x: hidden; }
                     </div>
                 </div>
                 <div class="ad-scenario-arrow">
-                    <i class="bi bi-arrow-right-short"></i>
+                    <i class="bi bi-arrow-right-short arrow-desktop" aria-hidden="true"></i>
+                    <i class="bi bi-arrow-down-short arrow-mobile" aria-hidden="true"></i>
                     <span>+ Filial</span>
                 </div>
                 <div class="ad-scenario-node node-filial">
@@ -1184,11 +1439,13 @@ body { overflow-x: hidden; }
             </div>
 
             <div style="margin-top:32px; padding:20px; background:rgba(198,152,68,0.08); border:1px solid rgba(198,152,68,0.2); border-radius:12px; text-align:center;">
-                <p style="color:#c69844; font-size:0.88rem; margin:0; line-height:1.7;">
+                <p style="color:#e8c57a; font-size:0.9rem; margin:0 0 16px; line-height:1.7;">
                     <i class="bi bi-lightbulb-fill me-2"></i>
-                    <strong>Dica:</strong> Consulte um contador para verificar se essa estrutura é adequada para o seu modelo de negócio.
-                    Cada CNAE e atividade tem regras específicas.
+                    <strong>Próximo passo:</strong> faça o cadastro. Nossa equipe analisa o perfil e, quando fizer sentido, sugere fiscal, comercial ou a combinação com matriz/filial, sempre com orientação clara.
                 </p>
+                <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" data-show-loading>
+                    <i class="bi bi-bank"></i> Cadastrar para avaliação
+                </a>
             </div>
         </div>
     </div>
@@ -1200,16 +1457,27 @@ body { overflow-x: hidden; }
 <section class="ad-faq">
     <div class="ad-section">
         <div class="ad-section-label">Dúvidas Frequentes</div>
-        <div class="ad-section-title">Perguntas que todo cliente faz</div>
+        <div class="ad-section-title">Tire as dúvidas antes de cadastrar</div>
 
         <div class="ad-faq-list">
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    Quem costuma usar endereço fiscal (escritório virtual)?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Prestadores de serviço em geral, consultores, programadores, designers, agências de marketing, advogados, arquitetos, psicólogos, representantes comerciais, infoprodutores, dropshipping sem estoque próprio, logística digital e outros perfis que não precisam de estoque no endereço do CNPJ.
+                    Se o seu caso for diferente, cadastre-se: a Klyon avalia e orienta.
+                </div>
+            </div>
             <div class="ad-faq-item">
                 <button class="ad-faq-q" onclick="toggleFaq(this)">
                     Posso usar o endereço fiscal se vendo produtos físicos?
                     <i class="bi bi-plus faq-icon"></i>
                 </button>
                 <div class="ad-faq-a">
-                    Depende. Se você vende online e não tem estoque físico (dropshipping ou marketplace), pode ser possível com prestação de serviços. Mas se você armazena mercadoria, o CNPJ deve ficar no local do estoque. Consulte um contador e entre em contato com nossa equipe para analisar seu caso.
+                    Depende do modelo. Dropshipping, marketplace sem estoque próprio ou venda com operação em outro local costumam ter caminhos viáveis (inclusive matriz/filial em alguns casos).
+                    O estoque físico no local da operação importa, por isso cada CNAE e estrutura é analisada individualmente. Faça o cadastro: nossa equipe avalia o seu caso e indica fiscal, comercial ou a combinação adequada.
                 </div>
             </div>
             <div class="ad-faq-item">
@@ -1218,7 +1486,8 @@ body { overflow-x: hidden; }
                     <i class="bi bi-plus faq-icon"></i>
                 </button>
                 <div class="ad-faq-a">
-                    Não. O Endereço Comercial é apenas para uso em cartão de visita, site e comunicações da empresa. Não fornecemos documentos (IPTU, alvará) para esse serviço e ele não deve ser declarado na Receita Federal como sede da empresa.
+                    Não: o Comercial é para imagem e operação do dia a dia (cartão, site, correspondência), sem documentação de sede no CNPJ.
+                    Se você precisa de sede oficial, o caminho é o Endereço Fiscal. Na dúvida entre os dois, cadastre-se e pedimos orientação personalizada.
                 </div>
             </div>
             <div class="ad-faq-item">
@@ -1227,16 +1496,28 @@ body { overflow-x: hidden; }
                     <i class="bi bi-plus faq-icon"></i>
                 </button>
                 <div class="ad-faq-a">
-                    Para o Endereço Fiscal, fornecemos os documentos necessários para regularização na prefeitura e junto à Receita Federal, como IPTU, comprovante de endereço e alvará de funcionamento (quando aplicável). Os documentos específicos variam conforme o município.
+                    Documentos usados na regularização junto à prefeitura e à Receita Federal, como IPTU, comprovante de endereço e alvará (quando aplicável).
+                    A lista exata varia conforme o município; no onboarding deixamos claro o que será entregue no seu contrato.
                 </div>
             </div>
             <div class="ad-faq-item">
                 <button class="ad-faq-q" onclick="toggleFaq(this)">
-                    Minha empresa pode abrir CNPJ já usando esse endereço?
+                    Ainda não tenho CNPJ. Posso contratar?
                     <i class="bi bi-plus faq-icon"></i>
                 </button>
                 <div class="ad-faq-a">
-                    Sim! Você não precisa ter CNPJ para contratar. Se ainda não tem CNPJ, pode usar nosso endereço fiscal durante a abertura da empresa. Ao contratar, você informa se já possui CNPJ ou se irá abrir — e preparamos o contrato no CPF ou no CNPJ conforme seu caso.
+                    Sim. Você pode contratar e usar o endereço fiscal na abertura da empresa. No cadastro você informa se já tem CNPJ ou se vai abrir,
+                    e o contrato é preparado no CPF ou no CNPJ conforme o seu momento.
+                </div>
+            </div>
+            <div class="ad-faq-item">
+                <button class="ad-faq-q" onclick="toggleFaq(this)">
+                    Tenho estoque. Ainda vale a pena me cadastrar?
+                    <i class="bi bi-plus faq-icon"></i>
+                </button>
+                <div class="ad-faq-a">
+                    Sim. Estoque não é um “não” automático. Em vários cenários há solução com estrutura adequada (por exemplo matriz + filial) ou o Endereço Comercial como porta de entrada.
+                    O cadastro é o jeito mais rápido de a Klyon entender o seu perfil e orientar sem enrolação.
                 </div>
             </div>
             <div class="ad-faq-item">
@@ -1245,7 +1526,8 @@ body { overflow-x: hidden; }
                     <i class="bi bi-plus faq-icon"></i>
                 </button>
                 <div class="ad-faq-a">
-                    O contrato é anual com reajuste no IPCA. Cancelamentos antecipados podem estar sujeitos a multa contratual conforme previsto no contrato. Consulte nossos termos ou entre em contato para esclarecer dúvidas sobre cancelamento.
+                    O contrato é anual, com reajuste pelo IPCA. Condições de cancelamento antecipado seguem o que estiver previsto no contrato.
+                    Em caso de dúvida sobre prazos ou multa, fale com o suporte antes ou depois do cadastro: preferimos transparência desde o início.
                 </div>
             </div>
         </div>
@@ -1259,16 +1541,17 @@ body { overflow-x: hidden; }
     <div class="ad-section" style="text-align:center;">
         <div class="ad-section-label" style="justify-content:center; display:flex;">Pronto para começar?</div>
         <div class="ad-section-title" style="text-align:center;">
-            Escolha o endereço certo<br>
-            <span style="color:#1a4d7a;">para a sua empresa crescer.</span>
+            Cadastre-se e vamos orientar<br>
+            <span style="color:#2d6ba3;">o endereço certo para o seu negócio.</span>
         </div>
         <p class="ad-final-cta-subtitle">
-            Sem burocracia excessiva. Contrato digital, pagamento online e suporte da Klyon do começo ao fim.
+            Sem enrolação: você se cadastra, a Klyon avalia o perfil e você segue com fiscal, comercial ou a estrutura que fizer sentido,
+            com contrato digital, pagamento online e suporte do começo ao fim.
         </p>
         <div class="ad-final-btns flex-column align-items-center gap-3">
             <a href="@fiscalOnboardingUrl" class="btn-ad-fiscal" style="padding:16px 40px; font-size:1rem;" data-funnel="cta_address_detail_final_contratar" data-show-loading>
                 <i class="bi bi-bank"></i>
-                Contratar endereço fiscal
+                Cadastrar e contratar endereço fiscal
             </a>
             <a href="@commercialOnboardingUrl" class="ad-cta-secondary-link" data-funnel="cta_address_detail_final_comercial" data-show-loading>
                 Prefere endereço comercial (sem sede no CNPJ)?
@@ -1293,26 +1576,45 @@ body { overflow-x: hidden; }
     var counter = document.getElementById('adCounter');
     var lightbox = document.getElementById('adLightbox');
     var lightboxImg = document.getElementById('adLightboxImg');
+    var transitioning = false;
+    var TRANSITION_MS = 750;
 
     function showSlide(idx) {
         if (total === 0) return;
-        current = (idx + total) % total;
-        slides.forEach(function (s, i) { s.style.display = i === current ? 'block' : 'none'; });
+        var next = (idx + total) % total;
+        if (next === current && slides[current] && slides[current].classList.contains('is-active')) return;
+
+        current = next;
+        slides.forEach(function (s, i) { s.classList.toggle('is-active', i === current); });
         thumbs.forEach(function (t, i) { t.classList.toggle('active', i === current); });
         if (counter) counter.textContent = (current + 1) + ' / ' + total;
         if (lightbox && lightbox.classList.contains('open') && lightboxImg) {
             lightboxImg.src = slides[current].src;
         }
+
+        transitioning = true;
+        setTimeout(function () { transitioning = false; }, TRANSITION_MS);
     }
 
     if (total > 0) {
         showSlide(0);
         var prevBtn = document.getElementById('adPrev');
         var nextBtn = document.getElementById('adNext');
-        if (prevBtn) prevBtn.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current - 1); });
-        if (nextBtn) nextBtn.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current + 1); });
+        if (prevBtn) prevBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (transitioning) return;
+            showSlide(current - 1);
+        });
+        if (nextBtn) nextBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (transitioning) return;
+            showSlide(current + 1);
+        });
         thumbs.forEach(function (t) {
-            t.addEventListener('click', function () { showSlide(parseInt(t.getAttribute('data-idx'), 10)); });
+            t.addEventListener('click', function () {
+                if (transitioning) return;
+                showSlide(parseInt(t.getAttribute('data-idx'), 10));
+            });
         });
         var wrap = document.getElementById('adCarousel');
         var startX = 0, startY = 0, tracking = false;
@@ -1327,6 +1629,7 @@ body { overflow-x: hidden; }
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
             if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+            if (transitioning) return;
             showSlide(dx < 0 ? current + 1 : current - 1);
         }
         if (wrap) {
@@ -1345,8 +1648,16 @@ body { overflow-x: hidden; }
         var lbPrev = document.getElementById('adLightboxPrev');
         var lbNext = document.getElementById('adLightboxNext');
         if (lbClose) lbClose.addEventListener('click', closeLightbox);
-        if (lbPrev) lbPrev.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current - 1); });
-        if (lbNext) lbNext.addEventListener('click', function (e) { e.stopPropagation(); showSlide(current + 1); });
+        if (lbPrev) lbPrev.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (transitioning) return;
+            showSlide(current - 1);
+        });
+        if (lbNext) lbNext.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (transitioning) return;
+            showSlide(current + 1);
+        });
         if (lightbox) lightbox.addEventListener('click', function (e) { if (e.target === lightbox) closeLightbox(); });
         document.addEventListener('keydown', function (e) {
             if (lightbox && lightbox.classList.contains('open')) {
@@ -1356,6 +1667,20 @@ body { overflow-x: hidden; }
             }
         });
     }
+
+    /* ---- Comparativo: hint de scroll horizontal no mobile ---- */
+    (function () {
+        var wrap = document.getElementById('compareWrapper');
+        var scroll = document.getElementById('compareScroll');
+        if (!wrap || !scroll) return;
+        function updateCompareHint() {
+            var max = scroll.scrollWidth - scroll.clientWidth;
+            wrap.classList.toggle('is-at-end', max <= 4 || scroll.scrollLeft >= max - 4);
+        }
+        scroll.addEventListener('scroll', updateCompareHint, { passive: true });
+        window.addEventListener('resize', updateCompareHint);
+        updateCompareHint();
+    })();
 
     /* ---- Modal PDF ---- */
     var pdfModal = document.getElementById('adPdfModal');

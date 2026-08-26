@@ -192,7 +192,7 @@
                                         var statusTitle = isAwaitingAdjustment ? "Cadastro reprovado: corrija os itens e reenvie para análise"
                                             : address.AddressStatus == AddressStatus.PendingApproval ? "Aguardando aprovação do administrador"
                                             : hasPendingCardPrices ? "Preços no cartão aguardando aprovação"
-                                            : hasRejectedCardPrices ? "Preços no cartão reprovados — ver motivo abaixo"
+                                            : hasRejectedCardPrices ? "Preços no cartão reprovados: ver motivo abaixo"
                                             : !isCoworkingFullyApproved && address.AddressStatus == AddressStatus.Active ? "Cadastro ainda não totalmente aprovado pelo administrador"
                                             : "";
                                         var cardPriceRejectionReason = cardPriceRejectionByAddress.TryGetValue(address.Id, out var reason) ? reason : null;
@@ -322,78 +322,78 @@
                     <div class="col-12 mb-2"><label class="form-label fw-bold text-muted small">Endereço</label></div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Logradouro</label>
-                        <p class="mb-0" id="viewAddrStreet">—</p>
+                        <p class="mb-0" id="viewAddrStreet">-</p>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label fw-bold text-muted small">Número</label>
-                        <p class="mb-0" id="viewAddrNumber">—</p>
+                        <p class="mb-0" id="viewAddrNumber">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Complemento</label>
-                        <p class="mb-0" id="viewAddrComplement">—</p>
+                        <p class="mb-0" id="viewAddrComplement">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Bairro</label>
-                        <p class="mb-0" id="viewAddrNeighborhood">—</p>
+                        <p class="mb-0" id="viewAddrNeighborhood">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Cidade</label>
-                        <p class="mb-0" id="viewAddrCity">—</p>
+                        <p class="mb-0" id="viewAddrCity">-</p>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label fw-bold text-muted small">Estado</label>
-                        <p class="mb-0" id="viewAddrState">—</p>
+                        <p class="mb-0" id="viewAddrState">-</p>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label fw-bold text-muted small">CEP</label>
-                        <p class="mb-0" id="viewAddrZip">—</p>
+                        <p class="mb-0" id="viewAddrZip">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Localidade (Klyon)</label>
-                        <p class="mb-0" id="viewAddrLocation">—</p>
+                        <p class="mb-0" id="viewAddrLocation">-</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Comercial</label></div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Preço base</label>
-                        <p class="mb-0" id="viewAddrBasePrice">—</p>
+                        <p class="mb-0" id="viewAddrBasePrice">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Disponível</label>
-                        <p class="mb-0" id="viewAddrAvailable">—</p>
+                        <p class="mb-0" id="viewAddrAvailable">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Status do endereço</label>
-                        <p class="mb-0" id="viewAddrStatus">—</p>
+                        <p class="mb-0" id="viewAddrStatus">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Contratos ativos</label>
-                        <p class="mb-0" id="viewAddrContracts">—</p>
+                        <p class="mb-0" id="viewAddrContracts">-</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Preços no cartão</label></div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">À vista (1x)</label>
-                        <p class="mb-0" id="viewAddrCard1x">—</p>
+                        <p class="mb-0" id="viewAddrCard1x">-</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label fw-bold text-muted small">Mensal</label>
-                        <p class="mb-0" id="viewAddrCardMonthly">—</p>
+                        <p class="mb-0" id="viewAddrCardMonthly">-</p>
                     </div>
                     <div class="col-12 mb-2"><hr class="my-2" /><label class="form-label fw-bold text-muted small">Salas</label></div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala compartilhada</label>
-                        <p class="mb-0" id="viewAddrSharedRoom">—</p>
+                        <p class="mb-0" id="viewAddrSharedRoom">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Sala privada</label>
-                        <p class="mb-0" id="viewAddrPrivateRoom">—</p>
+                        <p class="mb-0" id="viewAddrPrivateRoom">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Cadastrado em</label>
-                        <p class="mb-0" id="viewAddrCreatedAt">—</p>
+                        <p class="mb-0" id="viewAddrCreatedAt">-</p>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Atualizado em</label>
-                        <p class="mb-0" id="viewAddrUpdatedAt">—</p>
+                        <p class="mb-0" id="viewAddrUpdatedAt">-</p>
                     </div>
                 </div>
             </div>
@@ -425,17 +425,17 @@
             row.addEventListener('click', function(e) {
                 if (e.target.closest('a') || e.target.closest('button')) return;
                 var r = this;
-                function val(attr) { return r.getAttribute(attr) || '—'; }
+                function val(attr) { return r.getAttribute(attr) || '-'; }
                 document.getElementById('viewAddrStreet').textContent = val('data-address');
                 document.getElementById('viewAddrNumber').textContent = val('data-number');
-                document.getElementById('viewAddrComplement').textContent = val('data-complement') || '—';
+                document.getElementById('viewAddrComplement').textContent = val('data-complement') || '-';
                 document.getElementById('viewAddrNeighborhood').textContent = val('data-neighborhood');
                 document.getElementById('viewAddrCity').textContent = val('data-city');
                 document.getElementById('viewAddrState').textContent = val('data-state');
                 document.getElementById('viewAddrZip').textContent = val('data-zip');
                 document.getElementById('viewAddrLocation').textContent = val('data-location');
                 var basePrice = val('data-base-price');
-                document.getElementById('viewAddrBasePrice').textContent = basePrice !== '—' ? 'R$ ' + basePrice : '—';
+                document.getElementById('viewAddrBasePrice').textContent = basePrice !== '-' ? 'R$ ' + basePrice : '-';
                 document.getElementById('viewAddrAvailable').innerHTML = val('data-available') === 'Sim'
                     ? '<span class="badge bg-success">Sim</span>' : '<span class="badge bg-danger">Não</span>';
                 var statusLabel = val('data-status-label');
@@ -444,18 +444,18 @@
                 document.getElementById('viewAddrContracts').textContent = val('data-current-contracts');
                 var card1x = val('data-card-1x');
                 var cardMon = val('data-card-monthly');
-                document.getElementById('viewAddrCard1x').textContent = card1x !== '—' ? 'R$ ' + card1x : '—';
-                document.getElementById('viewAddrCardMonthly').textContent = cardMon !== '—' ? 'R$ ' + cardMon : '—';
+                document.getElementById('viewAddrCard1x').textContent = card1x !== '-' ? 'R$ ' + card1x : '-';
+                document.getElementById('viewAddrCardMonthly').textContent = cardMon !== '-' ? 'R$ ' + cardMon : '-';
                 var shared = val('data-shared-room');
                 var sharedPrice = val('data-shared-price');
                 var sharedSeats = val('data-shared-seats');
                 document.getElementById('viewAddrSharedRoom').textContent = shared === 'Sim'
-                    ? 'Sim — R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
+                    ? 'Sim: R$ ' + sharedPrice + '/h, até ' + sharedSeats + ' lugares' : 'Não';
                 var priv = val('data-private-room');
                 var privPrice = val('data-private-price');
                 var privSeats = val('data-private-seats');
                 document.getElementById('viewAddrPrivateRoom').textContent = priv === 'Sim'
-                    ? 'Sim — R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
+                    ? 'Sim: R$ ' + privPrice + '/h, até ' + privSeats + ' lugares' : 'Não';
                 document.getElementById('viewAddrCreatedAt').textContent = val('data-created-at');
                 document.getElementById('viewAddrUpdatedAt').textContent = val('data-updated-at');
                 var modal = new bootstrap.Modal(document.getElementById('viewAddressModal'));

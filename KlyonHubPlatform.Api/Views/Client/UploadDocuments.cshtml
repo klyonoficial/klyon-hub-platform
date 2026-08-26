@@ -204,7 +204,7 @@
                         @if (rgFront != null)
                         {
                             <div class="upload-doc @(rgFront.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
-                                Enviado: @rgFront.FileName — @StatusLabel(rgFront.Status)
+                                Enviado: @rgFront.FileName · @StatusLabel(rgFront.Status)
                                 @if (rgFront.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(rgFront.RejectionReason))
                                 {
                                     <span> Motivo: @rgFront.RejectionReason</span>
@@ -219,7 +219,7 @@
                         @if (rgBack != null)
                         {
                             <div class="upload-doc @(rgBack.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
-                                Enviado: @rgBack.FileName — @StatusLabel(rgBack.Status)
+                                Enviado: @rgBack.FileName · @StatusLabel(rgBack.Status)
                                 @if (rgBack.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(rgBack.RejectionReason))
                                 {
                                     <span> Motivo: @rgBack.RejectionReason</span>
@@ -234,7 +234,7 @@
                         @if (cpf != null)
                         {
                             <div class="upload-doc @(cpf.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
-                                Enviado: @cpf.FileName — @StatusLabel(cpf.Status)
+                                Enviado: @cpf.FileName · @StatusLabel(cpf.Status)
                                 @if (cpf.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(cpf.RejectionReason))
                                 {
                                     <span> Motivo: @cpf.RejectionReason</span>
@@ -252,7 +252,7 @@
                         @if (cnh != null)
                         {
                             <div class="upload-doc @(cnh.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
-                                Enviado: @cnh.FileName — @StatusLabel(cnh.Status)
+                                Enviado: @cnh.FileName · @StatusLabel(cnh.Status)
                                 @if (cnh.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(cnh.RejectionReason))
                                 {
                                     <span> Motivo: @cnh.RejectionReason</span>
@@ -269,7 +269,7 @@
                     @if (proof != null)
                     {
                         <div class="upload-doc @(proof.Status == ClientOnboardingDocumentStatus.Rejected ? "rejected" : null)">
-                            Enviado: @proof.FileName — @StatusLabel(proof.Status)
+                            Enviado: @proof.FileName · @StatusLabel(proof.Status)
                             @if (proof.Status == ClientOnboardingDocumentStatus.Rejected && !string.IsNullOrWhiteSpace(proof.RejectionReason))
                             {
                                 <span> Motivo: @proof.RejectionReason</span>

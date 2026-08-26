@@ -77,7 +77,7 @@
                         var cnt = V(x, "Count", 0);
                         var detailsRoom = (x["Details"] as IList<Dictionary<string, object>>) ?? new List<Dictionary<string, object>>();
                         <tr class="@(cnt > 0 ? "clickable-row" : "")" @(cnt > 0 ? "data-has-details=true" : "")>
-                            <td>@if (cnt > 0) { <i class="bi bi-chevron-right expand-icon text-muted"></i> } else { <span class="text-muted">—</span> }</td>
+                            <td>@if (cnt > 0) { <i class="bi bi-chevron-right expand-icon text-muted"></i> } else { <span class="text-muted">-</span> }</td>
                             <td>@V(x, "Label", "")</td>
                             <td class="text-end">@cnt</td>
                             <td class="text-end">R$ @(V(x, "Revenue", 0m).ToString(NumberFormatConstants.TwoDecimals))</td>

@@ -41,7 +41,7 @@
 @if (hasActiveContracts)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> <strong>Contrato(s) ativo(s):</strong> os dados físicos do endereço (CEP, rua, etc.) estão bloqueados. Você ainda pode alterar os <a href="#precos" class="alert-link">preços</a> abaixo — as mudanças passam por aprovação administrativa.
+        <i class="bi bi-info-circle"></i> <strong>Contrato(s) ativo(s):</strong> os dados físicos do endereço (CEP, rua, etc.) estão bloqueados. Você ainda pode alterar os <a href="#precos" class="alert-link">preços</a> abaixo; as mudanças passam por aprovação administrativa.
     </div>
 }
 
@@ -252,7 +252,7 @@
             @Html.AntiForgeryToken()
             <div class="row">
                 <div class="col-md-4 mb-3">
-                    <label for="PriceBasePrice" class="form-label">Preço anual — PIX / cartão 1x / boleto (R$) <span class="text-danger">*</span></label>
+                    <label for="PriceBasePrice" class="form-label">Preço anual (PIX / cartão 1x / boleto) (R$) <span class="text-danger">*</span></label>
                     <input type="number" step="0.01" min="0" class="form-control price-input" id="PriceBasePrice" name="BasePrice"
                            value="@displayBasePrice.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture)"
                            @(hasPendingPriceRequest ? "readonly" : "") required>
@@ -266,7 +266,7 @@
                     <small class="form-text text-muted">Opcional. Aplica-se sobre o preço anual para calcular a parcela mensal.</small>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label class="form-label">Preview — parcela mensal (R$)</label>
+                    <label class="form-label">Preview: parcela mensal (R$)</label>
                     <div class="form-control bg-light" id="MonthlyPreview">R$ @(prices?.CardPriceMonthly.ToString(NumberFormatConstants.TwoDecimals) ?? "0,00")</div>
                     <small class="form-text text-muted">Fórmula: (preço anual × (1 + acréscimo%)) ÷ 12</small>
                 </div>

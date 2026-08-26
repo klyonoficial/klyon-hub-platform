@@ -1283,7 +1283,7 @@ namespace KlyonHubPlatform.Application.Services
                 clientPhone,
                 remoteIp);
             if (string.IsNullOrEmpty(token))
-                throw new InvalidOperationException("Não foi possível tokenizar o cartão. Verifique os dados e tente novamente.");
+                throw new InvalidOperationException(AsaasCreditCardErrorMapper.CardValidationFailed);
             return new CreditCardTokenizeResult
             {
                 Token = token,

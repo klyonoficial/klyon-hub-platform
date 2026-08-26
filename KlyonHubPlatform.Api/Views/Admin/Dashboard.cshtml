@@ -1090,12 +1090,12 @@ async function loadCardPricePendingList() {
             if (item.requestedCardMonthlySurchargePercent != null) req.push('Acréscimo: ' + parseFloat(item.requestedCardMonthlySurchargePercent).toFixed(2).replace('.', ',') + '%');
             if (item.requestedCardPriceMonthly != null) req.push('Mensal: R$ ' + parseFloat(item.requestedCardPriceMonthly).toFixed(2).replace('.', ','));
             if (req.length === 0 && item.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(item.requestedCardPrice1x).toFixed(2).replace('.', ','));
-            const reqText = req.length ? req.join(' · ') : '—';
+            const reqText = req.length ? req.join(' · ') : '-';
             html += '<tr class="card-price-row align-middle" data-request-id="' + item.id + '" style="cursor: pointer;">';
-            html += '<td>' + (item.coworkingName || '—') + '</td>';
-            html += '<td>' + (item.addressLabel || '—') + '</td>';
+            html += '<td>' + (item.coworkingName || '-') + '</td>';
+            html += '<td>' + (item.addressLabel || '-') + '</td>';
             html += '<td><small>' + reqText + '</small></td>';
-            html += '<td><small>' + (item.createdAt || '—') + '</small></td>';
+            html += '<td><small>' + (item.createdAt || '-') + '</small></td>';
             html += '<td class="text-end"><button type="button" class="btn btn-sm btn-success btn-approve-card-price" data-request-id="' + item.id + '" onclick="event.stopPropagation(); approveCardPriceFromList(' + item.id + ')"><i class="bi bi-check-circle"></i> Aprovar</button></td></tr>';
         });
         html += '</tbody></table></div><p class="text-muted small mb-0"><i class="bi bi-hand-index"></i> Clique na linha para ver os detalhes que o parceiro preencheu.</p>';
@@ -1142,12 +1142,12 @@ async function loadCardPriceDetail(requestId) {
         if (d.previousCardPriceMonthly != null) prev.push('Mensal: R$ ' + parseFloat(d.previousCardPriceMonthly).toFixed(2).replace('.', ','));
         if (req.length === 0 && d.requestedCardPrice1x != null) req.push('1x: R$ ' + parseFloat(d.requestedCardPrice1x).toFixed(2).replace('.', ','));
         if (prev.length === 0 && d.previousCardPrice1x != null) prev.push('1x: R$ ' + parseFloat(d.previousCardPrice1x).toFixed(2).replace('.', ','));
-        let html = '<div class="mb-3"><strong>Coworking</strong><br>' + (d.coworkingName || '—') + '</div>';
-        html += '<div class="mb-3"><strong>Endereço</strong><br>' + (d.addressLabel || '—') + '</div>';
+        let html = '<div class="mb-3"><strong>Coworking</strong><br>' + (d.coworkingName || '-') + '</div>';
+        html += '<div class="mb-3"><strong>Endereço</strong><br>' + (d.addressLabel || '-') + '</div>';
         html += '<div class="mb-3"><strong>Valores atuais (antes da solicitação)</strong><br><span class="text-muted">' + (prev.length ? prev.join(' · ') : 'Nenhum') + '</span></div>';
         const badgeInfo = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss.Info : 'info';
-        html += '<div class="mb-3"><strong>Valores solicitados pelo parceiro</strong><br><span class="badge bg-' + badgeInfo + '">' + (req.length ? req.join(' ') : '—') + '</span></div>';
-        html += '<div><strong>Data da solicitação</strong><br>' + (d.createdAt || '—') + '</div>';
+        html += '<div class="mb-3"><strong>Valores solicitados pelo parceiro</strong><br><span class="badge bg-' + badgeInfo + '">' + (req.length ? req.join(' ') : '-') + '</span></div>';
+        html += '<div><strong>Data da solicitação</strong><br>' + (d.createdAt || '-') + '</div>';
         body.innerHTML = html;
     } catch (err) {
         const badge = (typeof Klyon !== 'undefined' && Klyon.BadgeCss) ? Klyon.BadgeCss : { Danger: 'danger' };
@@ -1442,7 +1442,7 @@ function buildDashboardListHtml(type, filter, result) {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="cardPricePendingListModalLabel">
-                    <i class="@BootstrapIcons.CreditCard"></i> Preços no Cartão — Solicitações pendentes
+                    <i class="@BootstrapIcons.CreditCard"></i> Preços no Cartão: solicitações pendentes
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>

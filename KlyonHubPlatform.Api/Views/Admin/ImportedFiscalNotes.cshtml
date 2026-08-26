@@ -1,7 +1,7 @@
 @model List<KlyonHubPlatform.Domain.Entities.FiscalNote>
 @using KlyonHubPlatform.Api.Constants
 @{
-    ViewData[ViewDataKeys.Title] = "NF Importadas – Validação";
+    ViewData[ViewDataKeys.Title] = "NF Importadas - Validação";
     Layout = LayoutPaths.Layout;
     var list = Model ?? new List<KlyonHubPlatform.Domain.Entities.FiscalNote>();
     var currentPage = (int)(ViewBag.CurrentPage ?? 1);
@@ -12,7 +12,7 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-upload"></i> NF Importadas – Validação</h2>
+    <h2><i class="bi bi-upload"></i> NF Importadas - Validação</h2>
     <div>
         <a href="@Url.Action("FiscalNotes", "Admin")" class="btn btn-outline-primary me-2">
             <i class="bi bi-file-earmark-text"></i> Notas Fiscais
@@ -99,7 +99,7 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted">-</span>
                                     }
                                 </td>
                                 <td>
@@ -226,7 +226,7 @@
     };
 
     function formatTransferStatus(status) {
-        var info = transferStatusDisplay[status] || { label: status || '—', classes: 'bg-secondary' };
+        var info = transferStatusDisplay[status] || { label: status || '-', classes: 'bg-secondary' };
         return '<span class="badge ' + info.classes + '">' + info.label + '</span>';
     }
 
@@ -253,14 +253,14 @@
                 html += '<div class="col-md-6 mb-4">';
                 html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-receipt"></i> Informações da Nota Fiscal</h6>';
                 html += '<table class="table table-sm">';
-                html += '<tr><th width="40%">Número:</th><td>' + (fn.number || '—') + '</td></tr>';
-                html += '<tr><th>Chave de Acesso:</th><td><small>' + (fn.accessKey || '—') + '</small></td></tr>';
-                html += '<tr><th>Código de Verificação:</th><td>' + (fn.verificationCode || '—') + '</td></tr>';
+                html += '<tr><th width="40%">Número:</th><td>' + (fn.number || '-') + '</td></tr>';
+                html += '<tr><th>Chave de Acesso:</th><td><small>' + (fn.accessKey || '-') + '</small></td></tr>';
+                html += '<tr><th>Código de Verificação:</th><td>' + (fn.verificationCode || '-') + '</td></tr>';
                 html += '<tr><th>Valor:</th><td><strong class="text-success">R$ ' + parseFloat(fn.amount).toFixed(2).replace('.', ',') + '</strong></td></tr>';
                 html += '<tr><th>Status:</th><td><span class="badge bg-' + (fn.status === 'Emitida' ? 'success' : fn.status === 'Rejeitada' ? 'danger' : 'warning') + '">' + fn.status + '</span></td></tr>';
-                html += '<tr><th>Data de Emissão:</th><td>' + (fn.issueDate ? new Date(fn.issueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
-                html += '<tr><th>Data de Vencimento:</th><td>' + (fn.dueDate ? new Date(fn.dueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
-                html += '<tr><th>Protocolo:</th><td>' + (fn.authorizationProtocol || '—') + '</td></tr>';
+                html += '<tr><th>Data de Emissão:</th><td>' + (fn.issueDate ? new Date(fn.issueDate).toLocaleDateString('pt-BR') : '-') + '</td></tr>';
+                html += '<tr><th>Data de Vencimento:</th><td>' + (fn.dueDate ? new Date(fn.dueDate).toLocaleDateString('pt-BR') : '-') + '</td></tr>';
+                html += '<tr><th>Protocolo:</th><td>' + (fn.authorizationProtocol || '-') + '</td></tr>';
                 if (fn.errorMessage) {
                     html += '<tr><th>Mensagem de Erro:</th><td class="text-danger">' + fn.errorMessage + '</td></tr>';
                 }
@@ -272,12 +272,12 @@
                 html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-person"></i> Cliente</h6>';
                 if (client) {
                     html += '<table class="table table-sm">';
-                    html += '<tr><th width="40%">Razão Social:</th><td>' + (client.razaoSocial || '—') + '</td></tr>';
-                    html += '<tr><th>Nome Fantasia:</th><td>' + (client.nomeFantasia || '—') + '</td></tr>';
-                    html += '<tr><th>CNPJ/CPF:</th><td>' + (client.cnpj !== '—' ? client.cnpj : client.cpf) + '</td></tr>';
-                    html += '<tr><th>Contato:</th><td>' + (client.contactName || '—') + '</td></tr>';
-                    html += '<tr><th>Email:</th><td>' + (client.contactEmail || '—') + '</td></tr>';
-                    html += '<tr><th>Telefone:</th><td>' + (client.contactPhone || '—') + '</td></tr>';
+                    html += '<tr><th width="40%">Razão Social:</th><td>' + (client.razaoSocial || '-') + '</td></tr>';
+                    html += '<tr><th>Nome Fantasia:</th><td>' + (client.nomeFantasia || '-') + '</td></tr>';
+                    html += '<tr><th>CNPJ/CPF:</th><td>' + (client.cnpj !== '-' ? client.cnpj : client.cpf) + '</td></tr>';
+                    html += '<tr><th>Contato:</th><td>' + (client.contactName || '-') + '</td></tr>';
+                    html += '<tr><th>Email:</th><td>' + (client.contactEmail || '-') + '</td></tr>';
+                    html += '<tr><th>Telefone:</th><td>' + (client.contactPhone || '-') + '</td></tr>';
                     html += '</table>';
                 } else {
                     html += '<p class="text-muted">Cliente não informado</p>';
@@ -289,8 +289,8 @@
                 html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-building"></i> Parceiro</h6>';
                 if (coworking) {
                     html += '<table class="table table-sm">';
-                    html += '<tr><th width="40%">Nome:</th><td>' + (coworking.name || '—') + '</td></tr>';
-                    html += '<tr><th>CNPJ:</th><td>' + (coworking.cnpj || '—') + '</td></tr>';
+                    html += '<tr><th width="40%">Nome:</th><td>' + (coworking.name || '-') + '</td></tr>';
+                    html += '<tr><th>CNPJ:</th><td>' + (coworking.cnpj || '-') + '</td></tr>';
                     html += '</table>';
                 } else {
                     html += '<p class="text-muted">Parceiro não informado</p>';
@@ -306,8 +306,8 @@
                     html += '<tr><th>Valor Pago:</th><td><strong class="text-success">R$ ' + parseFloat(payment.amount).toFixed(2).replace('.', ',') + '</strong></td></tr>';
                     html += '<tr><th>Status:</th><td><span class="badge bg-' + (payment.status === 'Paid' ? 'success' : payment.status === 'Pending' ? 'warning' : 'danger') + '">' + payment.status + '</span></td></tr>';
                     html += '<tr><th>Método:</th><td>' + payment.method + '</td></tr>';
-                    html += '<tr><th>Vencimento:</th><td>' + (payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : '—') + '</td></tr>';
-                    html += '<tr><th>Pago em:</th><td>' + (payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('pt-BR') + ' ' + new Date(payment.paidAt).toLocaleTimeString('pt-BR') : '—') + '</td></tr>';
+                    html += '<tr><th>Vencimento:</th><td>' + (payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('pt-BR') : '-') + '</td></tr>';
+                    html += '<tr><th>Pago em:</th><td>' + (payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('pt-BR') + ' ' + new Date(payment.paidAt).toLocaleTimeString('pt-BR') : '-') + '</td></tr>';
                     html += '</table>';
                 } else {
                     html += '<p class="text-muted">Pagamento não informado</p>';
@@ -318,8 +318,8 @@
                 html += '<div class="col-md-12 mb-4">';
                 html += '<h6 class="border-bottom pb-2 mb-3"><i class="bi bi-briefcase"></i> Serviço</h6>';
                 html += '<table class="table table-sm">';
-                html += '<tr><th width="20%">Tipo:</th><td>' + (data.serviceType || '—') + '</td></tr>';
-                html += '<tr><th>Detalhes:</th><td>' + (data.serviceDetails || '—') + '</td></tr>';
+                html += '<tr><th width="20%">Tipo:</th><td>' + (data.serviceType || '-') + '</td></tr>';
+                html += '<tr><th>Detalhes:</th><td>' + (data.serviceDetails || '-') + '</td></tr>';
                 html += '</table>';
                 html += '</div>';
 
@@ -349,7 +349,7 @@
                         html += '<td>' + parseFloat(c.percentage).toFixed(2).replace('.', ',') + '%</td>';
                         html += '<td>R$ ' + parseFloat(c.totalPaymentAmount).toFixed(2).replace('.', ',') + '</td>';
                         html += '<td><span class="badge bg-' + (c.isTransferred ? 'success' : 'warning') + '">' + (c.isTransferred ? 'Sim' : 'Não') + '</span></td>';
-                        html += '<td>' + (c.transferredAt ? new Date(c.transferredAt).toLocaleDateString('pt-BR') + ' ' + new Date(c.transferredAt).toLocaleTimeString('pt-BR') : '—') + '</td>';
+                        html += '<td>' + (c.transferredAt ? new Date(c.transferredAt).toLocaleDateString('pt-BR') + ' ' + new Date(c.transferredAt).toLocaleTimeString('pt-BR') : '-') + '</td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table></div>';
@@ -373,10 +373,10 @@
                         html += '<td>#' + t.id + '</td>';
                         html += '<td><strong>R$ ' + parseFloat(t.amount).toFixed(2).replace('.', ',') + '</strong></td>';
                         html += '<td>' + formatTransferStatus(t.status) + '</td>';
-                        html += '<td>' + (t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString('pt-BR') : '—') + '</td>';
-                        html += '<td>' + (t.processedAt ? new Date(t.processedAt).toLocaleDateString('pt-BR') + ' ' + new Date(t.processedAt).toLocaleTimeString('pt-BR') : '—') + '</td>';
-                        html += '<td>' + (t.description || '—') + '</td>';
-                        html += '<td>' + (t.failureReason || '—') + '</td>';
+                        html += '<td>' + (t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString('pt-BR') : '-') + '</td>';
+                        html += '<td>' + (t.processedAt ? new Date(t.processedAt).toLocaleDateString('pt-BR') + ' ' + new Date(t.processedAt).toLocaleTimeString('pt-BR') : '-') + '</td>';
+                        html += '<td>' + (t.description || '-') + '</td>';
+                        html += '<td>' + (t.failureReason || '-') + '</td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table></div>';
@@ -401,7 +401,7 @@
                         html += '<td>' + new Date(h.createdAt).toLocaleDateString('pt-BR') + ' ' + new Date(h.createdAt).toLocaleTimeString('pt-BR') + '</td>';
                         html += '<td>' + h.action + '</td>';
                         html += '<td>' + h.user + '</td>';
-                        html += '<td>' + (h.details || '—') + '</td>';
+                        html += '<td>' + (h.details || '-') + '</td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table></div>';

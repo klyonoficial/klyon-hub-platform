@@ -13,7 +13,7 @@ namespace KlyonHubPlatform.Application.Helpers
     public static class FiscalAddressContractRules
     {
         public const string DescriptionWithCnpj = "Contrato Endereço Fiscal (com CNPJ)";
-        public const string DescriptionWithoutCnpj = "Contrato Endereço Fiscal (reserva — sem CNPJ)";
+        public const string DescriptionWithoutCnpj = "Contrato Endereço Fiscal (reserva, sem CNPJ)";
 
         public static FiscalAddressContractVariant ResolveVariant(Client? client)
         {

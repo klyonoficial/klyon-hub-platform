@@ -50,9 +50,9 @@ namespace KlyonHubPlatform.Application.Helpers
         private static string GetAutomaticConfirmationShortLabel(PaymentMethod paymentMethod) =>
             paymentMethod switch
             {
-                PaymentMethod.CreditCard => "Sistema — cartão de crédito (Asaas)",
-                PaymentMethod.PIX => "Sistema — PIX (Asaas)",
-                _ => "Sistema — gateway de pagamento"
+                PaymentMethod.CreditCard => "Sistema: cartão de crédito (Asaas)",
+                PaymentMethod.PIX => "Sistema: PIX (Asaas)",
+                _ => "Sistema: gateway de pagamento"
             };
 
         private static string FormatManualApprover(PaymentHistory history)

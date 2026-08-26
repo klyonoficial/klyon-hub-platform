@@ -39,7 +39,7 @@
             <div>
                 <strong class="d-block mb-1">Endereço Comercial</strong>
                 <span class="text-muted small">
-                    Você está contratando o <strong>Endereço Comercial</strong> — <strong>CPF</strong> ou <strong>CNPJ</strong> podem contratar. Use nosso endereço no cartão de visita, site e comunicações da empresa.
+                    Você está contratando o <strong>Endereço Comercial</strong>: <strong>CPF</strong> ou <strong>CNPJ</strong> podem contratar. Use nosso endereço no cartão de visita, site e comunicações da empresa.
                     <strong>Não pode ser usado como sede da empresa no CNPJ</strong> e não inclui documentos fiscais (IPTU, Alvará e etc.).
                 </span>
             </div>
@@ -363,36 +363,36 @@
             var phoneDigits = (contactPhoneEl ? contactPhoneEl.value : '').replace(/\D/g,'');
             var emailVal   = (contactEmailEl ? contactEmailEl.value.trim() : '');
 
-            // CPF — sempre obrigatório
+            // CPF: sempre obrigatório
             if (cpfDigits.length === 0)
-                items.push('CPF — não informado');
+                items.push('CPF: não informado');
             else if (cpfDigits.length < 11)
-                items.push('CPF — incompleto (11 dígitos)');
+                items.push('CPF: incompleto (11 dígitos)');
             else if (typeof validateCPF === 'function' && !validateCPF(cpfInput.value))
-                items.push('CPF — inválido');
+                items.push('CPF: inválido');
 
-            // CNPJ — obrigatório apenas quando "Sim"
+            // CNPJ: obrigatório apenas quando "Sim"
             if (hasCnpjSelected()) {
                 if (cnpjDigits.length === 0)
-                    items.push('CNPJ — não informado');
+                    items.push('CNPJ: não informado');
                 else if (cnpjDigits.length < 14)
-                    items.push('CNPJ — incompleto (14 dígitos)');
+                    items.push('CNPJ: incompleto (14 dígitos)');
                 else if (typeof validateCNPJ === 'function' && !validateCNPJ(cnpjInput.value))
-                    items.push('CNPJ — inválido');
+                    items.push('CNPJ: inválido');
             }
 
             if (!emailVal)
-                items.push('E-mail — não informado');
+                items.push('E-mail: não informado');
             else if (!isPlausibleEmailJs(emailVal))
-                items.push('E-mail — inválido');
+                items.push('E-mail: inválido');
 
             if (phoneDigits.length === 0)
-                items.push('Telefone / WhatsApp — não informado');
+                items.push('Telefone / WhatsApp: não informado');
             else if (phoneDigits.length < 10)
-                items.push('Telefone / WhatsApp — informe com DDD (mínimo 10 dígitos)');
+                items.push('Telefone / WhatsApp: informe com DDD (mínimo 10 dígitos)');
 
             if (!acceptCheckbox || !acceptCheckbox.checked)
-                items.push('Termos de Uso e Política de Privacidade (LGPD) — aceite obrigatório');
+                items.push('Termos de Uso e Política de Privacidade (LGPD): aceite obrigatório');
 
             return items;
         }

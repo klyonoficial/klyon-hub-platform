@@ -75,7 +75,7 @@
                             <tr>
                                 <td><code>@p.Code</code></td>
                                 <td>@(p.Type == PromoDiscountType.Percent ? $"{p.Value:N2}%" : $"R$ {p.Value:N2}")</td>
-                                <td>@p.ValidFrom.ToString("dd/MM/yyyy") @(p.ValidTo.HasValue ? $"– {p.ValidTo:dd/MM/yyyy}" : "– sem fim")</td>
+                                <td>@p.ValidFrom.ToString("dd/MM/yyyy") @(p.ValidTo.HasValue ? $"- {p.ValidTo:dd/MM/yyyy}" : "- sem fim")</td>
                                 <td>@p.RedemptionCount @(p.MaxRedemptions.HasValue ? $"/ {p.MaxRedemptions}" : "")</td>
                                 <td>
                                     <span class="badge bg-@(p.IsActive ? "success" : "secondary")">@(p.IsActive ? "Ativo" : "Inativo")</span>

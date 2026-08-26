@@ -407,7 +407,7 @@
             var tbody = document.getElementById('addressDetailTableBody');
             if (!tbody) return;
             var rowData = this;
-            function val(name) { return rowData.getAttribute('data-' + name) || '—'; }
+            function val(name) { return rowData.getAttribute('data-' + name) || '-'; }
             var rows = [
                 { label: 'ID', value: val('id') },
                 { label: 'Logradouro', value: val('address') },
@@ -417,23 +417,23 @@
                 { label: 'Cidade', value: val('city') },
                 { label: 'Estado', value: val('state') },
                 { label: 'CEP', value: val('zipcode') },
-                { label: 'Preço base', value: val('baseprice') === '—' ? '—' : 'R$ ' + parseFloat(val('baseprice')).toFixed(2).replace('.', ',') },
-                { label: 'Venda à vista (1x no cartão)', value: val('cardprice1x') === '—' ? '—' : 'R$ ' + parseFloat(val('cardprice1x')).toFixed(2).replace('.', ',') },
-                { label: 'Venda mensal (cartão)', value: val('cardpricemonthly') === '—' ? '—' : 'R$ ' + parseFloat(val('cardpricemonthly')).toFixed(2).replace('.', ',') },
+                { label: 'Preço base', value: val('baseprice') === '-' ? '-' : 'R$ ' + parseFloat(val('baseprice')).toFixed(2).replace('.', ',') },
+                { label: 'Venda à vista (1x no cartão)', value: val('cardprice1x') === '-' ? '-' : 'R$ ' + parseFloat(val('cardprice1x')).toFixed(2).replace('.', ',') },
+                { label: 'Venda mensal (cartão)', value: val('cardpricemonthly') === '-' ? '-' : 'R$ ' + parseFloat(val('cardpricemonthly')).toFixed(2).replace('.', ',') },
                 { label: 'Disponível', value: val('isavailable') },
                 { label: 'Status do endereço', value: val('addressstatus') },
                 { label: 'Contratos ativos', value: val('currentcontracts') },
                 { label: 'Oferece sala compartilhada', value: val('offerssharedroom') },
-                { label: 'Preço/hora sala compartilhada', value: val('sharedroomprice') === '—' ? '—' : 'R$ ' + parseFloat(val('sharedroomprice')).toFixed(2).replace('.', ',') },
+                { label: 'Preço/hora sala compartilhada', value: val('sharedroomprice') === '-' ? '-' : 'R$ ' + parseFloat(val('sharedroomprice')).toFixed(2).replace('.', ',') },
                 { label: 'Lugares sala compartilhada', value: val('sharedroommaxseats') },
                 { label: 'Oferece sala privada', value: val('offersprivateroom') },
-                { label: 'Preço/hora sala privada', value: val('privateroomprice') === '—' ? '—' : 'R$ ' + parseFloat(val('privateroomprice')).toFixed(2).replace('.', ',') },
+                { label: 'Preço/hora sala privada', value: val('privateroomprice') === '-' ? '-' : 'R$ ' + parseFloat(val('privateroomprice')).toFixed(2).replace('.', ',') },
                 { label: 'Lugares sala privada', value: val('privateroommaxseats') },
                 { label: 'Criado em', value: val('createdat') },
                 { label: 'Atualizado em', value: val('updatedat') }
             ];
             tbody.innerHTML = rows.map(function(r) {
-                return '<tr><td class="text-muted" style="width: 45%;">' + r.label + '</td><td>' + (r.value || '—') + '</td></tr>';
+                return '<tr><td class="text-muted" style="width: 45%;">' + r.label + '</td><td>' + (r.value || '-') + '</td></tr>';
             }).join('');
             var modal = new bootstrap.Modal(document.getElementById('addressDetailModal'));
             modal.show();

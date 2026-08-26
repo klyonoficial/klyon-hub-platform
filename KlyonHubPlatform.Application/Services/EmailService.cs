@@ -190,7 +190,7 @@ namespace KlyonHubPlatform.Application.Services
 <body>
     <div class='container'>
         <div class='header'>
-            <h1>Klyon — {serviceDescription}</h1>
+            <h1>Klyon: {serviceDescription}</h1>
         </div>
         <div class='content'>
             <h2>Olá, {name}!</h2>
@@ -293,9 +293,9 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var hi = x.Start.HasValue ? x.Start.Value.ToString(@"hh\:mm") : "-";
                 var he = x.End.HasValue ? x.End.Value.ToString(@"hh\:mm") : "-";
-                return $"<li><strong>{x.Date:dd/MM/yyyy}</strong> das {hi} às {he} — {RoomTypeDisplay(x.RoomType)}</li>";
+                return $"<li><strong>{x.Date:dd/MM/yyyy}</strong> das {hi} às {he} ({RoomTypeDisplay(x.RoomType)})</li>";
             }));
-            var subject = "Solicitação de reserva de sala — aprovar ou reprovar";
+            var subject = "Solicitação de reserva de sala: aprovar ou reprovar";
             var body = $@"
 <!DOCTYPE html>
 <html>
@@ -315,7 +315,7 @@ namespace KlyonHubPlatform.Application.Services
 <body>
     <div class='container'>
         <div class='header'>
-            <h1>Klyon — Reserva de Salas</h1>
+            <h1>Klyon: Reserva de Salas</h1>
         </div>
         <div class='content'>
             <h2>Olá, {coworkingName}!</h2>
@@ -365,7 +365,7 @@ namespace KlyonHubPlatform.Application.Services
 <body>
     <div class='container'>
         <div class='header'>
-            <h1>Klyon — Reserva de Salas</h1>
+            <h1>Klyon: Reserva de Salas</h1>
         </div>
         <div class='content'>
             <h2>Olá, {clientName}!</h2>

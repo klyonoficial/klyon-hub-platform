@@ -1273,36 +1273,36 @@ namespace KlyonHubPlatform.Api.Controllers
             // CPF — sempre obrigatório
             var cpfDigits = System.Text.RegularExpressions.Regex.Replace(cpf ?? "", @"[^\d]", "");
             if (cpfDigits.Length == 0)
-                issues.Add("CPF — não informado");
+                issues.Add("CPF: não informado");
             else if (cpfDigits.Length < 11)
-                issues.Add("CPF — incompleto (11 dígitos)");
+                issues.Add("CPF: incompleto (11 dígitos)");
             else if (!DocumentValidator.IsValidCPF(cpfDigits))
-                issues.Add("CPF — inválido");
+                issues.Add("CPF: inválido");
 
             // CNPJ — obrigatório apenas quando declarado
             if (declaresHasCnpj)
             {
                 var cnpjDigits = System.Text.RegularExpressions.Regex.Replace(cnpj ?? "", @"[^\d]", "");
                 if (cnpjDigits.Length == 0)
-                    issues.Add("CNPJ — não informado");
+                    issues.Add("CNPJ: não informado");
                 else if (cnpjDigits.Length < 14)
-                    issues.Add("CNPJ — incompleto (14 dígitos)");
+                    issues.Add("CNPJ: incompleto (14 dígitos)");
                 else if (!DocumentValidator.IsValidCNPJ(cnpjDigits))
-                    issues.Add("CNPJ — inválido");
+                    issues.Add("CNPJ: inválido");
             }
 
             if (string.IsNullOrWhiteSpace(contactEmail))
-                issues.Add("E-mail — não informado");
+                issues.Add("E-mail: não informado");
             else if (!IsPlausibleFiscalEmail(contactEmail))
-                issues.Add("E-mail — inválido");
+                issues.Add("E-mail: inválido");
 
             if (phoneDigits.Length == 0)
-                issues.Add("Telefone / WhatsApp — não informado");
+                issues.Add("Telefone / WhatsApp: não informado");
             else if (phoneDigits.Length < 10)
-                issues.Add("Telefone / WhatsApp — informe com DDD (mínimo 10 dígitos)");
+                issues.Add("Telefone / WhatsApp: informe com DDD (mínimo 10 dígitos)");
 
             if (!aceiteLgpd)
-                issues.Add("Termos de Uso e Política de Privacidade (LGPD) — aceite obrigatório");
+                issues.Add("Termos de Uso e Política de Privacidade (LGPD): aceite obrigatório");
 
             return issues;
         }
@@ -1747,7 +1747,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var vm = await _fiscalOnboardingService.GetPaymentViewByPublicTokenAsync(token, cancellationToken);
             if (vm == null)
                 return NotFound();
-            ViewData[ViewDataKeys.Title] = "Pagamento PIX — adesão";
+            ViewData[ViewDataKeys.Title] = "Pagamento PIX: adesão";
             return View(vm);
         }
 
@@ -1848,6 +1848,10 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
             ViewBag.PageSize = pageSize;
+            // Mesma fórmula de AddressDetail: parcela mensal com surcharge + BasePrice anual
+            ViewBag.PricesByAddressId = pagedAddresses.ToDictionary(
+                a => a.Id,
+                a => _addressPricingService.GetPricesForAddress(a));
             return View(pagedAddresses);
         }
 
@@ -1870,6 +1874,11 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.ChooseLocationUrl = listing.IsSolePublishedAddress
                 ? Url.Action(ActionNames.Index, ControllerNames.Home)
                 : Url.Action(ActionNames.ChooseLocation);
+
+            // Parcela mensal (cartão) = mesma fórmula do preview em Parceiro/EditAddress (#precos)
+            var prices = _addressPricingService.GetPricesForAddress(listing.Address);
+            ViewBag.YearlyPrice = prices.PixPrice;
+            ViewBag.MonthlyInstallmentPrice = prices.CardPriceMonthly;
 
             return View(listing.Address);
         }
@@ -2031,6 +2040,10 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.LocationId = locationId;
             ViewBag.Location = location;
             ViewBag.MainPhotos = mainPhotos;
+            // Mesma fórmula de AddressDetail / ChooseLocation
+            ViewBag.PricesByAddressId = addresses.ToDictionary(
+                a => a.Id,
+                a => _addressPricingService.GetPricesForAddress(a));
             return View(addresses);
         }
         [HttpGet]
@@ -2964,12 +2977,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 var amount = payment.Amount;
                 if (paymentContract.CardPlanType == ContractCardPlanType.Card1x)
                 {
-                    creditCardPlanLabel = $"À vista (1x no cartão) — R$ {amount:N2} — recorrência anual cobrada no cartão de crédito";
+                    creditCardPlanLabel = $"À vista (1x no cartão): R$ {amount:N2} (recorrência anual cobrada no cartão de crédito)";
                     creditCardRecurrence = "annual";
                 }
                 else if (paymentContract.CardPlanType == ContractCardPlanType.CardMonthly)
                 {
-                    creditCardPlanLabel = $"Venda mensal — R$ {amount:N2} — recorrência mensal no cartão de crédito";
+                    creditCardPlanLabel = $"Venda mensal: R$ {amount:N2} (recorrência mensal no cartão de crédito)";
                     creditCardRecurrence = "monthly";
                 }
             }
@@ -3522,7 +3535,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 catch (Exception exToken)
                 {
                     _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. ClientId={ClientId}", client.Id);
-                    TempData[ErrorMessages.TempDataKey] = exToken.Message;
+                    TempData[ErrorMessages.TempDataKey] = AsaasCreditCardErrorMapper.ToUserFriendlyMessage(exToken.Message);
                     return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
                 }
                 await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
@@ -3754,7 +3767,7 @@ namespace KlyonHubPlatform.Api.Controllers
                         catch (Exception exToken)
                         {
                             _logger.LogWarning(exToken, "ProcessPaymentWithCard: revalidação de token para cartão Id={CreditCardId} falhou.", request.CreditCardId.Value);
-                            var revalError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
+                            var revalError = AsaasCreditCardErrorMapper.ToUserFriendlyMessage(exToken.Message);
                             return Json(new { success = false, error = revalError });
                         }
                     }
@@ -3843,8 +3856,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     catch (Exception exToken)
                     {
                         _logger.LogWarning(exToken, "Tokenização Asaas ao salvar cartão no pagamento falhou. ClientId={ClientId}", client.Id);
-                        var tokenError = !string.IsNullOrWhiteSpace(exToken.Message) ? exToken.Message : ErrorJson.CardTokenMissingUseForm;
-                        return Json(new { success = false, error = tokenError });
+                        return Json(new { success = false, error = AsaasCreditCardErrorMapper.ToUserFriendlyMessage(exToken.Message) });
                     }
                     await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
                     var savedResult = await _paymentService.ProcessPaymentWithSavedCardAsync(payment.Id, creditCard.Id, installmentsForGateway, remoteIpForPayment, billingPostalCode, billingAddressNumber, billingHasNoNumber);

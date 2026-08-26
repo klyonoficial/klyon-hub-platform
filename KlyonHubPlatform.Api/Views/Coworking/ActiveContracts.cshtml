@@ -359,15 +359,15 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('modalContractCode').textContent = d.contractNumber;
             document.getElementById('modalClientName').textContent = d.clientName;
             document.getElementById('modalClientDoc').textContent = d.clientDoc || '';
-            document.getElementById('modalAddress').textContent = d.address || '—';
-            document.getElementById('modalLocation').textContent = d.location || '—';
-            document.getElementById('modalValue').textContent = d.value || '—';
-            document.getElementById('modalStartDate').textContent = d.startDate || '—';
+            document.getElementById('modalAddress').textContent = d.address || '-';
+            document.getElementById('modalLocation').textContent = d.location || '-';
+            document.getElementById('modalValue').textContent = d.value || '-';
+            document.getElementById('modalStartDate').textContent = d.startDate || '-';
             var badge = document.getElementById('modalStatusBadge');
             badge.className = 'badge ' + (d.statusBadge || 'bg-secondary');
-            badge.innerHTML = '<i class="bi ' + (d.statusIcon || 'bi-circle') + ' me-1"></i> ' + (d.statusLabel || '—');
+            badge.innerHTML = '<i class="bi ' + (d.statusIcon || 'bi-circle') + ' me-1"></i> ' + (d.statusLabel || '-');
             document.getElementById('modalDetailsLink').href = d.detailsUrl || '#';
-            document.getElementById('modalPaymentMethod').textContent = d.paymentMethod || '—';
+            document.getElementById('modalPaymentMethod').textContent = d.paymentMethod || '-';
             modal.show();
         });
         row.addEventListener('keydown', function (e) {

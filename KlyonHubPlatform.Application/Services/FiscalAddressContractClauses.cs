@@ -64,7 +64,7 @@ namespace KlyonHubPlatform.Application.Services
 """;
 
             return $"""
-CLÁUSULA 1ª — DO OBJETO
+CLÁUSULA 1ª - DO OBJETO
 {objectIntro}
 {bullets}
 1.2. O presente contrato possui natureza exclusivamente administrativa e fiscal, não concedendo direito automático de uso físico do imóvel, nem caracterizando locação comercial, nos termos da Lei nº 8.245/1991.
@@ -81,7 +81,7 @@ CLÁUSULA 1ª — DO OBJETO
 
         public static string GetClause2() =>
             """
-CLÁUSULA 2ª — DA NATUREZA DO SERVIÇO
+CLÁUSULA 2ª - DA NATUREZA DO SERVIÇO
 2.1. O serviço prestado possui natureza estritamente administrativa, não implicando:
 • Exercício de atividade econômica no local;
 • Funcionamento operacional da empresa no endereço;
@@ -91,7 +91,7 @@ CLÁUSULA 2ª — DA NATUREZA DO SERVIÇO
 
         public static string GetClause3() =>
             """
-CLÁUSULA 3ª — DAS OBRIGAÇÕES DA CONTRATANTE
+CLÁUSULA 3ª - DAS OBRIGAÇÕES DA CONTRATANTE
 São obrigações da CONTRATANTE:
 a) Utilizar o endereço exclusivamente para fins cadastrais e fiscais;
 b) Manter seus dados atualizados junto aos órgãos públicos;
@@ -103,7 +103,7 @@ f) Promover alteração de endereço junto aos órgãos competentes quando solic
 
         public static string GetClause4() =>
             """
-CLÁUSULA 4ª — DAS OBRIGAÇÕES DA CONTRATADA
+CLÁUSULA 4ª - DAS OBRIGAÇÕES DA CONTRATADA
 São obrigações da CONTRATADA:
 a) Autorizar o uso do endereço fiscal enquanto vigente o presente contrato e adimplente a CONTRATANTE;
 b) Manter o imóvel regularizado perante a Prefeitura Municipal, inclusive com inscrição imobiliária válida e apta para fins cadastrais e fiscais;
@@ -124,7 +124,7 @@ h) Informar, quando solicitado por autoridade pública ou órgão fiscalizador, 
             if (variant == FiscalAddressContractVariant.WithoutCnpj)
             {
                 return """
-5ª CLÁUSULA — DO PRAZO E CONDIÇÃO PARA CONSTITUIÇÃO
+5ª CLÁUSULA - DO PRAZO E CONDIÇÃO PARA CONSTITUIÇÃO
 5.1. O presente contrato é celebrado pelo prazo mínimo de 12 (doze) meses, condicionado à abertura da pessoa jurídica.
 5.2. O CONTRATANTE deverá promover a abertura do CNPJ no prazo máximo de 30 (trinta) dias contados da assinatura.
 5.3. Após a abertura do CNPJ, o contrato continuará vigente automaticamente, passando a ter como CONTRATANTE a pessoa jurídica constituída, mediante formalização de aditivo contratual.
@@ -134,34 +134,34 @@ h) Informar, quando solicitado por autoridade pública ou órgão fiscalizador, 
 5.7. O contrato permanecerá ativo enquanto:
 • o pagamento estiver regular; e
 • não houver solicitação formal de cancelamento.
-5.8. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, sem necessidade de justificativa conforme a CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO FISCAL.
+5.8. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, sem necessidade de justificativa conforme a CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO FISCAL.
 5.9. Em caso de inadimplência superior a 5 dias, o contrato poderá ser suspenso ou rescindido automaticamente, com revogação do uso do endereço fiscal.
 """;
             }
 
             return """
-5ª CLÁUSULA — DO PRAZO E RENOVAÇÃO
+5ª CLÁUSULA - DO PRAZO E RENOVAÇÃO
 5.1. O presente contrato é celebrado pelo prazo mínimo de 12 (doze) meses, contados da data de sua assinatura.
 5.2. Após o término do prazo mínimo, o contrato passará a vigorar por prazo indeterminado, renovando-se automaticamente, independentemente de novo instrumento contratual.
 5.3. A renovação ocorrerá automaticamente mediante a continuidade do pagamento do plano contratado.
 5.4. O contrato permanecerá ativo enquanto:
 • o pagamento estiver regular; e
 • não houver solicitação formal de cancelamento.
-5.5. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, sem necessidade de justificativa conforme a CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO FISCAL.
+5.5. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, sem necessidade de justificativa conforme a CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO FISCAL.
 5.6. Em caso de inadimplência superior a 5 dias, o contrato poderá ser suspenso ou rescindido automaticamente, com revogação do uso do endereço fiscal.
 """;
         }
 
         public static string GetClause6(string paymentClauseText) =>
             $"""
-CLÁUSULA 6ª — DO VALOR E PAGAMENTO
+CLÁUSULA 6ª - DO VALOR E PAGAMENTO
 6.1. Pelo uso do endereço fiscal, a CONTRATANTE pagará o valor de {paymentClauseText}
 6.2. O atraso superior a 5 dias caracteriza inadimplência.
 """;
 
         public static string GetClause7() =>
             """
-CLÁUSULA 7ª — DO REAJUSTE
+CLÁUSULA 7ª - DO REAJUSTE
 O valor será reajustado anualmente, com base no índice IPCA, independentemente de assinatura de novo contrato.
 """;
 
@@ -189,7 +189,7 @@ g) Descumprimento de qualquer obrigação prevista neste contrato.
 """;
 
             return $"""
-CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO FISCAL
+CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO FISCAL
 8.1. O uso do endereço fiscal será REVOGADO AUTOMATICAMENTE, independentemente de aviso prévio, nos seguintes casos:
 {revocationItems}
 8.2. Revogado o uso do endereço fiscal, a CONTRATANTE deverá promover, no prazo máximo de 30 (trinta) dias, a alteração do endereço de sua empresa junto à Receita Federal, Junta Comercial, Prefeitura e demais órgãos competentes, sob sua exclusiva responsabilidade.
@@ -206,7 +206,7 @@ CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO FISCAL
 
         public static string GetClause9() =>
             """
-CLÁUSULA 9ª — DA RESPONSABILIDADE FISCAL E LEGAL
+CLÁUSULA 9ª - DA RESPONSABILIDADE FISCAL E LEGAL
 9.1. A CONTRATANTE é única e exclusiva responsável por:
 • Tributos;
 • Multas;
@@ -217,7 +217,7 @@ CLÁUSULA 9ª — DA RESPONSABILIDADE FISCAL E LEGAL
 
         public static string GetClause10() =>
             """
-CLÁUSULA 10ª — DA FISCALIZAÇÃO
+CLÁUSULA 10ª - DA FISCALIZAÇÃO
 10.1. Em caso de fiscalização por órgãos públicos, a CONTRATADA poderá:
 • Informar se a empresa está ou não ativa no endereço;
 • Apresentar documentos que comprovem a revogação do uso.
@@ -226,7 +226,7 @@ CLÁUSULA 10ª — DA FISCALIZAÇÃO
 
         public static string GetClause11() =>
             """
-CLÁUSULA 11ª — DA RESCISÃO
+CLÁUSULA 11ª - DA RESCISÃO
 11.1. O contrato poderá ser rescindido:
 • Por qualquer das partes, mediante aviso prévio de 30 dias;
 • Imediatamente, em caso de infração legal ou contratual.
@@ -234,7 +234,7 @@ CLÁUSULA 11ª — DA RESCISÃO
 
         public static string GetClause12() =>
             """
-CLÁUSULA 12ª — DA CONFIDENCIALIDADE
+CLÁUSULA 12ª - DA CONFIDENCIALIDADE
 12.1. As partes comprometem-se a manter sigilo sobre informações comerciais e cadastrais, exceto quando exigido por lei.
 """;
 
@@ -243,20 +243,20 @@ CLÁUSULA 12ª — DA CONFIDENCIALIDADE
             if (variant == FiscalAddressContractVariant.WithoutCnpj)
             {
                 return """
-CLÁUSULA 13ª — DO USO LIMITADO DO ENDEREÇO FISCAL
+CLÁUSULA 13ª - DO USO LIMITADO DO ENDEREÇO FISCAL
 O endereço fiscal objeto deste contrato é autorizado exclusivamente para a constituição de 01 (uma) pessoa jurídica, sendo vedado o uso para múltiplos CNPJ's sem novo contrato.
 """;
             }
 
             return """
-CLÁUSULA 13ª — DO USO LIMITADO DO ENDEREÇO FISCAL
+CLÁUSULA 13ª - DO USO LIMITADO DO ENDEREÇO FISCAL
 O endereço fiscal objeto deste contrato é autorizado exclusivamente para a pessoa jurídica aqui identificada, sendo expressamente vedado o uso do endereço para quaisquer outros CNPJ's, ainda que pertencentes ao mesmo sócio, grupo econômico ou pessoa física, sem a celebração de novo contrato específico.
 """;
         }
 
         public static string GetClause14() =>
             """
-CLÁUSULA 14ª — DO RECEBIMENTO, ABERTURA E DIGITALIZAÇÃO DE CORRESPONDÊNCIAS
+CLÁUSULA 14ª - DO RECEBIMENTO, ABERTURA E DIGITALIZAÇÃO DE CORRESPONDÊNCIAS
 14.1. A CONTRATANTE autoriza expressamente a CONTRATADA a receber correspondências físicas endereçadas à pessoa física ou jurídica vinculada ao presente contrato, incluindo, mas não se limitando a comunicações de órgãos públicos, instituições financeiras, fornecedores e demais remetentes, observados os limites e condições dos itens 14.6 e 14.7.
 14.2. A CONTRATANTE autoriza, de forma expressa e irrevogável enquanto vigente o contrato, a abertura das correspondências recebidas, exclusivamente para fins de:
 • identificação do destinatário;
@@ -279,7 +279,7 @@ O não cumprimento do prazo de retirada ou solicitação de envio previsto no it
 
         public static string GetClause15() =>
             """
-CLÁUSULA 15ª — DO FORO
+CLÁUSULA 15ª - DO FORO
 15.1. Fica eleito o foro da Comarca de Cariacica/ES, com renúncia a qualquer outro, por mais privilegiado que seja.
 """;
     }

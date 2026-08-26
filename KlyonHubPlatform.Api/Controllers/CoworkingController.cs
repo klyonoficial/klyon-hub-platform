@@ -267,7 +267,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 && address.AddressStatus == AddressStatus.Active && address.IsAvailable;
             steps.Add(new PartnershipStepViewModel(
                 "live",
-                isLive ? "Endereço no ar — recebendo clientes" : "Publicação do endereço (após aprovação e comissão)",
+                isLive ? "Endereço no ar: recebendo clientes" : "Publicação do endereço (após aprovação e comissão)",
                 isLive,
                 approved && !isLive,
                 ActionNames.MyAddresses,

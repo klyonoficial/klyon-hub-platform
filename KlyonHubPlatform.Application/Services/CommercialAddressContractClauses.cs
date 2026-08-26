@@ -106,7 +106,7 @@ namespace KlyonHubPlatform.Application.Services
 
             return $"""
 
-CLÁUSULA 1ª — DO OBJETO
+CLÁUSULA 1ª - DO OBJETO
 
 {objectIntro}
 
@@ -137,7 +137,7 @@ CLÁUSULA 1ª — DO OBJETO
 
             """
 
-CLÁUSULA 2ª — DA NATUREZA DO SERVIÇO
+CLÁUSULA 2ª - DA NATUREZA DO SERVIÇO
 
 2.1. O serviço prestado possui natureza estritamente comercial e administrativa, não implicando:
 
@@ -157,7 +157,7 @@ CLÁUSULA 2ª — DA NATUREZA DO SERVIÇO
 
             """
 
-CLÁUSULA 3ª — DAS OBRIGAÇÕES DA CONTRATANTE
+CLÁUSULA 3ª - DAS OBRIGAÇÕES DA CONTRATANTE
 
 São obrigações da CONTRATANTE:
 
@@ -181,7 +181,7 @@ f) Comunicar imediatamente à CONTRATADA qualquer uso indevido ou tentativa de c
 
             """
 
-CLÁUSULA 4ª — DAS OBRIGAÇÕES DA CONTRATADA
+CLÁUSULA 4ª - DAS OBRIGAÇÕES DA CONTRATADA
 
 São obrigações da CONTRATADA:
 
@@ -213,7 +213,7 @@ g) Informar, quando solicitado por autoridade pública, que o endereço não pos
 
                 return """
 
-5ª CLÁUSULA — DO PRAZO E CONDIÇÃO PARA CONSTITUIÇÃO
+5ª CLÁUSULA - DO PRAZO E CONDIÇÃO PARA CONSTITUIÇÃO
 
 5.1. O presente contrato é celebrado pelo prazo mínimo de 12 (doze) meses, condicionado à abertura da pessoa jurídica.
 
@@ -227,7 +227,7 @@ g) Informar, quando solicitado por autoridade pública, que o endereço não pos
 
 5.6. A renovação ocorrerá automaticamente mediante a continuidade do pagamento do plano contratado.
 
-5.7. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, conforme a CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO COMERCIAL.
+5.7. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, conforme a CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO COMERCIAL.
 
 5.8. Em caso de inadimplência superior a 5 dias, o contrato poderá ser suspenso ou rescindido automaticamente, com revogação do uso do endereço comercial.
 
@@ -239,7 +239,7 @@ g) Informar, quando solicitado por autoridade pública, que o endereço não pos
 
             return """
 
-5ª CLÁUSULA — DO PRAZO E RENOVAÇÃO
+5ª CLÁUSULA - DO PRAZO E RENOVAÇÃO
 
 5.1. O presente contrato é celebrado pelo prazo mínimo de 12 (doze) meses, contados da data de sua assinatura.
 
@@ -249,7 +249,7 @@ g) Informar, quando solicitado por autoridade pública, que o endereço não pos
 
 5.4. O contrato permanecerá ativo enquanto o pagamento estiver regular e não houver solicitação formal de cancelamento.
 
-5.5. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, conforme a CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO COMERCIAL.
+5.5. Qualquer das partes poderá rescindir o contrato mediante aviso prévio de 30 dias, conforme a CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO COMERCIAL.
 
 5.6. Em caso de inadimplência superior a 5 dias, o contrato poderá ser suspenso ou rescindido automaticamente, com revogação do uso do endereço comercial.
 
@@ -263,7 +263,7 @@ g) Informar, quando solicitado por autoridade pública, que o endereço não pos
 
             $"""
 
-CLÁUSULA 6ª — DO VALOR E PAGAMENTO
+CLÁUSULA 6ª - DO VALOR E PAGAMENTO
 
 6.1. Pelo uso do endereço comercial, a CONTRATANTE pagará o valor de {paymentClauseText}
 
@@ -277,7 +277,7 @@ CLÁUSULA 6ª — DO VALOR E PAGAMENTO
 
             """
 
-CLÁUSULA 7ª — DO REAJUSTE
+CLÁUSULA 7ª - DO REAJUSTE
 
 O valor será reajustado anualmente, com base no índice IPCA, independentemente de assinatura de novo contrato.
 
@@ -333,7 +333,7 @@ g) Descumprimento de qualquer obrigação prevista neste contrato.
 
             return $"""
 
-CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO COMERCIAL
+CLÁUSULA 8ª - DA REVOGAÇÃO DO ENDEREÇO COMERCIAL
 
 8.1. O uso do endereço comercial será REVOGADO AUTOMATICAMENTE, independentemente de aviso prévio, nos seguintes casos:
 
@@ -356,7 +356,7 @@ CLÁUSULA 8ª — DA REVOGAÇÃO DO ENDEREÇO COMERCIAL
 
             """
 
-CLÁUSULA 9ª — DA RESPONSABILIDADE COMERCIAL E LEGAL
+CLÁUSULA 9ª - DA RESPONSABILIDADE COMERCIAL E LEGAL
 
 9.1. A CONTRATANTE é única e exclusiva responsável por suas obrigações comerciais, fiscais, trabalhistas, previdenciárias e ambientais decorrentes de sua atividade empresarial.
 
@@ -370,7 +370,7 @@ CLÁUSULA 9ª — DA RESPONSABILIDADE COMERCIAL E LEGAL
 
             """
 
-CLÁUSULA 10ª — DA FISCALIZAÇÃO
+CLÁUSULA 10ª - DA FISCALIZAÇÃO
 
 10.1. Em caso de fiscalização ou solicitação de terceiros, a CONTRATADA poderá informar se a empresa possui ou não autorização comercial vigente para uso do endereço.
 
@@ -384,7 +384,7 @@ CLÁUSULA 10ª — DA FISCALIZAÇÃO
 
             """
 
-CLÁUSULA 11ª — DA RESCISÃO
+CLÁUSULA 11ª - DA RESCISÃO
 
 11.1. O contrato poderá ser rescindido:
 
@@ -400,7 +400,7 @@ CLÁUSULA 11ª — DA RESCISÃO
 
             """
 
-CLÁUSULA 12ª — DA CONFIDENCIALIDADE
+CLÁUSULA 12ª - DA CONFIDENCIALIDADE
 
 12.1. As partes comprometem-se a manter sigilo sobre informações comerciais e cadastrais, exceto quando exigido por lei.
 
@@ -418,7 +418,7 @@ CLÁUSULA 12ª — DA CONFIDENCIALIDADE
 
                 return """
 
-CLÁUSULA 13ª — DO USO LIMITADO DO ENDEREÇO COMERCIAL
+CLÁUSULA 13ª - DO USO LIMITADO DO ENDEREÇO COMERCIAL
 
 O endereço comercial objeto deste contrato é autorizado exclusivamente para a constituição de 01 (uma) pessoa jurídica, sendo vedado o uso para múltiplos CNPJ's sem novo contrato.
 
@@ -430,7 +430,7 @@ O endereço comercial objeto deste contrato é autorizado exclusivamente para a 
 
             return """
 
-CLÁUSULA 13ª — DO USO LIMITADO DO ENDEREÇO COMERCIAL
+CLÁUSULA 13ª - DO USO LIMITADO DO ENDEREÇO COMERCIAL
 
 O endereço comercial objeto deste contrato é autorizado exclusivamente para a pessoa jurídica aqui identificada, sendo expressamente vedado o uso do endereço para quaisquer outros CNPJ's sem a celebração de novo contrato específico.
 
@@ -444,7 +444,7 @@ O endereço comercial objeto deste contrato é autorizado exclusivamente para a 
 
             """
 
-CLÁUSULA 14ª — DO RECEBIMENTO, ABERTURA E DIGITALIZAÇÃO DE CORRESPONDÊNCIAS
+CLÁUSULA 14ª - DO RECEBIMENTO, ABERTURA E DIGITALIZAÇÃO DE CORRESPONDÊNCIAS
 
 14.1. A CONTRATANTE autoriza expressamente a CONTRATADA a receber correspondências comerciais endereçadas à pessoa física ou jurídica vinculada ao presente contrato.
 
@@ -466,7 +466,7 @@ CLÁUSULA 14ª — DO RECEBIMENTO, ABERTURA E DIGITALIZAÇÃO DE CORRESPONDÊNCI
 
             """
 
-CLÁUSULA 15ª — DO FORO
+CLÁUSULA 15ª - DO FORO
 
 15.1. Fica eleito o foro da Comarca de Cariacica/ES, com renúncia a qualquer outro, por mais privilegiado que seja.
 

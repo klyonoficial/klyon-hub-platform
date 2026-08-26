@@ -246,7 +246,7 @@ namespace KlyonHubPlatform.Application.Services
                 {
                     Name = "Contratar Endereço Comercial",
                     Code = CommercialAddressContracting,
-                    Description = "Use nosso endereço como apoio comercial: cartão de visita, site e imagem profissional — sem uso no CNPJ",
+                    Description = "Use nosso endereço como apoio comercial: cartão de visita, site e imagem profissional, sem uso no CNPJ",
                     Route = "/Client/ChooseLocation",
                     DisplayOrder = 6,
                     IsActive = true,

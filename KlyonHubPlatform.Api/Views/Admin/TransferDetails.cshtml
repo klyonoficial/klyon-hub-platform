@@ -217,7 +217,7 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted">-</span>
                                     }
                                 </td>
                                 <td>
@@ -297,7 +297,7 @@
                                                 <span class="badge bg-success">Cartão de Crédito</span>
                                                 @if (payment.InstallmentCount.HasValue && payment.InstallmentValue.HasValue)
                                                 {
-                                                    <span class="text-muted ms-1">— @payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                                    <span class="text-muted ms-1">(@payment.InstallmentCount.Value x de R$ @payment.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                                 }
                                                 break;
                                             default:

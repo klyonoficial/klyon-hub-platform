@@ -70,11 +70,11 @@ namespace KlyonHubPlatform.Application.Services
             var whatsApp = string.IsNullOrWhiteSpace(_options.WhatsAppUrl) ? "https://wa.me/27989030369" : _options.WhatsAppUrl.Trim();
 
             if (ContainsAny(t, "como contratar", "contratar", "contrata"))
-                return "Você pode contratar direto pela plataforma: acesse a listagem de endereços em várias cidades e finalize em poucos cliques. Comece em: /Client/ChooseLocation — ou fale conosco pelo WhatsApp se preferir: " + whatsApp;
+                return "Você pode contratar direto pela plataforma: acesse a listagem de endereços em várias cidades e finalize em poucos cliques. Comece em: /Client/ChooseLocation, ou fale conosco pelo WhatsApp se preferir: " + whatsApp;
             if (ContainsAny(t, "onde fica", "localização", "localizacao", "endereço", "endereco", "cidades", "estados"))
-                return "Temos endereços fiscais em várias cidades — escolha estado e cidade em /Client/ChooseLocation. Também operamos no Shopping Moxuara, Cariacica/ES.";
+                return "Temos endereços fiscais em várias cidades: escolha estado e cidade em /Client/ChooseLocation. Também operamos no Shopping Moxuara, Cariacica/ES.";
             if (ContainsAny(t, "valor", "preço", "preco", "quanto custa", "valor do", "mensal", "anual"))
-                return "O valor varia por endereço e cidade — consulte os preços na listagem (/Client/ChooseLocation). Exemplo Moxuara/Cariacica: R$ 718,80 à vista no Pix; ou parcelado no cartão.";
+                return "O valor varia por endereço e cidade: consulte os preços na listagem (/Client/ChooseLocation). Exemplo Moxuara/Cariacica: R$ 718,80 à vista no Pix; ou parcelado no cartão.";
             if (ContainsAny(t, "o que está incluso", "o que inclui", "inclui", "incluso", "incluído"))
                 return "Inclui uso do endereço fiscal, recebimento de correspondências e aviso quando houver entrega.";
             if (ContainsAny(t, "abrir empresa", "abertura", "registro da empresa"))
@@ -159,7 +159,7 @@ RESPOSTA PARA PERGUNTAS FORA DO TEMA (endereço comercial, aluguel de salas, etc
 
 SOBRE O SERVIÇO:
 - Empresa: Klyon Coworking
-- Localização: Shopping Moxuara – Cariacica/ES
+- Localização: Shopping Moxuara, Cariacica/ES
 - Serviço: Endereço fiscal para empresas
 
 INCLUI: Uso do endereço para abertura e registro da empresa; recebimento de correspondências; aviso quando correspondência chegar; atendimento em horário comercial.

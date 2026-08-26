@@ -21,7 +21,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ReportCredits = "Relatório Financeiro de Clientes (Ledger / Conta Corrente)";
         public const string ReportClientCreditStatement = "Extrato Financeiro do Cliente (Ledger)";
         public const string ReportCoworkingRevenue = "Relatório de Receita por Coworking";
-        public const string ReportCoworkingRevenueDetail = "Drill-Down – Relatório de Reservas por Coworking";
+        public const string ReportCoworkingRevenueDetail = "Drill-Down: Relatório de Reservas por Coworking";
         public const string ReportCoworkingProductDetail = "Detalhes do Produto";
         public const string Coworkings = "Gerenciar Coworkings";
         public const string ViewCoworking = "Visualizar Coworking";
@@ -35,7 +35,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreateLocation = "Cadastrar Localidade";
         public const string Contracts = "Gerenciar Contratos de Endereço Fiscal";
         public const string FiscalNotes = "Notas Fiscais";
-        public const string ImportedFiscalNotes = "NF Importadas – Validação";
+        public const string ImportedFiscalNotes = "NF Importadas: Validação";
         public const string InvoiceValidation = "Validação de Notas Fiscais";
         public const string CommissionFiscalNotes = "Emitir NF de Comissão";
         public const string Transfers = "Solicitações de Repasse";
@@ -50,7 +50,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string DatabaseManager = "Gerenciador de Banco de Dados";
         public const string SefazConfiguration = "Configuração SEFAZ";
         public const string Payments = "Gerenciar Pagamentos";
-        public const string ReservationFinancialDetail = "Drill-Down Final – Detalhe da Reserva (Visão Financeira)";
+        public const string ReservationFinancialDetail = "Drill-Down Final: Detalhe da Reserva (Visão Financeira)";
         public const string ClientDashboard = "Dashboard Cliente";
         public const string ClientProfile = "Meu Perfil";
         public const string RegisterClient = "Cadastro de Cliente";

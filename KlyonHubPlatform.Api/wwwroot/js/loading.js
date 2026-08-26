@@ -414,4 +414,24 @@
             initialPageLoadTimeout = null;
         }
     });
+
+    // bfcache / voltar-avançar: overlay pode ficar preso (ex.: data-show-loading
+    // mostrou o loader e a página foi restaurada do cache sem novo load/DOMContentLoaded).
+    function clearLoadingOnPageRestore() {
+        initialPageLoad = false;
+        if (initialPageLoadTimeout) {
+            clearTimeout(initialPageLoadTimeout);
+            initialPageLoadTimeout = null;
+        }
+        activeBackendRequests = 0;
+        hideLoading();
+    }
+
+    window.addEventListener('pageshow', function(e) {
+        // Sempre esconde ao restaurar do bfcache; também limpa overlay pinado
+        // se o unload não completou (voltar sem persisted em alguns browsers).
+        if (e.persisted || overlayPinned) {
+            clearLoadingOnPageRestore();
+        }
+    });
 })();

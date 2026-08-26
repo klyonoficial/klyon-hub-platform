@@ -52,7 +52,7 @@
                                 <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão de Crédito</span>
                                 @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                                 {
-                                    <span class="text-muted ms-1">— @Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                                    <span class="text-muted ms-1">(@Model.InstallmentCount.Value x de R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                 }
                                 break;
                             case PaymentMethod.BankTransfer:
