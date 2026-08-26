@@ -47,12 +47,45 @@ namespace KlyonHubPlatform.Application.Interfaces
             string? asaasCustomerIdForToken = null,
             string? remoteIp = null,
             string? customerExternalReference = null);
+        /// <summary>
+        /// Cria assinatura recorrente no Asaas (POST /subscriptions) com cartão.
+        /// <paramref name="cycle"/>: MONTHLY (CardMonthly) ou YEARLY (Card1x anual).
+        /// Retorna OrderResponse com Id da primeira cobrança e SubscriptionId (sub_...).
+        /// </summary>
+        Task<OrderResponse> CreateCreditCardSubscriptionAsync(
+            string referenceId,
+            decimal amount,
+            string cycle,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone = null,
+            PagBankCard? card = null,
+            PagBankAddress? clientAddress = null,
+            string? creditCardToken = null,
+            string? asaasCustomerIdForToken = null,
+            string? remoteIp = null,
+            string? customerExternalReference = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
         /// <summary>Obtém o QR Code PIX de uma cobrança já existente no Asaas (para reutilizar em vez de criar nova).</summary>
         Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string asaasPaymentId);
         Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null);
-        /// <summary>Cria autorização PIX Automático recorrência anual. Retorna id, payload do QR Code e expiração.</summary>
-        Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(string asaasCustomerId, string contractId, decimal annualValue, string description, int immediateExpirationSeconds = 86400);
+        /// <summary>
+        /// Cancela autorização PIX Automático no Asaas (DELETE /pix/automatic/authorizations/{id}).
+        /// Instruções agendadas vinculadas podem ser canceladas automaticamente pelo Asaas.
+        /// </summary>
+        Task CancelPixAutomaticAuthorizationAsync(string authorizationId);
+        /// <summary>
+        /// Cria autorização PIX Automático. Retorna id, payload do QR Code e expiração.
+        /// <paramref name="frequency"/>: MONTHLY ou ANNUALLY.
+        /// </summary>
+        Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(
+            string asaasCustomerId,
+            string contractId,
+            decimal value,
+            string description,
+            string frequency = "ANNUALLY",
+            int immediateExpirationSeconds = 86400);
         /// <summary>Cria cobrança PIX vinculada à autorização (débito automático na data).</summary>
         Task<OrderResponse?> CreatePaymentWithPixAutomaticAuthorizationAsync(string asaasCustomerId, string pixAutomaticAuthorizationId, decimal value, DateTime dueDate, string externalReference, string description);
         Task<bool> ValidateWebhookSignatureAsync(string payload, string signature);

@@ -424,8 +424,13 @@ namespace KlyonHubPlatform.Application.Services
             else if (method == PaymentMethod.CreditCard)
             {
                 request.BillingType = "CREDIT_CARD";
-                request.InstallmentCount = installments ?? 1;
-                request.InstallmentValue = Math.Round(amount / (request.InstallmentCount ?? 1), 2);
+                // installmentCount só para parcelamento real (2+). Com 1 cria "Parcelamentos 1x" no Asaas
+                // em vez de cobrança avulsa — e não é assinatura recorrente.
+                if (installments.HasValue && installments.Value > 1)
+                {
+                    request.InstallmentCount = installments.Value;
+                    request.InstallmentValue = Math.Round(amount / installments.Value, 2);
+                }
                 request.RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim();
                 var holderPostalCode = NormalizePostalCode(clientAddress?.PostalCode);
                 var holderAddressNumber = string.IsNullOrWhiteSpace(clientAddress?.Number) ? null : clientAddress.Number.Trim();
@@ -547,6 +552,162 @@ namespace KlyonHubPlatform.Application.Services
             }
             return orderResponse;
         }
+
+        public async Task<OrderResponse> CreateCreditCardSubscriptionAsync(
+            string referenceId,
+            decimal amount,
+            string cycle,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone = null,
+            PagBankCard? card = null,
+            PagBankAddress? clientAddress = null,
+            string? creditCardToken = null,
+            string? asaasCustomerIdForToken = null,
+            string? remoteIp = null,
+            string? customerExternalReference = null)
+        {
+            var normalizedCycle = (cycle ?? "").Trim().ToUpperInvariant();
+            if (normalizedCycle != AsaasSubscriptionCycle.Monthly && normalizedCycle != AsaasSubscriptionCycle.Yearly)
+                throw new ArgumentException("Ciclo de assinatura Asaas inválido. Use MONTHLY ou YEARLY.", nameof(cycle));
+            if (amount <= 0)
+                throw new InvalidOperationException("Valor da assinatura deve ser maior que zero.");
+
+            var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+            if (string.IsNullOrEmpty(cpfCnpj) || (cpfCnpj.Length != 11 && cpfCnpj.Length != 14))
+                throw new InvalidOperationException(
+                    "CPF ou CNPJ inválido. Atualize em Meu Perfil com um CPF (11 dígitos) ou CNPJ (14 dígitos) válido, apenas números.");
+            if (cpfCnpj.Length == 11 && !IsValidCpf(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CPF com dígitos verificadores inválidos. Corrija o CPF em Meu Perfil (use um CPF válido).");
+            if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CNPJ com dígitos verificadores inválidos. Corrija o CNPJ em Meu Perfil (use um CNPJ válido).");
+
+            string customerId;
+            if (!string.IsNullOrEmpty(creditCardToken) && !string.IsNullOrEmpty(asaasCustomerIdForToken))
+                customerId = asaasCustomerIdForToken;
+            else
+                customerId = await CreateOrGetAsaasCustomerAsync(
+                    clientName,
+                    clientEmail,
+                    cpfCnpj,
+                    clientPhone,
+                    clientAddress,
+                    !string.IsNullOrWhiteSpace(customerExternalReference) ? customerExternalReference.Trim() : referenceId);
+
+            var holderPostalCode = NormalizePostalCode(clientAddress?.PostalCode);
+            var holderAddressNumber = string.IsNullOrWhiteSpace(clientAddress?.Number) ? null : clientAddress.Number.Trim();
+            if (string.IsNullOrEmpty(holderPostalCode) || string.IsNullOrEmpty(holderAddressNumber))
+                throw new InvalidOperationException("Informe o CEP e o número do endereço do titular do cartão.");
+
+            var nextDueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var request = new AsaasSubscriptionRequest
+            {
+                Customer = customerId,
+                BillingType = "CREDIT_CARD",
+                Cycle = normalizedCycle,
+                Value = amount,
+                NextDueDate = nextDueDate,
+                Description = normalizedCycle == AsaasSubscriptionCycle.Monthly
+                    ? "Assinatura mensal - Endereço Fiscal"
+                    : "Assinatura anual - Endereço Fiscal",
+                ExternalReference = referenceId,
+                RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim(),
+                CreditCardHolderInfo = new AsaasCreditCardHolderInfo
+                {
+                    Name = card?.Holder?.Name ?? clientName,
+                    Email = clientEmail,
+                    CpfCnpj = cpfCnpj,
+                    PostalCode = holderPostalCode,
+                    AddressNumber = holderAddressNumber,
+                    Phone = NormalizePhone(clientPhone),
+                    MobilePhone = NormalizePhone(clientPhone)
+                }
+            };
+            if (!string.IsNullOrEmpty(creditCardToken))
+                request.CreditCardToken = creditCardToken;
+            else if (card != null)
+                request.CreditCard = MapCard(card);
+
+            _logger.LogInformation(
+                "Enviando assinatura com cartão ao Asaas: referenceId={ReferenceId}, cycle={Cycle}, value={Value}, customerId={CustomerId}.",
+                referenceId, normalizedCycle, amount, customerId);
+
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/subscriptions");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao criar assinatura Asaas: {StatusCode} - {Content}", response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasError(content));
+                throw new HttpRequestException($"Erro ao criar assinatura Asaas: {response.StatusCode}");
+            }
+
+            var subscription = JsonSerializer.Deserialize<AsaasSubscriptionResponse>(content, JsonOptions);
+            if (subscription == null || string.IsNullOrEmpty(subscription.Id))
+                throw new InvalidOperationException("Resposta inválida da API Asaas ao criar assinatura.");
+
+            var firstPayment = await GetFirstSubscriptionPaymentAsync(subscription.Id);
+            var paymentId = firstPayment?.Id ?? subscription.Id;
+            var paymentStatus = firstPayment?.Status ?? subscription.Status ?? "PENDING";
+            var paidAt = AsaasDateParser.TryParse(firstPayment?.ConfirmedDate ?? firstPayment?.ClientPaymentDate);
+            var statusUpper = paymentStatus.ToUpperInvariant();
+            var paid = statusUpper == AsaasPaymentStatus.Confirmed || statusUpper == AsaasPaymentStatus.Received;
+
+            return new OrderResponse
+            {
+                Id = paymentId,
+                ReferenceId = referenceId,
+                Status = paymentStatus,
+                CreatedAt = AsaasDateParser.TryParse(subscription.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = paid ? paidAt ?? DateTime.UtcNow : paidAt,
+                SubscriptionId = subscription.Id,
+                Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = paymentId,
+                        ReferenceId = referenceId,
+                        Status = paid ? "PAID" : paymentStatus,
+                        CreatedAt = AsaasDateParser.TryParse(firstPayment?.DateCreated) ?? DateTime.UtcNow,
+                        PaidAt = paid ? paidAt ?? DateTime.UtcNow : null,
+                        Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse { Type = "CREDIT_CARD" }
+                    }
+                }
+            };
+        }
+
+        private async Task<AsaasPaymentResponse?> GetFirstSubscriptionPaymentAsync(string asaasSubscriptionId)
+        {
+            try
+            {
+                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/subscriptions/{Uri.EscapeDataString(asaasSubscriptionId)}/payments?limit=1");
+                var response = await _httpClient.SendAsync(httpRequest);
+                var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning(
+                        "Não foi possível listar cobranças da assinatura Asaas {SubscriptionId}: {StatusCode} - {Content}",
+                        asaasSubscriptionId, response.StatusCode, content);
+                    return null;
+                }
+                var list = JsonSerializer.Deserialize<AsaasSubscriptionPaymentsListResponse>(content, JsonOptions);
+                return list?.Data?.FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Exceção ao buscar primeira cobrança da assinatura Asaas {SubscriptionId}", asaasSubscriptionId);
+                return null;
+            }
+        }
+
         private async Task<string> CreateOrGetAsaasCustomerAsync(
             string clientName,
             string clientEmail,
@@ -642,36 +803,60 @@ namespace KlyonHubPlatform.Application.Services
             }
             return new OrderResponse { Id = chargeId, Status = "CANCELLED" };
         }
-        /// <summary>Valida o webhook Asaas. O Asaas envia o token configurado no header asaas-access-token (em claro). Comparamos o header com o token armazenado.</summary>
-        /// <summary>Cria autorização PIX Automático com recorrência anual. Retorna id da autorização, payload do QR Code e data de expiração do primeiro pagamento.</summary>
+
+        public async Task CancelPixAutomaticAuthorizationAsync(string authorizationId)
+        {
+            if (string.IsNullOrWhiteSpace(authorizationId))
+                throw new ArgumentException("Id da autorização PIX Automático é obrigatório.", nameof(authorizationId));
+
+            var httpRequest = await CreateRequestAsync(HttpMethod.Delete, $"/pix/automatic/authorizations/{authorizationId}");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Erro ao cancelar autorização PIX Automático Asaas {AuthorizationId}: {StatusCode} - {Content}",
+                    authorizationId, response.StatusCode, content);
+                throw new HttpRequestException($"Erro ao cancelar autorização PIX Automático Asaas: {response.StatusCode}");
+            }
+            _logger.LogInformation("Autorização PIX Automático Asaas cancelada: {AuthorizationId}", authorizationId);
+        }
+
+        /// <summary>Cria autorização PIX Automático (MONTHLY ou ANNUALLY). Retorna id da autorização, payload do QR Code e data de expiração do primeiro pagamento.</summary>
         public async Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(
             string asaasCustomerId,
             string contractId,
-            decimal annualValue,
+            decimal value,
             string description,
+            string frequency = "ANNUALLY",
             int immediateExpirationSeconds = 86400)
         {
+            var normalizedFrequency = (frequency ?? "ANNUALLY").Trim().ToUpperInvariant();
+            if (normalizedFrequency is not ("MONTHLY" or "ANNUALLY"))
+                throw new ArgumentException("Frequência PIX Automático inválida. Use MONTHLY ou ANNUALLY.", nameof(frequency));
+
             var baseUrl = await GetBaseUrlAsync();
             var apiKey = await GetApiKeyAsync();
             var keyMask = apiKey.Length >= 4 ? "..." + apiKey.Substring(apiKey.Length - 4) : "(não exibido)";
             _logger.LogInformation(
-                "PIX Automático: enviando para conta Asaas baseUrl={BaseUrl}, apiKey termina com {KeyMask}, contractId={ContractId}",
-                baseUrl, keyMask, contractId);
+                "PIX Automático: enviando para conta Asaas baseUrl={BaseUrl}, apiKey termina com {KeyMask}, contractId={ContractId}, frequency={Frequency}",
+                baseUrl, keyMask, contractId, normalizedFrequency);
 
             var startDate = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+            var periodLabel = normalizedFrequency == "MONTHLY" ? "mensal" : "anual";
             var request = new AsaasPixAutomaticAuthorizationRequest
             {
-                Frequency = "ANNUALLY",
+                Frequency = normalizedFrequency,
                 ContractId = contractId,
                 StartDate = startDate,
                 CustomerId = asaasCustomerId,
-                Value = annualValue,
+                Value = value,
                 Description = description.Length > 35 ? description.Substring(0, 35) : description,
                 ImmediateQrCode = new AsaasPixAutomaticImmediateQrCodeRequest
                 {
-                    OriginalValue = annualValue,
+                    OriginalValue = value,
                     ExpirationSeconds = immediateExpirationSeconds,
-                    Description = "Primeira cobrança anual - PIX Automático"
+                    Description = $"Primeira cobrança {periodLabel} - PIX Automático"
                 }
             };
             var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/pix/automatic/authorizations");
@@ -688,7 +873,7 @@ namespace KlyonHubPlatform.Application.Services
             return JsonSerializer.Deserialize<AsaasPixAutomaticAuthorizationResponse>(content, JsonOptions);
         }
 
-        /// <summary>Cria cobrança PIX vinculada à autorização PIX Automático (para recorrência anual). A cobrança será debitada automaticamente na data de vencimento.</summary>
+        /// <summary>Cria cobrança PIX vinculada à autorização PIX Automático (para recorrência). A cobrança será debitada automaticamente na data de vencimento.</summary>
         public async Task<OrderResponse?> CreatePaymentWithPixAutomaticAuthorizationAsync(
             string asaasCustomerId,
             string pixAutomaticAuthorizationId,

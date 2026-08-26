@@ -18,9 +18,18 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<Payment> ProcessPaymentAsync(int paymentId);
         Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);
-        /// <summary>Altera o método de pagamento. Para PIX, use pixPlanType: PixAnnual (recorrente anual) ou None (pagamento único) para gerar o QR correto.</summary>
-        Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method, ContractCardPlanType? pixPlanType = null);
-        Task<string> GeneratePixCodeAsync(int paymentId, ContractCardPlanType? pixPlanType = null);
+        /// <summary>
+        /// Altera o método de pagamento. Para PIX, use pixPlanType: PixAnnual, PixMonthly ou None (pagamento único).
+        /// Informe <paramref name="previousCardPlanType"/> quando o Sync de checkout já tiver atualizado o contrato,
+        /// para detectar troca PixAnnual ↔ PixMonthly ↔ None e cancelar charge/auth no Asaas antes de regenerar.
+        /// </summary>
+        Task<Payment> UpdatePaymentMethodAsync(
+            int paymentId,
+            PaymentMethod method,
+            ContractCardPlanType? pixPlanType = null,
+            ContractCardPlanType? previousCardPlanType = null);
+        /// <param name="previousCardPlanType">Plano antes do Sync (quando o contrato já foi atualizado). Se distinto de pixPlanType, cancela artifacts Asaas.</param>
+        Task<string> GeneratePixCodeAsync(int paymentId, ContractCardPlanType? pixPlanType = null, ContractCardPlanType? previousCardPlanType = null);
         /// <summary>Reabre um pagamento PIX cancelado/vencido para permitir gerar novo código (ex.: após PAYMENT_OVERDUE).</summary>
         Task ReopenCancelledPixPaymentAsync(int paymentId);
         /// <summary>Trata vencimento (PAYMENT_OVERDUE) de pagamento PIX: limpa códigos e gera novo via Asaas (PIX único e PIX Automático). A data de vencimento na base passa a ser a data real do novo código retornada pelo Asaas. Garante que, ao expirar ou receber mensagem de vencido/cancelado, seja gerado outro código para o cliente pagar.</summary>

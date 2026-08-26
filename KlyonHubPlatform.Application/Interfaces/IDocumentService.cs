@@ -3,8 +3,9 @@ namespace KlyonHubPlatform.Application.Interfaces
 {
     public interface IDocumentService
     {
-        Task<DocumentModel> GenerateContractDocumentAsync(int contractId);
+        Task<DocumentModel> GenerateContractDocumentAsync(int contractId, bool regenerate = false);
         Task<bool> CanGenerateContractDocumentAsync(int contractId);
+        Task<bool> CanRegenerateContractDocumentAsync(int contractId);
         Task EnsureContractDocumentAsync(int contractId);
         Task<bool> CanGenerateFiscalContractDocumentAsync(int contractId);
         Task EnsureFiscalContractDocumentAsync(int contractId);

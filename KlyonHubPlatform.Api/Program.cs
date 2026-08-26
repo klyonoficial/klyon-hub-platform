@@ -222,6 +222,7 @@ builder.Services.AddScoped<ContractExpiryNotificationService>();
 builder.Services.AddHostedService<ContractExpiryBackgroundService>();
 builder.Services.AddHostedService<AddressDeclarationBackgroundService>();
 builder.Services.AddHostedService<MonthlySettlementBackgroundService>();
+builder.Services.AddHostedService<PixAutomaticBillingBackgroundService>();
 builder.Services.AddAutoMapper(typeof(Program), typeof(KlyonHubPlatform.Application.Mappers.ApplicationMappingProfile));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();

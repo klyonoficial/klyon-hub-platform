@@ -13,6 +13,8 @@
 	var contractKindLabel = AddressDeclarationLabels.IsCommercial(Model.Service?.Code) ? "comercial" : "fiscal";
 	var contractDocuments = Model.Documents?.Where(d => d.Type == DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
 	var otherDocuments = Model.Documents?.Where(d => d.Type != DocumentType.Contract).OrderByDescending(d => d.GeneratedAt).ToList() ?? new List<KlyonHubPlatform.Domain.Entities.Document>();
+	var existingDeclarations = ViewBag.Declarations as List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>
+		?? new List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>();
 }
 
 @model KlyonHubPlatform.Domain.Entities.Contract
@@ -140,7 +142,7 @@
 						<td>@Model.StartDate.ToString(DateFormatConstants.DisplayDateOnly)</td>
 					</tr>
 					<tr>
-						<th>Valor Mensal:</th>
+						<th>@(Model.CardPlanType == ContractCardPlanType.CardMonthly || Model.CardPlanType == ContractCardPlanType.PixMonthly ? "Valor Mensal:" : "Valor do Plano:")</th>
 						<td>
 							<strong>R$ @(Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue.ToString(NumberFormatConstants.TwoDecimals) : Model.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals))</strong>
 							@if (Model.SnapshotMonthlyValue > 0 && Model.SnapshotMonthlyValue != Model.MonthlyValue)
@@ -315,12 +317,6 @@
 
 				@if (canGenerateContract)
 				{
-					@if (ViewBag.ContractGenerationError is string contractError && !string.IsNullOrWhiteSpace(contractError))
-					{
-						<div class="alert alert-warning py-2 small mb-2">
-							<i class="bi bi-exclamation-triangle me-1"></i> Não foi possível gerar o contrato automaticamente. Tente novamente.
-						</div>
-					}
 					<div class="d-flex justify-content-end mb-3">
 						<form method="post" action="@Url.Action(ActionNames.GenerateContract, ControllerNames.Client)" class="d-inline">
 							@Html.AntiForgeryToken()
@@ -337,12 +333,6 @@
 
 				@if (canGenerateDeclaration)
 				{
-					@if (ViewBag.DeclarationGenerationError is string declarationError && !string.IsNullOrWhiteSpace(declarationError))
-					{
-						<div class="alert alert-warning py-2 small mb-2">
-							<i class="bi bi-exclamation-triangle me-1"></i> Não foi possível emitir a declaração automaticamente. Tente novamente.
-						</div>
-					}
 					<div class="d-flex justify-content-end mb-3">
 						<form method="post" action="@Url.Action(ActionNames.GenerateDeclaration, ControllerNames.Client)" class="d-inline">
 							@Html.AntiForgeryToken()
@@ -356,11 +346,11 @@
 						</form>
 					</div>
 				}
-				@if (ViewBag.Declarations != null && ((List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations).Any())
+				@if (existingDeclarations.Any())
 				{
 					<h6 class="mb-3">@declarationSectionTitle:</h6>
 					<ul class="list-group mb-3">
-						@foreach (var declaration in (List<KlyonHubPlatform.Domain.Entities.AddressDeclaration>)ViewBag.Declarations)
+						@foreach (var declaration in existingDeclarations)
 						{
 							<li class="list-group-item">
 								<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
@@ -444,6 +434,7 @@
 				}
 
 				@{
+					// Só listados após pagamento + contrato + declaração (gate em ContractPartnerDocumentService).
 					var partnerDocuments = ViewBag.PartnerDocuments as IReadOnlyList<KlyonHubPlatform.Application.DTOs.Contracts.ContractPartnerDocumentDto>
 						?? Array.Empty<KlyonHubPlatform.Application.DTOs.Contracts.ContractPartnerDocumentDto>();
 				}

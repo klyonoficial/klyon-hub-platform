@@ -76,8 +76,8 @@
                         </tr>
                     }
                     <tr>
-                        <th>Valor Mensal:</th>
-                        <td><strong class="text-success">R$ @Model.MonthlyValue.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></td>
+                        <th>@(Model.CardPlanType == ContractCardPlanType.CardMonthly || Model.CardPlanType == ContractCardPlanType.PixMonthly ? "Valor Mensal:" : "Valor do Plano:")</th>
+                        <td><strong class="text-success">R$ @((Model.SnapshotMonthlyValue > 0 ? Model.SnapshotMonthlyValue : Model.MonthlyValue).ToString(NumberFormatConstants.CurrencyTwoDecimals))</strong></td>
                     </tr>
                     <tr>
                         <th>Data de Criação:</th>

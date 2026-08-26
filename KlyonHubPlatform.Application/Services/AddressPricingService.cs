@@ -20,7 +20,7 @@ namespace KlyonHubPlatform.Application.Services
 
         public decimal GetChargeAmount(decimal basePrice, decimal? surchargePercent, ContractCardPlanType? planType)
         {
-            if (planType == ContractCardPlanType.CardMonthly)
+            if (planType.IsMonthlyInstallmentPlan())
                 return GetMonthlyInstallment(basePrice, surchargePercent);
 
             return GetAnnualPrice(basePrice);

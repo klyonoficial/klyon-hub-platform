@@ -20,5 +20,16 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<User?> GetUserByIdAsync(int userId, CancellationToken cancellationToken = default);
         Task<User?> GetUserByPasswordResetTokenForAutoLoginAsync(string token, CancellationToken cancellationToken = default);
         Task<User> UpdateUserAsync(User user);
+        /// <summary>
+        /// Altera a senha do usuário autenticado.
+        /// Se MustChangePassword for true, não exige senha atual; caso contrário, exige e valida.
+        /// Após sucesso, define MustChangePassword = false.
+        /// </summary>
+        Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(
+            int userId,
+            string? currentPassword,
+            string newPassword,
+            string confirmPassword,
+            CancellationToken cancellationToken = default);
     }
 }

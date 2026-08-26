@@ -10,5 +10,6 @@ namespace KlyonHubPlatform.Api.Constants
         public const string Message = "Message";
         public const string HasFiscalAddress = "HasFiscalAddress";
         public const string HasRoomRental = "HasRoomRental";
+        public const string MustChangePassword = "MustChangePassword";
     }
 }

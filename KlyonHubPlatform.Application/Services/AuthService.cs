@@ -317,5 +317,43 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _userRepository.UpdateAsync(user);
         }
+
+        public async Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(
+            int userId,
+            string? currentPassword,
+            string newPassword,
+            string confirmPassword,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(newPassword) || string.IsNullOrWhiteSpace(confirmPassword))
+                return (false, "Nova senha e confirmação são obrigatórias.");
+
+            if (newPassword != confirmPassword)
+                return (false, "As senhas não coincidem.");
+
+            // Política alinhada ao fluxo Identity/Auth existente (mín. 6 caracteres)
+            if (newPassword.Length < 6)
+                return (false, "A senha deve ter no mínimo 6 caracteres.");
+
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+                return (false, "Usuário não encontrado.");
+
+            if (!user.MustChangePassword)
+            {
+                if (string.IsNullOrWhiteSpace(currentPassword))
+                    return (false, "Informe a senha atual.");
+
+                if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+                    return (false, "Senha atual incorreta.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            user.MustChangePassword = false;
+            user.PasswordResetToken = null;
+            user.PasswordResetExpires = null;
+            await _userRepository.UpdateAsync(user);
+            return (true, string.Empty);
+        }
     }
 }

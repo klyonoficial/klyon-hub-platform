@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace KlyonHubPlatform.Application.DTOs.Asaas
 {
-    /// <summary>Request para criar autorização PIX Automático (recorrência anual).</summary>
+    /// <summary>Request para criar autorização PIX Automático (MONTHLY ou ANNUALLY).</summary>
     public class AsaasPixAutomaticAuthorizationRequest
     {
         [JsonPropertyName("frequency")]

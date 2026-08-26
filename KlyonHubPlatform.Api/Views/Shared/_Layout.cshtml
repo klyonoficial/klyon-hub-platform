@@ -1,6 +1,7 @@
 @inject KlyonHubPlatform.Application.Interfaces.ISystemConfigurationService SystemConfigurationService
 @inject KlyonHubPlatform.Application.Interfaces.IClientMenuService ClientMenuService
 @inject KlyonHubPlatform.Application.Interfaces.IKlyonOnboardingPublicDocumentService KlyonOnboardingPublicDocumentService
+@inject KlyonHubPlatform.Application.Interfaces.IAuthService AuthService
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment WebHostEnvironment
 @using System.Security.Claims
 @using KlyonHubPlatform.Api.Constants
@@ -14,17 +15,25 @@
     // Cliente não pode adicionar novo endereço fiscal se já tiver contrato ativo (status "Ativo" em Meus Contratos).
     // Ocultar "Localidades Disponíveis" no menu quando houver endereço ativo.
     var clientHasActiveContract = false;
+    var mustChangePassword = false;
     IReadOnlyList<KlyonOnboardingPublicDocumentItem> klyonOnboardingPublicDocs = Array.Empty<KlyonOnboardingPublicDocumentItem>();
     var headerEmail = User.FindFirst(ClaimTypes.Email)?.Value;
     var headerDisplayName = KlyonHubPlatform.Domain.Core.Helpers.ClientDisplayName.Resolve(User.Identity?.Name, headerEmail);
-    if (User.IsInRole("Client") && User.Identity?.IsAuthenticated == true)
+    if (User.Identity?.IsAuthenticated == true)
     {
         var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (int.TryParse(userIdStr, out var userId))
         {
-            clientHasActiveContract = await ClientMenuService.ClientHasActiveContractAsync(userId);
-            klyonOnboardingPublicDocs = await KlyonOnboardingPublicDocumentService.GetVisibleDocumentsForClientAsync(userId, WebHostEnvironment.WebRootPath)
-                ?? Array.Empty<KlyonOnboardingPublicDocumentItem>();
+            if (User.IsInRole("Client"))
+            {
+                clientHasActiveContract = await ClientMenuService.ClientHasActiveContractAsync(userId);
+                klyonOnboardingPublicDocs = await KlyonOnboardingPublicDocumentService.GetVisibleDocumentsForClientAsync(userId, WebHostEnvironment.WebRootPath)
+                    ?? Array.Empty<KlyonOnboardingPublicDocumentItem>();
+            }
+
+            var authUser = await AuthService.GetUserByIdAsync(userId);
+            mustChangePassword = authUser?.MustChangePassword == true;
+            ViewData[ViewDataKeys.MustChangePassword] = mustChangePassword;
         }
     }
 }
@@ -151,10 +160,19 @@
                         </li>
                         @if (isAdmin)
                         {
-                            <li class="nav-item">
-                                <span class="nav-link">
-                                    @User.Identity.Name
+                            <li class="nav-item dropdown" id="userMenuDropdown">
+                                <span class="nav-link dropdown-toggle" id="userNameLink" style="cursor: pointer;"
+                                      onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                    @headerDisplayName
                                 </span>
+                                <ul class="dropdown-menu" id="userMenu" style="display: none; margin-top: 0;"
+                                    onmouseenter="showUserMenu()" onmouseleave="hideUserMenu()">
+                                    <li>
+                                        <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                            <i class="bi bi-key"></i> Alterar Senha
+                                        </a>
+                                    </li>
+                                </ul>
                             </li>
                         }
                         else
@@ -178,6 +196,11 @@
                                             <i class="bi bi-person-badge"></i> Meu Perfil
                                         </a></li>
                                     }
+                                    <li>
+                                        <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                            <i class="bi bi-key"></i> Alterar Senha
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                         }
@@ -313,6 +336,11 @@
                                     <li>
                                         <a class="nav-link" href="@Url.Action(ActionNames.SefazConfiguration, ControllerNames.Admin)">
                                             <i class="bi bi-receipt"></i> Configuração SEFAZ
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="nav-link" href="@Url.Action(ActionNames.SystemSettings, ControllerNames.Admin)">
+                                            <i class="bi bi-database-exclamation"></i> Manutenção da Base
                                         </a>
                                     </li>
                                 </ul>
@@ -941,6 +969,11 @@
         })();
     </script>
     
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        @await Html.PartialAsync("_ChangePasswordModal")
+    }
+
     <!-- Modal de Confirmação Elegante -->
     <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">

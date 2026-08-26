@@ -13,6 +13,9 @@ namespace KlyonHubPlatform.Application.DTOs.PagBank
         public DateTime CreatedAt { get; set; }
         [JsonPropertyName("paid_at")]
         public DateTime? PaidAt { get; set; }
+        /// <summary>ID da assinatura Asaas (sub_...) quando a cobrança foi criada via POST /subscriptions.</summary>
+        [JsonPropertyName("subscription_id")]
+        public string? SubscriptionId { get; set; }
         [JsonPropertyName("charges")]
         public List<PagBankChargeResponse>? Charges { get; set; }
         [JsonPropertyName("qr_codes")]

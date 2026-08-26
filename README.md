@@ -74,6 +74,7 @@ dotnet ef database update -s KlyonHubPlatform.Api -p KlyonHubPlatform.Infra.Data
 
 - Configuração de email: [docs/README_EMAIL.md](docs/README_EMAIL.md)
 - Configuração de pagamento: [docs/CONFIGURAR_PAGAMENTO.md](docs/CONFIGURAR_PAGAMENTO.md)
+- PIX Automático (Asaas): [docs/PIX_AUTOMATICO.md](docs/PIX_AUTOMATICO.md)
 - Docker: [docs/DOCKER.md](docs/DOCKER.md)
 - Deploy: [docs/DEPLOY.md](docs/DEPLOY.md)
 - Oracle Object Storage: [docs/ORACLE_OBJECT_STORAGE.md](docs/ORACLE_OBJECT_STORAGE.md)
@@ -111,6 +112,7 @@ dotnet ef database update -s KlyonHubPlatform.Api -p KlyonHubPlatform.Infra.Data
 │   ├── DEPLOY.md
 │   ├── DOCKER.md
 │   ├── ORACLE_OBJECT_STORAGE.md
+│   ├── PIX_AUTOMATICO.md
 │   ├── README_EMAIL.md
 │   └── VALIDACAO-CONTROLLERS.md
 ├── KlyonHubPlatform.Api/

@@ -140,7 +140,9 @@ namespace KlyonHubPlatform.Application.Services
                     var payment = await _paymentService.CreatePaymentAsync(
                         subscription.Id,
                         monthlyValue,
-                        cardPlanType == ContractCardPlanType.PixAnnual ? PaymentMethod.PIX : (initialPaymentMethod ?? PaymentMethod.PIX),
+                        cardPlanType.IsPixAutomatic() || cardPlanType == ContractCardPlanType.None
+                            ? PaymentMethod.PIX
+                            : (initialPaymentMethod ?? PaymentMethod.PIX),
                         snapshotListPrice: address.BasePrice
                     );
 
@@ -154,19 +156,20 @@ namespace KlyonHubPlatform.Application.Services
                         var clientTaxId = PaymentGatewayCustomer.ResolveTaxIdDigits(client);
                         var clientPhone = client.ContactPhone;
 
-                        if (cardPlanType == ContractCardPlanType.PixAnnual)
+                        if (cardPlanType.IsPixAutomatic())
                         {
-
-
                             var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(clientName, clientEmail, clientTaxId, clientPhone, null, $"client_{client.Id}");
-                            var annualValue = monthlyValue;
+                            var chargeValue = monthlyValue;
                             // contractId único (ContractNumber + Id) para evitar "Já existe autorização" ao reutilizar número
                             var asaasContractId = $"{createdContract.ContractNumber ?? ""}-{createdContract.Id}";
+                            var asaasFrequency = cardPlanType == ContractCardPlanType.PixMonthly ? "MONTHLY" : "ANNUALLY";
+                            var periodLabel = cardPlanType == ContractCardPlanType.PixMonthly ? "mensal" : "anual";
                             var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
                                 asaasCustomerId,
                                 asaasContractId,
-                                annualValue,
-                                $"Contrato {createdContract.ContractNumber} - PIX anual",
+                                chargeValue,
+                                $"Contrato {createdContract.ContractNumber} - PIX {periodLabel}",
+                                asaasFrequency,
                                 86400
                             );
                             if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))

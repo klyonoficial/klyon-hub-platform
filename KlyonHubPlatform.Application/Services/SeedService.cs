@@ -744,12 +744,20 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Key = PaymentConfigKey.HiddenPaymentOptions.ToConfigKey(),
                         Value = "",
-                        Description = "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixAnnual, PIX, Card1x, CardMonthly, Boleto. Ex.: Boleto oculta boleto bancário; PIX oculta PIX (pagamento único).",
+                        Description = "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixMonthly, PixAnnual, PIX, Card1x, CardMonthly, Boleto. Ex.: PixMonthly oculta PIX Automático (mensal); PixAnnual oculta PIX Automático (anual); PIX oculta PIX (pagamento único); Boleto oculta boleto bancário.",
                         Category = SystemConfigurationCategoryKeys.Payment,
                         IsSensitive = false,
                         IsEncrypted = false
                     }
                     );
+                    await _context.SaveChangesAsync();
+                }
+                var hiddenPaymentOptionsConfig = await _context.SystemConfigurations
+                    .FirstOrDefaultAsync(c => c.Key == PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+                if (hiddenPaymentOptionsConfig != null)
+                {
+                    hiddenPaymentOptionsConfig.Description =
+                        "Formas de pagamento a ocultar (separadas por vírgula). Valores: PixMonthly, PixAnnual, PIX, Card1x, CardMonthly, Boleto. Ex.: PixMonthly oculta PIX Automático (mensal); PixAnnual oculta PIX Automático (anual); PIX oculta PIX (pagamento único); Boleto oculta boleto bancário.";
                     await _context.SaveChangesAsync();
                 }
                 var coworkingMenusConfig = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == FeaturesConfigKey.EnableCoworkingMenus.ToConfigKey());

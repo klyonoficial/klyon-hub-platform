@@ -9,6 +9,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string VerifyEmail = "Verificar Email";
         public const string ResendVerification = "Reenviar Verificação";
         public const string ChangePasswordRequired = "Alteração de Senha Obrigatória";
+        public const string ChangePassword = "Alterar Senha";
         public const string Index = "Início";
         public const string Marketplace = "Encontrar Coworking";
         public const string FiscalAddress = "Contratar Endereço Fiscal";
@@ -45,6 +46,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string QuickClientRegistrationSuccess = "Cadastro Realizado com Sucesso";
         public const string SystemConfigurations = "Configurações do Sistema";
         public const string EditSystemConfiguration = "Editar Configuração";
+        public const string SystemSettings = "Manutenção da Base";
         public const string DatabaseManager = "Gerenciador de Banco de Dados";
         public const string SefazConfiguration = "Configuração SEFAZ";
         public const string Payments = "Gerenciar Pagamentos";

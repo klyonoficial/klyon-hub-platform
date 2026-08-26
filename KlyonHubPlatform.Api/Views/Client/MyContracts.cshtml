@@ -72,7 +72,7 @@
                             <th>Número</th>
                             <th>Endereço</th>
                             <th>Localidade</th>
-                            <th>Valor Mensal</th>
+                            <th>Valor</th>
                             <th>Status</th>
                             <th>Data Início</th>
                             <th>Ações</th>
@@ -111,6 +111,14 @@
                                 </td>
                                 <td>
                                     <strong>R$ @(contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue.ToString(NumberFormatConstants.TwoDecimals) : contract.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals))</strong>
+                                    @if (contract.CardPlanType == ContractCardPlanType.CardMonthly || contract.CardPlanType == ContractCardPlanType.PixMonthly)
+                                    {
+                                        <br><small class="text-muted">mensal</small>
+                                    }
+                                    else if (contract.CardPlanType == ContractCardPlanType.Card1x || contract.CardPlanType == ContractCardPlanType.PixAnnual)
+                                    {
+                                        <br><small class="text-muted">anual</small>
+                                    }
                                 </td>
                                 <td>
                                     @{

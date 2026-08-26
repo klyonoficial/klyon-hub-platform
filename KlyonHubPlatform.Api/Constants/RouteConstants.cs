@@ -76,6 +76,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ResetPassword = "ResetPassword";
         public const string CommercialForgotPassword = "CommercialForgotPassword";
         public const string ChangePasswordRequired = "ChangePasswordRequired";
+        public const string ChangePassword = "ChangePassword";
+        public const string MustChangePasswordStatus = "MustChangePasswordStatus";
         public const string VerifyEmail = "VerifyEmail";
         public const string ResendVerification = "ResendVerification";
         public const string Contracts = "Contracts";
@@ -155,6 +157,9 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CleanupDuplicateContractArtifacts = "CleanupDuplicateContractArtifacts";
         public const string ClearTestData = "ClearTestData";
         public const string ClearDatabase = "ClearDatabase";
+        public const string SystemSettings = "SystemSettings";
+        public const string LookupUserForPurge = "LookupUserForPurge";
+        public const string PurgeUserData = "PurgeUserData";
         public const string ExecuteSql = "ExecuteSql";
         public const string MyAddresses = "MyAddresses";
         public const string CardPrices = "CardPrices";
@@ -219,6 +224,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string GeneratePixCode = "GeneratePixCode";
         public const string SetDefaultCreditCard = "SetDefaultCreditCard";
         public const string RemoveCreditCard = "RemoveCreditCard";
+        public const string UpdateCreditCardNickname = "UpdateCreditCardNickname";
         public const string ConfirmPayment = "ConfirmPayment";
         public const string DownloadReceipt = "DownloadReceipt";
         public const string AddCreditCard = "AddCreditCard";

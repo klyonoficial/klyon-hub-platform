@@ -37,9 +37,11 @@ Sem os quatro eventos acima, a confirmação de PIX/boleto/cartão e o tratament
 
 ---
 
-## 3. PIX Automático (para a implementação de PIX recorrente)
+## 3. PIX Automático (cobranças anuais autorizadas)
 
-Quando for implementar PIX Automático, marque também estes eventos no **mesmo** webhook (ou em um dedicado, se preferir):
+Quando usar PIX Automático (`PixAnnual`), marque também estes eventos no **mesmo** webhook (ou em um dedicado, se preferir):
+
+> **Atenção de nomenclatura:** no Asaas, “Pix Recorrente” é outro produto (transferência agendada pelo pagador). O Klyon usa só **Pix Automático**. Ver `docs/PIX_AUTOMATICO.md`.
 
 ### Autorização
 

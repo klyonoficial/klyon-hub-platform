@@ -547,6 +547,19 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
+        public async Task<bool> UpdateCreditCardNicknameAsync(int cardId, int clientId, string nickname, CancellationToken cancellationToken = default)
+        {
+            var card = await _context.CreditCards.FirstOrDefaultAsync(c => c.Id == cardId && c.ClientId == clientId && c.IsActive, cancellationToken);
+            if (card == null)
+                return false;
+
+            var trimmed = nickname.Trim();
+            card.Nickname = trimmed.Length > 100 ? trimmed.Substring(0, 100) : trimmed;
+            card.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
         public async Task SetDefaultCreditCardAsync(int clientId, int cardId, CancellationToken cancellationToken = default)
         {
             var defaultCards = await _context.CreditCards

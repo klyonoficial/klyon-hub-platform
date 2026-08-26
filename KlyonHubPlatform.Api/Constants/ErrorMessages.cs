@@ -81,6 +81,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PaymentMethodNotSupported = "Método de pagamento não suportado.";
         public const string InvalidCardNumber = "Número do cartão inválido.";
         public const string CreditCardNotFound = "Cartão não encontrado ou não pertence a você.";
+        public const string CreditCardNicknameRequired = "Informe um apelido para o cartão.";
+        public const string CreditCardNicknameTooLong = "O apelido do cartão deve ter no máximo 100 caracteres.";
         public const string PlanNotFoundOrUnavailable = "Plano não encontrado ou indisponível.";
         public const string PurchaseNotFound = "Compra não encontrada.";
         public const string DeclarationInvalidOrExpired = "Esta declaração está inválida ou expirada.";
@@ -138,6 +140,7 @@ namespace KlyonHubPlatform.Api.Constants
         public static string ErrorCreatingIndex(string name, string exMessage) => $"Erro ao criar índice {name}: {exMessage}";
         public static string ErrorsOccurredCleaningData(string errorsJoin) => $"Alguns erros ocorreram ao limpar dados: {errorsJoin}";
         public static string ErrorClearingDatabase(string exMessage) => $"Erro ao limpar base de dados: {exMessage}";
+        public static string ErrorPurgingUserData(string exMessage) => $"Erro ao excluir dados do usuário: {exMessage}";
         public static string DetailInnerException(string innerMessage) => $" Detalhes: {innerMessage}";
         public static string ApiKeyAsaasNotConfigured(string configKey) => $"API Key Asaas não configurada. Configure primeiro em 'Configurar Asaas' e preencha {configKey}.";
         public static string ApiKeyAsaasNotConfiguredConfigureIn(string configKey) => $"API Key Asaas não configurada. Configure em 'Configurar Asaas' e preencha {configKey}.";

@@ -1066,7 +1066,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     paidAt = payment.PaidAt?.ToString(DateFormatConstants.DisplayDateAndTime),
                     createdAt = payment.CreatedAt.ToString(DateFormatConstants.DisplayDateAndTime),
                     externalPaymentId = payment.ExternalPaymentId,
-                    pixCode = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode,
+                    pixCode = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType.IsPixAutomatic() == true ? payment.Subscription?.PixAutomaticPayload : payment.PixCode,
                     boletoCode = payment.BoletoCode,
                     transactionId = payment.TransactionId,
                     subscription = payment.Subscription != null ? new
@@ -2137,6 +2137,20 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             }
             return RedirectToAction(ActionNames.Dashboard);
         }
+        /// <summary>
+        /// Tela de manutenção da base: reset dos dados de negócio preservando configurações.
+        /// </summary>
+        [HttpGet]
+        public IActionResult SystemSettings()
+        {
+            ViewData[ViewDataKeys.Title] = PageTitles.SystemSettings;
+            return View();
+        }
+
+        /// <summary>
+        /// Reseta a base corrente: apaga dados de negócio, preserva configurações/sistema,
+        /// aplica migrations pendentes (se houver) e executa seed idempotente.
+        /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ClearDatabase(CancellationToken cancellationToken = default)
@@ -2144,211 +2158,99 @@ CREATE TABLE IF NOT EXISTS CoworkingProducts (
             try
             {
                 HttpContext.Items["SkipAudit"] = true;
-                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;");
-                var tablesToClear = new[]
-                {
-                    "AuditLogs",
-                    "PaymentHistories",
-                    "FiscalNoteScriptExecutions",
-                    "FiscalNotes",
-                    "ReservationCommissions",
-                    "Commissions",
-                    "Transfers",
-                    "Reservations",
-                    "Payments",
-                    "Subscriptions",
-                    "Contracts",
-                    "AddressDeclarations",
-                    "CapacityChangeRequests",
-                    "CoworkingRoomPhotos",
-                    "CoworkingRooms",
-                    "CoworkingPhotos",
-                    "CoworkingDocuments",
-                    "CoworkingOperatingHours",
-                    "BlockedDates",
-                    "CoworkingPartners",
-                    "CoworkingSefazConfigurations",
-                    "CoworkingAddresses",
-                    "PartnerServices",
-                    "LocationCommissions",
-                    "PlatformCreditBalances",
-                    "Coworkings",
-                    "Clients",
-                    MigrationTableConstants.CreditPurchases,
-                    "ClientCredits",
-                    "CreditPlans",
-                    "CreditCards",
-                    "Documents",
-                    "Interests",
-                    "CoworkingProducts",
-                    "CoworkingRatings",
-                    "Translations",
-                    "Services",
-                };
-                var clearedTables = new List<string>();
-                var errors = new List<string>();
-                var adminUser = await _adminDbService.GetContext().Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com");
-                var adminUserRolePairs = new List<(int UserId, int RoleId)>();
-                if (adminUser != null)
-                {
-                    var adminRoles = await _adminDbService.GetContext().UserRoles
-                        .Where(ur => ur.UserId == adminUser.Id)
-                        .ToListAsync();
-                    adminUserRolePairs = adminRoles.Select(ur => (ur.UserId, ur.RoleId)).ToList();
-                }
-                var connection = _adminDbService.GetContext().Database.GetDbConnection();
-                await connection.OpenAsync();
-                foreach (var tableName in tablesToClear)
-                {
-                    try
-                    {
-                        using var checkCmd = connection.CreateCommand();
-                        checkCmd.CommandText = $@"
-                            SELECT COUNT(*) 
-                            FROM information_schema.tables 
-                            WHERE table_schema = DATABASE() 
-                            AND table_name = '{tableName}'";
-                        var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                        if (exists)
-                        {
-                            using var deleteCmd = connection.CreateCommand();
-                            deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
-                            var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync();
-                            try
-                            {
-                                using var resetCmd = connection.CreateCommand();
-                                resetCmd.CommandText = $"ALTER TABLE `{tableName}` AUTO_INCREMENT = 1;";
-                                await resetCmd.ExecuteNonQueryAsync();
-                            }
-                            catch (Exception resetEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Aviso: Não foi possível resetar AUTO_INCREMENT da tabela {tableName}: {resetEx.Message}");
-                            }
-                            clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        try
-                        {
-                            using var truncateCmd = connection.CreateCommand();
-                            truncateCmd.CommandText = $"TRUNCATE TABLE `{tableName}`;";
-                            await truncateCmd.ExecuteNonQueryAsync();
-                            clearedTables.Add($"{tableName} (truncate)");
-                        }
-                        catch (Exception ex2)
-                        {
-                            errors.Add($"{tableName}: {ex2.Message}");
-                            System.Diagnostics.Debug.WriteLine($"Erro ao limpar tabela {tableName}: {ex2.Message}");
-                        }
-                    }
-                }
-                await connection.CloseAsync();
-                if (adminUser != null && adminUserRolePairs.Any())
-                {
-                    var roleConditions = string.Join(" OR ", adminUserRolePairs.Select(pair => $"(UserId = {pair.UserId} AND RoleId = {pair.RoleId})"));
-                    try
-                    {
-#pragma warning disable EF1002
-                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(
-                            $"DELETE FROM UserRoles WHERE NOT ({roleConditions});");
-#pragma warning restore EF1002
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"UserRoles: {ex.Message}");
-                    }
-                    try
-                    {
-#pragma warning disable EF1002
-                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync(
-                            $"DELETE FROM Users WHERE Id != {adminUser.Id};");
-#pragma warning restore EF1002
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"Users: {ex.Message}");
-                    }
-                }
+                var (success, message) = await _adminDbService.ClearAndSeedDatabaseAsync(cancellationToken);
+                if (success)
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.Generic(message);
                 else
-                {
-                    try
-                    {
-                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("DELETE FROM UserRoles;");
-                        await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("DELETE FROM Users;");
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"Users/UserRoles: {ex.Message}");
-                    }
-                }
-                var tablesToResetAutoIncrement = new[] { "AuditLogs", "Users", "Roles", "Clients", "Coworkings", "Contracts", "Payments", "Subscriptions", "Locations", "Services", "SystemConfigurations", "Languages", "LocationCommissions", "UserRoles" };
-                var wasConnectionOpen = connection.State == System.Data.ConnectionState.Open;
-                if (!wasConnectionOpen) await connection.OpenAsync();
-                try
-                {
-                    foreach (var tableName in tablesToResetAutoIncrement)
-                    {
-                        try
-                        {
-                            using var checkCmd = connection.CreateCommand();
-                            var escapedTableName = tableName.Replace("`", "``");
-                            checkCmd.CommandText = $@"
-                                SELECT COUNT(*) 
-                                FROM information_schema.columns 
-                                WHERE table_schema = DATABASE() 
-                                AND table_name = '{escapedTableName}' 
-                                AND column_name = 'Id' 
-                                AND extra LIKE '%auto_increment%'";
-                            var hasAutoIncrement = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-                            if (hasAutoIncrement)
-                            {
-                                using var resetCmd = connection.CreateCommand();
-                                resetCmd.CommandText = $"ALTER TABLE `{escapedTableName}` AUTO_INCREMENT = 1;";
-                                await resetCmd.ExecuteNonQueryAsync();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Aviso: Não foi possível resetar AUTO_INCREMENT da tabela {tableName}: {ex.Message}");
-                        }
-                    }
-                }
-                finally
-                {
-                    if (!wasConnectionOpen) await connection.CloseAsync();
-                }
-                await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
-                var seedService = new Application.Services.SeedService(_adminDbService.GetContext());
-                await seedService.SeedInitialDataAsync();
-                var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas. " +
-                    $"Dados essenciais preservados: Users (admin), UserRoles (admin), SefazConfigurations, __EFMigrationsHistory. " +
-                    $"Tabelas com seed recriadas automaticamente: Roles, Languages, Locations, Services, SystemConfigurations.";
-                if (errors.Any())
-                {
-                    successMessage += $" Avisos: {string.Join("; ", errors.Take(3))}";
-                }
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.Generic(successMessage);
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorClearingDatabase(message);
             }
             catch (Exception ex)
             {
-                try
-                {
-                    await _adminDbService.GetContext().Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;");
-                }
-                catch { }
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorClearingDatabase(ex.Message);
                 if (ex.InnerException != null)
-                {
                     TempData[ErrorMessages.TempDataKey] += ErrorMessages.DetailInnerException(ex.InnerException.Message);
-                }
             }
             finally
             {
                 HttpContext.Items.Remove("SkipAudit");
             }
-            return RedirectToAction(ActionNames.Dashboard);
+            return RedirectToAction(ActionNames.SystemSettings);
         }
+
+        /// <summary>
+        /// Preview JSON do usuário alvo para exclusão em cascata (nome, tipo, canDelete).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> LookupUserForPurge(int userId, CancellationToken cancellationToken = default)
+        {
+            if (userId <= 0)
+                return Json(new { found = false, canDelete = false, blockReason = "Informe um Id de usuário válido." });
+
+            var result = await _adminDbService.LookupUserForPurgeAsync(userId, cancellationToken);
+            return Json(new
+            {
+                found = result.Found,
+                userId = result.UserId,
+                name = result.Name,
+                email = result.Email,
+                roleType = result.RoleType,
+                roleDisplayName = result.RoleDisplayName,
+                canDelete = result.CanDelete,
+                blockReason = result.BlockReason
+            });
+        }
+
+        /// <summary>
+        /// Exclui em cascata todos os dados de um Cliente ou Parceiro (UserId).
+        /// Exige antiforgery, role Admin e confirmação do nome exibido no preview.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PurgeUserData(int userId, string confirmedName, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (userId <= 0)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Informe um Id de usuário válido.";
+                    return RedirectToAction(ActionNames.SystemSettings);
+                }
+
+                var lookup = await _adminDbService.LookupUserForPurgeAsync(userId, cancellationToken);
+                if (!lookup.Found || !lookup.CanDelete)
+                {
+                    TempData[ErrorMessages.TempDataKey] = lookup.BlockReason ?? "Exclusão não permitida.";
+                    return RedirectToAction(ActionNames.SystemSettings);
+                }
+
+                if (string.IsNullOrWhiteSpace(confirmedName)
+                    || !string.Equals(confirmedName.Trim(), lookup.Name.Trim(), StringComparison.Ordinal))
+                {
+                    TempData[ErrorMessages.TempDataKey] =
+                        $"Confirmação inválida. Digite exatamente o nome \"{lookup.Name}\" para confirmar a exclusão.";
+                    return RedirectToAction(ActionNames.SystemSettings);
+                }
+
+                HttpContext.Items["SkipAudit"] = true;
+                var result = await _adminDbService.PurgeUserDataAsync(userId, cancellationToken);
+                if (result.Success)
+                    TempData[SuccessMessage.TempDataKey] = SuccessMessage.Generic(result.Message);
+                else
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorPurgingUserData(result.Message);
+            }
+            catch (Exception ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorPurgingUserData(ex.Message);
+                if (ex.InnerException != null)
+                    TempData[ErrorMessages.TempDataKey] += ErrorMessages.DetailInnerException(ex.InnerException.Message);
+            }
+            finally
+            {
+                HttpContext.Items.Remove("SkipAudit");
+            }
+            return RedirectToAction(ActionNames.SystemSettings);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateCoworkingRatingsTable(CancellationToken cancellationToken = default)
@@ -4286,9 +4188,9 @@ CREATE TABLE IF NOT EXISTS Reservations (
             }
             ViewBag.Payment = payment;
             // PIX único: Payment.PixCode/PixExpiresAt; PIX Automático: Subscription.PixAutomaticPayload/PixAutomaticPayloadExpiresAt
-            var isPixAnnual = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual;
-            ViewBag.PixCode = isPixAnnual ? payment.Subscription?.PixAutomaticPayload : payment.PixCode;
-            ViewBag.PixExpiresAt = isPixAnnual ? payment.Subscription?.PixAutomaticPayloadExpiresAt : payment.PixExpiresAt;
+            var isPixAutomatic = payment.Method == PaymentMethod.PIX && payment.Subscription?.Contract?.CardPlanType.IsPixAutomatic() == true;
+            ViewBag.PixCode = isPixAutomatic ? payment.Subscription?.PixAutomaticPayload : payment.PixCode;
+            ViewBag.PixExpiresAt = isPixAutomatic ? payment.Subscription?.PixAutomaticPayloadExpiresAt : payment.PixExpiresAt;
             return View();
         }
         private static string? FormatAddress(CoworkingAddress? addr)

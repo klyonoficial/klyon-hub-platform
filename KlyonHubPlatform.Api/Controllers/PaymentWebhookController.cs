@@ -109,6 +109,19 @@ namespace KlyonHubPlatform.Api.Controllers
                     string? asaasPaymentId = null;
                     if (root.TryGetProperty("payment", out var payEl))
                         asaasPaymentId = payEl.TryGetProperty(AsaasWebhookPayloadKeys.Id, out var pid) ? pid.GetString() : null;
+                    if (string.IsNullOrEmpty(asaasPaymentId)
+                        && root.TryGetProperty("paymentInstruction", out var instrEl))
+                    {
+                        asaasPaymentId = instrEl.TryGetProperty("paymentId", out var instrPayId)
+                            ? instrPayId.GetString()
+                            : null;
+                        if (string.IsNullOrEmpty(asaasPaymentId)
+                            && instrEl.TryGetProperty("payment", out var nestedPay)
+                            && nestedPay.TryGetProperty(AsaasWebhookPayloadKeys.Id, out var nestedId))
+                        {
+                            asaasPaymentId = nestedId.GetString();
+                        }
+                    }
                     if (!string.IsNullOrEmpty(asaasPaymentId))
                     {
                         var payment = await _paymentRepository.GetByExternalPaymentIdAsync(asaasPaymentId, cancellationToken);

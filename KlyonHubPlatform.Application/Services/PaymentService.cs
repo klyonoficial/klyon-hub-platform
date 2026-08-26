@@ -9,6 +9,8 @@ using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using KlyonHubPlatform.Domain.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using System.Security.Claims;
 using FluentValidation;
@@ -33,6 +35,7 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IPaymentRealtimeNotifier? _paymentRealtimeNotifier;
         private readonly IValidator<CreditCardHolderBillingInput> _cardHolderBillingValidator;
         private readonly IPromoCodeService _promoCodeService;
+        private readonly ILogger<PaymentService> _logger;
         public PaymentService(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
@@ -50,7 +53,8 @@ namespace KlyonHubPlatform.Application.Services
             IAuditService? auditService = null,
             IHttpContextAccessor? httpContextAccessor = null,
             IFiscalOnboardingService? fiscalOnboardingService = null,
-            IPaymentRealtimeNotifier? paymentRealtimeNotifier = null)
+            IPaymentRealtimeNotifier? paymentRealtimeNotifier = null,
+            ILogger<PaymentService>? logger = null)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
@@ -69,6 +73,7 @@ namespace KlyonHubPlatform.Application.Services
             _paymentRealtimeNotifier = paymentRealtimeNotifier;
             _cardHolderBillingValidator = cardHolderBillingValidator;
             _promoCodeService = promoCodeService;
+            _logger = logger ?? NullLogger<PaymentService>.Instance;
         }
 
         /// <summary>Retorna o horário atual de Brasília (America/Sao_Paulo).</summary>
@@ -293,7 +298,7 @@ namespace KlyonHubPlatform.Application.Services
                         {
                             subscription.LastBillingDate = DateTime.UtcNow;
                             var contractForCycle = await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-                            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
+                            subscription.NextBillingDate = contractForCycle?.CardPlanType.IsAnnualBillingCycle() == true
                                 ? subscription.LastBillingDate.Value.AddYears(1)
                                 : subscription.LastBillingDate.Value.AddMonths(1);
                             subscription.FailedPaymentAttempts = 0;
@@ -384,13 +389,21 @@ namespace KlyonHubPlatform.Application.Services
             }
             return await _paymentRepository.UpdateAsync(payment);
         }
-        public async Task<Payment> UpdatePaymentMethodAsync(int paymentId, PaymentMethod method, ContractCardPlanType? pixPlanType = null)
+        public async Task<Payment> UpdatePaymentMethodAsync(
+            int paymentId,
+            PaymentMethod method,
+            ContractCardPlanType? pixPlanType = null,
+            ContractCardPlanType? previousCardPlanType = null)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
+            // Paid: não altera método nem cancela no Asaas
             if (payment.Status != PaymentStatus.Pending)
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ter o método alterado");
+
+            var previousMethod = payment.Method;
+            var methodChanged = previousMethod != method;
             Subscription? subscription = null;
             Contract? contract = null;
             if (payment.SubscriptionId.HasValue)
@@ -399,35 +412,72 @@ namespace KlyonHubPlatform.Application.Services
                 if (subscription != null)
                     contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
             }
-            // Ao sair de PIX: preservar PixCode/PixConciliationIdentifier se for PIX recorrente anual para reaproveitar ao voltar (evita criar várias autorizações no Asaas)
-            var preservePixForReuse = false;
-            if (method != PaymentMethod.PIX)
+
+            // previousCardPlanType: plano antes do Sync no ClientController (CardPlanType no DB pode já ser o novo).
+            var effectivePreviousPlan = previousCardPlanType ?? contract?.CardPlanType;
+            var pixPlanChanged = method == PaymentMethod.PIX
+                && previousMethod == PaymentMethod.PIX
+                && pixPlanType.HasValue
+                && effectivePreviousPlan.HasValue
+                && effectivePreviousPlan != pixPlanType;
+
+            // Cancelar no Asaas ao sair do método OU ao trocar ciclo PIX (anual ↔ mensal ↔ único) mantendo Method=PIX.
+            // Nota cartão: se ExternalSubscriptionId for sub_*, IAsaasService não expõe DELETE /subscriptions hoje —
+            // troca Card1x ↔ CardMonthly no checkout só ajusta valor local; cobrança em ProcessPaymentWithCard.
+            if (methodChanged || pixPlanChanged)
             {
-                if (contract?.CardPlanType == ContractCardPlanType.PixAnnual)
-                    preservePixForReuse = true;
+                var cancelContextMethod = previousMethod == PaymentMethod.PIX || pixPlanChanged
+                    ? PaymentMethod.PIX
+                    : previousMethod;
+                await TryCancelPendingAsaasChargeOnMethodChangeAsync(
+                    payment,
+                    subscription,
+                    cancelContextMethod,
+                    pixPlanChanged ? "troca de plano PIX" : null);
+
+                payment.ExternalPaymentId = string.Empty;
+
+                if (previousMethod == PaymentMethod.PIX || pixPlanChanged)
+                {
+                    ClearLocalPixCheckoutArtifacts(payment, subscription);
+                    if (subscription != null)
+                        await _subscriptionRepository.UpdateAsync(subscription);
+                }
+                else if (previousMethod == PaymentMethod.BankTransfer && methodChanged)
+                {
+                    payment.BoletoCode = null;
+                    payment.BoletoBarcode = null;
+                    payment.BoletoExpiresAt = null;
+                    payment.BankSlipUrl = null;
+                }
             }
-            // Ao manter PIX recorrente anual e payload ainda válido na Subscription, reaproveitar
-            if (method == PaymentMethod.PIX && pixPlanType == ContractCardPlanType.PixAnnual && contract?.CardPlanType == ContractCardPlanType.PixAnnual && subscription != null)
+
+            var preservePixForReuse = false;
+            // Só reaproveitar payload/código se o plano PIX NÃO mudou nesta requisição.
+            if (!pixPlanChanged && method == PaymentMethod.PIX && pixPlanType.IsPixAutomatic() && subscription != null)
             {
+                var expectedCycle = pixPlanType.IsAnnualBillingCycle() ? "Yearly" : "Monthly";
+                var cycleMatches = string.Equals(subscription.BillingCycle, expectedCycle, StringComparison.OrdinalIgnoreCase);
+                var amountMatches = subscription.MonthlyAmount == payment.Amount;
                 var subExpUtc = subscription.PixAutomaticPayloadExpiresAt.HasValue
                     ? (subscription.PixAutomaticPayloadExpiresAt.Value.Kind == DateTimeKind.Utc ? subscription.PixAutomaticPayloadExpiresAt.Value : DateTime.SpecifyKind(subscription.PixAutomaticPayloadExpiresAt.Value, DateTimeKind.Utc))
                     : (DateTime?)null;
-                var isAnnualValid = !string.IsNullOrEmpty(subscription.PixAutomaticPayload) &&
+                var isAutomaticValid = !string.IsNullOrEmpty(subscription.PixAutomaticPayload) &&
                                     (!subExpUtc.HasValue || subExpUtc.Value > DateTime.UtcNow);
-                if (isAnnualValid)
+                if (isAutomaticValid && cycleMatches && amountMatches)
                     preservePixForReuse = true;
             }
-            // PIX único (None): se já existir código PIX único válido no payment, preservar para reutilizar em GeneratePixCodeAsync (não apagar)
-            if (method == PaymentMethod.PIX && (pixPlanType == ContractCardPlanType.None || !pixPlanType.HasValue))
+            if (!pixPlanChanged && method == PaymentMethod.PIX && (pixPlanType == ContractCardPlanType.None || !pixPlanType.HasValue))
             {
                 var expiresAtUtc = payment.PixExpiresAt.HasValue
                     ? (payment.PixExpiresAt.Value.Kind == DateTimeKind.Utc ? payment.PixExpiresAt.Value : DateTime.SpecifyKind(payment.PixExpiresAt.Value, DateTimeKind.Utc))
                     : (DateTime?)null;
-                var isPixSingleValid = !string.IsNullOrEmpty(payment.PixCode) && 
+                var isPixSingleValid = !string.IsNullOrEmpty(payment.PixCode) &&
                                        (!expiresAtUtc.HasValue || expiresAtUtc.Value > DateTime.UtcNow);
                 if (isPixSingleValid)
                     preservePixForReuse = true;
             }
+
             payment.Method = method;
             if (!preservePixForReuse && (pixPlanType == ContractCardPlanType.None || method != PaymentMethod.PIX))
             {
@@ -437,22 +487,18 @@ namespace KlyonHubPlatform.Application.Services
                 if (method == PaymentMethod.PIX && pixPlanType == ContractCardPlanType.None)
                     payment.ExternalPaymentId = string.Empty;
             }
-            // Sempre persistir a alteração de método (ex.: para CreditCard/Boleto a condição acima não chama UpdateAsync)
             await _paymentRepository.UpdateAsync(payment);
 
             if (method == PaymentMethod.PIX && subscription != null && contract != null && pixPlanType.HasValue)
             {
                 contract.CardPlanType = pixPlanType.Value;
                 await _contractRepository.UpdateAsync(contract);
-                // Importante: não limpar PixAutomaticAuthorizationId aqui.
-                // Isso permite reaproveitar a autorização PIX Automático existente
-                // mesmo que o usuário alterne temporariamente o tipo de PIX.
             }
-            
-            // PIX: gerar código na mesma requisição ao trocar forma (único ou recorrente anual), para o card exibir o QR ao clicar no radio; GET só reutiliza se já houver código válido.
+
+            // PIX: gerar código na mesma requisição ao trocar forma (único ou automático); cancelamento já feito acima.
             if (method == PaymentMethod.PIX)
             {
-                await GeneratePixCodeAsync(paymentId, pixPlanType);
+                await GeneratePixCodeAsync(paymentId, pixPlanType, previousCardPlanType: null);
             }
             else if (method == PaymentMethod.BankTransfer)
             {
@@ -465,6 +511,94 @@ namespace KlyonHubPlatform.Application.Services
             }
             return await _paymentRepository.GetByIdAsync(paymentId) ?? payment;
         }
+
+        private static void ClearLocalPixCheckoutArtifacts(Payment payment, Subscription? subscription)
+        {
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = null;
+            payment.ExternalPaymentId = string.Empty;
+            if (subscription == null)
+                return;
+            subscription.PixAutomaticPayload = null;
+            subscription.PixAutomaticPayloadExpiresAt = null;
+            subscription.PixAutomaticConciliationIdentifier = null;
+            subscription.PixAutomaticAuthorizationId = null;
+        }
+
+        /// <summary>
+        /// Best-effort: cancela no Asaas charge <c>pay_*</c> pendente e, se o contexto for PIX,
+        /// a autorização PIX Automático. Usado ao sair do método ou ao trocar plano PIX (ciclo/único).
+        /// Falha na API não bloqueia; apenas registra log. Não é chamado se Paid.
+        /// </summary>
+        private async Task TryCancelPendingAsaasChargeOnMethodChangeAsync(
+            Payment payment,
+            Subscription? subscription,
+            PaymentMethod previousMethod,
+            string? reasonSuffix = null)
+        {
+            var previousMethodLabel = previousMethod switch
+            {
+                PaymentMethod.PIX => "PIX",
+                PaymentMethod.BankTransfer => "Boleto",
+                PaymentMethod.CreditCard => "Cartão",
+                _ => previousMethod.ToString()
+            };
+            var reasonLabel = string.IsNullOrEmpty(reasonSuffix)
+                ? $"ao sair de {previousMethodLabel}"
+                : $"{reasonSuffix} (contexto {previousMethodLabel})";
+
+            var externalId = payment.ExternalPaymentId?.Trim();
+            var hasPendingPayCharge = !string.IsNullOrEmpty(externalId)
+                && externalId.StartsWith("pay_", StringComparison.OrdinalIgnoreCase);
+            var hasBoletoArtifacts = previousMethod == PaymentMethod.BankTransfer
+                && (!string.IsNullOrEmpty(payment.BoletoCode) || !string.IsNullOrEmpty(payment.BoletoBarcode));
+
+            if (hasPendingPayCharge)
+            {
+                try
+                {
+                    await _asaasService.CancelChargeAsync(externalId!);
+                    _logger.LogInformation(
+                        "Cobrança Asaas {ExternalPaymentId} cancelada {Reason} (paymentId={PaymentId})",
+                        externalId, reasonLabel, payment.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Falha ao cancelar cobrança Asaas {ExternalPaymentId} {Reason} (paymentId={PaymentId}). Fluxo segue.",
+                        externalId, reasonLabel, payment.Id);
+                }
+            }
+            else if (hasBoletoArtifacts)
+            {
+                _logger.LogInformation(
+                    "Saída de Boleto sem ExternalPaymentId pay_* (paymentId={PaymentId}); limpeza local de BoletoCode/Barcode.",
+                    payment.Id);
+            }
+
+            if (previousMethod != PaymentMethod.PIX)
+                return;
+
+            var authId = subscription?.PixAutomaticAuthorizationId?.Trim();
+            if (string.IsNullOrEmpty(authId))
+                return;
+
+            try
+            {
+                await _asaasService.CancelPixAutomaticAuthorizationAsync(authId);
+                _logger.LogInformation(
+                    "Autorização PIX Automático {AuthorizationId} cancelada {Reason} (paymentId={PaymentId})",
+                    authId, reasonLabel, payment.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Falha ao cancelar autorização PIX Automático {AuthorizationId} {Reason} (paymentId={PaymentId}). Fluxo segue; ids locais serão limpos.",
+                    authId, reasonLabel, payment.Id);
+            }
+        }
+
         public async Task ReopenCancelledPixPaymentAsync(int paymentId)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -482,7 +616,7 @@ namespace KlyonHubPlatform.Application.Services
             {
                 var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId.Value);
                 var contract = subscription != null ? await _contractRepository.GetByIdAsync(subscription.ContractId) : null;
-                if (contract?.CardPlanType == ContractCardPlanType.PixAnnual && subscription != null)
+                if (contract?.CardPlanType.IsPixAutomatic() == true && subscription != null)
                 {
                     subscription.PixAutomaticPayload = null;
                     subscription.PixAutomaticPayloadExpiresAt = null;
@@ -508,7 +642,7 @@ namespace KlyonHubPlatform.Application.Services
             payment.PixCode = null;
             payment.PixExpiresAt = null;
             payment.PixConciliationIdentifier = null;
-            if (contract.CardPlanType != ContractCardPlanType.PixAnnual)
+            if (!contract.CardPlanType.IsPixAutomatic())
             {
                 // PIX único: limpar id externo para que seja criada nova cobrança no Asaas
                 payment.ExternalPaymentId = string.Empty;
@@ -536,7 +670,7 @@ namespace KlyonHubPlatform.Application.Services
                 return;
             // PIX único: expiração em Payments.PixExpiresAt | PIX Automático: expiração em Subscriptions.PixAutomaticPayloadExpiresAt
             DateTime? expiresAt;
-            if (contract.CardPlanType == ContractCardPlanType.PixAnnual)
+            if (contract.CardPlanType.IsPixAutomatic())
             {
                 expiresAt = subscription.PixAutomaticPayloadExpiresAt;
             }
@@ -558,7 +692,7 @@ namespace KlyonHubPlatform.Application.Services
             payment.PixExpiresAt = null;
             payment.PixConciliationIdentifier = null;
             // PIX único: sempre limpar ExternalPaymentId para forçar nova cobrança no Asaas. Também limpar quando não tem PixConciliationIdentifier (cobrança era única, não automática).
-            var isSinglePix = contract.CardPlanType != ContractCardPlanType.PixAnnual || string.IsNullOrEmpty(payment.PixConciliationIdentifier);
+            var isSinglePix = !contract.CardPlanType.IsPixAutomatic() || string.IsNullOrEmpty(payment.PixConciliationIdentifier);
             if (isSinglePix)
                 payment.ExternalPaymentId = string.Empty;
             else
@@ -569,20 +703,31 @@ namespace KlyonHubPlatform.Application.Services
                 await _subscriptionRepository.UpdateAsync(subscription);
             }
             await _paymentRepository.UpdateAsync(payment);
-            // Usar o tipo do contrato para decidir o endpoint: PixAnnual -> /pix/automatic/authorizations; caso contrário -> /payments (PIX único). Não inferir pelo estado antigo do payment (ex.: usuário acabou de trocar para PIX recorrente anual).
-            var planForRegeneration = contract.CardPlanType == ContractCardPlanType.PixAnnual ? ContractCardPlanType.PixAnnual : ContractCardPlanType.None;
+            // Usar o tipo do contrato: PixAnnual/PixMonthly -> /pix/automatic/authorizations; caso contrário -> /payments (PIX único).
+            var planForRegeneration = contract.CardPlanType.IsPixAutomatic()
+                ? contract.CardPlanType
+                : ContractCardPlanType.None;
             await GeneratePixCodeAsync(paymentId, planForRegeneration);
         }
 
-        public async Task<string> GeneratePixCodeAsync(int paymentId, ContractCardPlanType? pixPlanType = null)
+        public async Task<string> GeneratePixCodeAsync(
+            int paymentId,
+            ContractCardPlanType? pixPlanType = null,
+            ContractCardPlanType? previousCardPlanType = null)
         {
+            var pixPlanChanged = previousCardPlanType.HasValue
+                && pixPlanType.HasValue
+                && previousCardPlanType != pixPlanType;
+
             // Leitura direta do banco (AsNoTracking) para reuso: se já existir PixCode válido na tabela Payments, retornar sem chamar API.
+            // Importante: SyncCheckoutAmount deve invalidar PixCode/PixAutomaticPayload quando Amount/plano mudam.
+            // Não reutilizar se o plano PIX mudou nesta requisição (anual ↔ mensal ↔ único).
             var pixFromDb = await _context.Payments
                 .AsNoTracking()
                 .Where(p => p.Id == paymentId)
                 .Select(p => new { p.PixCode, p.PixExpiresAt, p.PixConciliationIdentifier, p.Subscription })
                 .FirstOrDefaultAsync();
-            if (pixPlanType != null && pixPlanType == ContractCardPlanType.None && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.PixCode))
+            if (!pixPlanChanged && pixPlanType != null && pixPlanType == ContractCardPlanType.None && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.PixCode))
             {
                 var expiresAtUtc = pixFromDb.PixExpiresAt.HasValue
                     ? (pixFromDb.PixExpiresAt.Value.Kind == DateTimeKind.Utc ? pixFromDb.PixExpiresAt.Value : DateTime.SpecifyKind(pixFromDb.PixExpiresAt.Value, DateTimeKind.Utc))
@@ -590,8 +735,8 @@ namespace KlyonHubPlatform.Application.Services
                 if (!expiresAtUtc.HasValue || expiresAtUtc.Value > DateTime.UtcNow)
                     return pixFromDb.PixCode;
             }
-            // PIX recorrente anual: código e expiração vêm somente de Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
-            else if (pixPlanType != null && pixPlanType == ContractCardPlanType.PixAnnual && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.Subscription?.PixAutomaticPayload))
+            // PIX Automático (mensal/anual): código e expiração vêm somente de Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
+            else if (!pixPlanChanged && pixPlanType != null && pixPlanType.IsPixAutomatic() && pixFromDb != null && !string.IsNullOrEmpty(pixFromDb.Subscription?.PixAutomaticPayload))
             {
                 var expiresAtUtc = pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.HasValue
                     ? (pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value.Kind == DateTimeKind.Utc ? pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value : DateTime.SpecifyKind(pixFromDb.Subscription.PixAutomaticPayloadExpiresAt.Value, DateTimeKind.Utc))
@@ -611,6 +756,17 @@ namespace KlyonHubPlatform.Application.Services
             var contract = await _contractRepository.GetByIdAsync(subscription.ContractId);
             if (contract == null)
                 throw new InvalidOperationException("Contrato não encontrado");
+
+            // Troca de plano PIX via GeneratePixCode (sem UpdatePaymentMethod): cancelar pay_*/auth e limpar ids.
+            if (pixPlanChanged)
+            {
+                await TryCancelPendingAsaasChargeOnMethodChangeAsync(
+                    payment, subscription, PaymentMethod.PIX, "troca de plano PIX");
+                ClearLocalPixCheckoutArtifacts(payment, subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
+                await _paymentRepository.UpdateAsync(payment);
+            }
+
             var client = await _context.Clients
                 .Include(c => c.User)
                 .FirstOrDefaultAsync(c => c.Id == contract.ClientId);
@@ -633,9 +789,11 @@ namespace KlyonHubPlatform.Application.Services
                 throw new InvalidOperationException(validation.Message);
             var clientAddress = PaymentGatewayCustomer.ResolveAddress(client);
 
-            // Decisão explícita: PIX recorrente anual -> POST /api/v3/pix/automatic/authorizations | PIX (pagamento único) -> POST /api/v3/payments
+            // Decisão explícita: PIX Automático (mensal/anual) -> POST /api/v3/pix/automatic/authorizations | PIX (pagamento único) -> POST /api/v3/payments
             var effectivePixPlan = pixPlanType.HasValue ? pixPlanType.Value : (contract.CardPlanType ?? ContractCardPlanType.None);
-            var usePixAutomatic = effectivePixPlan == ContractCardPlanType.PixAnnual;
+            var usePixAutomatic = effectivePixPlan.IsPixAutomatic();
+            var asaasFrequency = effectivePixPlan == ContractCardPlanType.PixMonthly ? "MONTHLY" : "ANNUALLY";
+            var periodLabel = effectivePixPlan == ContractCardPlanType.PixMonthly ? "mensal" : "anual";
 
             if (usePixAutomatic)
             {
@@ -671,7 +829,8 @@ namespace KlyonHubPlatform.Application.Services
                         asaasCustomerId,
                         baseContractId,
                         payment.Amount,
-                        $"Contrato {contract.ContractNumber} - PIX anual",
+                        $"Contrato {contract.ContractNumber} - PIX {periodLabel}",
+                        asaasFrequency,
                         86400);
                     if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
                     {
@@ -697,14 +856,15 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("Já existe uma autorização", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Usuário voltou de cartão/PIX normal para PIX recorrente: criar nova autorização com contractId único
+                    // Usuário voltou de cartão/PIX normal para PIX Automático: criar nova autorização com contractId único
                     var uniqueContractId = $"{baseContractId}-{Guid.NewGuid().ToString("N")[..8]}";
                     if (uniqueContractId.Length > 35) uniqueContractId = uniqueContractId[..35];
                     var retryAuth = await _asaasService.CreatePixAutomaticAuthorizationAsync(
                         asaasCustomerId,
                         uniqueContractId,
                         payment.Amount,
-                        $"Contrato {contract.ContractNumber} - PIX anual",
+                        $"Contrato {contract.ContractNumber} - PIX {periodLabel}",
+                        asaasFrequency,
                         86400);
                     if (retryAuth != null && !string.IsNullOrEmpty(retryAuth.Id))
                     {
@@ -723,7 +883,7 @@ namespace KlyonHubPlatform.Application.Services
                         return subscription.PixAutomaticPayload;
                     }
                     throw new InvalidOperationException(
-                        "Já existe uma autorização PIX recorrente para este contrato. O código anterior pode ter expirado. Entre em contato com o suporte para gerar um novo código se necessário.");
+                        "Já existe uma autorização PIX Automático para este contrato. O código anterior pode ter expirado. Entre em contato com o suporte para gerar um novo código se necessário.");
                 }
                 throw new InvalidOperationException(
                     "Não foi possível criar a autorização PIX Automático. Verifique no painel Asaas se a funcionalidade está habilitada e os logs da aplicação.");
@@ -881,44 +1041,24 @@ namespace KlyonHubPlatform.Application.Services
             {
                 amountToCharge = payment.Amount * (1 + fee / 100);
             }
-            var orderResponse = await _asaasService.CreateOrderAsync(
-                referenceId: payment.ExternalPaymentId,
-                amount: amountToCharge,
-                method: PaymentMethod.CreditCard,
-                clientName: clientName,
-                clientEmail: clientEmail,
-                clientTaxId: clientTaxId,
-                clientPhone: clientPhone,
-                card: card,
-                installments: installments,
-                clientAddress: clientAddress,
-                remoteIp: remoteIp
-            );
-            payment.ExternalPaymentId = orderResponse.Id;
-            payment.Status = PaymentStatus.Processing;
-            var installmentCount = installments ?? 1;
-            payment.InstallmentCount = installmentCount;
-            payment.InstallmentValue = Math.Round(amountToCharge / installmentCount, 2);
-            if (orderResponse.Charges != null && orderResponse.Charges.Any())
-            {
-                var charge = orderResponse.Charges.First();
-                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid :
-                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed :
-                                 PaymentStatus.Processing;
-                if (charge.PaidAt.HasValue)
-                {
-                    payment.PaidAt = EnsurePaidAtWithTime(charge.PaidAt.Value);
-                }
-                if (charge.PaymentMethod?.Card != null)
-                {
-                    payment.TransactionId = charge.Id;
-                }
-            }
-            await _paymentRepository.UpdateAsync(payment);
-            if (payment.Status == PaymentStatus.Paid)
-            {
-                await ConfirmPaymentAsync(payment.Id, payment.TransactionId);
-            }
+
+            var orderResponse = await CreateAsaasCreditCardChargeAsync(
+                payment,
+                subscription,
+                contract,
+                amountToCharge,
+                clientName,
+                clientEmail,
+                clientTaxId,
+                clientPhone,
+                clientAddress,
+                card,
+                creditCardToken: null,
+                asaasCustomerIdForToken: null,
+                remoteIp,
+                customerExternalReference: "client_" + client.Id);
+
+            await ApplyCreditCardOrderResponseAsync(payment, subscription, contract, orderResponse, amountToCharge, installments);
             return payment;
         }
 
@@ -966,8 +1106,71 @@ namespace KlyonHubPlatform.Application.Services
             {
                 amountToCharge = payment.Amount * (1 + fee / 100);
             }
-            var inst = installments ?? 1;
-            var orderResponse = await _asaasService.CreateOrderAsync(
+
+            var orderResponse = await CreateAsaasCreditCardChargeAsync(
+                payment,
+                subscription,
+                contract,
+                amountToCharge,
+                clientName,
+                clientEmail,
+                clientTaxId,
+                clientPhone,
+                clientAddress,
+                card: null,
+                creditCardToken: card.AsaasToken,
+                asaasCustomerIdForToken: asaasCustomerId,
+                remoteIp,
+                customerExternalReference: "client_" + client.Id);
+
+            await ApplyCreditCardOrderResponseAsync(payment, subscription, contract, orderResponse, amountToCharge, installments);
+            return payment;
+        }
+
+        /// <summary>
+        /// CardMonthly → assinatura Asaas MONTHLY; Card1x → assinatura Asaas YEARLY.
+        /// Ambos usam POST /subscriptions (recorrência real), não POST /payments com installmentCount.
+        /// </summary>
+        private async Task<OrderResponse> CreateAsaasCreditCardChargeAsync(
+            Payment payment,
+            Subscription subscription,
+            Contract contract,
+            decimal amountToCharge,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone,
+            PagBankAddress clientAddress,
+            PagBankCard? card,
+            string? creditCardToken,
+            string? asaasCustomerIdForToken,
+            string? remoteIp,
+            string customerExternalReference)
+        {
+            var plan = contract.CardPlanType;
+            var useAsaasSubscription = plan == ContractCardPlanType.CardMonthly || plan == ContractCardPlanType.Card1x;
+            if (useAsaasSubscription)
+            {
+                var cycle = plan == ContractCardPlanType.CardMonthly
+                    ? AsaasSubscriptionCycle.Monthly
+                    : AsaasSubscriptionCycle.Yearly;
+                return await _asaasService.CreateCreditCardSubscriptionAsync(
+                    referenceId: payment.ExternalPaymentId,
+                    amount: amountToCharge,
+                    cycle: cycle,
+                    clientName: clientName,
+                    clientEmail: clientEmail,
+                    clientTaxId: clientTaxId,
+                    clientPhone: clientPhone,
+                    card: card,
+                    clientAddress: clientAddress,
+                    creditCardToken: creditCardToken,
+                    asaasCustomerIdForToken: asaasCustomerIdForToken,
+                    remoteIp: remoteIp,
+                    customerExternalReference: customerExternalReference);
+            }
+
+            return await _asaasService.CreateOrderAsync(
                 referenceId: payment.ExternalPaymentId,
                 amount: amountToCharge,
                 method: PaymentMethod.CreditCard,
@@ -975,17 +1178,50 @@ namespace KlyonHubPlatform.Application.Services
                 clientEmail: clientEmail,
                 clientTaxId: clientTaxId,
                 clientPhone: clientPhone,
-                card: null,
-                installments: inst,
+                card: card,
+                installments: null,
                 clientAddress: clientAddress,
-                creditCardToken: card.AsaasToken,
-                asaasCustomerIdForToken: asaasCustomerId,
-                remoteIp: remoteIp
-            );
+                creditCardToken: creditCardToken,
+                asaasCustomerIdForToken: asaasCustomerIdForToken,
+                remoteIp: remoteIp,
+                customerExternalReference: customerExternalReference);
+        }
+
+        private async Task ApplyCreditCardOrderResponseAsync(
+            Payment payment,
+            Subscription subscription,
+            Contract contract,
+            OrderResponse orderResponse,
+            decimal amountToCharge,
+            int? installments)
+        {
             payment.ExternalPaymentId = orderResponse.Id;
             payment.Status = PaymentStatus.Processing;
-            payment.InstallmentCount = inst;
-            payment.InstallmentValue = Math.Round(amountToCharge / inst, 2);
+            if (!string.IsNullOrEmpty(orderResponse.SubscriptionId))
+            {
+                subscription.ExternalSubscriptionId = orderResponse.SubscriptionId;
+                var isMonthly = contract.CardPlanType == ContractCardPlanType.CardMonthly;
+                subscription.BillingCycle = isMonthly ? "Monthly" : "Yearly";
+                subscription.MonthlyAmount = payment.Amount;
+                subscription.LastBillingDate = DateTime.UtcNow;
+                subscription.NextBillingDate = isMonthly
+                    ? DateTime.UtcNow.AddMonths(1)
+                    : DateTime.UtcNow.AddYears(1);
+                subscription.UpdatedAt = DateTime.UtcNow;
+                await _subscriptionRepository.UpdateAsync(subscription);
+                // Assinatura Asaas: não é parcelamento (installment).
+                payment.InstallmentCount = null;
+                payment.InstallmentValue = null;
+            }
+            else
+            {
+                var installmentCount = installments.HasValue && installments.Value > 1 ? installments.Value : (int?)null;
+                payment.InstallmentCount = installmentCount;
+                payment.InstallmentValue = installmentCount.HasValue
+                    ? Math.Round(amountToCharge / installmentCount.Value, 2)
+                    : null;
+            }
+
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
             {
                 var charge = orderResponse.Charges.First();
@@ -994,13 +1230,13 @@ namespace KlyonHubPlatform.Application.Services
                                  PaymentStatus.Processing;
                 if (charge.PaidAt.HasValue)
                     payment.PaidAt = EnsurePaidAtWithTime(charge.PaidAt.Value);
-                if (charge.PaymentMethod?.Card != null)
+                if (charge.PaymentMethod?.Card != null || charge.Status.ToUpper() == "PAID")
                     payment.TransactionId = charge.Id;
             }
+
             await _paymentRepository.UpdateAsync(payment);
             if (payment.Status == PaymentStatus.Paid)
                 await ConfirmPaymentAsync(payment.Id, payment.TransactionId);
-            return payment;
         }
 
         public async Task<CreditCardTokenizeResult> TokenizeCreditCardForClientAsync(
@@ -1247,7 +1483,7 @@ namespace KlyonHubPlatform.Application.Services
 
             subscription.LastBillingDate = DateTime.UtcNow;
             var contractForCycle = contract ?? await _context.Contracts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == subscription.ContractId);
-            subscription.NextBillingDate = contractForCycle?.CardPlanType == ContractCardPlanType.Card1x || contractForCycle?.CardPlanType == ContractCardPlanType.PixAnnual
+            subscription.NextBillingDate = contractForCycle?.CardPlanType.IsAnnualBillingCycle() == true
                 ? subscription.LastBillingDate.Value.AddYears(1)
                 : subscription.LastBillingDate.Value.AddMonths(1);
             subscription.FailedPaymentAttempts = 0;

@@ -141,6 +141,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CardAdded = "Cartão adicionado com sucesso!";
         public const string CardRemoved = "Cartão removido com sucesso.";
         public const string CardSetAsDefault = "Cartão definido como padrão.";
+        public const string CardNicknameUpdated = "Apelido do cartão atualizado com sucesso.";
         public static string DeclarationGenerated(string declarationNumber) =>
             $"Declaração gerada com sucesso! Número: {declarationNumber}";
         public static string ContractGenerated(string contractNumber) =>

@@ -5,6 +5,7 @@ using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Core.Constants;
+using KlyonHubPlatform.Domain.Core.Helpers;
 using KlyonHubPlatform.Infra.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using StorageConfigKeys = KlyonHubPlatform.Domain.Core.Constants.StorageConfigKeys;
@@ -594,51 +595,96 @@ namespace KlyonHubPlatform.Application.Services
             }, cancellationToken);
         }
 
+        /// <summary>
+        /// Tabelas PRESERVADAS no reset (configuração / sistema / catálogo seed).
+        /// Não apagar: SystemConfigurations, SefazConfigurations, Roles, Languages, Translations,
+        /// Locations, LocationCommissions, Services, CreditPlans, ChatFaqItems, ChatIntentions,
+        /// __EFMigrationsHistory. Users/UserRoles: apenas admin@klyon.com (tratamento parcial).
+        /// Demais tabelas = dados de negócio → limpas.
+        /// </summary>
+        private static readonly HashSet<string> DatabaseResetPreservedTables = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "__EFMigrationsHistory",
+            "SystemConfigurations",
+            "SefazConfigurations",
+            "Roles",
+            "Languages",
+            "Translations",
+            "Locations",
+            "LocationCommissions",
+            "Services",
+            "CreditPlans",
+            "ChatFaqItems",
+            "ChatIntentions",
+        };
+
+        /// <summary>Users/UserRoles: limpeza parcial (mantém admin seed).</summary>
+        private static readonly HashSet<string> DatabaseResetPartialPreserveTables = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Users",
+            "UserRoles",
+        };
+
+        private const string DatabaseResetAdminEmail = "admin@klyon.com";
+
         public async Task<(bool Success, string Message)> ClearAndSeedDatabaseAsync(CancellationToken cancellationToken = default)
         {
             try
             {
                 await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;", cancellationToken);
-                var tablesToClear = new[] { "AuditLogs", "PaymentHistories", "FiscalNoteScriptExecutions", "FiscalNotes", "ReservationCommissions", "Commissions", "Transfers", "Reservations", "Payments", "Subscriptions", "Contracts", "AddressDeclarations", "CapacityChangeRequests", "CoworkingRoomPhotos", "CoworkingRooms", "CoworkingPhotos", "CoworkingDocuments", "CoworkingOperatingHours", "BlockedDates", "CoworkingPartners", "CoworkingSefazConfigurations", "CoworkingAddresses", "PartnerServices", "LocationCommissions", "PlatformCreditBalances", "Coworkings", "Clients", MigrationTableConstants.CreditPurchases, "ClientCredits", "CreditPlans", "CreditCards", "Documents", "Interests", "CoworkingProducts", "CoworkingRatings", "Translations", "Services" };
                 var clearedTables = new List<string>();
                 var errors = new List<string>();
-                var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "admin@klyon.com", cancellationToken);
+
+                var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == DatabaseResetAdminEmail, cancellationToken);
                 var adminUserRolePairs = new List<(int UserId, int RoleId)>();
                 if (adminUser != null)
                 {
                     var adminRoles = await _context.UserRoles.Where(ur => ur.UserId == adminUser.Id).ToListAsync(cancellationToken);
                     adminUserRolePairs = adminRoles.Select(ur => (ur.UserId, ur.RoleId)).ToList();
                 }
+
+                // Whitelist: limpa todas as tabelas do schema exceto as preservadas (e Users/UserRoles, tratados à parte).
+                var allTables = await RunWithConnectionAsync(async connection =>
+                {
+                    var names = new List<string>();
+                    using var listCmd = connection.CreateCommand();
+                    listCmd.CommandText = @"SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'";
+                    await using var reader = await listCmd.ExecuteReaderAsync(cancellationToken);
+                    while (await reader.ReadAsync(cancellationToken))
+                        names.Add(reader.GetString(0));
+                    return names;
+                }, cancellationToken);
+
+                var tablesToClear = allTables
+                    .Where(t => !DatabaseResetPreservedTables.Contains(t) && !DatabaseResetPartialPreserveTables.Contains(t))
+                    .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
                 await RunWithConnectionAsync(async connection =>
                 {
                     foreach (var tableName in tablesToClear)
                     {
+                        var escaped = tableName.Replace("`", "``");
                         try
                         {
-                            using var checkCmd = connection.CreateCommand();
-                            checkCmd.CommandText = $@"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '{tableName}'";
-                            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
-                            if (exists)
+                            using var deleteCmd = connection.CreateCommand();
+                            deleteCmd.CommandText = $"DELETE FROM `{escaped}`;";
+                            var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+                            try
                             {
-                                using var deleteCmd = connection.CreateCommand();
-                                deleteCmd.CommandText = $"DELETE FROM `{tableName}`;";
-                                var rowsDeleted = await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
-                                try
-                                {
-                                    using var resetCmd = connection.CreateCommand();
-                                    resetCmd.CommandText = $"ALTER TABLE `{tableName}` AUTO_INCREMENT = 1;";
-                                    await resetCmd.ExecuteNonQueryAsync(cancellationToken);
-                                }
-                                catch { }
-                                clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
+                                using var resetCmd = connection.CreateCommand();
+                                resetCmd.CommandText = $"ALTER TABLE `{escaped}` AUTO_INCREMENT = 1;";
+                                await resetCmd.ExecuteNonQueryAsync(cancellationToken);
                             }
+                            catch { }
+                            clearedTables.Add($"{tableName} ({rowsDeleted} registros)");
                         }
                         catch
                         {
                             try
                             {
                                 using var truncateCmd = connection.CreateCommand();
-                                truncateCmd.CommandText = $"TRUNCATE TABLE `{tableName}`;";
+                                truncateCmd.CommandText = $"TRUNCATE TABLE `{escaped}`;";
                                 await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
                                 clearedTables.Add($"{tableName} (truncate)");
                             }
@@ -665,31 +711,28 @@ namespace KlyonHubPlatform.Application.Services
                     catch (Exception ex) { errors.Add($"Users/UserRoles: {ex.Message}"); }
                 }
 
-                await RunWithConnectionAsync(async connection =>
-                {
-                    foreach (var tableName in new[] { "AuditLogs", "Users", "Roles", "Clients", "Coworkings", "Contracts", "Payments", "Subscriptions", "Locations", "Services", "SystemConfigurations", "Languages", "LocationCommissions", "UserRoles" })
-                    {
-                        try
-                        {
-                            using var checkCmd = connection.CreateCommand();
-                            checkCmd.CommandText = $@"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '{tableName.Replace("`", "``")}' AND column_name = 'Id' AND extra LIKE '%auto_increment%'";
-                            var hasAutoIncrement = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
-                            if (hasAutoIncrement)
-                            {
-                                using var resetCmd = connection.CreateCommand();
-                                resetCmd.CommandText = $"ALTER TABLE `{tableName.Replace("`", "``")}` AUTO_INCREMENT = 1;";
-                                await resetCmd.ExecuteNonQueryAsync(cancellationToken);
-                            }
-                        }
-                        catch { }
-                    }
-                }, cancellationToken);
-
                 await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;", cancellationToken);
+
+                var pendingMigrations = (await _context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+                if (pendingMigrations.Count > 0)
+                {
+                    var (migrateOk, migrateMsg) = await RunMigrationsAsync(cancellationToken);
+                    if (!migrateOk && migrateMsg != AdminResultCodes.NoPendingMigrations && migrateMsg != AdminResultCodes.MigrationMarkedAsApplied)
+                        errors.Add($"Migrations: {migrateMsg}");
+                }
+
+                // Seed idempotente: não sobrescreve SystemConfigurations/Roles/etc. já existentes.
                 var seedService = new SeedService(_context);
                 await seedService.SeedInitialDataAsync();
-                var successMessage = $"Base de dados limpa com sucesso! {clearedTables.Count} tabela(s) foram limpas.";
-                if (errors.Any()) successMessage += $" Avisos: {string.Join("; ", errors.Take(3))}";
+                await InitializeCreditPlansAsync(cancellationToken);
+
+                var preservedList = string.Join(", ", DatabaseResetPreservedTables.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
+                var successMessage =
+                    $"Base corrente resetada com sucesso! {clearedTables.Count} tabela(s) de negócio limpas. " +
+                    $"Preservadas: {preservedList}; Users/UserRoles (admin). " +
+                    (pendingMigrations.Count > 0 ? $"Migrations aplicadas: {pendingMigrations.Count}. " : "Nenhuma migration pendente. ") +
+                    "Seed executado (idempotente).";
+                if (errors.Any()) successMessage += $" Avisos: {string.Join("; ", errors.Take(5))}";
                 return (true, successMessage);
             }
             catch (Exception ex)
@@ -698,6 +741,639 @@ namespace KlyonHubPlatform.Application.Services
                 catch { }
                 return (false, ex.Message + (ex.InnerException != null ? " " + ex.InnerException.Message : ""));
             }
+        }
+
+        public async Task<UserPurgeLookupDto> LookupUserForPurgeAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+            if (user == null)
+            {
+                return new UserPurgeLookupDto
+                {
+                    Found = false,
+                    UserId = userId,
+                    CanDelete = false,
+                    BlockReason = "Usuário não encontrado."
+                };
+            }
+
+            var roleNames = user.UserRoles
+                .Select(ur => ur.Role?.Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Cast<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var isAdmin = roleNames.Contains(RoleNames.Administrator, StringComparer.OrdinalIgnoreCase)
+                || string.Equals(user.Email, DatabaseResetAdminEmail, StringComparison.OrdinalIgnoreCase);
+            var isPartner = roleNames.Contains(RoleNames.CoworkingPartner, StringComparer.OrdinalIgnoreCase);
+            var isClient = roleNames.Contains(RoleNames.Client, StringComparer.OrdinalIgnoreCase);
+
+            string roleType;
+            string roleDisplayName;
+            string displayName = ClientDisplayName.Resolve(user.FullName, user.Email);
+
+            if (isAdmin)
+            {
+                roleType = RoleNames.Administrator;
+                roleDisplayName = RoleNames.GetDisplayName(RoleNames.Administrator);
+            }
+            else if (isPartner)
+            {
+                roleType = RoleNames.CoworkingPartner;
+                roleDisplayName = RoleNames.GetDisplayName(RoleNames.CoworkingPartner);
+                var coworking = await _context.Coworkings.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+                if (coworking != null && !string.IsNullOrWhiteSpace(coworking.Name))
+                    displayName = coworking.Name.Trim();
+            }
+            else if (isClient)
+            {
+                roleType = RoleNames.Client;
+                roleDisplayName = RoleNames.GetDisplayName(RoleNames.Client);
+                var client = await _context.Clients.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+                if (client != null)
+                {
+                    var clientLabel = !string.IsNullOrWhiteSpace(client.NomeFantasia) ? client.NomeFantasia
+                        : !string.IsNullOrWhiteSpace(client.RazaoSocial) ? client.RazaoSocial
+                        : !string.IsNullOrWhiteSpace(client.ContactName) ? client.ContactName
+                        : user.FullName;
+                    displayName = ClientDisplayName.Resolve(clientLabel, user.Email);
+                }
+            }
+            else
+            {
+                roleType = "Unknown";
+                roleDisplayName = roleNames.Count > 0
+                    ? string.Join(", ", roleNames.Select(RoleNames.GetDisplayName))
+                    : "Sem perfil";
+            }
+
+            var result = new UserPurgeLookupDto
+            {
+                Found = true,
+                UserId = user.Id,
+                Name = displayName,
+                Email = user.Email,
+                RoleType = roleType,
+                RoleDisplayName = roleDisplayName,
+                CanDelete = true
+            };
+
+            if (isAdmin)
+            {
+                result.CanDelete = false;
+                result.BlockReason = "Não é permitido apagar usuários administradores do sistema.";
+                return result;
+            }
+
+            if (!isClient && !isPartner)
+            {
+                result.CanDelete = false;
+                result.BlockReason = "Somente usuários com perfil Cliente ou Parceiro Coworking podem ser excluídos por esta ferramenta.";
+                return result;
+            }
+
+            if (isPartner)
+            {
+                var coworking = await _context.Coworkings.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+                if (coworking != null)
+                {
+                    var associated = await GetPartnerAssociatedClientBlockReasonAsync(coworking.Id, cancellationToken);
+                    if (associated != null)
+                    {
+                        result.CanDelete = false;
+                        result.BlockReason = associated;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        public async Task<UserPurgeResultDto> PurgeUserDataAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            var lookup = await LookupUserForPurgeAsync(userId, cancellationToken);
+            if (!lookup.Found)
+                return new UserPurgeResultDto { Success = false, Message = lookup.BlockReason ?? "Usuário não encontrado." };
+            if (!lookup.CanDelete)
+                return new UserPurgeResultDto
+                {
+                    Success = false,
+                    Message = lookup.BlockReason ?? "Exclusão não permitida.",
+                    Name = lookup.Name,
+                    RoleType = lookup.RoleType
+                };
+
+            try
+            {
+                // MySqlRetryingExecutionStrategy não permite BeginTransaction fora da strategy.
+                var strategy = _context.Database.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
+                {
+                    await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                    try
+                    {
+                        // FK checks off apenas nesta unidade retriável; reabilitado antes do commit/rollback.
+                        await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0;", cancellationToken);
+
+                        await NullifyUserReferencesAsync(userId, cancellationToken);
+
+                        if (lookup.RoleType == RoleNames.Client)
+                            await PurgeClientOwnedDataAsync(userId, cancellationToken);
+                        else if (lookup.RoleType == RoleNames.CoworkingPartner)
+                            await PurgeCoworkingOwnedDataAsync(userId, cancellationToken);
+
+                        await PurgeUserChatAsync(userId, cancellationToken);
+                        await PurgeAuditLogsForUserAsync(userId, cancellationToken);
+
+                        await _context.UserRoles.Where(ur => ur.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+                        await _context.Users.Where(u => u.Id == userId).ExecuteDeleteAsync(cancellationToken);
+
+                        await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;", cancellationToken);
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                    catch
+                    {
+                        try { await _context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1;", cancellationToken); }
+                        catch { /* best-effort restore */ }
+                        try { await transaction.RollbackAsync(cancellationToken); }
+                        catch { /* best-effort rollback */ }
+                        throw;
+                    }
+                });
+
+                return new UserPurgeResultDto
+                {
+                    Success = true,
+                    Message = $"Todos os registros de '{lookup.Name}' ({lookup.RoleDisplayName}) foram removidos com sucesso.",
+                    Name = lookup.Name,
+                    RoleType = lookup.RoleType
+                };
+            }
+            catch (Exception ex)
+            {
+                return new UserPurgeResultDto
+                {
+                    Success = false,
+                    Message = "Erro ao excluir dados: " + ex.Message + (ex.InnerException != null ? " " + ex.InnerException.Message : ""),
+                    Name = lookup.Name,
+                    RoleType = lookup.RoleType
+                };
+            }
+        }
+
+        /// <summary>
+        /// Bloqueia se houver qualquer contrato de cliente nos endereços do parceiro,
+        /// ou reserva / lead fiscal / NF / avaliação já vinculado a cliente (associação efetiva).
+        /// Não remove dados de clientes — apenas impede o purge do parceiro.
+        /// </summary>
+        private async Task<string?> GetPartnerAssociatedClientBlockReasonAsync(int coworkingId, CancellationToken cancellationToken)
+        {
+            var addressIds = await _context.CoworkingAddresses.AsNoTracking()
+                .Where(a => a.CoworkingId == coworkingId)
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            if (addressIds.Count > 0)
+            {
+                var contractCount = await _context.Contracts.AsNoTracking()
+                    .CountAsync(c => addressIds.Contains(c.CoworkingAddressId), cancellationToken);
+                if (contractCount > 0)
+                {
+                    return $"Este parceiro possui {contractCount} contrato(s) de cliente vinculado(s) aos seus endereços. " +
+                           "Remova ou transfira os clientes antes de excluir o parceiro.";
+                }
+
+                var reservationCount = await _context.Reservations.AsNoTracking()
+                    .CountAsync(r => addressIds.Contains(r.CoworkingAddressId), cancellationToken);
+                if (reservationCount > 0)
+                {
+                    return $"Este parceiro possui {reservationCount} reserva(s) de cliente vinculada(s) aos seus endereços. " +
+                           "Não é possível excluir enquanto houver clientes associados.";
+                }
+            }
+
+            var leadWithClient = await _context.FiscalOnboardingLeads.AsNoTracking()
+                .CountAsync(l => l.CoworkingId == coworkingId && l.ClientId != null, cancellationToken);
+            if (leadWithClient > 0)
+            {
+                return $"Este parceiro possui {leadWithClient} lead(s) de onboarding fiscal já vinculado(s) a cliente. " +
+                       "Não é possível excluir enquanto houver clientes associados.";
+            }
+
+            var fiscalNotesWithClient = await _context.FiscalNotes.AsNoTracking()
+                .CountAsync(f => f.CoworkingId == coworkingId && f.ClientId != null, cancellationToken);
+            if (fiscalNotesWithClient > 0)
+            {
+                return $"Este parceiro possui {fiscalNotesWithClient} nota(s) fiscal(is) vinculada(s) a cliente. " +
+                       "Não é possível excluir enquanto houver dados de clientes associados.";
+            }
+
+            var ratingsWithClient = await _context.CoworkingRatings.AsNoTracking()
+                .CountAsync(r => r.CoworkingId == coworkingId && r.ClientId != null, cancellationToken);
+            if (ratingsWithClient > 0)
+            {
+                return $"Este parceiro possui {ratingsWithClient} avaliação(ões) vinculada(s) a cliente. " +
+                       "Não é possível excluir enquanto houver dados de clientes associados.";
+            }
+
+            return null;
+        }
+
+        private async Task NullifyUserReferencesAsync(int userId, CancellationToken cancellationToken)
+        {
+            await _context.Contracts
+                .Where(c => c.AssistedSaleAdminId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.AssistedSaleAdminId, (int?)null), cancellationToken);
+            await _context.Contracts
+                .Where(c => c.DocumentsReviewedByUserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.DocumentsReviewedByUserId, (int?)null), cancellationToken);
+            await _context.Contracts
+                .Where(c => c.CancellationApprovedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.CancellationApprovedBy, (int?)null), cancellationToken);
+
+            await _context.Payments
+                .Where(p => p.ValidatedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ValidatedBy, (int?)null), cancellationToken);
+
+            await _context.PaymentHistories
+                .Where(h => h.ActionBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(h => h.ActionBy, (int?)null), cancellationToken);
+
+            await _context.ClientOnboardingDocuments
+                .Where(d => d.ReviewedByUserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.ReviewedByUserId, (int?)null), cancellationToken);
+
+            await _context.Interests
+                .Where(i => i.ContactedByUserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.ContactedByUserId, (int?)null), cancellationToken);
+
+            await _context.FiscalNoteScriptExecutions
+                .Where(e => e.ExecutedByUserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.ExecutedByUserId, (int?)null), cancellationToken);
+
+            await _context.MonthlySettlements
+                .Where(m => m.ApprovedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.ApprovedBy, (int?)null), cancellationToken);
+
+            await _context.PartnerInvoices
+                .Where(p => p.ValidatedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ValidatedBy, (int?)null), cancellationToken);
+
+            await _context.ChatUnansweredQuestions
+                .Where(q => q.ReviewedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(q => q.ReviewedBy, (int?)null), cancellationToken);
+
+            await _context.Coworkings
+                .Where(c => c.ApprovedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.ApprovedBy, (int?)null), cancellationToken);
+            await _context.Coworkings
+                .Where(c => c.RejectedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.RejectedBy, (int?)null), cancellationToken);
+
+            await _context.ContractHistories
+                .Where(h => h.ActorUserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(h => h.ActorUserId, (int?)null), cancellationToken);
+
+            await _context.CapacityChangeRequests
+                .Where(r => r.ReviewedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.ReviewedBy, (int?)null), cancellationToken);
+            await _context.MaxContractsChangeRequests
+                .Where(r => r.ReviewedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.ReviewedBy, (int?)null), cancellationToken);
+            await _context.CardPriceChangeRequests
+                .Where(r => r.ReviewedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.ReviewedBy, (int?)null), cancellationToken);
+            await _context.PartnerServices
+                .Where(p => p.RemovalReviewedBy == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.RemovalReviewedBy, (int?)null), cancellationToken);
+
+            // Correspondências criadas por este usuário em contratos de terceiros: reatribui ao admin seed.
+            var adminId = await _context.Users
+                .Where(u => u.Email == DatabaseResetAdminEmail)
+                .Select(u => (int?)u.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (adminId.HasValue && adminId.Value != userId)
+            {
+                await _context.Correspondences
+                    .Where(c => c.CreatedByUserId == userId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(c => c.CreatedByUserId, adminId.Value), cancellationToken);
+            }
+
+            // PromoCodes criados pelo usuário: desvincula pagamentos e remove códigos do usuário.
+            var promoIds = await _context.PromoCodes
+                .Where(p => p.CreatedByUserId == userId)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+            if (promoIds.Count > 0)
+            {
+                await _context.Payments
+                    .Where(p => p.PromoCodeId != null && promoIds.Contains(p.PromoCodeId.Value))
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.PromoCodeId, (int?)null), cancellationToken);
+                await _context.PromoCodes.Where(p => promoIds.Contains(p.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+        }
+
+        private async Task PurgeClientOwnedDataAsync(int userId, CancellationToken cancellationToken)
+        {
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+            if (client == null)
+                return;
+
+            var clientId = client.Id;
+            var userEmail = await _context.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var contractIds = await _context.Contracts.Where(c => c.ClientId == clientId).Select(c => c.Id).ToListAsync(cancellationToken);
+            var reservationIds = await _context.Reservations.Where(r => r.ClientId == clientId).Select(r => r.Id).ToListAsync(cancellationToken);
+            var subscriptionIds = contractIds.Count == 0
+                ? new List<int>()
+                : await _context.Subscriptions.Where(s => contractIds.Contains(s.ContractId)).Select(s => s.Id).ToListAsync(cancellationToken);
+
+            var leadIds = await _context.FiscalOnboardingLeads
+                .Where(l => l.ClientId == clientId || l.UserId == userId)
+                .Select(l => l.Id)
+                .ToListAsync(cancellationToken);
+
+            var paymentIds = await _context.Payments
+                .Where(p =>
+                    (p.SubscriptionId != null && subscriptionIds.Contains(p.SubscriptionId.Value)) ||
+                    (p.ReservationId != null && reservationIds.Contains(p.ReservationId.Value)) ||
+                    (p.FiscalOnboardingLeadId != null && leadIds.Contains(p.FiscalOnboardingLeadId.Value)))
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            var fiscalNoteIds = await _context.FiscalNotes
+                .Where(f =>
+                    f.ClientId == clientId ||
+                    (f.ContractId != null && contractIds.Contains(f.ContractId.Value)) ||
+                    (f.ReservationId != null && reservationIds.Contains(f.ReservationId.Value)) ||
+                    (f.PaymentId != null && paymentIds.Contains(f.PaymentId.Value)))
+                .Select(f => f.Id)
+                .ToListAsync(cancellationToken);
+
+            // Filhos de Payment / FiscalNote (webhooks) antes dos pais.
+            if (paymentIds.Count > 0)
+            {
+                await _context.PagBankWebhookLogs
+                    .Where(w => w.PaymentId != null && paymentIds.Contains(w.PaymentId.Value))
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
+
+            if (fiscalNoteIds.Count > 0)
+            {
+                await _context.FocusNFeWebhookLogs
+                    .Where(w => w.FiscalNoteId != null && fiscalNoteIds.Contains(w.FiscalNoteId.Value))
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
+
+            if (paymentIds.Count > 0)
+            {
+                var commissionIds = await _context.Commissions
+                    .Where(c => paymentIds.Contains(c.PaymentId))
+                    .Select(c => c.Id)
+                    .ToListAsync(cancellationToken);
+                if (commissionIds.Count > 0)
+                {
+                    await _context.SettlementCommissions
+                        .Where(sc => commissionIds.Contains(sc.CommissionId))
+                        .ExecuteDeleteAsync(cancellationToken);
+                    await _context.Commissions.Where(c => commissionIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+                }
+
+                await _context.PaymentHistories.Where(h => paymentIds.Contains(h.PaymentId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.FiscalNotes.Where(f => f.PaymentId != null && paymentIds.Contains(f.PaymentId.Value)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Payments.Where(p => paymentIds.Contains(p.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            if (reservationIds.Count > 0)
+            {
+                await _context.Transfers.Where(t => t.ReservationId != null && reservationIds.Contains(t.ReservationId.Value)).ExecuteDeleteAsync(cancellationToken);
+                await _context.ReservationCommissions.Where(rc => reservationIds.Contains(rc.ReservationId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.FiscalNotes.Where(f => f.ReservationId != null && reservationIds.Contains(f.ReservationId.Value)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Reservations.Where(r => reservationIds.Contains(r.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            if (contractIds.Count > 0)
+            {
+                var correspondenceIds = await _context.Correspondences
+                    .Where(c => contractIds.Contains(c.ContractId))
+                    .Select(c => c.Id)
+                    .ToListAsync(cancellationToken);
+                if (correspondenceIds.Count > 0)
+                {
+                    await _context.CorrespondencePhotos.Where(p => correspondenceIds.Contains(p.CorrespondenceId)).ExecuteDeleteAsync(cancellationToken);
+                    await _context.Correspondences.Where(c => correspondenceIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+                }
+
+                await _context.AddressDeclarations.Where(d => contractIds.Contains(d.ContractId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Documents.Where(d => contractIds.Contains(d.ContractId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.ClientOnboardingDocuments.Where(d => contractIds.Contains(d.ContractId) || d.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+                await _context.ContractHistories.Where(h => contractIds.Contains(h.ContractId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.FiscalNotes.Where(f => f.ContractId != null && contractIds.Contains(f.ContractId.Value)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Subscriptions.Where(s => contractIds.Contains(s.ContractId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Contracts.Where(c => contractIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            // Residual por ClientId (notas sem contract/payment, docs órfãos, etc.).
+            await _context.FiscalNotes.Where(f => f.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.ClientCredits.Where(c => c.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CreditPurchases.Where(c => c.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CreditCards.Where(c => c.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.ClientRegistrationDocuments.Where(d => d.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.ClientOnboardingDocuments.Where(d => d.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingRatings.Where(r => r.ClientId == clientId).ExecuteDeleteAsync(cancellationToken);
+
+            if (leadIds.Count > 0)
+            {
+                await _context.ClientMagicLoginTokens.Where(t => leadIds.Contains(t.FiscalOnboardingLeadId)).ExecuteDeleteAsync(cancellationToken);
+                var leftoverLeadPaymentIds = await _context.Payments
+                    .Where(p => p.FiscalOnboardingLeadId != null && leadIds.Contains(p.FiscalOnboardingLeadId.Value))
+                    .Select(p => p.Id)
+                    .ToListAsync(cancellationToken);
+                if (leftoverLeadPaymentIds.Count > 0)
+                {
+                    await _context.PagBankWebhookLogs
+                        .Where(w => w.PaymentId != null && leftoverLeadPaymentIds.Contains(w.PaymentId.Value))
+                        .ExecuteDeleteAsync(cancellationToken);
+                    await _context.PaymentHistories.Where(h => leftoverLeadPaymentIds.Contains(h.PaymentId)).ExecuteDeleteAsync(cancellationToken);
+                    await _context.Payments.Where(p => leftoverLeadPaymentIds.Contains(p.Id)).ExecuteDeleteAsync(cancellationToken);
+                }
+                await _context.FiscalOnboardingLeads.Where(l => leadIds.Contains(l.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            // Interests sem ClientId: remove pelo e-mail do usuário/contato do cliente.
+            var interestEmails = new List<string>();
+            if (!string.IsNullOrWhiteSpace(userEmail))
+                interestEmails.Add(userEmail.Trim());
+            if (!string.IsNullOrWhiteSpace(client.ContactEmail)
+                && !interestEmails.Contains(client.ContactEmail.Trim(), StringComparer.OrdinalIgnoreCase))
+                interestEmails.Add(client.ContactEmail.Trim());
+            if (interestEmails.Count > 0)
+            {
+                await _context.Interests
+                    .Where(i => interestEmails.Contains(i.Email))
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
+
+            // Client inclui dados fiscais/empresa (CNPJ, endereço fiscal, etc.) na própria entidade.
+            await _context.Clients.Where(c => c.Id == clientId).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        private async Task PurgeCoworkingOwnedDataAsync(int userId, CancellationToken cancellationToken)
+        {
+            var coworking = await _context.Coworkings.FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+            if (coworking == null)
+                return;
+
+            var coworkingId = coworking.Id;
+            var block = await GetPartnerAssociatedClientBlockReasonAsync(coworkingId, cancellationToken);
+            if (block != null)
+                throw new InvalidOperationException(block);
+
+            var addressIds = await _context.CoworkingAddresses
+                .Where(a => a.CoworkingId == coworkingId)
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            var settlementIds = await _context.MonthlySettlements
+                .Where(m => m.CoworkingId == coworkingId)
+                .Select(m => m.Id)
+                .ToListAsync(cancellationToken);
+
+            if (settlementIds.Count > 0)
+            {
+                await _context.SettlementCommissions.Where(sc => settlementIds.Contains(sc.MonthlySettlementId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.PartnerInvoices.Where(p => settlementIds.Contains(p.MonthlySettlementId) || p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+                await _context.MonthlySettlements.Where(m => settlementIds.Contains(m.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+            else
+            {
+                await _context.PartnerInvoices.Where(p => p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            var commissionIds = await _context.Commissions
+                .Where(c => c.CoworkingId == coworkingId)
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+            if (commissionIds.Count > 0)
+            {
+                await _context.SettlementCommissions.Where(sc => commissionIds.Contains(sc.CommissionId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Commissions.Where(c => commissionIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            await _context.Transfers.Where(t => t.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+
+            // Só notas sem ClientId — nunca apagar NFs de outros clientes no purge de parceiro.
+            var partnerOnlyFiscalNoteIds = await _context.FiscalNotes
+                .Where(f => f.CoworkingId == coworkingId && f.ClientId == null)
+                .Select(f => f.Id)
+                .ToListAsync(cancellationToken);
+            if (partnerOnlyFiscalNoteIds.Count > 0)
+            {
+                await _context.FocusNFeWebhookLogs
+                    .Where(w => w.FiscalNoteId != null && partnerOnlyFiscalNoteIds.Contains(w.FiscalNoteId.Value))
+                    .ExecuteDeleteAsync(cancellationToken);
+                await _context.FiscalNotes.Where(f => partnerOnlyFiscalNoteIds.Contains(f.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            await _context.BlockedDates.Where(b => b.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingOperatingHours.Where(h => h.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.PartnerServices.Where(p => p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingProducts.Where(p => p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingPartners.Where(p => p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingPhotos.Where(p => p.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingDocuments.Where(d => d.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            await _context.CoworkingSefazConfigurations.Where(s => s.CoworkingId == coworkingId).ExecuteDeleteAsync(cancellationToken);
+            // Avaliações sem ClientId (com ClientId o lookup já bloqueia).
+            await _context.CoworkingRatings.Where(r => r.CoworkingId == coworkingId && r.ClientId == null).ExecuteDeleteAsync(cancellationToken);
+
+            var promoIds = await _context.PromoCodes
+                .Where(p => p.CoworkingId == coworkingId)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+            if (promoIds.Count > 0)
+            {
+                await _context.Payments
+                    .Where(p => p.PromoCodeId != null && promoIds.Contains(p.PromoCodeId.Value))
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.PromoCodeId, (int?)null), cancellationToken);
+                await _context.PromoCodes.Where(p => promoIds.Contains(p.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            var leadIds = await _context.FiscalOnboardingLeads
+                .Where(l => l.CoworkingId == coworkingId && l.ClientId == null)
+                .Select(l => l.Id)
+                .ToListAsync(cancellationToken);
+            if (leadIds.Count > 0)
+            {
+                // Somente leads sem ClientId (bloqueio prévio garante ausência de clientes associados).
+                await _context.ClientMagicLoginTokens.Where(t => leadIds.Contains(t.FiscalOnboardingLeadId)).ExecuteDeleteAsync(cancellationToken);
+                var leadPaymentIds = await _context.Payments
+                    .Where(p => p.FiscalOnboardingLeadId != null && leadIds.Contains(p.FiscalOnboardingLeadId.Value))
+                    .Select(p => p.Id)
+                    .ToListAsync(cancellationToken);
+                if (leadPaymentIds.Count > 0)
+                {
+                    await _context.PagBankWebhookLogs
+                        .Where(w => w.PaymentId != null && leadPaymentIds.Contains(w.PaymentId.Value))
+                        .ExecuteDeleteAsync(cancellationToken);
+                    await _context.PaymentHistories.Where(h => leadPaymentIds.Contains(h.PaymentId)).ExecuteDeleteAsync(cancellationToken);
+                    await _context.Payments.Where(p => leadPaymentIds.Contains(p.Id)).ExecuteDeleteAsync(cancellationToken);
+                }
+                await _context.FiscalOnboardingLeads.Where(l => leadIds.Contains(l.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            if (addressIds.Count > 0)
+            {
+                await _context.CapacityChangeRequests.Where(r => addressIds.Contains(r.CoworkingAddressId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.MaxContractsChangeRequests.Where(r => addressIds.Contains(r.CoworkingAddressId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.CardPriceChangeRequests.Where(r => addressIds.Contains(r.CoworkingAddressId)).ExecuteDeleteAsync(cancellationToken);
+                await _context.Interests.Where(i => addressIds.Contains(i.CoworkingAddressId)).ExecuteDeleteAsync(cancellationToken);
+
+                var roomIds = await _context.CoworkingRooms
+                    .Where(r => addressIds.Contains(r.CoworkingAddressId))
+                    .Select(r => r.Id)
+                    .ToListAsync(cancellationToken);
+                if (roomIds.Count > 0)
+                {
+                    await _context.CoworkingRoomPhotos.Where(p => roomIds.Contains(p.CoworkingRoomId)).ExecuteDeleteAsync(cancellationToken);
+                    await _context.CoworkingRooms.Where(r => roomIds.Contains(r.Id)).ExecuteDeleteAsync(cancellationToken);
+                }
+
+                await _context.CoworkingAddresses.Where(a => addressIds.Contains(a.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            await _context.Coworkings.Where(c => c.Id == coworkingId).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        private async Task PurgeUserChatAsync(int userId, CancellationToken cancellationToken)
+        {
+            var conversationIds = await _context.ChatConversations
+                .Where(c => c.UserId == userId)
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+            if (conversationIds.Count == 0)
+                return;
+
+            await _context.ChatUnansweredQuestions.Where(q => conversationIds.Contains(q.ConversationId)).ExecuteDeleteAsync(cancellationToken);
+            await _context.ChatIntentions.Where(i => conversationIds.Contains(i.ConversationId)).ExecuteDeleteAsync(cancellationToken);
+            await _context.ChatMessages.Where(m => conversationIds.Contains(m.ConversationId)).ExecuteDeleteAsync(cancellationToken);
+            await _context.ChatConversations.Where(c => conversationIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        private async Task PurgeAuditLogsForUserAsync(int userId, CancellationToken cancellationToken)
+        {
+            await _context.AuditLogs.Where(a => a.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         }
 
         public async Task<(bool IsQuery, string Result)> ExecuteSqlForAdminAsync(string sqlQuery, CancellationToken cancellationToken = default)

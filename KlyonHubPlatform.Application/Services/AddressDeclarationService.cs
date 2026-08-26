@@ -50,7 +50,29 @@ namespace KlyonHubPlatform.Application.Services
             return AddressDeclarationRules.CanGenerateDeclaration(contract, declarations, hasPaidPayment);
         }
 
-        public async Task<AddressDeclaration> GenerateDeclarationAsync(int contractId)
+        public async Task<bool> CanRegenerateDeclarationAsync(int contractId, CancellationToken cancellationToken = default)
+        {
+            var contract = await _context.Contracts
+                .Include(c => c.Service)
+                .Include(c => c.Subscription)
+                .FirstOrDefaultAsync(c => c.Id == contractId, cancellationToken);
+            if (contract == null)
+                return false;
+
+            var declarations = await _context.AddressDeclarations
+                .Where(d => d.ContractId == contractId)
+                .ToListAsync(cancellationToken);
+
+            var hasPaidPayment = contract.Subscription != null
+                && await _context.Payments.AnyAsync(
+                    p => p.SubscriptionId == contract.Subscription!.Id
+                         && p.Status == PaymentStatus.Paid,
+                    cancellationToken);
+
+            return AddressDeclarationRules.CanRegenerateDeclaration(contract, declarations, hasPaidPayment);
+        }
+
+        public async Task<AddressDeclaration> GenerateDeclarationAsync(int contractId, bool regenerate = false)
         {
             var contract = await _context.Contracts
                 .Include(c => c.Client)
@@ -76,17 +98,43 @@ namespace KlyonHubPlatform.Application.Services
                     p => p.SubscriptionId == contract.Subscription!.Id
                          && p.Status == PaymentStatus.Paid);
 
-            if (!AddressDeclarationRules.CanGenerateDeclaration(contract, declarations, hasPaidPayment))
-                throw new InvalidOperationException(
-                    "Não é possível gerar declaração: o contrato precisa estar vigente, com pagamento confirmado e sem declaração válida para o tipo de serviço atual.");
+            if (regenerate)
+            {
+                if (!AddressDeclarationRules.CanRegenerateDeclaration(contract, declarations, hasPaidPayment))
+                {
+                    throw new InvalidOperationException(
+                        "Não é possível regenerar declaração: o contrato precisa estar vigente, com pagamento confirmado e com todas as declarações do tipo atual vencidas ou inválidas.");
+                }
 
-            var validExisting = declarations.FirstOrDefault(d =>
-                AddressDeclarationRules.IsDeclarationValidForCurrentService(
-                    d,
-                    contract.ServiceId,
-                    contract.Service?.Code));
-            if (validExisting != null)
-                return validExisting;
+                foreach (var previous in declarations.Where(d =>
+                             AddressDeclarationRules.DeclarationMatchesCurrentService(
+                                 d,
+                                 contract.ServiceId,
+                                 contract.Service?.Code)
+                             && d.IsValid))
+                {
+                    previous.IsValid = false;
+                    previous.InvalidatedAt = DateTime.UtcNow;
+                    previous.InvalidationReason = "Substituída por nova versão";
+                    previous.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                if (!AddressDeclarationRules.CanGenerateDeclaration(contract, declarations, hasPaidPayment))
+                {
+                    throw new InvalidOperationException(
+                        "Não é possível gerar declaração: o contrato precisa estar vigente, com pagamento confirmado e sem declaração do tipo de serviço atual.");
+                }
+
+                var validExisting = declarations.FirstOrDefault(d =>
+                    AddressDeclarationRules.IsDeclarationValidForCurrentService(
+                        d,
+                        contract.ServiceId,
+                        contract.Service?.Code));
+                if (validExisting != null)
+                    return validExisting;
+            }
 
             if (contract.ExpiryDate == null)
             {

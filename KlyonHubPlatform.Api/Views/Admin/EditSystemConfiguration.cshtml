@@ -97,7 +97,14 @@
                     else
                     {
                         <textarea class="form-control" id="configValor" name="value" rows="3">@Model.Value</textarea>
-                        <small class="form-text text-muted">Deixe em branco se o parâmetro não precisar de valor (ex.: Payment.HiddenPaymentOptions vazio para exibir todas as formas de pagamento).</small>
+                        @if (Model.Key == PaymentConfigKey.HiddenPaymentOptions.ToConfigKey())
+                        {
+                            <small class="form-text text-muted">Deixe em branco para exibir todas as formas. Valores (vírgula): <code>PixMonthly</code>, <code>PixAnnual</code>, <code>PIX</code>, <code>Card1x</code>, <code>CardMonthly</code>, <code>Boleto</code>.</small>
+                        }
+                        else
+                        {
+                            <small class="form-text text-muted">Deixe em branco se o parâmetro não precisar de valor (ex.: Payment.HiddenPaymentOptions vazio para exibir todas as formas de pagamento).</small>
+                        }
                     }
                 }
             </div>

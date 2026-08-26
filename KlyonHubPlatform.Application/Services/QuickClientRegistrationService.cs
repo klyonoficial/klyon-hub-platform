@@ -83,14 +83,22 @@ namespace KlyonHubPlatform.Application.Services
             _context.Clients.Add(client);
             await _context.SaveChangesAsync(cancellationToken);
 
-            var monthlyValueForContract = input.MonthlyValue / 12;
+            var monthlyValueForContract = input.MonthlyValue;
             var fiscalServiceId = await _context.Services.AsNoTracking()
                 .Where(s => s.Code == ServiceCodes.FiscalAddressContracting)
                 .Select(s => (int?)s.Id)
                 .FirstOrDefaultAsync(cancellationToken);
             if (!fiscalServiceId.HasValue)
                 return QuickClientRegistrationResult.Fail("ServiceNotFound", "Serviço de endereço fiscal não encontrado. Verifique a configuração do sistema.");
-            var contract = await _contractService.CreateContractAsync(client.Id, input.CoworkingAddressId, monthlyValueForContract, fiscalServiceId.Value, assistedSaleAdminId: adminUserId, null);
+            // Venda assistida inicia em PIX anual: grava o valor anual (BasePrice), não BasePrice/12.
+            var contract = await _contractService.CreateContractAsync(
+                client.Id,
+                input.CoworkingAddressId,
+                monthlyValueForContract,
+                fiscalServiceId.Value,
+                assistedSaleAdminId: adminUserId,
+                PaymentMethod.PIX,
+                ContractCardPlanType.PixAnnual);
 
             var newValues = JsonSerializer.Serialize(new { IsAssistedSale = true, AssistedSaleAdminId = adminUserId, Origin = "VendaAssistida" });
             await _auditService.LogActionAsync(adminUserId, "ContractCreated", "Contract", contract.Id, null, newValues, remoteIp, userAgent);

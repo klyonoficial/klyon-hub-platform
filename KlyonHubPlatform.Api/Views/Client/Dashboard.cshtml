@@ -152,7 +152,7 @@ else
                             <tr>
                                 <th>Número</th>
                                 <th>Endereço</th>
-                                <th>Valor Mensal</th>
+                                <th>Valor</th>
                                 <th>Status</th>
                                 <th>Ações</th>
                             </tr>
@@ -167,7 +167,17 @@ else
                                 <tr>
                                     <td>@contract.ContractNumber</td>
                                     <td>@contract.CoworkingAddress?.Address, @contract.CoworkingAddress?.Number</td>
-                                    <td>R$ @contract.MonthlyValue.ToString(NumberFormatConstants.TwoDecimals)</td>
+                                    <td>
+                                        R$ @((contract.SnapshotMonthlyValue > 0 ? contract.SnapshotMonthlyValue : contract.MonthlyValue).ToString(NumberFormatConstants.TwoDecimals))
+                                        @if (contract.CardPlanType == ContractCardPlanType.CardMonthly || contract.CardPlanType == ContractCardPlanType.PixMonthly)
+                                        {
+                                            <br><small class="text-muted">mensal</small>
+                                        }
+                                        else if (contract.CardPlanType == ContractCardPlanType.Card1x || contract.CardPlanType == ContractCardPlanType.PixAnnual)
+                                        {
+                                            <br><small class="text-muted">anual</small>
+                                        }
+                                    </td>
                                     <td>
                                         @switch (contract.Status)
                                         {

@@ -57,12 +57,38 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<Subscription>> GetActivePixAutomaticSubscriptionsAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Subscriptions
+                .Include(s => s.Contract)
+                    .ThenInclude(c => c!.Client)
+                        .ThenInclude(cl => cl!.User)
+                .Include(s => s.Payments)
+                .Where(s =>
+                    (s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.PastDue)
+                    && s.Contract != null
+                    && (s.Contract.CardPlanType == ContractCardPlanType.PixAnnual
+                        || s.Contract.CardPlanType == ContractCardPlanType.PixMonthly)
+                    && s.PixAutomaticAuthorizationId != null
+                    && s.PixAutomaticAuthorizationId != "")
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<Subscription?> GetByPixAutomaticAuthorizationIdAsync(string pixAutomaticAuthorizationId, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(pixAutomaticAuthorizationId)) return null;
             return await _context.Subscriptions
                 .Include(s => s.Payments)
                 .FirstOrDefaultAsync(s => s.PixAutomaticAuthorizationId == pixAutomaticAuthorizationId, cancellationToken);
+        }
+
+        public async Task<Subscription?> GetByExternalSubscriptionIdAsync(string externalSubscriptionId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(externalSubscriptionId)) return null;
+            return await _context.Subscriptions
+                .Include(s => s.Contract)
+                .Include(s => s.Payments)
+                .FirstOrDefaultAsync(s => s.ExternalSubscriptionId == externalSubscriptionId.Trim(), cancellationToken);
         }
     }
 }

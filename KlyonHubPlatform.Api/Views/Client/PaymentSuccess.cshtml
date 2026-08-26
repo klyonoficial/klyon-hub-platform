@@ -85,7 +85,14 @@
                                 <p class="mb-1"><strong>Localidade:</strong> @addressLabel</p>
                             }
                         }
-                        <p class="mb-0"><strong>Valor:</strong> R$ @Model.Amount.ToString("N2")</p>
+                        @{
+                            var successContract = Model.Subscription?.Contract;
+                            var successValueLabel = successContract?.CardPlanType == ContractCardPlanType.CardMonthly
+                                || successContract?.CardPlanType == ContractCardPlanType.PixMonthly
+                                ? "Valor mensal"
+                                : "Valor";
+                        }
+                        <p class="mb-0"><strong>@successValueLabel:</strong> R$ @Model.Amount.ToString("N2")</p>
                     </div>
                 </div>
 

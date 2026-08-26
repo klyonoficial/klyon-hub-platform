@@ -65,7 +65,24 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task AddRoomConfigurationColumnsAsync(CancellationToken cancellationToken = default);
         Task AddReservationColumnsAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Reseta a base corrente: limpa dados de negócio (whitelist de tabelas preservadas),
+        /// aplica migrations pendentes se houver e executa seed idempotente.
+        /// Preserva SystemConfigurations, SefazConfigurations, Roles, Languages, Locations, Services, etc. e o admin.
+        /// </summary>
         Task<(bool Success, string Message)> ClearAndSeedDatabaseAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Busca usuário por Id (tabela Users) para preview de exclusão em cascata.
+        /// Bloqueia Admin; bloqueia Parceiro com clientes/contratos vinculados aos endereços.
+        /// </summary>
+        Task<UserPurgeLookupDto> LookupUserForPurgeAsync(int userId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Apaga todos os dados de negócio do Cliente ou Parceiro (UserId).
+        /// Não apaga Administradores. Parceiro só se não houver contratos de clientes nos endereços.
+        /// </summary>
+        Task<UserPurgeResultDto> PurgeUserDataAsync(int userId, CancellationToken cancellationToken = default);
 
         Task<(bool IsQuery, string Result)> ExecuteSqlForAdminAsync(string sqlQuery, CancellationToken cancellationToken = default);
         Task<string> GetVerifyCoworkingOperatingHoursResultAsync(CancellationToken cancellationToken = default);

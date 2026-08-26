@@ -11,15 +11,18 @@
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
     // PIX único: código e expiração em Payments (PixCode, PixExpiresAt). PIX Automático: em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
+    var isPixAutomatic = isPix && contract?.CardPlanType.IsPixAutomatic() == true;
     var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
-    var effectivePixCode = isPixAnnual ? (Model.Subscription?.PixAutomaticPayload) : Model.PixCode;
-    var effectivePixExpiresAt = isPixAnnual ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt;
+    var isPixMonthly = isPix && contract?.CardPlanType == ContractCardPlanType.PixMonthly;
+    var effectivePixCode = isPixAutomatic ? (Model.Subscription?.PixAutomaticPayload) : Model.PixCode;
+    var effectivePixExpiresAt = isPixAutomatic ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt;
     var pixExpiresAtUtc = effectivePixExpiresAt.HasValue ? (effectivePixExpiresAt.Value.Kind == DateTimeKind.Utc ? effectivePixExpiresAt.Value : DateTime.SpecifyKind(effectivePixExpiresAt.Value, DateTimeKind.Utc)) : (DateTime?)null;
     var isExpired = pixExpiresAtUtc.HasValue && pixExpiresAtUtc.Value < DateTime.UtcNow;
     var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as IReadOnlySet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
+    var showPixMonthlyInDropdown = !hiddenPaymentOptions.Contains("PixMonthly");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
-    var showPixInDropdown = showPixAnnualInDropdown || showPixSingleInDropdown;
+    var showPixInDropdown = showPixAnnualInDropdown || showPixMonthlyInDropdown || showPixSingleInDropdown;
     var snapshotListPrice = ViewBag.SnapshotListPrice as decimal? ?? (contract?.SnapshotListPrice > 0 ? contract.SnapshotListPrice : Model.SnapshotListPrice > 0 ? Model.SnapshotListPrice : Model.Amount);
     var snapshotPrice1x = ViewBag.SnapshotPrice1x as decimal? ?? snapshotListPrice;
     var snapshotPriceMonthly = ViewBag.SnapshotPriceMonthly as decimal? ?? snapshotListPrice;
@@ -29,10 +32,9 @@
     var showCard1x = addressHasCard1x && !hiddenPaymentOptions.Contains("Card1x");
     var showCardMonthly = addressHasCardMonthly && !hiddenPaymentOptions.Contains("CardMonthly");
     var showBoletoInDropdown = !hiddenPaymentOptions.Contains("Boleto");
-    // isPixAnnual já definido acima para effectivePixCode/effectivePixExpiresAt
-    var currentPixPlanValue = isPixAnnual ? "PixAnnual" : "PIX";
+    var currentPixPlanValue = isPixAnnual ? "PixAnnual" : (isPixMonthly ? "PixMonthly" : "PIX");
     var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
-    // Quando qualquer opção está em HiddenPaymentOptions (PixAnnual, PIX, Card1x, CardMonthly, Boleto): carregar a tela da primeira opção disponível (fallback)
+    // Quando qualquer opção está em HiddenPaymentOptions (PixAnnual, PixMonthly, PIX, Card1x, CardMonthly, Boleto): carregar a tela da primeira opção disponível (fallback)
     var showPixCard = isPending && (
         (Model.Method == PaymentMethod.PIX && showPixInDropdown) ||
         (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showPixInDropdown) ||
@@ -223,19 +225,28 @@
                             <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
                             @if (Model.SnapshotDiscountAmount > 0)
                             {
+                                var grossBeforeDiscount = Model.Amount + Model.SnapshotDiscountAmount;
                                 <small class="text-success d-block mt-1">
                                     <i class="bi bi-tag"></i> Cupom @Model.PromoCodeSnapshot aplicado — desconto de R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
-                                    @if (Model.SnapshotListPrice > Model.Amount)
+                                    @if (grossBeforeDiscount > Model.Amount)
                                     {
-                                        <span class="text-muted">(de R$ @Model.SnapshotListPrice.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
+                                        <span class="text-muted">(de R$ @grossBeforeDiscount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                     }
                                 </small>
                             }
                             @if (Model.Method == PaymentMethod.PIX)
                             {
-                                var pixMonthly = Model.Amount / 12m;
-                                <small class="text-muted d-block mt-1">recorrência anual</small>
-                                <small class="text-muted d-block mt-1">equivale a R$ @pixMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</small>
+                                var pixPlan = contract?.CardPlanType;
+                                if (pixPlan == ContractCardPlanType.PixMonthly)
+                                {
+                                    <small class="text-muted d-block mt-1">recorrência mensal</small>
+                                }
+                                else if (pixPlan == ContractCardPlanType.PixAnnual || pixPlan == ContractCardPlanType.None || !pixPlan.HasValue)
+                                {
+                                    var pixMonthlyEq = Model.Amount / 12m;
+                                    <small class="text-muted d-block mt-1">@(pixPlan == ContractCardPlanType.PixAnnual ? "recorrência anual" : "pagamento único (anual)")</small>
+                                    <small class="text-muted d-block mt-1">equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</small>
+                                }
                             }
                             else if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                             {
@@ -244,22 +255,51 @@
                         }
                     </dd>
 
-                    @if (isPending && isPaymentOwner && contract != null && string.IsNullOrEmpty(Model.PromoCodeSnapshot))
+                    @{
+                        var hasPromoApplied = Model.PromoCodeId != null
+                            || Model.SnapshotDiscountAmount > 0
+                            || !string.IsNullOrEmpty(Model.PromoCodeSnapshot);
+                    }
+                    @if (isPending && isPaymentOwner && contract != null)
                     {
                         <dt class="col-sm-4">Cupom:</dt>
                         <dd class="col-sm-8">
-                            <form method="post" action="@Url.Action("ApplyPromoCode", "Client")" class="row g-2 align-items-center">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="paymentId" value="@Model.Id" />
-                                <div class="col-auto flex-grow-1" style="min-width: 180px;">
-                                    <input type="text" name="promoCode" class="form-control" placeholder="Código promocional" maxlength="50" autocomplete="off" />
+                            @if (hasPromoApplied)
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="badge text-bg-success">
+                                        <i class="bi bi-tag"></i>
+                                        @(string.IsNullOrEmpty(Model.PromoCodeSnapshot) ? "Cupom aplicado" : Model.PromoCodeSnapshot)
+                                        @if (Model.SnapshotDiscountAmount > 0)
+                                        {
+                                            <text>— R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</text>
+                                        }
+                                    </span>
+                                    <form method="post" action="@Url.Action("RemovePromoCode", "Client")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-x-circle"></i> Remover cupom
+                                        </button>
+                                    </form>
                                 </div>
-                                <div class="col-auto">
-                                    <button type="submit" class="btn btn-outline-success btn-sm">
-                                        <i class="bi bi-tag"></i> Aplicar
-                                    </button>
-                                </div>
-                            </form>
+                            }
+                            else
+                            {
+                                <form method="post" action="@Url.Action("ApplyPromoCode", "Client")" class="row g-2 align-items-center" id="applyPromoCodeForm">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <input type="hidden" name="cardPlanOption" id="promoCardPlanOption" value="@(contract?.CardPlanType == ContractCardPlanType.CardMonthly ? "monthly" : "1x")" />
+                                    <div class="col-auto flex-grow-1" style="min-width: 180px;">
+                                        <input type="text" name="promoCode" class="form-control" placeholder="Código promocional" maxlength="50" autocomplete="off" />
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="submit" class="btn btn-outline-success btn-sm">
+                                            <i class="bi bi-tag"></i> Aplicar
+                                        </button>
+                                    </div>
+                                </form>
+                            }
                         </dd>
                     }
 
@@ -273,10 +313,11 @@
                             }
                             else
                             {
-                            <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")">
+                            var defaultPixPlanForSwitch = showPixAnnualInDropdown ? "PixAnnual" : (showPixMonthlyInDropdown ? "PixMonthly" : "PIX");
+                            <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")" data-default-pix-plan="@defaultPixPlanForSwitch">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
-                                <select name="method" id="paymentMethodSelect" class="form-select d-inline-block no-select2" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue">
+                                <select name="method" id="paymentMethodSelect" class="form-select d-inline-block no-select2" style="width: auto; min-width: 200px;" onchange="updatePaymentMethod(this)" data-previous-value="@currentMethodValue" data-default-pix-plan="@defaultPixPlanForSwitch">
                                     @if (showPixInDropdown)
                                     {
                                         if (isPix)
@@ -312,55 +353,44 @@
                                     }
                                 </select>
                             </form>
-                            @if (Model.Method == PaymentMethod.PIX && (showPixAnnualInDropdown || showPixSingleInDropdown))
+                            @if (Model.Method == PaymentMethod.PIX && (showPixAnnualInDropdown || showPixMonthlyInDropdown || showPixSingleInDropdown))
                             {
-                                var pixAmount = Model.Amount;
-                                var pixMonthlyEq = pixAmount / 12m;
+                                var pixPriceAnnual = snapshotPrice1x;
+                                var pixPriceMonthly = snapshotPriceMonthly;
+                                var pixAnnualMonthlyEq = pixPriceAnnual / 12m;
+                                var pixPlanChecked = currentPixPlanValue;
+                                if (pixPlanChecked == "PixAnnual" && !showPixAnnualInDropdown)
+                                    pixPlanChecked = showPixMonthlyInDropdown ? "PixMonthly" : (showPixSingleInDropdown ? "PIX" : pixPlanChecked);
+                                else if (pixPlanChecked == "PixMonthly" && !showPixMonthlyInDropdown)
+                                    pixPlanChecked = showPixAnnualInDropdown ? "PixAnnual" : (showPixSingleInDropdown ? "PIX" : pixPlanChecked);
+                                else if (pixPlanChecked == "PIX" && !showPixSingleInDropdown)
+                                    pixPlanChecked = showPixAnnualInDropdown ? "PixAnnual" : (showPixMonthlyInDropdown ? "PixMonthly" : pixPlanChecked);
                                 <div class="mt-3 pt-2 border-top" id="pagePixPlanOptionWrap" data-current-pix-plan="@currentPixPlanValue">
                                     <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
                                     @if (showPixAnnualInDropdown)
                                     {
-                                        var checkedAttr = "";
-                                        if (showPixSingleInDropdown)
-                                        {
-                                            // As duas opções visíveis: respeitar o plano atual
-                                            if (isPixAnnual)
-                                            {
-                                                checkedAttr = "checked";
-                                            }
-                                        }
-                                        else
-                                        {
-                                            // Só anual visível
-                                            checkedAttr = "checked";
-                                        }
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @checkedAttr>
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @(pixPlanChecked == "PixAnnual" ? "checked" : "")>
                                             <label class="form-check-label" for="pagePixPlanAnnual">
-                                                PIX recorrente anual — PIX Automático — débito todo ano na mesma data; autorize uma vez e pague automaticamente — R$ @pixAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                                PIX Automático (anual) — autorize uma vez; débitos anuais após a 1ª liquidação — R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                            </label>
+                                        </div>
+                                    }
+                                    @if (showPixMonthlyInDropdown)
+                                    {
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanMonthly" value="PixMonthly" @(pixPlanChecked == "PixMonthly" ? "checked" : "")>
+                                            <label class="form-check-label" for="pagePixPlanMonthly">
+                                                PIX Automático (mensal) — autorize uma vez; débitos mensais após a 1ª liquidação — R$ @pixPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </label>
                                         </div>
                                     }
                                     @if (showPixSingleInDropdown)
                                     {
-                                        var checkedAttrSingle = "";
-                                        if (showPixAnnualInDropdown)
-                                        {
-                                            // As duas opções visíveis: respeitar o plano atual
-                                            if (!isPixAnnual)
-                                            {
-                                                checkedAttrSingle = "checked";
-                                            }
-                                        }
-                                        else
-                                        {
-                                            // Só pagamento único visível
-                                            checkedAttrSingle = "checked";
-                                        }
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @checkedAttrSingle>
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @(pixPlanChecked == "PIX" ? "checked" : "")>
                                             <label class="form-check-label" for="pagePixPlanSingle">
-                                                PIX (pagamento único) — Pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma — R$ @pixAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
+                                                PIX (pagamento único) — Pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma — R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) — equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês
                                             </label>
                                         </div>
                                     }
@@ -409,7 +439,11 @@
                             @switch (Model.Method)
                             {
                                 case PaymentMethod.PIX:
-                                    var pixLabelRo = contract?.CardPlanType == ContractCardPlanType.PixAnnual ? "PIX (recorrente anual)" : "PIX (pagamento único)";
+                                    var pixLabelRo = contract?.CardPlanType == ContractCardPlanType.PixAnnual
+                                        ? "PIX Automático (anual)"
+                                        : contract?.CardPlanType == ContractCardPlanType.PixMonthly
+                                            ? "PIX Automático (mensal)"
+                                            : "PIX (pagamento único)";
                                     <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabelRo</span>
                                     break;
                                 case PaymentMethod.CreditCard:
@@ -433,7 +467,11 @@
                             @switch (Model.Method)
                             {
                                 case PaymentMethod.PIX:
-                                    var pixLabel = contract?.CardPlanType == ContractCardPlanType.PixAnnual ? "PIX (recorrente anual)" : "PIX (pagamento único)";
+                                    var pixLabel = contract?.CardPlanType == ContractCardPlanType.PixAnnual
+                                        ? "PIX Automático (anual)"
+                                        : contract?.CardPlanType == ContractCardPlanType.PixMonthly
+                                            ? "PIX Automático (mensal)"
+                                            : "PIX (pagamento único)";
                                     <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabel</span>
                                     break;
                                 case PaymentMethod.CreditCard:
@@ -734,6 +772,16 @@
                                                                 <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
                                                             </form>
                                                         }
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-secondary edit-card-nickname-btn"
+                                                                title="Editar apelido"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#editCardNicknameModal"
+                                                                data-card-id="@card.Id"
+                                                                data-card-nickname="@(card.Nickname ?? "")"
+                                                                data-card-label="@card.Brand •••• @card.LastFourDigits">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
                                                         <form method="post" action="@Url.Action("RemoveCreditCard", "Client")" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
                                                             @Html.AntiForgeryToken()
                                                             <input type="hidden" name="paymentId" value="@Model.Id" />
@@ -1195,6 +1243,40 @@
     </div>
 </div>
 
+<!-- Modal Editar Apelido do Cartão -->
+<div class="modal fade" id="editCardNicknameModal" tabindex="-1" aria-labelledby="editCardNicknameModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCardNicknameModalLabel">
+                    <i class="bi bi-pencil"></i> Editar apelido do cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action("UpdateCreditCardNickname", "Client")" id="editCardNicknameForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" value="@Model.Id" />
+                <input type="hidden" name="cardId" id="editCardNicknameCardId" value="" />
+                <div class="modal-body">
+                    <p class="text-muted small mb-3" id="editCardNicknameCardLabel"></p>
+                    <div class="mb-0">
+                        <label for="editCardNicknameInput" class="form-label">Apelido do cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editCardNicknameInput" name="nickname"
+                               placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100" required>
+                        <small class="form-text text-muted">Obrigatório. Máximo de 100 caracteres.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar apelido
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @if (isPending && showCreditCardSection)
 {
     var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
@@ -1476,13 +1558,15 @@
                 // Preparar dados do formulário (usar data-action-url para evitar action relativa após innerHTML)
                 const form = selectElement.form;
                 const formData = new FormData(form);
-                // Se o usuário escolheu PIX no select, enviar também o tipo explícito de PIX (PixAnnual ou PIX)
+                // PIX: radios de plano só existem quando Method já é PIX. Ao sair de cartão/boleto,
+                // enviar pixPlanType padrão (PixAnnual/PixMonthly) para não cair em PIX único oculto.
                 if (selectElement && selectElement.value && selectElement.value === 'PIX') {
                     const pixPlanRadio = document.querySelector('input[name="pagePixPlanOption"]:checked');
-                    if (pixPlanRadio && pixPlanRadio.value) {
-                        formData.set('method', 'PIX');
-                        formData.set('pixPlanType', pixPlanRadio.value);
-                    }
+                    const defaultPixPlan = (selectElement.dataset.defaultPixPlan
+                        || (form && form.getAttribute('data-default-pix-plan'))
+                        || 'PixAnnual').trim();
+                    formData.set('method', 'PIX');
+                    formData.set('pixPlanType', (pixPlanRadio && pixPlanRadio.value) ? pixPlanRadio.value : defaultPixPlan);
                 }
                 let actionUrl = form.getAttribute('data-action-url') || form.action;
                 if (actionUrl && actionUrl.startsWith('/')) {
@@ -1498,6 +1582,12 @@
                 
                 // beforeSend: mostrar loading antes de enviar a requisição
                 showPaymentLoading();
+
+                function buildPaymentDetailsReloadUrl() {
+                    var paymentDetailsUrl = '@(Url.Action("PaymentDetails", "Client", new { id = Model.Id }))';
+                    paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+                    return paymentDetailsUrl;
+                }
                 
                 try {
                     const response = await fetch(actionUrl, {
@@ -1512,10 +1602,11 @@
                     
                     const newMethod = (selectElement.value || '').trim();
                     const isCreditOrBoleto = newMethod === 'CreditCard' || newMethod === 'BankTransfer';
+                    const isOpaqueRedirect = response.type === 'opaqueredirect' || response.status === 0;
                     if (response.ok && response.status === 200) {
-                        // Troca entre tipos de PIX: atualizar apenas o card "Código PIX"
+                        // Troca entre tipos de PIX: atualizar Valor + QR/código (paymentInfo + card PIX)
                         if (pixNewPlan) {
-                            await updatePixPaymentCardOnly();
+                            await updatePaymentMethodSections();
                             const wrap = document.getElementById('pagePixPlanOptionWrap');
                             if (wrap) {
                                 const newRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixNewPlan + '"]');
@@ -1523,29 +1614,33 @@
                                 wrap.setAttribute('data-current-pix-plan', pixNewPlan);
                             }
                             confirmedPaymentMethod = 'PIX';
+                            const refreshedSelect = document.querySelector('select[name="method"]');
+                            if (refreshedSelect) {
+                                refreshedSelect.value = 'PIX';
+                                refreshedSelect.dataset.previousValue = 'PIX';
+                                refreshedSelect.dataset.pixPreviousPlan = pixNewPlan;
+                                refreshedSelect.dataset.pixNewPlan = '';
+                            }
                             selectElement.dataset.previousValue = 'PIX';
                             selectElement.dataset.pixPreviousPlan = pixNewPlan;
                             selectElement.dataset.pixNewPlan = '';
                             showToast('Método de pagamento atualizado com sucesso!', 'success');
-                        } else if (isCreditOrBoleto) {
+                        } else if (isCreditOrBoleto || newMethod === 'PIX') {
+                            // Cartão/boleto/PIX: recarregar para montar seções (radios PIX, QR, etc.)
                             showToast('Método de pagamento atualizado com sucesso!', 'success');
                             hidePaymentLoading();
-                            var paymentDetailsUrl = '@(Url.Action("PaymentDetails", "Client", new { id = Model.Id }))';
-                            paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
-                            setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
+                            setTimeout(function() { window.location.replace(buildPaymentDetailsReloadUrl()); }, 150);
                         } else {
                             await updatePaymentMethodSections();
                             confirmedPaymentMethod = (selectElement.value || '').trim();
                             selectElement.dataset.previousValue = confirmedPaymentMethod;
                             showToast('Método de pagamento atualizado com sucesso!', 'success');
                         }
-                    } else if ((response.type === 'opaqueredirect' || response.status === 0) && isCreditOrBoleto) {
-                        // Servidor pode ter retornado 302; forçar navegação para PaymentDetails para exibir o método atualizado
-                        showToast('Método de pagamento atualizado com sucesso!', 'success');
+                    } else if (isOpaqueRedirect) {
+                        // 302 com redirect:manual (erro legado no server ou sucesso sem JSON):
+                        // recarregar para exibir TempData; o GET "canceled" no Network é esperado.
                         hidePaymentLoading();
-                        var paymentDetailsUrl = '@(Url.Action("PaymentDetails", "Client", new { id = Model.Id }))';
-                        paymentDetailsUrl += (paymentDetailsUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
-                        setTimeout(function() { window.location.replace(paymentDetailsUrl); }, 150);
+                        window.location.replace(buildPaymentDetailsReloadUrl());
                     } else {
                         restorePaymentMethodSelect(selectElement, previousValue);
                         if (pixPreviousPlan) {
@@ -1820,6 +1915,8 @@
                 if (e.target && e.target.name === 'pageCardPlanOption') {
                     clearPagePlanHighlight();
                     updatePaymentInfoValor();
+                    var promoPlan = document.getElementById('promoCardPlanOption');
+                    if (promoPlan && e.target.value) promoPlan.value = e.target.value;
                 }
                 if (e.target && e.target.name === 'pagePixPlanOption') {
                     // Sincronizar hidden dos formulários "Gerar código PIX" com a forma de cobrança selecionada
@@ -2131,6 +2228,44 @@
                     numEl.setCustomValidity('Informe o número do endereço ou marque "sem número".');
                     numEl.reportValidity();
                 }
+            }
+        });
+        var editCardNicknameModal = document.getElementById('editCardNicknameModal');
+        if (editCardNicknameModal) {
+            editCardNicknameModal.addEventListener('show.bs.modal', function(event) {
+                var button = event.relatedTarget;
+                if (!button || !button.classList.contains('edit-card-nickname-btn')) return;
+                var cardId = button.getAttribute('data-card-id') || '';
+                var nickname = button.getAttribute('data-card-nickname') || '';
+                var label = button.getAttribute('data-card-label') || '';
+                var cardIdInput = document.getElementById('editCardNicknameCardId');
+                var nicknameInput = document.getElementById('editCardNicknameInput');
+                var labelEl = document.getElementById('editCardNicknameCardLabel');
+                if (cardIdInput) cardIdInput.value = cardId;
+                if (nicknameInput) {
+                    nicknameInput.value = nickname;
+                    nicknameInput.setCustomValidity('');
+                }
+                if (labelEl) labelEl.textContent = label ? ('Cartão: ' + label) : '';
+            });
+        }
+        document.body.addEventListener('submit', function(e) {
+            var form = e.target;
+            if (!form || form.id !== 'editCardNicknameForm') return;
+            var nicknameInput = document.getElementById('editCardNicknameInput');
+            if (!nicknameInput) return;
+            nicknameInput.setCustomValidity('');
+            var value = (nicknameInput.value || '').trim();
+            if (!value) {
+                e.preventDefault();
+                nicknameInput.setCustomValidity('Informe um apelido para o cartão.');
+                nicknameInput.reportValidity();
+                return;
+            }
+            if (value.length > 100) {
+                e.preventDefault();
+                nicknameInput.setCustomValidity('O apelido do cartão deve ter no máximo 100 caracteres.');
+                nicknameInput.reportValidity();
             }
         });
         function collectCardHolderBilling(errEl) {

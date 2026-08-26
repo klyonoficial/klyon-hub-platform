@@ -5,7 +5,7 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         CreditCardFeePercentage,
         Provider,
         DefaultCurrency,
-        /// <summary>Formas de pagamento ocultas (valores separados por vírgula). Ex.: PIX,PixAnnual oculta PIX único e PIX anual. Valores: PixAnnual, PIX, Card1x, CardMonthly.</summary>
+                        /// <summary>Formas de pagamento ocultas (valores separados por vírgula). Valores: PixMonthly, PixAnnual, PIX, Card1x, CardMonthly, Boleto. Ex.: PixMonthly oculta PIX Automático (mensal); PIX oculta PIX (pagamento único).</summary>
         HiddenPaymentOptions,
         /// <summary>Percentual de acréscimo no cartão mensal sobre BasePrice. Ex.: 10 = mensal = BasePrice * 1.10 / 12.</summary>
         CardMonthlySurchargePercent

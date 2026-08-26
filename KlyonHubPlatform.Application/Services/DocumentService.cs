@@ -66,6 +66,23 @@ namespace KlyonHubPlatform.Application.Services
                 hasPaidPayment);
         }
 
+        public async Task<bool> CanRegenerateContractDocumentAsync(int contractId)
+        {
+            var contract = await _contractRepository.GetByIdAsync(contractId);
+            if (contract == null)
+                return false;
+
+            var hasPaidPayment = contract.Subscription != null
+                && await _context.Payments.AnyAsync(
+                    p => p.SubscriptionId == contract.Subscription!.Id
+                         && p.Status == PaymentStatus.Paid);
+
+            return AddressContractRules.CanRegenerate(
+                contract,
+                contract.Documents ?? Enumerable.Empty<DocumentModel>(),
+                hasPaidPayment);
+        }
+
         public async Task<bool> CanGenerateFiscalContractDocumentAsync(int contractId) =>
             await CanGenerateContractDocumentAsync(contractId);
 
@@ -80,7 +97,7 @@ namespace KlyonHubPlatform.Application.Services
         public async Task EnsureFiscalContractDocumentAsync(int contractId) =>
             await EnsureContractDocumentAsync(contractId);
 
-        public async Task<DocumentModel> GenerateContractDocumentAsync(int contractId)
+        public async Task<DocumentModel> GenerateContractDocumentAsync(int contractId, bool regenerate = false)
         {
             var contract = await _contractRepository.GetByIdAsync(contractId);
             if (contract == null)
@@ -95,10 +112,16 @@ namespace KlyonHubPlatform.Application.Services
                     p => p.SubscriptionId == contract.Subscription!.Id
                          && p.Status == PaymentStatus.Paid);
 
-            if (!AddressContractRules.CanGenerate(
-                    contract,
-                    contract.Documents ?? Enumerable.Empty<DocumentModel>(),
-                    hasPaidPayment))
+            var documents = contract.Documents ?? Enumerable.Empty<DocumentModel>();
+            if (regenerate)
+            {
+                if (!AddressContractRules.CanRegenerate(contract, documents, hasPaidPayment))
+                {
+                    throw new InvalidOperationException(
+                        "Não é possível regenerar contrato: o contrato precisa estar vigente, com pagamento confirmado e com todos os documentos de contrato do tipo atual vencidos.");
+                }
+            }
+            else if (!AddressContractRules.CanGenerate(contract, documents, hasPaidPayment))
             {
                 throw new InvalidOperationException(
                     "Não é possível gerar contrato: o contrato precisa estar vigente, com pagamento confirmado e sem documento de contrato para o tipo de serviço atual.");
@@ -109,12 +132,11 @@ namespace KlyonHubPlatform.Application.Services
 
             var variant = FiscalAddressContractRules.ResolveVariant(contract.Client);
             var existingDocuments = await _context.Documents
-                .AsNoTracking()
                 .Where(d => d.ContractId == contractId && d.Type == DocumentType.Contract)
                 .ToListAsync();
             var existingMatch = existingDocuments.FirstOrDefault(d =>
                 AddressContractRules.DocumentMatches(d.Description, serviceKind, variant));
-            if (existingMatch != null)
+            if (!regenerate && existingMatch != null)
                 return existingMatch;
 
             var fileName = $"contract_{contract.ContractNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
@@ -179,6 +201,8 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
+            var generatedAt = DateTime.UtcNow;
+            var expiresAt = contract.ExpiryDate;
             var documentEntity = new DocumentModel
             {
                 ContractId = contractId,
@@ -186,9 +210,29 @@ namespace KlyonHubPlatform.Application.Services
                 FileName = fileName,
                 FilePath = filePath,
                 Description = description,
+                GeneratedAt = generatedAt,
+                ExpiresAt = expiresAt,
                 D4SignDocumentUuid = d4SignUuid,
                 ClicksignEnvelopeIdentifier = clicksignEnvelopeId
             };
+
+            if (regenerate && existingMatch != null)
+            {
+                existingMatch.FileName = fileName;
+                existingMatch.FilePath = filePath;
+                existingMatch.GeneratedAt = generatedAt;
+                existingMatch.ExpiresAt = expiresAt;
+                existingMatch.D4SignDocumentUuid = d4SignUuid;
+                existingMatch.ClicksignEnvelopeIdentifier = clicksignEnvelopeId;
+                await _context.SaveChangesAsync();
+                await _contractHistoryService.RecordContractGeneratedAsync(
+                    contractId,
+                    contract.ContractNumber,
+                    description);
+                await _context.SaveChangesAsync();
+                return existingMatch;
+            }
+
             var created = await _documentRepository.CreateAsync(documentEntity);
             await _contractHistoryService.RecordContractGeneratedAsync(
                 contractId,

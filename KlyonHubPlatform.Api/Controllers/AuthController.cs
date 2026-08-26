@@ -505,54 +505,61 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return RedirectToAction(ActionNames.Index, ControllerNames.Home);
             }
+            ViewData[ViewDataKeys.MustChangePassword] = true;
             return View();
         }
+
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ChangePasswordRequired(string currentPassword, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> ChangePasswordRequired(string? currentPassword, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
         {
             if (HttpContext.Session.GetString(SessionKeys.MustChangePassword) != StringBooleanValue.True)
             {
                 return RedirectToAction(ActionNames.Index, ControllerNames.Home);
             }
-            if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
-            {
-                ViewData[ViewDataKeys.Error] = "Todos os campos são obrigatórios.";
-                return View();
-            }
-            if (newPassword != confirmPassword)
-            {
-                ViewData[ViewDataKeys.Error] = "As senhas não coincidem.";
-                return View();
-            }
-            if (newPassword.Length < 6)
-            {
-                ViewData[ViewDataKeys.Error] = "A senha deve ter no mínimo 6 caracteres.";
-                return View();
-            }
+
+            ViewData[ViewDataKeys.MustChangePassword] = true;
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var user = await _authService.GetUserByIdAsync(userId, cancellationToken);
-            if (user == null)
+            var result = await _authService.ChangePasswordAsync(userId, currentPassword, newPassword, confirmPassword, cancellationToken);
+            if (!result.Success)
             {
-                ViewData[ViewDataKeys.Error] = "Usuário não encontrado.";
+                ViewData[ViewDataKeys.Error] = result.ErrorMessage;
                 return View();
             }
-            if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
-            {
-                ViewData[ViewDataKeys.Error] = "Senha atual incorreta.";
-                return View();
-            }
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            user.MustChangePassword = false;
-            user.PasswordResetToken = null;
-            user.PasswordResetExpires = null;
-            await _authService.UpdateUserAsync(user);
+
             HttpContext.Session.Remove(SessionKeys.MustChangePassword);
             var returnUrl = HttpContext.Session.GetString(SessionKeys.ChangePasswordReturnUrl) ?? SessionKeys.DefaultChangePasswordReturnUrl;
             HttpContext.Session.Remove(SessionKeys.ChangePasswordReturnUrl);
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.PasswordChanged;
             return Redirect(returnUrl);
+        }
+
+        /// <summary>Status MustChangePassword do usuário autenticado (para o modal do layout).</summary>
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> MustChangePasswordStatus(CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var user = await _authService.GetUserByIdAsync(userId, cancellationToken);
+            if (user == null)
+                return Json(new { success = false, mustChangePassword = false });
+            return Json(new { success = true, mustChangePassword = user.MustChangePassword });
+        }
+
+        /// <summary>Altera a senha do usuário autenticado (modal do menu).</summary>
+        [HttpPost]
+        [Authorize]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePassword(string? currentPassword, string newPassword, string confirmPassword, CancellationToken cancellationToken = default)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var result = await _authService.ChangePasswordAsync(userId, currentPassword, newPassword, confirmPassword, cancellationToken);
+            if (!result.Success)
+                return Json(new { success = false, error = result.ErrorMessage });
+
+            HttpContext.Session.Remove(SessionKeys.MustChangePassword);
+            return Json(new { success = true, message = SuccessMessage.PasswordChanged });
         }
 
     }

@@ -184,7 +184,7 @@ namespace KlyonHubPlatform.Application.Helpers
 
         public static string FormatPaymentClause(decimal monthlyValue, ContractCardPlanType? planType)
         {
-            if (planType == ContractCardPlanType.Card1x || planType == ContractCardPlanType.PixAnnual)
+            if (planType.IsAnnualBillingCycle())
                 return $"{FormatCurrency(monthlyValue)} (anual), conforme plano contratado.";
 
             return $"{FormatCurrency(monthlyValue)} (mensal), conforme plano contratado.";

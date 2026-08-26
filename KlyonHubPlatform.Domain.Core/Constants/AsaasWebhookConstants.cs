@@ -21,5 +21,14 @@ namespace KlyonHubPlatform.Domain.Core.Constants
         public const string Payment = "payment";
         public const string Id = "id";
         public const string Status = "status";
+        public const string Subscription = "subscription";
+        public const string Value = "value";
+    }
+
+    /// <summary>Ciclos de assinatura Asaas (campo cycle em POST /subscriptions).</summary>
+    public static class AsaasSubscriptionCycle
+    {
+        public const string Monthly = "MONTHLY";
+        public const string Yearly = "YEARLY";
     }
 }

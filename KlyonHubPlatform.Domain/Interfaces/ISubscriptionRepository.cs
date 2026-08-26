@@ -9,6 +9,10 @@ namespace KlyonHubPlatform.Domain.Interfaces
         Task<Subscription> UpdateAsync(Subscription subscription, CancellationToken cancellationToken = default);
         Task<List<Subscription>> GetActiveSubscriptionsAsync(CancellationToken cancellationToken = default);
         Task<List<Subscription>> GetDueSubscriptionsAsync(DateTime date, CancellationToken cancellationToken = default);
+        /// <summary>Assinaturas ativas com autorização PIX Automático (para emitir cobranças recorrentes na janela Asaas).</summary>
+        Task<List<Subscription>> GetActivePixAutomaticSubscriptionsAsync(CancellationToken cancellationToken = default);
         Task<Subscription?> GetByPixAutomaticAuthorizationIdAsync(string pixAutomaticAuthorizationId, CancellationToken cancellationToken = default);
+        /// <summary>Busca assinatura local pelo ID da assinatura no Asaas (sub_...).</summary>
+        Task<Subscription?> GetByExternalSubscriptionIdAsync(string externalSubscriptionId, CancellationToken cancellationToken = default);
     }
 }

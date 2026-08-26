@@ -71,6 +71,7 @@ namespace KlyonHubPlatform.Application.Interfaces
         Task<int> CountActiveCreditCardsAsync(int clientId, CancellationToken cancellationToken = default);
         Task SetCreditCardAsaasTokenAsync(int cardId, int clientId, string token, string? postalCode = null, string? addressNumber = null, CancellationToken cancellationToken = default);
         Task RemoveCreditCardAsync(int cardId, int clientId, CancellationToken cancellationToken = default);
+        Task<bool> UpdateCreditCardNicknameAsync(int cardId, int clientId, string nickname, CancellationToken cancellationToken = default);
         Task SetDefaultCreditCardAsync(int clientId, int cardId, CancellationToken cancellationToken = default);
         Task ClearDefaultCreditCardsAsync(int clientId, CancellationToken cancellationToken = default);
     }
