@@ -180,6 +180,7 @@ else
                                         {
                                             PaymentClientDestination.PaymentSuccess => ActionNames.PaymentSuccess,
                                             PaymentClientDestination.PaymentSummary => ActionNames.PaymentSummary,
+                                            PaymentClientDestination.PaymentSettlement => ActionNames.PaymentSettlement,
                                             _ => ActionNames.PaymentDetails
                                         };
                                         <a href="@Url.Action(actionName, ControllerNames.Client, new { id = payment.PaymentId })" class="btn btn-sm btn-primary">

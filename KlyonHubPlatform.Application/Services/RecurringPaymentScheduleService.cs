@@ -1,5 +1,7 @@
 using KlyonHubPlatform.Application.DTOs.Payments;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
+using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
 using KlyonHubPlatform.Domain.Entities;
 using KlyonHubPlatform.Infra.Data.Context;
@@ -9,6 +11,7 @@ namespace KlyonHubPlatform.Application.Services
 {
     /// <summary>
     /// Calcula próximas parcelas previstas para assinaturas recorrentes quando ainda não há cobrança real no banco.
+    /// Prioriza o pagamento pago local (SnapshotBillingCycle / método / valor) sobre assinatura Asaas residual órfã.
     /// </summary>
     public class RecurringPaymentScheduleService : IRecurringPaymentScheduleService
     {
@@ -43,20 +46,26 @@ namespace KlyonHubPlatform.Application.Services
 
             foreach (var subscription in subscriptions)
             {
-                var contract = subscription.Contract;
+                var contract = subscription.Contract!;
+                var payments = subscription.Payments ?? Enumerable.Empty<Payment>();
+                var lastPaid = GetLastPaid(payments);
                 var plan = contract.CardPlanType;
-                if (!IsRecurringPlan(plan))
+                var isAsaasSub = IsAsaasManagedSubscription(subscription);
+                if (!IsRecurringPlan(plan) && !isAsaasSub)
                     continue;
 
-                var nextDueDate = ResolveNextDueDate(subscription, contract, subscription.Payments);
+                var billingCycle = ResolveBillingCycle(lastPaid, subscription, contract);
+                var nextDueDate = ResolveNextDueDate(subscription, lastPaid, billingCycle);
                 if (!nextDueDate.HasValue)
                     continue;
 
-                if (HasVisibleFutureCharge(subscription.Payments))
+                if (HasVisibleFutureCharge(payments))
                     continue;
 
-                var amount = ResolveAmount(subscription, contract);
-                var isPixAutomatic = plan!.IsPixAutomatic();
+                var amount = ResolveAmount(subscription, contract, lastPaid, billingCycle);
+                var predictedMethod = ResolvePredictedMethod(plan, lastPaid);
+                var isPixAutomatic = predictedMethod == PaymentMethod.PIX && plan.IsPixAutomatic();
+                var (statusLabel, explanation) = ResolvePredictedLabels(isPixAutomatic, predictedMethod, billingCycle);
 
                 predicted.Add(new PredictedPaymentDto
                 {
@@ -65,12 +74,10 @@ namespace KlyonHubPlatform.Application.Services
                     ContractNumber = contract.ContractNumber,
                     Address = contract.CoworkingAddress?.Address ?? contract.SnapshotAddress,
                     Amount = amount,
-                    Method = isPixAutomatic ? PaymentMethod.PIX : PaymentMethod.CreditCard,
+                    Method = predictedMethod,
                     DueDate = nextDueDate.Value,
-                    StatusLabel = isPixAutomatic ? "Aguardando emissão" : "Previsto",
-                    Explanation = isPixAutomatic
-                        ? "Cobrança PIX Automático emitida 2–10 dias úteis antes do vencimento."
-                        : "Próxima parcela da assinatura será cobrada automaticamente no seu cartão cadastrado."
+                    StatusLabel = statusLabel,
+                    Explanation = explanation
                 });
             }
 
@@ -79,32 +86,88 @@ namespace KlyonHubPlatform.Application.Services
                 .ToList();
         }
 
+        private static Payment? GetLastPaid(IEnumerable<Payment> payments) =>
+            payments
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .OrderByDescending(p => p.DueDate)
+                .ThenByDescending(p => p.PaidAt)
+                .ThenByDescending(p => p.Id)
+                .FirstOrDefault();
+
         private static bool IsRecurringPlan(ContractCardPlanType? plan) =>
             plan is ContractCardPlanType.CardMonthly
                 or ContractCardPlanType.Card1x
                 or ContractCardPlanType.PixMonthly
                 or ContractCardPlanType.PixAnnual;
 
+        private static bool IsAsaasManagedSubscription(Subscription subscription) =>
+            !string.IsNullOrWhiteSpace(subscription.ExternalSubscriptionId)
+            && subscription.ExternalSubscriptionId.StartsWith("sub_", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Ciclo efetivo: Snapshot do pagamento pago → CardPlanType do contrato → BillingCycle da assinatura.
+        /// Ignora sub Asaas/PIX mensal órfã quando o pagamento pago indica anual.
+        /// </summary>
+        private static string? ResolveBillingCycle(
+            Payment? lastPaid,
+            Subscription subscription,
+            Contract contract)
+        {
+            if (lastPaid != null)
+            {
+                if (BillingCycleConstants.IsMonthly(lastPaid.SnapshotBillingCycle))
+                    return BillingCycleConstants.Monthly;
+                if (BillingCycleConstants.IsYearly(lastPaid.SnapshotBillingCycle))
+                    return BillingCycleConstants.Yearly;
+            }
+
+            var plan = contract.CardPlanType;
+            if (plan == ContractCardPlanType.CardMonthly || plan == ContractCardPlanType.PixMonthly)
+                return BillingCycleConstants.Monthly;
+            if (plan.IsAnnualBillingCycle())
+                return BillingCycleConstants.Yearly;
+
+            if (BillingCycleConstants.IsMonthly(subscription.BillingCycle))
+                return BillingCycleConstants.Monthly;
+            if (BillingCycleConstants.IsYearly(subscription.BillingCycle))
+                return BillingCycleConstants.Yearly;
+
+            // PIX tradicional (None) em assinatura Asaas = mensal, salvo snapshot anual no pago.
+            if (plan == ContractCardPlanType.None || plan == null)
+            {
+                if (lastPaid != null)
+                {
+                    var fromPaid = PaymentNavigationHelper.ResolveEffectiveBillingCycle(lastPaid);
+                    if (fromPaid != null)
+                        return fromPaid;
+                }
+
+                return BillingCycleConstants.Monthly;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Próximo vencimento a partir do último pago + ciclo local.
+        /// Não confia em NextBillingDate de sub Asaas residual (ex.: PIX mensal órfã após cartão anual).
+        /// </summary>
         private static DateTime? ResolveNextDueDate(
             Subscription subscription,
-            Contract contract,
-            IEnumerable<Payment> subscriptionPayments)
+            Payment? lastPaid,
+            string? billingCycle)
         {
+            if (lastPaid != null)
+            {
+                return BillingCycleConstants.IsYearly(billingCycle)
+                    ? lastPaid.DueDate.Date.AddYears(1)
+                    : lastPaid.DueDate.Date.AddMonths(1);
+            }
+
             if (subscription.NextBillingDate > DateTime.MinValue.AddYears(1))
                 return subscription.NextBillingDate.Date;
 
-            var lastPaid = subscriptionPayments
-                .Where(p => p.Status == PaymentStatus.Paid)
-                .OrderByDescending(p => p.DueDate)
-                .ThenByDescending(p => p.PaidAt)
-                .FirstOrDefault();
-
-            if (lastPaid == null)
-                return null;
-
-            return contract.CardPlanType.IsAnnualBillingCycle()
-                ? lastPaid.DueDate.Date.AddYears(1)
-                : lastPaid.DueDate.Date.AddMonths(1);
+            return null;
         }
 
         private static bool HasVisibleFutureCharge(IEnumerable<Payment> subscriptionPayments) =>
@@ -113,10 +176,85 @@ namespace KlyonHubPlatform.Application.Services
                 || p.Status == PaymentStatus.Processing
                 || p.Status == PaymentStatus.AwaitingValidation);
 
-        private decimal ResolveAmount(Subscription subscription, Contract contract)
+        /// <summary>
+        /// Meio vigente: último pagamento pago (não cancelado/falho residual), senão plano do contrato.
+        /// </summary>
+        private static PaymentMethod ResolvePredictedMethod(
+            ContractCardPlanType? plan,
+            Payment? lastPaid)
         {
+            if (lastPaid != null)
+                return lastPaid.Method;
+
+            if (plan.IsPixAutomatic()
+                || plan == ContractCardPlanType.PixMonthly
+                || plan == ContractCardPlanType.PixAnnual
+                || plan == ContractCardPlanType.None)
+                return PaymentMethod.PIX;
+
+            if (plan == ContractCardPlanType.CardMonthly || plan == ContractCardPlanType.Card1x)
+                return PaymentMethod.CreditCard;
+
+            return PaymentMethod.CreditCard;
+        }
+
+        private static (string StatusLabel, string Explanation) ResolvePredictedLabels(
+            bool isPixAutomatic,
+            PaymentMethod method,
+            string? billingCycle)
+        {
+            var isYearly = BillingCycleConstants.IsYearly(billingCycle);
+            var periodLabel = isYearly ? "anual" : "mensal";
+
+            if (isPixAutomatic)
+            {
+                return (
+                    "Aguardando emissão",
+                    isYearly
+                        ? "Cobrança PIX Automático anual emitida 2–10 dias úteis antes do vencimento."
+                        : "Cobrança PIX Automático emitida 2–10 dias úteis antes do vencimento.");
+            }
+
+            return method switch
+            {
+                PaymentMethod.PIX => (
+                    "Previsto",
+                    $"O Asaas emitirá um QR Code PIX {periodLabel} pela assinatura. Pague cada cobrança em Meus Pagamentos."),
+                PaymentMethod.BankTransfer => (
+                    "Previsto",
+                    $"O Asaas emitirá um boleto {periodLabel} pela assinatura. Pague cada cobrança em Meus Pagamentos."),
+                _ => (
+                    "Previsto",
+                    isYearly
+                        ? "Próxima cobrança anual será debitada automaticamente no seu cartão cadastrado."
+                        : "Próxima parcela da assinatura será cobrada automaticamente no seu cartão cadastrado.")
+            };
+        }
+
+        private decimal ResolveAmount(
+            Subscription subscription,
+            Contract contract,
+            Payment? lastPaid,
+            string? billingCycle)
+        {
+            // Valor do ciclo vigente = o que o cliente pagou (ex.: 675 anual), não parcela residual PIX.
+            if (lastPaid != null && lastPaid.Amount > 0)
+                return lastPaid.Amount;
+
             if (subscription.MonthlyAmount > 0)
                 return subscription.MonthlyAmount;
+
+            var isMonthly = BillingCycleConstants.IsMonthly(billingCycle)
+                || contract.CardPlanType.IsMonthlyInstallmentPlan()
+                || (contract.CardPlanType == ContractCardPlanType.None
+                    && !BillingCycleConstants.IsYearly(billingCycle));
+
+            if (isMonthly)
+            {
+                return _addressPricingService.GetMonthlyInstallment(
+                    contract.SnapshotListPrice,
+                    contract.SnapshotCardMonthlySurchargePercent);
+            }
 
             return _addressPricingService.GetChargeAmount(
                 contract.SnapshotListPrice,

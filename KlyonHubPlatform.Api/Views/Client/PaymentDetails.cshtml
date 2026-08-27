@@ -24,7 +24,6 @@
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
     var showPixMonthlyInDropdown = !hiddenPaymentOptions.Contains("PixMonthly");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
-    var showPixInDropdown = showPixAnnualInDropdown || showPixMonthlyInDropdown || showPixSingleInDropdown;
     var snapshotListPrice = ViewBag.SnapshotListPrice as decimal? ?? (contract?.SnapshotListPrice > 0 ? contract.SnapshotListPrice : Model.SnapshotListPrice > 0 ? Model.SnapshotListPrice : Model.Amount);
     var snapshotPrice1x = ViewBag.SnapshotPrice1x as decimal? ?? snapshotListPrice;
     var snapshotPriceMonthly = ViewBag.SnapshotPriceMonthly as decimal? ?? snapshotListPrice;
@@ -36,14 +35,33 @@
     var addressHasCard1x = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("Card1x");
     var addressHasCardMonthly = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("CardMonthly");
     var cardCheckoutPlanOptions = PaymentNavigationHelper.ResolveCreditCardCheckoutPlanOptions(Model, addressHasCard1x, addressHasCardMonthly);
-    var showCreditCardInDropdown = (addressHasCard1x || addressHasCardMonthly) && (!hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly"));
-    var showCard1x = cardCheckoutPlanOptions.ShowCard1x;
-    var showCardMonthly = cardCheckoutPlanOptions.ShowCardMonthly;
-    var showBoletoInDropdown = !hiddenPaymentOptions.Contains("Boleto");
+    var filteredOptions = PaymentNavigationHelper.FilterPaymentOptionsByBillingCycle(
+        Model,
+        showPixAnnualInDropdown,
+        showPixMonthlyInDropdown,
+        showPixSingleInDropdown,
+        cardCheckoutPlanOptions.ShowCard1x,
+        cardCheckoutPlanOptions.ShowCardMonthly,
+        showBoleto: !hiddenPaymentOptions.Contains("Boleto"));
+    showPixAnnualInDropdown = filteredOptions.ShowPixAnnual;
+    showPixMonthlyInDropdown = filteredOptions.ShowPixMonthly;
+    showPixSingleInDropdown = filteredOptions.ShowPixSingle;
+    var showPixInDropdown = showPixAnnualInDropdown || showPixMonthlyInDropdown || showPixSingleInDropdown;
+    var showCard1x = filteredOptions.ShowCard1x;
+    var showCardMonthly = filteredOptions.ShowCardMonthly;
+    var showCreditCardInDropdown = showCard1x || showCardMonthly;
+    var showBoletoInDropdown = filteredOptions.ShowBoleto;
+    var canChangePaymentMethod = isPaymentOwner && PaymentNavigationHelper.CanChangePaymentMethod(Model);
+    var isMonthlyBillingCycle = PaymentNavigationHelper.IsMonthlyBillingCycle(Model);
+    var isFirstContractPayment = PaymentNavigationHelper.IsFirstContractPayment(Model);
+    var isYearlyBillingCycle = PaymentNavigationHelper.IsYearlyBillingCycle(Model);
     var currentPixPlanValue = isPixAnnual ? "PixAnnual" : (isPixMonthly ? "PixMonthly" : "PIX");
     var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
+    var currentBoletoPlanValue = isMonthlyBillingCycle ? "monthly" : "yearly";
+    var boletoPriceAnnual = ViewBag.SnapshotBoletoPrice as decimal? ?? snapshotPrice1x;
+    var boletoPriceMonthly = snapshotPriceMonthly;
     // Quando qualquer opção está em HiddenPaymentOptions (PixAnnual, PixMonthly, PIX, Card1x, CardMonthly, Boleto): carregar a tela da primeira opção disponível (fallback)
-    var showPixCard = isPending && (
+    var showPixCard = (isPending || (isFailed && canChangePaymentMethod)) && (
         (Model.Method == PaymentMethod.PIX && showPixInDropdown) ||
         (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showPixInDropdown) ||
         (Model.Method == PaymentMethod.BankTransfer && !showBoletoInDropdown && showPixInDropdown));
@@ -56,7 +74,7 @@
             Model, snapshotPrice1x, snapshotPriceMonthly, showCard1x, showCardMonthly, useSnapshotPrices: isPending)
         : null;
     var checkoutCardPlanOption = creditCardCheckoutDisplay?.PlanOption ?? "1x";
-    var showBoletoSection = isPending && (
+    var showBoletoSection = (isPending || (isFailed && canChangePaymentMethod && Model.Method == PaymentMethod.BankTransfer)) && (
         (Model.Method == PaymentMethod.BankTransfer && showBoletoInDropdown) ||
         (Model.Method == PaymentMethod.PIX && !showPixInDropdown && !showCreditCardInDropdown && showBoletoInDropdown) ||
         (Model.Method == PaymentMethod.CreditCard && !showCreditCardInDropdown && showBoletoInDropdown));
@@ -106,14 +124,14 @@
         <i class="bi bi-eye"></i> <strong>Visualização somente leitura.</strong> Você está visualizando este pagamento como administrador; nenhum campo pode ser alterado.
     </div>
 }
-@if (isPending && isPaymentOwner && showPixInDropdown)
+@if (isPending && isPaymentOwner && showPixInDropdown && canChangePaymentMethod)
 {
     <div class="alert alert-primary border-0 shadow-sm mb-4" role="status">
         <div class="d-flex align-items-start gap-2">
             <i class="bi bi-qr-code fs-4"></i>
             <div>
                 <strong>PIX recomendado</strong>: confirmação rápida e sem taxas extras.
-                <span class="d-block small mt-1 opacity-75">Cartão e boleto ficam em <em>Outras formas de pagamento</em>, abaixo do QR Code.</span>
+                <span class="d-block small mt-1 opacity-75">Cartão e boleto ficam no seletor <em>Método de Pagamento</em>.</span>
             </div>
         </div>
     </div>
@@ -200,6 +218,23 @@
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8">
+                        @{
+                            // PIX pendente: exibir valor da opção selecionada (parcela mensal / anual),
+                            // não um Amount legado ainda igual ao SnapshotListPrice anual.
+                            decimal displayCheckoutAmount = Model.Amount;
+                            if (isPending && Model.Method == PaymentMethod.PIX)
+                            {
+                                var pixPlanForValor = contract?.CardPlanType;
+                                if (pixPlanForValor == ContractCardPlanType.PixAnnual)
+                                    displayCheckoutAmount = snapshotPrice1x;
+                                else
+                                    displayCheckoutAmount = snapshotPriceMonthly;
+                            }
+                            else if (isPending && Model.Method == PaymentMethod.BankTransfer)
+                            {
+                                displayCheckoutAmount = isMonthlyBillingCycle ? snapshotPriceMonthly : boletoPriceAnnual;
+                            }
+                        }
                         @if (showCreditCardCheckout && creditCardCheckoutDisplay != null)
                         {
                             var price1xVal = snapshotPrice1x;
@@ -233,43 +268,51 @@
                         }
                         else
                         {
-                            <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                            var boletoValorMonthly = snapshotPriceMonthly.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
+                            var boletoValorAnnual = boletoPriceAnnual.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
+                            <div id="paymentInfoValorContainer"
+                                 data-boleto-price-monthly="@boletoValorMonthly"
+                                 data-boleto-price-annual="@boletoValorAnnual"
+                                 data-initial-boleto-plan="@currentBoletoPlanValue">
+                                <h4 class="text-primary mb-0">R$ <span id="paymentInfoValorDisplay">@displayCheckoutAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></h4>
+                                @{
+                                    string? valorRecurrenceLabel = null;
+                                    if (Model.Method == PaymentMethod.PIX)
+                                    {
+                                        var pixPlan = contract?.CardPlanType;
+                                        valorRecurrenceLabel = PaymentNavigationHelper.FormatBillingRecurrenceLabel(
+                                            displayCheckoutAmount,
+                                            isMonthly: pixPlan != ContractCardPlanType.PixAnnual);
+                                    }
+                                    else if (Model.Method == PaymentMethod.BankTransfer)
+                                    {
+                                        valorRecurrenceLabel = PaymentNavigationHelper.FormatBillingRecurrenceLabel(
+                                            displayCheckoutAmount, isMonthly: isMonthlyBillingCycle);
+                                    }
+                                    else if (Model.Method == PaymentMethod.CreditCard)
+                                    {
+                                        valorRecurrenceLabel = PaymentNavigationHelper.ResolveCreditCardRecurrenceLabelForPayment(Model);
+                                    }
+                                }
+                                @if (!string.IsNullOrEmpty(valorRecurrenceLabel))
+                                {
+                                    <small class="text-muted d-block mt-1" id="paymentInfoValorLabel">@valorRecurrenceLabel</small>
+                                }
+                            </div>
                             @if (Model.SnapshotDiscountAmount > 0)
                             {
-                                var grossBeforeDiscount = Model.Amount + Model.SnapshotDiscountAmount;
+                                var grossBeforeDiscount = displayCheckoutAmount + Model.SnapshotDiscountAmount;
                                 <small class="text-success d-block mt-1">
                                     <i class="bi bi-tag"></i> Cupom @Model.PromoCodeSnapshot aplicado: desconto de R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)
-                                    @if (grossBeforeDiscount > Model.Amount)
+                                    @if (grossBeforeDiscount > displayCheckoutAmount)
                                     {
                                         <span class="text-muted">(de R$ @grossBeforeDiscount.ToString(NumberFormatConstants.CurrencyTwoDecimals))</span>
                                     }
                                 </small>
                             }
-                            @if (Model.Method == PaymentMethod.PIX)
+                            @if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
                             {
-                                var pixPlan = contract?.CardPlanType;
-                                if (pixPlan == ContractCardPlanType.PixMonthly)
-                                {
-                                    <small class="text-muted d-block mt-1">recorrência mensal</small>
-                                }
-                                else if (pixPlan == ContractCardPlanType.PixAnnual || pixPlan == ContractCardPlanType.None || !pixPlan.HasValue)
-                                {
-                                    var pixMonthlyEq = Model.Amount / 12m;
-                                    <small class="text-muted d-block mt-1">@(pixPlan == ContractCardPlanType.PixAnnual ? "recorrência anual" : "pagamento único (anual)")</small>
-                                    <small class="text-muted d-block mt-1">equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</small>
-                                }
-                            }
-                            else if (Model.Method == PaymentMethod.CreditCard)
-                            {
-                                var creditCardRecurrenceLabel = PaymentNavigationHelper.ResolveCreditCardRecurrenceLabelForPayment(Model);
-                                if (!string.IsNullOrEmpty(creditCardRecurrenceLabel))
-                                {
-                                    <small class="text-muted d-block mt-1">@creditCardRecurrenceLabel</small>
-                                }
-                                @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
-                                {
-                                    <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
-                                }
+                                <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
                             }
                         }
                     </dd>
@@ -334,7 +377,7 @@
 
                     <dt class="col-sm-4">Método de Pagamento:</dt>
                     <dd class="col-sm-8">
-                        @if (isPending && isPaymentOwner)
+                        @if (canChangePaymentMethod)
                         {
                             @if (!showPixInDropdown && !showCreditCardInDropdown && !showBoletoInDropdown)
                             {
@@ -342,7 +385,14 @@
                             }
                             else
                             {
-                            var defaultPixPlanForSwitch = showPixAnnualInDropdown ? "PixAnnual" : (showPixMonthlyInDropdown ? "PixMonthly" : "PIX");
+                            var defaultPixPlanForSwitch = showPixSingleInDropdown ? "PIX" : (showPixMonthlyInDropdown ? "PixMonthly" : "PixAnnual");
+                            @if (isFailed && isMonthlyBillingCycle)
+                            {
+                                <div class="alert alert-info py-2 small mb-2">
+                                    <i class="bi bi-info-circle"></i>
+                                    Cobrança mensal: você pode trocar o meio de pagamento. Parcelas futuras e pendentes serão atualizadas no Asaas; históricas permanecem intactas.
+                                </div>
+                            }
                             <form method="post" action="@Url.Action("UpdatePaymentMethod", "Client")" id="paymentMethodForm" class="d-inline" data-action-url="@Url.Action("UpdatePaymentMethod", "Client")" data-default-pix-plan="@defaultPixPlanForSwitch">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="paymentId" value="@Model.Id" />
@@ -396,12 +446,12 @@
                                     pixPlanChecked = showPixAnnualInDropdown ? "PixAnnual" : (showPixMonthlyInDropdown ? "PixMonthly" : pixPlanChecked);
                                 <div class="mt-3 pt-2 border-top" id="pagePixPlanOptionWrap" data-current-pix-plan="@currentPixPlanValue">
                                     <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
-                                    @if (showPixAnnualInDropdown)
+                                    @if (showPixSingleInDropdown)
                                     {
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @(pixPlanChecked == "PixAnnual" ? "checked" : "")>
-                                            <label class="form-check-label" for="pagePixPlanAnnual">
-                                                PIX Automático (anual): autorize uma vez; débitos anuais após a 1ª liquidação. R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @(pixPlanChecked == "PIX" ? "checked" : "")>
+                                            <label class="form-check-label" for="pagePixPlanSingle">
+                                                PIX (assinatura mensal): o Asaas emite um QR todo mês. R$ @pixPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)
                                             </label>
                                         </div>
                                     }
@@ -414,12 +464,12 @@
                                             </label>
                                         </div>
                                     }
-                                    @if (showPixSingleInDropdown)
+                                    @if (showPixAnnualInDropdown)
                                     {
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanSingle" value="PIX" @(pixPlanChecked == "PIX" ? "checked" : "")>
-                                            <label class="form-check-label" for="pagePixPlanSingle">
-                                                PIX (pagamento único): pague o primeiro ano via PIX; depois você pode renovar manualmente ou escolher outra forma. R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)
+                                            <input class="form-check-input" type="radio" name="pagePixPlanOption" id="pagePixPlanAnnual" value="PixAnnual" @(pixPlanChecked == "PixAnnual" ? "checked" : "")>
+                                            <label class="form-check-label" for="pagePixPlanAnnual">
+                                                PIX Automático (anual): autorize uma vez; débitos anuais após a 1ª liquidação. R$ @pixPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pixAnnualMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)
                                             </label>
                                         </div>
                                     }
@@ -429,8 +479,6 @@
                             {
                                 var pagePrice1x = snapshotPrice1x;
                                 var pagePriceMonthly = snapshotPriceMonthly;
-                                var pageHas1x = showCard1x;
-                                var pageHasMonthly = showCardMonthly;
                                 var pageShowCard1x = showCard1x;
                                 var pageShowCardMonthly = showCardMonthly;
                                 var pageCardFirstChecked = checkoutCardPlanOption;
@@ -443,14 +491,6 @@
                                     {
                                         <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
                                         <div id="pageCardPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Selecione a forma de cobrança antes de clicar em "Pagar com cartão".</div>
-                                        @if (pageShowCard1x)
-                                        {
-                                            var pageMonthly1x = pagePrice1x / 12m;
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" @(pageCardFirstChecked == "1x" ? "checked" : "")>
-                                                <label class="form-check-label" for="pageCardPlan1x">1x à vista (recorrência anual): R$ @pagePrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
-                                            </div>
-                                        }
                                         @if (pageShowCardMonthly)
                                         {
                                             <div class="form-check">
@@ -458,7 +498,34 @@
                                                 <label class="form-check-label" for="pageCardPlanMonthly">Mensal (recorrência mensal): R$ @pagePriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                                             </div>
                                         }
+                                        @if (pageShowCard1x)
+                                        {
+                                            var pageMonthly1x = pagePrice1x / 12m;
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="pageCardPlanOption" id="pageCardPlan1x" value="1x" @(pageCardFirstChecked == "1x" ? "checked" : "")>
+                                                <label class="form-check-label" for="pageCardPlan1x">Anual (recorrência anual): R$ @pagePrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @pageMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
+                                            </div>
+                                        }
                                     }
+                                </div>
+                            }
+                            @if (showBoletoSection && showBoletoInDropdown)
+                            {
+                                var boletoPlanChecked = currentBoletoPlanValue;
+                                <div class="mt-3 pt-2 border-top" id="pageBoletoPlanOptionWrap" data-current-boleto-plan="@currentBoletoPlanValue">
+                                    <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="pageBoletoPlanOption" id="pageBoletoPlanMonthly" value="monthly" @(boletoPlanChecked == "monthly" ? "checked" : "")>
+                                        <label class="form-check-label" for="pageBoletoPlanMonthly">
+                                            Boleto (assinatura mensal): o Asaas emite um boleto todo mês. R$ @boletoPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="pageBoletoPlanOption" id="pageBoletoPlanYearly" value="yearly" @(boletoPlanChecked == "yearly" ? "checked" : "")>
+                                        <label class="form-check-label" for="pageBoletoPlanYearly">
+                                            Boleto (assinatura anual): R$ @boletoPriceAnnual.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @((boletoPriceAnnual / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals))/mês)
+                                        </label>
+                                    </div>
                                 </div>
                             }
                             }
@@ -472,7 +539,7 @@
                                         ? "PIX Automático (anual)"
                                         : contract?.CardPlanType == ContractCardPlanType.PixMonthly
                                             ? "PIX Automático (mensal)"
-                                            : "PIX (pagamento único)";
+                                            : "PIX (assinatura mensal)";
                                     <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabelRo</span>
                                     break;
                                 case PaymentMethod.CreditCard:
@@ -500,7 +567,7 @@
                                         ? "PIX Automático (anual)"
                                         : contract?.CardPlanType == ContractCardPlanType.PixMonthly
                                             ? "PIX Automático (mensal)"
-                                            : "PIX (pagamento único)";
+                                            : "PIX (assinatura mensal)";
                                     <span class="badge bg-primary"><i class="bi bi-qr-code"></i> @pixLabel</span>
                                     break;
                                 case PaymentMethod.CreditCard:
@@ -745,7 +812,22 @@
                         }
                         else
                         {
-                            <p class="text-muted">Gerando boleto...</p>
+                            var boletoGenerating = ViewBag.BoletoGenerating as bool? ?? true;
+                            <div class="alert alert-info mb-3" id="boletoGeneratingBox" data-auto-refresh="@(boletoGenerating ? "1" : "0")">
+                                <i class="bi bi-hourglass-split"></i>
+                                <strong>Gerando boleto...</strong>
+                                <p class="mb-2 mt-2">O Asaas ainda está emitindo a linha digitável. A página atualiza automaticamente em alguns segundos.</p>
+                                @if (isPaymentOwner)
+                                {
+                                    <form method="post" action="@Url.Action("GenerateBoletoCode", "Client")" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                            <i class="bi bi-bank"></i> Gerar boleto
+                                        </button>
+                                    </form>
+                                }
+                            </div>
                         }
                     </div>
                 </div>
@@ -1601,11 +1683,22 @@
 
         bindPaymentMethodSelectSnapshot(document.getElementById('paymentMethodSelect') || document.querySelector('#paymentMethodForm select[name="method"]'));
 
+        function restoreBoletoPlanRadio(previousPlan) {
+            if (!previousPlan) return;
+            const wrap = document.getElementById('pageBoletoPlanOptionWrap');
+            if (!wrap) return;
+            const prevRadio = wrap.querySelector('input[name="pageBoletoPlanOption"][value="' + previousPlan + '"]');
+            if (prevRadio) prevRadio.checked = true;
+            wrap.setAttribute('data-current-boleto-plan', previousPlan);
+        }
+
         window.updatePaymentMethod = async function(selectElement) {
             // Método vigente confirmado no pagamento (não o option recém-clicado)
             const previousValue = (confirmedPaymentMethod || selectElement.dataset.previousValue || '').trim();
             const pixPreviousPlan = selectElement.dataset.pixPreviousPlan || '';
             const pixNewPlan = selectElement.dataset.pixNewPlan || '';
+            const boletoPreviousPlan = selectElement.dataset.boletoPreviousPlan || '';
+            const boletoNewPlan = selectElement.dataset.boletoNewPlan || '';
             
             const confirmed = await showConfirm(
                 'Deseja alterar o método de pagamento? Isso pode gerar um novo código de pagamento dependendo do método selecionado.',
@@ -1623,9 +1716,24 @@
                     const pixPlanRadio = document.querySelector('input[name="pagePixPlanOption"]:checked');
                     const defaultPixPlan = (selectElement.dataset.defaultPixPlan
                         || (form && form.getAttribute('data-default-pix-plan'))
-                        || 'PixAnnual').trim();
+                        || 'PIX').trim();
                     formData.set('method', 'PIX');
                     formData.set('pixPlanType', (pixPlanRadio && pixPlanRadio.value) ? pixPlanRadio.value : defaultPixPlan);
+                } else if (selectElement && selectElement.value === 'BankTransfer') {
+                    // Radios de boleto só existem com Method=BankTransfer. Ao sair de PIX/cartão,
+                    // preservar ciclo atual (mensal se PIX mensal) — não forçar yearly.
+                    const boletoPlanRadio = document.querySelector('input[name="pageBoletoPlanOption"]:checked');
+                    const boletoWrap = document.getElementById('pageBoletoPlanOptionWrap');
+                    const defaultBoletoPlan = (boletoWrap && boletoWrap.getAttribute('data-current-boleto-plan'))
+                        || '@currentBoletoPlanValue'
+                        || 'monthly';
+                    formData.set('method', 'BankTransfer');
+                    formData.set('boletoPlanType', (boletoPlanRadio && boletoPlanRadio.value) ? boletoPlanRadio.value : defaultBoletoPlan);
+                } else if (selectElement && selectElement.value === 'CreditCard') {
+                    const cardPlanRadio = document.querySelector('input[name="pageCardPlanOption"]:checked');
+                    formData.set('method', 'CreditCard');
+                    if (cardPlanRadio && cardPlanRadio.value)
+                        formData.set('cardPlanOption', cardPlanRadio.value);
                 }
                 let actionUrl = form.getAttribute('data-action-url') || form.action;
                 if (actionUrl && actionUrl.startsWith('/')) {
@@ -1635,6 +1743,19 @@
                     || document.querySelector('input[name="__RequestVerificationToken"]')?.value;
                 if (!token) {
                     restorePaymentMethodSelect(selectElement, previousValue);
+                    if (pixPreviousPlan) {
+                        const wrap = document.getElementById('pagePixPlanOptionWrap');
+                        if (wrap) {
+                            const prevRadio = wrap.querySelector('input[name="pagePixPlanOption"][value="' + pixPreviousPlan + '"]');
+                            if (prevRadio) prevRadio.checked = true;
+                            wrap.setAttribute('data-current-pix-plan', pixPreviousPlan);
+                        }
+                        selectElement.dataset.pixNewPlan = '';
+                    }
+                    if (boletoPreviousPlan) {
+                        restoreBoletoPlanRadio(boletoPreviousPlan);
+                        selectElement.dataset.boletoNewPlan = '';
+                    }
                     showToast('Token de segurança não encontrado. Recarregue a página e tente novamente.', 'error');
                     return;
                 }
@@ -1711,6 +1832,10 @@
                             }
                             selectElement.dataset.pixNewPlan = '';
                         }
+                        if (boletoPreviousPlan) {
+                            restoreBoletoPlanRadio(boletoPreviousPlan);
+                            selectElement.dataset.boletoNewPlan = '';
+                        }
                         let errMsg = 'Erro ao atualizar método de pagamento. Por favor, tente novamente.';
                         try {
                             const data = await response.json();
@@ -1729,6 +1854,10 @@
                         }
                         selectElement.dataset.pixNewPlan = '';
                     }
+                    if (boletoPreviousPlan) {
+                        restoreBoletoPlanRadio(boletoPreviousPlan);
+                        selectElement.dataset.boletoNewPlan = '';
+                    }
                     showToast('Erro ao atualizar método de pagamento: ' + error.message, 'error');
                     console.error('Erro:', error);
                 } finally {
@@ -1744,6 +1873,10 @@
                         wrap.setAttribute('data-current-pix-plan', pixPreviousPlan);
                     }
                     selectElement.dataset.pixNewPlan = '';
+                }
+                if (boletoPreviousPlan) {
+                    restoreBoletoPlanRadio(boletoPreviousPlan);
+                    selectElement.dataset.boletoNewPlan = '';
                 }
             }
         }
@@ -1944,6 +2077,37 @@
                 var displayEl = document.getElementById('paymentInfoValorDisplay');
                 var labelEl = document.getElementById('paymentInfoValorLabel');
                 if (!container || !displayEl) return;
+
+                // Boleto: valor segue o plano confirmado (data-current-boleto-plan), não o radio pendente de confirm
+                var boletoWrap = document.getElementById('pageBoletoPlanOptionWrap');
+                var boletoMonthly = container.getAttribute('data-boleto-price-monthly');
+                var boletoAnnual = container.getAttribute('data-boleto-price-annual');
+                if (boletoMonthly || boletoAnnual) {
+                    var boletoOption = (boletoWrap && boletoWrap.getAttribute('data-current-boleto-plan'))
+                        || container.getAttribute('data-initial-boleto-plan')
+                        || 'monthly';
+                    var boletoAmount = 0;
+                    if (boletoOption === 'monthly' && boletoMonthly) {
+                        var bm = parseFloat(boletoMonthly);
+                        if (!isNaN(bm)) boletoAmount = bm;
+                    } else if (boletoAnnual) {
+                        var ba = parseFloat(boletoAnnual);
+                        if (!isNaN(ba)) boletoAmount = ba;
+                    }
+                    if (boletoAmount > 0) {
+                        displayEl.textContent = boletoAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        if (labelEl) {
+                            if (boletoOption === 'monthly') {
+                                labelEl.textContent = 'recorrência mensal';
+                            } else {
+                                var beq = (boletoAmount / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                labelEl.textContent = 'recorrência anual, equivale a R$ ' + beq + '/mês';
+                            }
+                        }
+                        return;
+                    }
+                }
+
                 var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
                 var defaultOption = container.getAttribute('data-initial-card-plan') || '1x';
                 var option = (pagePlan && pagePlan.value) ? pagePlan.value : defaultOption;
@@ -1957,6 +2121,7 @@
                     var x = parseFloat(price1x);
                     if (!isNaN(x)) amount = x;
                 }
+                if (amount <= 0) return;
                 displayEl.textContent = amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 if (labelEl) {
                     if (option === 'monthly') {
@@ -2006,6 +2171,19 @@
                         // Garante que o método atual seja tratado como PIX no backend
                         select.value = 'PIX';
                         window.updatePaymentMethod(select);
+                    }
+                }
+                if (e.target && e.target.name === 'pageBoletoPlanOption') {
+                    // Mesmo padrão do PIX: só confirma → POST → sync Valor. Cancelar reverte radio/Valor.
+                    var selectBoleto = document.querySelector('select[name="method"]');
+                    var boletoWrap = document.getElementById('pageBoletoPlanOptionWrap');
+                    if (selectBoleto && boletoWrap) {
+                        var currentBoletoPlan = boletoWrap.getAttribute('data-current-boleto-plan') || '';
+                        var newBoletoPlan = e.target.value || '';
+                        selectBoleto.dataset.boletoPreviousPlan = currentBoletoPlan;
+                        selectBoleto.dataset.boletoNewPlan = newBoletoPlan;
+                        selectBoleto.value = 'BankTransfer';
+                        window.updatePaymentMethod(selectBoleto);
                     }
                 }
             });
@@ -2899,5 +3077,14 @@
             })();
             </text>
         }
+
+        // Soft refresh enquanto boleto ainda sem linha digitável
+        (function() {
+            var box = document.getElementById('boletoGeneratingBox');
+            if (!box || box.getAttribute('data-auto-refresh') !== '1') return;
+            setTimeout(function() {
+                window.location.reload();
+            }, 8000);
+        })();
     </script>
 }

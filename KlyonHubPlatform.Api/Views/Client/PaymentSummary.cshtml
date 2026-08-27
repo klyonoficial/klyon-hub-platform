@@ -112,7 +112,11 @@
 <div class="d-flex flex-wrap gap-2">
     @if (canCheckout)
     {
-        <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = Model.Id })" class="btn btn-primary">
+        var checkoutDestination = ViewBag.CheckoutDestination as PaymentClientDestination? ?? PaymentClientDestination.PaymentDetails;
+        var checkoutAction = checkoutDestination == PaymentClientDestination.PaymentSettlement
+            ? ActionNames.PaymentSettlement
+            : ActionNames.PaymentDetails;
+        <a href="@Url.Action(checkoutAction, ControllerNames.Client, new { id = Model.Id })" class="btn btn-primary">
             <i class="bi bi-credit-card"></i> @checkoutLabel
         </a>
     }

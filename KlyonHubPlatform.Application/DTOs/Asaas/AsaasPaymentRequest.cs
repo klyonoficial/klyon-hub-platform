@@ -102,4 +102,24 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         [JsonPropertyName("mobilePhone")]
         public string? MobilePhone { get; set; }
     }
+
+    /// <summary>Body de POST /payments/{id}/payWithCreditCard — captura imediata de cobrança já existente.</summary>
+    public class AsaasPayWithCreditCardRequest
+    {
+        [JsonPropertyName("creditCard")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public AsaasCreditCard? CreditCard { get; set; }
+
+        [JsonPropertyName("creditCardHolderInfo")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public AsaasCreditCardHolderInfo? CreditCardHolderInfo { get; set; }
+
+        [JsonPropertyName("creditCardToken")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? CreditCardToken { get; set; }
+
+        [JsonPropertyName("remoteIp")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? RemoteIp { get; set; }
+    }
 }

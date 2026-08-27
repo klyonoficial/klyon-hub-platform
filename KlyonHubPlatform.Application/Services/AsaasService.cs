@@ -523,7 +523,9 @@ namespace KlyonHubPlatform.Application.Services
                             {
                                 Id = payment.Id,
                                 FormattedBarcode = identification?.IdentificationField,
-                                Barcode = identification?.IdentificationField,
+                                Barcode = !string.IsNullOrEmpty(identification?.BarCode)
+                                    ? identification.BarCode
+                                    : identification?.IdentificationField,
                                 DueDate = AsaasDateParser.TryParse(payment.DueDate),
                                 Links = !string.IsNullOrEmpty(payment.BankSlipUrl)
                                     ? new List<PagBankLink> { new PagBankLink { Rel = "bankSlip", Href = payment.BankSlipUrl } }
@@ -706,6 +708,524 @@ namespace KlyonHubPlatform.Application.Services
             };
         }
 
+        public async Task<OrderResponse> CreateSubscriptionAsync(
+            string referenceId,
+            decimal amount,
+            string billingType,
+            string cycle,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone = null,
+            PagBankAddress? clientAddress = null,
+            string? customerExternalReference = null)
+        {
+            var normalizedBilling = (billingType ?? "").Trim().ToUpperInvariant();
+            if (normalizedBilling != AsaasBillingType.Pix && normalizedBilling != AsaasBillingType.Boleto)
+                throw new ArgumentException("billingType de assinatura deve ser PIX ou BOLETO.", nameof(billingType));
+
+            var normalizedCycle = (cycle ?? "").Trim().ToUpperInvariant();
+            if (normalizedCycle != AsaasSubscriptionCycle.Monthly && normalizedCycle != AsaasSubscriptionCycle.Yearly)
+                throw new ArgumentException("Ciclo de assinatura Asaas inválido. Use MONTHLY ou YEARLY.", nameof(cycle));
+            if (amount <= 0)
+                throw new InvalidOperationException("Valor da assinatura deve ser maior que zero.");
+
+            var cpfCnpj = NormalizeCpfCnpj(clientTaxId);
+            if (string.IsNullOrEmpty(cpfCnpj) || (cpfCnpj.Length != 11 && cpfCnpj.Length != 14))
+                throw new InvalidOperationException(
+                    "CPF ou CNPJ inválido. Atualize em Meu Perfil com um CPF (11 dígitos) ou CNPJ (14 dígitos) válido, apenas números.");
+            if (cpfCnpj.Length == 11 && !IsValidCpf(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CPF com dígitos verificadores inválidos. Corrija o CPF em Meu Perfil (use um CPF válido).");
+            if (cpfCnpj.Length == 14 && !IsValidCnpj(cpfCnpj))
+                throw new InvalidOperationException(
+                    "CNPJ com dígitos verificadores inválidos. Corrija o CNPJ em Meu Perfil (use um CNPJ válido).");
+
+            var customerId = await CreateOrGetAsaasCustomerAsync(
+                clientName,
+                clientEmail,
+                cpfCnpj,
+                clientPhone,
+                clientAddress,
+                !string.IsNullOrWhiteSpace(customerExternalReference) ? customerExternalReference.Trim() : referenceId);
+
+            var nextDueDate = BrazilDateTime.Today.ToString("yyyy-MM-dd");
+            var billingLabel = normalizedBilling == AsaasBillingType.Pix ? "PIX" : "Boleto";
+            var request = new AsaasSubscriptionRequest
+            {
+                Customer = customerId,
+                BillingType = normalizedBilling,
+                Cycle = normalizedCycle,
+                Value = amount,
+                NextDueDate = nextDueDate,
+                Description = normalizedCycle == AsaasSubscriptionCycle.Monthly
+                    ? $"Assinatura mensal ({billingLabel}) - Endereço Fiscal"
+                    : $"Assinatura anual ({billingLabel}) - Endereço Fiscal",
+                ExternalReference = referenceId
+            };
+
+            _logger.LogInformation(
+                "Enviando assinatura {BillingType} ao Asaas: referenceId={ReferenceId}, cycle={Cycle}, value={Value}, customerId={CustomerId}.",
+                normalizedBilling, referenceId, normalizedCycle, amount, customerId);
+
+            var httpRequest = await CreateRequestAsync(HttpMethod.Post, "/subscriptions");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Erro ao criar assinatura Asaas ({BillingType}): {StatusCode} - {Content}",
+                    normalizedBilling, response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasError(content));
+                throw new HttpRequestException($"Erro ao criar assinatura Asaas: {response.StatusCode}");
+            }
+
+            var subscription = JsonSerializer.Deserialize<AsaasSubscriptionResponse>(content, JsonOptions);
+            if (subscription == null || string.IsNullOrEmpty(subscription.Id))
+                throw new InvalidOperationException("Resposta inválida da API Asaas ao criar assinatura.");
+
+            var firstPayment = await WaitForFirstSubscriptionPaymentAsync(subscription.Id, acceptAnyStatus: true);
+            var paymentId = firstPayment?.Id ?? subscription.Id;
+            var paymentStatus = (firstPayment?.Status ?? "").Trim().ToUpperInvariant();
+            var chargeStatus = string.IsNullOrEmpty(paymentStatus) ? "PENDING" : paymentStatus;
+
+            var orderResponse = new OrderResponse
+            {
+                Id = paymentId,
+                ReferenceId = referenceId,
+                Status = chargeStatus,
+                CreatedAt = AsaasDateParser.TryParse(subscription.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = AsaasDateParser.TryParse(firstPayment?.ConfirmedDate ?? firstPayment?.ClientPaymentDate),
+                SubscriptionId = subscription.Id
+            };
+
+            if (normalizedBilling == AsaasBillingType.Pix && !string.IsNullOrEmpty(firstPayment?.Id))
+            {
+                var pixQr = await GetPixQrCodeAsync(firstPayment.Id);
+                if (pixQr != null)
+                {
+                    orderResponse.QrCodes = new List<PagBankQrCodeResponse>
+                    {
+                        new PagBankQrCodeResponse
+                        {
+                            Id = firstPayment.Id,
+                            Text = pixQr.Payload ?? pixQr.EncodedImage,
+                            ExpirationDate = AsaasDateParser.TryParse(pixQr.ExpirationDate),
+                            Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" }
+                        }
+                    };
+                }
+            }
+            else if (normalizedBilling == AsaasBillingType.Boleto && !string.IsNullOrEmpty(firstPayment?.Id))
+            {
+                var identification = await GetIdentificationFieldAsync(firstPayment.Id);
+                orderResponse.Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = firstPayment.Id,
+                        ReferenceId = referenceId,
+                        Status = chargeStatus,
+                        CreatedAt = AsaasDateParser.TryParse(firstPayment.DateCreated) ?? DateTime.UtcNow,
+                        Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse
+                        {
+                            Type = "BOLETO",
+                            Boleto = new PagBankBoletoResponse
+                            {
+                                Id = firstPayment.Id,
+                                FormattedBarcode = identification?.IdentificationField,
+                                Barcode = !string.IsNullOrEmpty(identification?.BarCode)
+                                    ? identification.BarCode
+                                    : identification?.IdentificationField,
+                                DueDate = AsaasDateParser.TryParse(firstPayment.DueDate),
+                                Links = !string.IsNullOrEmpty(firstPayment.BankSlipUrl)
+                                    ? new List<PagBankLink> { new PagBankLink { Rel = "bankSlip", Href = firstPayment.BankSlipUrl } }
+                                    : null
+                            }
+                        }
+                    }
+                };
+            }
+
+            return orderResponse;
+        }
+
+        public async Task<AsaasSubscriptionResponse> UpdateSubscriptionAsync(
+            string asaasSubscriptionId,
+            string? billingType = null,
+            decimal? value = null,
+            string? cycle = null,
+            bool updatePendingPayments = true,
+            PagBankCard? card = null,
+            AsaasCreditCardHolderInfo? creditCardHolderInfo = null,
+            string? creditCardToken = null,
+            string? remoteIp = null)
+        {
+            if (string.IsNullOrWhiteSpace(asaasSubscriptionId))
+                throw new ArgumentException("Id da assinatura Asaas é obrigatório.", nameof(asaasSubscriptionId));
+
+            var request = new AsaasSubscriptionUpdateRequest
+            {
+                UpdatePendingPayments = updatePendingPayments
+            };
+
+            if (!string.IsNullOrWhiteSpace(billingType))
+            {
+                var normalizedBilling = billingType.Trim().ToUpperInvariant();
+                if (normalizedBilling is not (AsaasBillingType.CreditCard or AsaasBillingType.Pix or AsaasBillingType.Boleto))
+                    throw new ArgumentException("billingType inválido. Use CREDIT_CARD, PIX ou BOLETO.", nameof(billingType));
+                request.BillingType = normalizedBilling;
+            }
+
+            if (value.HasValue)
+            {
+                if (value.Value <= 0)
+                    throw new InvalidOperationException("Valor da assinatura deve ser maior que zero.");
+                request.Value = value.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(cycle))
+            {
+                var normalizedCycle = cycle.Trim().ToUpperInvariant();
+                if (normalizedCycle != AsaasSubscriptionCycle.Monthly && normalizedCycle != AsaasSubscriptionCycle.Yearly)
+                    throw new ArgumentException("Ciclo inválido. Use MONTHLY ou YEARLY.", nameof(cycle));
+                request.Cycle = normalizedCycle;
+            }
+
+            // Atualiza description para não ficar "Assinatura mensal (PIX)..." após troca para BOLETO.
+            if (!string.IsNullOrWhiteSpace(request.BillingType) || !string.IsNullOrWhiteSpace(request.Cycle))
+            {
+                var billingLabel = (request.BillingType ?? "").Trim().ToUpperInvariant() switch
+                {
+                    AsaasBillingType.Boleto => "Boleto",
+                    AsaasBillingType.Pix => "PIX",
+                    AsaasBillingType.CreditCard => "Cartão",
+                    _ => "Assinatura"
+                };
+                var cycleLabel = string.Equals(request.Cycle, AsaasSubscriptionCycle.Yearly, StringComparison.OrdinalIgnoreCase)
+                    ? "anual"
+                    : "mensal";
+                request.Description = $"Assinatura {cycleLabel} ({billingLabel}) - Endereço Fiscal";
+            }
+
+            if (!string.IsNullOrEmpty(creditCardToken))
+                request.CreditCardToken = creditCardToken;
+            else if (card != null)
+                request.CreditCard = MapCard(card);
+
+            if (creditCardHolderInfo != null)
+                request.CreditCardHolderInfo = creditCardHolderInfo;
+
+            if (!string.IsNullOrEmpty(remoteIp) || request.CreditCard != null || !string.IsNullOrEmpty(request.CreditCardToken))
+                request.RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim();
+
+            _logger.LogInformation(
+                "Atualizando assinatura Asaas {SubscriptionId}: billingType={BillingType}, value={Value}, cycle={Cycle}, updatePendingPayments={UpdatePending}.",
+                asaasSubscriptionId, request.BillingType, request.Value, request.Cycle, updatePendingPayments);
+
+            var httpRequest = await CreateRequestAsync(
+                HttpMethod.Put,
+                $"/subscriptions/{Uri.EscapeDataString(asaasSubscriptionId.Trim())}");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Erro ao atualizar assinatura Asaas {SubscriptionId}: {StatusCode} - {Content}",
+                    asaasSubscriptionId, response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasError(content));
+                throw new HttpRequestException($"Erro ao atualizar assinatura Asaas: {response.StatusCode}");
+            }
+
+            var updated = JsonSerializer.Deserialize<AsaasSubscriptionResponse>(content, JsonOptions);
+            if (updated == null || string.IsNullOrEmpty(updated.Id))
+                throw new InvalidOperationException("Resposta inválida da API Asaas ao atualizar assinatura.");
+            return updated;
+        }
+
+        public async Task CancelSubscriptionAsync(string asaasSubscriptionId)
+        {
+            if (string.IsNullOrWhiteSpace(asaasSubscriptionId))
+                throw new ArgumentException("Id da assinatura Asaas é obrigatório.", nameof(asaasSubscriptionId));
+
+            var httpRequest = await CreateRequestAsync(
+                HttpMethod.Delete,
+                $"/subscriptions/{Uri.EscapeDataString(asaasSubscriptionId.Trim())}");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Erro ao cancelar assinatura Asaas {SubscriptionId}: {StatusCode} - {Content}",
+                    asaasSubscriptionId, response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasError(content));
+                throw new HttpRequestException($"Erro ao cancelar assinatura Asaas: {response.StatusCode}");
+            }
+
+            _logger.LogInformation("Assinatura Asaas {SubscriptionId} cancelada.", asaasSubscriptionId);
+        }
+
+        /// <inheritdoc />
+        public async Task<string?> ResolveSubscriptionPendingPaymentIdAsync(
+            string asaasSubscriptionId,
+            string? preferredPaymentId = null)
+        {
+            if (string.IsNullOrWhiteSpace(asaasSubscriptionId))
+                return null;
+
+            var preferred = preferredPaymentId?.Trim();
+            if (!string.IsNullOrEmpty(preferred)
+                && preferred.StartsWith("pay_", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var existing = await GetOrderAsync(preferred);
+                    var status = (existing.Status ?? "").Trim().ToUpperInvariant();
+                    if (!IsAsaasCreditCardDeclined(status) && status != AsaasPaymentStatus.Deleted)
+                        return preferred;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "pay_* preferido {PaymentId} indisponível na assinatura {SubscriptionId}; listando cobranças.",
+                        preferred, asaasSubscriptionId);
+                }
+            }
+
+            for (var attempt = 1; attempt <= 5; attempt++)
+            {
+                var candidate = await GetPreferredSubscriptionPaymentAsync(asaasSubscriptionId.Trim(), preferBoleto: false);
+                if (candidate != null && !string.IsNullOrEmpty(candidate.Id))
+                    return candidate.Id;
+                if (attempt < 5)
+                    await Task.Delay(400);
+            }
+
+            return null;
+        }
+
+        /// <inheritdoc />
+        public async Task<OrderResponse> PayExistingPaymentWithCreditCardAsync(
+            string asaasPaymentId,
+            PagBankCard? card = null,
+            AsaasCreditCardHolderInfo? creditCardHolderInfo = null,
+            string? creditCardToken = null,
+            string? remoteIp = null)
+        {
+            if (string.IsNullOrWhiteSpace(asaasPaymentId))
+                throw new ArgumentException("Id da cobrança Asaas é obrigatório.", nameof(asaasPaymentId));
+
+            var payId = asaasPaymentId.Trim();
+
+            // Já liquidada (CONFIRMED/RECEIVED): não tenta pagar de novo.
+            try
+            {
+                var current = await GetOrderAsync(payId);
+                var currentStatus = (current.Status ?? "").Trim().ToUpperInvariant();
+                if (IsAsaasCreditCardPaid(currentStatus))
+                {
+                    _logger.LogInformation(
+                        "Cobrança Asaas {PaymentId} já está {Status}; payWithCreditCard desnecessário.",
+                        payId, currentStatus);
+                    return MapCreditCardPaymentOrder(payId, "PAID", current.PaidAt ?? DateTime.UtcNow, current.ReferenceId, current.CreatedAt);
+                }
+                if (IsAsaasCreditCardDeclined(currentStatus))
+                {
+                    return MapCreditCardPaymentOrder(payId, "DECLINED", null, current.ReferenceId, current.CreatedAt);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao pré-consultar cobrança {PaymentId} antes de payWithCreditCard.", payId);
+            }
+
+            if (string.IsNullOrEmpty(creditCardToken) && card == null)
+                throw new InvalidOperationException("Informe os dados do cartão ou um creditCardToken para pagar a cobrança.");
+
+            var request = new AsaasPayWithCreditCardRequest
+            {
+                CreditCardToken = string.IsNullOrEmpty(creditCardToken) ? null : creditCardToken,
+                CreditCard = string.IsNullOrEmpty(creditCardToken) && card != null ? MapCard(card) : null,
+                CreditCardHolderInfo = string.IsNullOrEmpty(creditCardToken) ? creditCardHolderInfo : null,
+                RemoteIp = string.IsNullOrEmpty(remoteIp) ? "127.0.0.1" : remoteIp.Trim()
+            };
+
+            _logger.LogInformation(
+                "Captura imediata Asaas payWithCreditCard: paymentId={PaymentId}, hasToken={HasToken}.",
+                payId, !string.IsNullOrEmpty(creditCardToken));
+
+            var httpRequest = await CreateRequestAsync(
+                HttpMethod.Post,
+                $"/payments/{Uri.EscapeDataString(payId)}/payWithCreditCard");
+            httpRequest.Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Erro payWithCreditCard Asaas {PaymentId}: {StatusCode} - {Content}",
+                    payId, response.StatusCode, content);
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new InvalidOperationException("API Key Asaas inválida ou expirada. Verifique nas Configurações do Sistema.");
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    throw new InvalidOperationException(ParseAsaasCreditCardError(content));
+                throw new HttpRequestException($"Erro ao pagar cobrança com cartão no Asaas: {response.StatusCode}");
+            }
+
+            var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
+            if (payment == null || string.IsNullOrEmpty(payment.Id))
+                throw new InvalidOperationException("Resposta inválida da API Asaas ao pagar com cartão.");
+
+            var paymentStatus = (payment.Status ?? "").Trim().ToUpperInvariant();
+            var paidAt = AsaasDateParser.TryParse(payment.ConfirmedDate ?? payment.ClientPaymentDate);
+            var declined = IsAsaasCreditCardDeclined(paymentStatus);
+            var paid = !declined && IsAsaasCreditCardPaid(paymentStatus);
+            var chargeStatus = declined ? "DECLINED" : paid ? "PAID" : (string.IsNullOrEmpty(paymentStatus) ? "PENDING" : paymentStatus);
+
+            _logger.LogInformation(
+                "payWithCreditCard Asaas concluído: paymentId={PaymentId}, asaasStatus={AsaasStatus}, mappedStatus={MappedStatus}.",
+                payment.Id, paymentStatus, chargeStatus);
+
+            // Se ainda PENDING (ex.: AWAITING_RISK_ANALYSIS), faz polling curto.
+            if (!paid && !declined && paymentStatus != AsaasPaymentStatus.AwaitingRiskAnalysis)
+            {
+                for (var attempt = 1; attempt <= 6; attempt++)
+                {
+                    await Task.Delay(400);
+                    try
+                    {
+                        var refreshed = await GetOrderAsync(payment.Id);
+                        var refreshedStatus = (refreshed.Status ?? "").Trim().ToUpperInvariant();
+                        if (IsAsaasCreditCardPaid(refreshedStatus) || IsAsaasCreditCardDeclined(refreshedStatus)
+                            || refreshedStatus == AsaasPaymentStatus.AwaitingRiskAnalysis)
+                        {
+                            paymentStatus = refreshedStatus;
+                            paidAt = refreshed.PaidAt ?? paidAt;
+                            declined = IsAsaasCreditCardDeclined(paymentStatus);
+                            paid = !declined && IsAsaasCreditCardPaid(paymentStatus);
+                            chargeStatus = declined ? "DECLINED" : paid ? "PAID" : paymentStatus;
+                            _logger.LogInformation(
+                                "payWithCreditCard reconsulta: paymentId={PaymentId}, asaasStatus={AsaasStatus}, mappedStatus={MappedStatus}, attempt={Attempt}.",
+                                payment.Id, paymentStatus, chargeStatus, attempt);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Falha ao reconsultar cobrança {PaymentId} após payWithCreditCard.", payment.Id);
+                    }
+                }
+            }
+
+            return MapCreditCardPaymentOrder(
+                payment.Id,
+                chargeStatus,
+                paid ? paidAt ?? DateTime.UtcNow : paidAt,
+                payment.ExternalReference ?? payId,
+                AsaasDateParser.TryParse(payment.DateCreated) ?? DateTime.UtcNow,
+                payment.Value);
+        }
+
+        private static OrderResponse MapCreditCardPaymentOrder(
+            string paymentId,
+            string chargeStatus,
+            DateTime? paidAt,
+            string? referenceId,
+            DateTime createdAt,
+            decimal? value = null)
+        {
+            var amountCents = value.HasValue ? (int)(value.Value * 100) : 0;
+            return new OrderResponse
+            {
+                Id = paymentId,
+                ReferenceId = referenceId ?? paymentId,
+                Status = chargeStatus,
+                CreatedAt = createdAt,
+                PaidAt = paidAt,
+                Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = paymentId,
+                        ReferenceId = referenceId ?? paymentId,
+                        Status = chargeStatus,
+                        CreatedAt = createdAt,
+                        PaidAt = paidAt,
+                        Amount = new PagBankAmount { Value = amountCents, Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse { Type = "CREDIT_CARD" }
+                    }
+                }
+            };
+        }
+
+        /// <inheritdoc />
+        public async Task<OrderResponse?> WaitForSubscriptionPaymentOrderAsync(string asaasSubscriptionId, int maxAttempts = 20)
+        {
+            if (string.IsNullOrWhiteSpace(asaasSubscriptionId))
+                return null;
+
+            if (maxAttempts < 1)
+                maxAttempts = 1;
+
+            OrderResponse? lastOrder = null;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                var candidate = await GetPreferredSubscriptionPaymentAsync(asaasSubscriptionId.Trim(), preferBoleto: true);
+                if (candidate != null && !string.IsNullOrEmpty(candidate.Id))
+                {
+                    try
+                    {
+                        lastOrder = await GetOrderAsync(candidate.Id);
+                        var hasBoletoLine = lastOrder.Charges?.Any(c =>
+                            c.PaymentMethod?.Boleto != null
+                            && (!string.IsNullOrEmpty(c.PaymentMethod.Boleto.FormattedBarcode)
+                                || !string.IsNullOrEmpty(c.PaymentMethod.Boleto.Barcode))) == true;
+                        var hasPix = lastOrder.QrCodes?.Any() == true;
+                        var billing = (candidate.BillingType ?? "").Trim().ToUpperInvariant();
+                        if (hasBoletoLine)
+                            return lastOrder;
+                        // BOLETO sem linha digitável ainda: continuar polling (Asaas demora a emitir).
+                        if (billing == AsaasBillingType.Boleto && attempt < maxAttempts)
+                        {
+                            await Task.Delay(1000);
+                            continue;
+                        }
+                        // PIX ainda: continuar aguardando conversão após UpdateSubscription.
+                        if ((hasPix || billing == AsaasBillingType.Pix) && attempt < maxAttempts)
+                        {
+                            await Task.Delay(1000);
+                            continue;
+                        }
+                        // Qualquer cobrança no último attempt (caller decide se aceita).
+                        if (attempt == maxAttempts)
+                            return lastOrder;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Tentativa {Attempt}/{Max}: falha ao montar OrderResponse da cobrança {PaymentId} da assinatura {SubscriptionId}.",
+                            attempt, maxAttempts, candidate.Id, asaasSubscriptionId);
+                    }
+                }
+
+                if (attempt < maxAttempts)
+                    await Task.Delay(1000);
+            }
+
+            return lastOrder;
+        }
+
         private static bool IsAsaasCreditCardPaid(string statusUpper) =>
             statusUpper == AsaasPaymentStatus.Confirmed
             || statusUpper == AsaasPaymentStatus.Received;
@@ -721,15 +1241,24 @@ namespace KlyonHubPlatform.Application.Services
         /// <summary>
         /// Aguarda a 1ª cobrança da assinatura ( Assaas pode listar vazia logo após o POST ).
         /// Para quando encontra cobrança paga/recusada ou esgota as tentativas.
+        /// Com <paramref name="acceptAnyStatus"/> true (PIX/BOLETO), retorna assim que a cobrança existir.
         /// </summary>
-        private async Task<AsaasPaymentResponse?> WaitForFirstSubscriptionPaymentAsync(string asaasSubscriptionId)
+        private async Task<AsaasPaymentResponse?> WaitForFirstSubscriptionPaymentAsync(
+            string asaasSubscriptionId,
+            bool acceptAnyStatus = false,
+            int maxAttempts = 6)
         {
-            const int maxAttempts = 6;
+            if (maxAttempts < 1)
+                maxAttempts = 1;
+
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 var first = await GetFirstSubscriptionPaymentAsync(asaasSubscriptionId);
                 if (first != null)
                 {
+                    if (acceptAnyStatus)
+                        return first;
+
                     var status = (first.Status ?? "").Trim().ToUpperInvariant();
                     if (IsAsaasCreditCardPaid(status) || IsAsaasCreditCardDeclined(status)
                         || status == AsaasPaymentStatus.AwaitingRiskAnalysis
@@ -747,11 +1276,22 @@ namespace KlyonHubPlatform.Application.Services
             return null;
         }
 
-        private async Task<AsaasPaymentResponse?> GetFirstSubscriptionPaymentAsync(string asaasSubscriptionId)
+        private async Task<AsaasPaymentResponse?> GetFirstSubscriptionPaymentAsync(string asaasSubscriptionId) =>
+            await GetPreferredSubscriptionPaymentAsync(asaasSubscriptionId, preferBoleto: false);
+
+        /// <summary>
+        /// Lista cobranças da assinatura e escolhe a mais útil:
+        /// pendente BOLETO &gt; qualquer BOLETO &gt; pendente &gt; primeira.
+        /// </summary>
+        private async Task<AsaasPaymentResponse?> GetPreferredSubscriptionPaymentAsync(
+            string asaasSubscriptionId,
+            bool preferBoleto)
         {
             try
             {
-                var httpRequest = await CreateRequestAsync(HttpMethod.Get, $"/subscriptions/{Uri.EscapeDataString(asaasSubscriptionId)}/payments?limit=1");
+                var httpRequest = await CreateRequestAsync(
+                    HttpMethod.Get,
+                    $"/subscriptions/{Uri.EscapeDataString(asaasSubscriptionId)}/payments?limit=20");
                 var response = await _httpClient.SendAsync(httpRequest);
                 var content = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
@@ -762,11 +1302,39 @@ namespace KlyonHubPlatform.Application.Services
                     return null;
                 }
                 var list = JsonSerializer.Deserialize<AsaasSubscriptionPaymentsListResponse>(content, JsonOptions);
-                return list?.Data?.FirstOrDefault();
+                var items = list?.Data?
+                    .Where(p => p != null && !string.IsNullOrEmpty(p.Id) && p.Deleted != true)
+                    .ToList();
+                if (items == null || items.Count == 0)
+                    return null;
+
+                static bool IsPendingStatus(string? status)
+                {
+                    var s = (status ?? "").Trim().ToUpperInvariant();
+                    return s is "PENDING" or "OVERDUE" or "AWAITING_PAYMENT"
+                        or AsaasPaymentStatus.Pending or AsaasPaymentStatus.Overdue;
+                }
+
+                if (preferBoleto)
+                {
+                    var pendingBoleto = items.FirstOrDefault(p =>
+                        string.Equals((p.BillingType ?? "").Trim(), AsaasBillingType.Boleto, StringComparison.OrdinalIgnoreCase)
+                        && IsPendingStatus(p.Status));
+                    if (pendingBoleto != null)
+                        return pendingBoleto;
+
+                    var anyBoleto = items.FirstOrDefault(p =>
+                        string.Equals((p.BillingType ?? "").Trim(), AsaasBillingType.Boleto, StringComparison.OrdinalIgnoreCase));
+                    if (anyBoleto != null)
+                        return anyBoleto;
+                }
+
+                var pending = items.FirstOrDefault(p => IsPendingStatus(p.Status));
+                return pending ?? items[0];
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Exceção ao buscar primeira cobrança da assinatura Asaas {SubscriptionId}", asaasSubscriptionId);
+                _logger.LogWarning(ex, "Exceção ao buscar cobranças da assinatura Asaas {SubscriptionId}", asaasSubscriptionId);
                 return null;
             }
         }
@@ -852,7 +1420,68 @@ namespace KlyonHubPlatform.Application.Services
             var payment = JsonSerializer.Deserialize<AsaasPaymentResponse>(content, JsonOptions);
             if (payment == null)
                 throw new InvalidOperationException("Resposta inválida da API Asaas");
-            return _mapper.Map<OrderResponse>(payment);
+
+            var orderResponse = new OrderResponse
+            {
+                Id = payment.Id,
+                ReferenceId = payment.ExternalReference ?? orderId,
+                Status = payment.Status,
+                CreatedAt = AsaasDateParser.TryParse(payment.DateCreated) ?? DateTime.UtcNow,
+                PaidAt = AsaasDateParser.TryParse(payment.ConfirmedDate ?? payment.ClientPaymentDate)
+            };
+
+            var billingType = (payment.BillingType ?? "").Trim().ToUpperInvariant();
+            if (billingType == AsaasBillingType.Pix)
+            {
+                var pixQr = await GetPixQrCodeAsync(payment.Id);
+                if (pixQr != null)
+                {
+                    orderResponse.QrCodes = new List<PagBankQrCodeResponse>
+                    {
+                        new PagBankQrCodeResponse
+                        {
+                            Id = payment.Id,
+                            Text = pixQr.Payload ?? pixQr.EncodedImage,
+                            ExpirationDate = AsaasDateParser.TryParse(pixQr.ExpirationDate),
+                            Amount = new PagBankAmount { Value = (int)(payment.Value * 100), Currency = "BRL" }
+                        }
+                    };
+                }
+            }
+            else if (billingType == AsaasBillingType.Boleto)
+            {
+                var identification = await GetIdentificationFieldAsync(payment.Id);
+                orderResponse.Charges = new List<PagBankChargeResponse>
+                {
+                    new PagBankChargeResponse
+                    {
+                        Id = payment.Id,
+                        ReferenceId = orderResponse.ReferenceId,
+                        Status = payment.Status,
+                        CreatedAt = orderResponse.CreatedAt,
+                        PaidAt = orderResponse.PaidAt,
+                        Amount = new PagBankAmount { Value = (int)(payment.Value * 100), Currency = "BRL" },
+                        PaymentMethod = new PagBankPaymentMethodResponse
+                        {
+                            Type = "BOLETO",
+                            Boleto = new PagBankBoletoResponse
+                            {
+                                Id = payment.Id,
+                                FormattedBarcode = identification?.IdentificationField,
+                                Barcode = !string.IsNullOrEmpty(identification?.BarCode)
+                                    ? identification.BarCode
+                                    : identification?.IdentificationField,
+                                DueDate = AsaasDateParser.TryParse(payment.DueDate),
+                                Links = !string.IsNullOrEmpty(payment.BankSlipUrl)
+                                    ? new List<PagBankLink> { new PagBankLink { Rel = "bankSlip", Href = payment.BankSlipUrl } }
+                                    : null
+                            }
+                        }
+                    }
+                };
+            }
+
+            return orderResponse;
         }
         public async Task<OrderResponse> CancelChargeAsync(string chargeId, decimal? amount = null)
         {

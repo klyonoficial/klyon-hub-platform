@@ -206,19 +206,17 @@ namespace KlyonHubPlatform.Api.Controllers
             ISet<string> hidden,
             ContractCardPlanType? currentPlan = null)
         {
-            var preferMonthly = currentPlan == ContractCardPlanType.CardMonthly
-                || currentPlan == ContractCardPlanType.PixMonthly;
-            if (preferMonthly)
-            {
-                if (!hidden.Contains("PixMonthly")) return ContractCardPlanType.PixMonthly;
-                if (!hidden.Contains("PixAnnual")) return ContractCardPlanType.PixAnnual;
-                if (!hidden.Contains("PIX")) return ContractCardPlanType.None;
-                return null;
-            }
+            // Checkout inicial: preferir PIX assinatura mensal, depois auto mensal, depois auto anual.
+            if (currentPlan == ContractCardPlanType.PixAnnual && !hidden.Contains("PixAnnual"))
+                return ContractCardPlanType.PixAnnual;
+            if (currentPlan == ContractCardPlanType.PixMonthly && !hidden.Contains("PixMonthly"))
+                return ContractCardPlanType.PixMonthly;
+            if (currentPlan == ContractCardPlanType.None && !hidden.Contains("PIX"))
+                return ContractCardPlanType.None;
 
-            if (!hidden.Contains("PixAnnual")) return ContractCardPlanType.PixAnnual;
-            if (!hidden.Contains("PixMonthly")) return ContractCardPlanType.PixMonthly;
             if (!hidden.Contains("PIX")) return ContractCardPlanType.None;
+            if (!hidden.Contains("PixMonthly")) return ContractCardPlanType.PixMonthly;
+            if (!hidden.Contains("PixAnnual")) return ContractCardPlanType.PixAnnual;
             return null;
         }
 
@@ -250,8 +248,9 @@ namespace KlyonHubPlatform.Api.Controllers
         }
 
         /// <summary>
-        /// Corrige parcela mensal cujo Amount foi recalculado com SnapshotListPrice=parcela
-        /// (GetMonthlyInstallment aplicado de novo → ~valor/12). Restaura a parcela canônica.
+        /// Corrige parcela mensal com Amount errado no checkout pendente:
+        /// (1) SnapshotListPrice=parcela → GetMonthlyInstallment de novo (~valor/12);
+        /// (2) Amount=preço de lista anual (ex.: 750) em PIX/boleto/cartão mensal (esperado ~85).
         /// </summary>
         private async Task TryHealCorruptedMonthlyCheckoutAmountAsync(
             Payment payment,
@@ -265,7 +264,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 return;
 
             var isMonthly = BillingCycleConstants.IsMonthly(PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment))
-                || contract.CardPlanType.IsMonthlyInstallmentPlan();
+                || contract.CardPlanType.IsMonthlyInstallmentPlan()
+                || (payment.Method == PaymentMethod.PIX && contract.CardPlanType == ContractCardPlanType.None);
             if (!isMonthly)
                 return;
 
@@ -280,7 +280,14 @@ namespace KlyonHubPlatform.Api.Controllers
             var listPriceLooksLikeInstallment = payment.SnapshotListPrice > 0
                 && payment.SnapshotListPrice < contract.SnapshotListPrice * 0.5m;
             var amountLooksDividedAgain = payment.Amount > 0 && payment.Amount < expected * 0.5m;
-            if (!amountLooksDividedAgain && !listPriceLooksLikeInstallment)
+            // PIX assinatura mensal / ciclo mensal com Amount = BasePrice anual (750 vs 85).
+            var amountLooksLikeAnnualListPrice = Math.Abs(payment.Amount - contract.SnapshotListPrice) <= 0.05m
+                && Math.Abs(expected - contract.SnapshotListPrice) > 1m;
+            var amountMismatchVsMonthly = Math.Abs(payment.Amount - expected) > 0.05m
+                && payment.Amount > expected * 1.5m;
+
+            if (!amountLooksDividedAgain && !listPriceLooksLikeInstallment
+                && !amountLooksLikeAnnualListPrice && !amountMismatchVsMonthly)
             {
                 if (payment.SnapshotListPrice != contract.SnapshotListPrice
                     && Math.Abs(payment.Amount - expected) <= 0.05m)
@@ -291,7 +298,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 return;
             }
 
-            if (!amountLooksDividedAgain && Math.Abs(payment.Amount - expected) <= 0.05m)
+            if (!amountLooksDividedAgain && !amountLooksLikeAnnualListPrice && !amountMismatchVsMonthly
+                && Math.Abs(payment.Amount - expected) <= 0.05m)
             {
                 payment.SnapshotListPrice = contract.SnapshotListPrice;
                 await _context.SaveChangesAsync(cancellationToken);
@@ -319,11 +327,25 @@ namespace KlyonHubPlatform.Api.Controllers
                 HttpHeaderNames.XRequestedWithValue,
                 StringComparison.OrdinalIgnoreCase);
 
-        private IActionResult PaymentMethodUpdateError(string message, int paymentId)
+        private static string ResolvePayablePaymentAction(Payment payment) =>
+            PaymentNavigationHelper.Resolve(payment).Destination switch
+            {
+                PaymentClientDestination.PaymentSettlement => ActionNames.PaymentSettlement,
+                PaymentClientDestination.PaymentSuccess => ActionNames.PaymentSuccess,
+                PaymentClientDestination.PaymentSummary => ActionNames.PaymentSummary,
+                _ => ActionNames.PaymentDetails
+            };
+
+        private IActionResult RedirectToPayablePayment(Payment payment) =>
+            RedirectToAction(ResolvePayablePaymentAction(payment), new { id = payment.Id });
+
+        private IActionResult PaymentMethodUpdateError(string message, int paymentId, Payment? payment = null)
         {
             TempData[ErrorMessages.TempDataKey] = message;
             if (IsAjaxRequest())
                 return StatusCode(400, new { error = message });
+            if (payment != null)
+                return RedirectToPayablePayment(payment);
             return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
         }
 
@@ -331,12 +353,16 @@ namespace KlyonHubPlatform.Api.Controllers
             decimal snapshotListPrice,
             decimal? surchargePercent,
             PaymentMethod method,
-            ContractCardPlanType? cardPlanType)
+            ContractCardPlanType? cardPlanType,
+            string? billingCycleOverride = null)
         {
             var plan = method == PaymentMethod.CreditCard
                 ? NormalizeCheckoutCardPlan(method, cardPlanType)
                 : cardPlanType;
-            if (plan.IsMonthlyInstallmentPlan())
+            // PIX tradicional (None), planos mensais e boleto mensal: base = parcela EditAddress, não preço anual.
+            if (plan.IsMonthlyInstallmentPlan()
+                || (method == PaymentMethod.PIX && (plan == null || plan == ContractCardPlanType.None))
+                || (method == PaymentMethod.BankTransfer && BillingCycleConstants.IsMonthly(billingCycleOverride)))
                 return _addressPricingService.GetMonthlyInstallment(snapshotListPrice, surchargePercent);
             return snapshotListPrice;
         }
@@ -362,7 +388,8 @@ namespace KlyonHubPlatform.Api.Controllers
             decimal? surchargePercent,
             PaymentMethod method,
             ContractCardPlanType? cardPlanType,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string? billingCycleOverride = null)
         {
             if (!payment.PromoCodeId.HasValue)
                 return Math.Max(0, payment.SnapshotDiscountAmount);
@@ -372,21 +399,31 @@ namespace KlyonHubPlatform.Api.Controllers
             if (promo == null)
                 return Math.Max(0, payment.SnapshotDiscountAmount);
 
-            var promoBase = ResolvePromoBaseAmount(snapshotListPrice, surchargePercent, method, cardPlanType);
+            var promoBase = ResolvePromoBaseAmount(snapshotListPrice, surchargePercent, method, cardPlanType, billingCycleOverride);
             return ComputePromoDiscountAmount(promo, promoBase);
         }
 
+        /// <summary>
+        /// Valor cobrado no checkout inicial (EditAddress): mensal = Preview parcela; anual = preço base.
+        /// PIX tradicional (None) = assinatura mensal (parcela). Boleto mensal/anual via billingCycleOverride.
+        /// </summary>
         private decimal CalculateCheckoutAmount(
             decimal snapshotListPrice,
             decimal snapshotDiscountAmount,
             decimal? surchargePercent,
             PaymentMethod method,
-            ContractCardPlanType? cardPlanType)
+            ContractCardPlanType? cardPlanType,
+            string? billingCycleOverride = null)
         {
             var plan = method == PaymentMethod.CreditCard
                 ? NormalizeCheckoutCardPlan(method, cardPlanType)
                 : cardPlanType;
-            if (plan.IsMonthlyInstallmentPlan())
+
+            var forceMonthly = plan.IsMonthlyInstallmentPlan()
+                || (method == PaymentMethod.PIX && (plan == null || plan == ContractCardPlanType.None))
+                || (method == PaymentMethod.BankTransfer && BillingCycleConstants.IsMonthly(billingCycleOverride));
+
+            if (forceMonthly)
             {
                 var monthlyBeforeDiscount = _addressPricingService.GetMonthlyInstallment(snapshotListPrice, surchargePercent);
                 return Math.Max(0, monthlyBeforeDiscount - snapshotDiscountAmount);
@@ -398,41 +435,85 @@ namespace KlyonHubPlatform.Api.Controllers
             return _addressPricingService.GetAnnualPrice(discountedBase);
         }
 
+        private static string ResolveCheckoutBillingCycle(
+            PaymentMethod method,
+            ContractCardPlanType? cardPlanType,
+            string? billingCycleOverride)
+        {
+            if (!string.IsNullOrWhiteSpace(billingCycleOverride))
+            {
+                if (BillingCycleConstants.IsMonthly(billingCycleOverride))
+                    return BillingCycleConstants.Monthly;
+                if (BillingCycleConstants.IsYearly(billingCycleOverride))
+                    return BillingCycleConstants.Yearly;
+            }
+
+            if (method == PaymentMethod.CreditCard)
+            {
+                return cardPlanType == ContractCardPlanType.CardMonthly
+                    ? BillingCycleConstants.Monthly
+                    : BillingCycleConstants.Yearly;
+            }
+
+            if (method == PaymentMethod.PIX)
+            {
+                if (cardPlanType == ContractCardPlanType.PixAnnual || cardPlanType == ContractCardPlanType.Card1x)
+                    return BillingCycleConstants.Yearly;
+                // PixMonthly, PIX tradicional (None) → mensal
+                return BillingCycleConstants.Monthly;
+            }
+
+            // Boleto sem override: preservar ciclo do CardPlanType se mensal; senão anual (preço base).
+            if (cardPlanType.IsMonthlyInstallmentPlan())
+                return BillingCycleConstants.Monthly;
+
+            return BillingCycleConstants.Yearly;
+        }
+
         private async Task ApplyChargeAmountToPaymentAndContractAsync(
             Payment payment,
             Contract contract,
             decimal amount,
             PaymentMethod method,
             ContractCardPlanType? cardPlanType,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string? billingCycleOverride = null)
         {
             var previousAmount = payment.Amount;
             var previousPlan = contract.CardPlanType;
             var amountChanged = previousAmount != amount;
             var planChanged = cardPlanType.HasValue && previousPlan != cardPlanType;
+            var billingCycle = ResolveCheckoutBillingCycle(method, cardPlanType, billingCycleOverride);
+            var previousCycle = payment.SnapshotBillingCycle ?? payment.Subscription?.BillingCycle;
+            var cycleChanged = !string.Equals(previousCycle, billingCycle, StringComparison.OrdinalIgnoreCase);
 
             payment.Amount = amount;
+            payment.SnapshotBillingCycle = billingCycle;
             payment.UpdatedAt = DateTime.UtcNow;
 
-            if (method == PaymentMethod.BankTransfer && amountChanged)
+            if (method == PaymentMethod.BankTransfer && (amountChanged || cycleChanged))
             {
+                // Invalidar artefatos + pay_* local: GenerateBoletoCodeAsync sincroniza a sub_*
+                // (UpdateSubscription + updatePendingPayments) e emite boleto com o novo valor.
+                // Sem limpar ExternalPaymentId, o GET reaproveitava o boleto antigo sem desconto.
                 payment.BoletoCode = null;
                 payment.BoletoBarcode = null;
                 payment.BoletoExpiresAt = null;
                 payment.BankSlipUrl = null;
+                payment.ExternalPaymentId = string.Empty;
             }
 
             // Valor/plano PIX mudou: invalidar QR/código local para forçar nova emissão.
             // NÃO limpar ExternalPaymentId nem PixAutomaticAuthorizationId aqui —
-            // UpdatePaymentMethodAsync/GeneratePixCodeAsync cancelam no Asaas e só então limpam os ids.
-            if (method == PaymentMethod.PIX && (amountChanged || planChanged))
+            // UpdatePaymentMethodAsync/GeneratePixCodeAsync cancelam no Asaas e só então limpam os ids
+            // (TrySyncAsaasSubscriptionAmountAsync já atualiza value na sub_* quando PixCode some).
+            if (method == PaymentMethod.PIX && (amountChanged || planChanged || cycleChanged))
             {
                 payment.PixCode = null;
                 payment.PixExpiresAt = null;
                 payment.PixConciliationIdentifier = null;
             }
 
-            // Snapshot do valor cobrado do plano escolhido (parcela mensal líquida ou anual líquido).
             contract.MonthlyValue = amount;
             contract.SnapshotMonthlyValue = amount;
 
@@ -440,6 +521,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 contract.CardPlanType = cardPlanType.Value;
             else if (method == PaymentMethod.CreditCard)
                 contract.CardPlanType = NormalizeCheckoutCardPlan(method, cardPlanType) ?? ContractCardPlanType.Card1x;
+            else if (method == PaymentMethod.BankTransfer)
+                contract.CardPlanType = ContractCardPlanType.None;
 
             if (payment.SubscriptionId.HasValue)
             {
@@ -447,45 +530,24 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (subscription != null)
                 {
                     subscription.MonthlyAmount = amount;
-                    if (method == PaymentMethod.CreditCard || method == PaymentMethod.PIX)
-                    {
-                        var planForCycle = method == PaymentMethod.CreditCard
-                            ? NormalizeCheckoutCardPlan(method, cardPlanType)
-                            : cardPlanType;
-                        subscription.BillingCycle = planForCycle.IsAnnualBillingCycle()
-                            ? BillingCycleConstants.Yearly
-                            : BillingCycleConstants.Monthly;
-                    }
-                    if (method == PaymentMethod.PIX && (amountChanged || planChanged))
+                    subscription.BillingCycle = billingCycle;
+                    if (method == PaymentMethod.PIX && (amountChanged || planChanged || cycleChanged))
                     {
                         subscription.PixAutomaticPayload = null;
                         subscription.PixAutomaticPayloadExpiresAt = null;
                         subscription.PixAutomaticConciliationIdentifier = null;
-                        // Mantém PixAutomaticAuthorizationId para cancelamento Asaas no PaymentService.
                     }
-                    // Cartão 1x ↔ mensal: se já houver assinatura Asaas sub_* na ExternalSubscriptionId,
-                    // não há CancelSubscription na IAsaasService hoje — troca de ciclo no checkout
-                    // só ajusta Amount/BillingCycle locais; a cobrança efetiva ocorre em ProcessPaymentWithCard.
                 }
             }
             else if (payment.Subscription != null)
             {
                 payment.Subscription.MonthlyAmount = amount;
-                if (method == PaymentMethod.CreditCard || method == PaymentMethod.PIX)
-                {
-                    var planForCycle = method == PaymentMethod.CreditCard
-                        ? NormalizeCheckoutCardPlan(method, cardPlanType)
-                        : cardPlanType;
-                    payment.Subscription.BillingCycle = planForCycle.IsAnnualBillingCycle()
-                        ? BillingCycleConstants.Yearly
-                        : BillingCycleConstants.Monthly;
-                }
-                if (method == PaymentMethod.PIX && (amountChanged || planChanged))
+                payment.Subscription.BillingCycle = billingCycle;
+                if (method == PaymentMethod.PIX && (amountChanged || planChanged || cycleChanged))
                 {
                     payment.Subscription.PixAutomaticPayload = null;
                     payment.Subscription.PixAutomaticPayloadExpiresAt = null;
                     payment.Subscription.PixAutomaticConciliationIdentifier = null;
-                    // Mantém PixAutomaticAuthorizationId para cancelamento Asaas no PaymentService.
                 }
             }
         }
@@ -495,13 +557,32 @@ namespace KlyonHubPlatform.Api.Controllers
             Contract contract,
             PaymentMethod method,
             ContractCardPlanType? cardPlanType,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string? billingCycleOverride = null)
         {
-            var snapshotListPrice = ResolveSnapshotListPrice(payment, contract);
-            var surcharge = await GetContractSurchargePercentAsync(contract, cancellationToken);
             var effectiveCardPlan = method == PaymentMethod.CreditCard
                 ? NormalizeCheckoutCardPlan(method, cardPlanType ?? contract.CardPlanType)
                 : (cardPlanType ?? contract.CardPlanType);
+            var billingCycle = ResolveCheckoutBillingCycle(method, effectiveCardPlan, billingCycleOverride);
+
+            // Acerto de contas (parcela 2+): valor do ciclo já definido — não recalcular preço de lista/cupom.
+            var isFirstInstallment = await IsFirstContractPaymentResolvedAsync(payment, contract, cancellationToken);
+            if (!isFirstInstallment && payment.Amount > 0)
+            {
+                await ApplyChargeAmountToPaymentAndContractAsync(
+                    payment,
+                    contract,
+                    payment.Amount,
+                    method,
+                    effectiveCardPlan,
+                    cancellationToken,
+                    billingCycle);
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
+            var snapshotListPrice = ResolveSnapshotListPrice(payment, contract);
+            var surcharge = await GetContractSurchargePercentAsync(contract, cancellationToken);
 
             var discount = await ResolveCheckoutDiscountAmountAsync(
                 payment,
@@ -509,9 +590,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 surcharge,
                 method,
                 effectiveCardPlan,
-                cancellationToken);
+                cancellationToken,
+                billingCycle);
             payment.SnapshotDiscountAmount = discount;
-            // Sempre alinhar ao preço de lista anual canônico do contrato (corrige SnapshotListPrice=parcela).
             payment.SnapshotListPrice = snapshotListPrice;
             if (contract.SnapshotListPrice <= 0)
                 contract.SnapshotListPrice = snapshotListPrice;
@@ -521,7 +602,8 @@ namespace KlyonHubPlatform.Api.Controllers
                 discount,
                 surcharge,
                 method,
-                effectiveCardPlan);
+                effectiveCardPlan,
+                billingCycle);
 
             await ApplyChargeAmountToPaymentAndContractAsync(
                 payment,
@@ -529,9 +611,38 @@ namespace KlyonHubPlatform.Api.Controllers
                 amount,
                 method,
                 effectiveCardPlan,
-                cancellationToken);
+                cancellationToken,
+                billingCycle);
 
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Resolve 1ª parcela mesmo quando Subscription.Payments não veio no Include (ex.: UpdatePaymentMethod).
+        /// </summary>
+        private async Task<bool> IsFirstContractPaymentResolvedAsync(
+            Payment payment,
+            Contract contract,
+            CancellationToken cancellationToken)
+        {
+            if (contract.Status == ContractStatus.PendingPayment)
+                return true;
+
+            if (!payment.SubscriptionId.HasValue)
+                return true;
+
+            if (payment.Subscription?.Payments != null && payment.Subscription.Payments.Count > 0)
+                return PaymentNavigationHelper.IsFirstContractPayment(payment);
+
+            var hasOlderSibling = await _context.Payments.AsNoTracking()
+                .AnyAsync(p =>
+                        p.SubscriptionId == payment.SubscriptionId.Value
+                        && p.Id != payment.Id
+                        && (p.CreatedAt < payment.CreatedAt
+                            || (p.CreatedAt == payment.CreatedAt && p.Id < payment.Id)),
+                    cancellationToken);
+
+            return !hasOlderSibling;
         }
 
         private static ContractCardPlanType? ParseCardPlanOption(string? cardPlanOption)
@@ -568,8 +679,9 @@ namespace KlyonHubPlatform.Api.Controllers
                     _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.PixMonthly),
                     PaymentMethod.PIX,
                     (ContractCardPlanType?)ContractCardPlanType.PixMonthly),
+                // PIX tradicional = assinatura mensal (parcela EditAddress), não preço anual.
                 "PIX" => (
-                    _addressPricingService.GetChargeAmount(basePrice, surchargePercent, ContractCardPlanType.None),
+                    _addressPricingService.GetMonthlyInstallment(basePrice, surchargePercent),
                     PaymentMethod.PIX,
                     (ContractCardPlanType?)ContractCardPlanType.None),
                 _ => (
@@ -2884,14 +2996,10 @@ namespace KlyonHubPlatform.Api.Controllers
                     return Forbid();
             }
 
-            // PaymentSuccess é recibo: Paid ou AwaitingValidation. Pending/Processing após "Pagar agora" voltam ao checkout.
+            // PaymentSuccess é recibo: Paid ou AwaitingValidation. Pending/Processing após "Pagar agora" voltam ao checkout/acerto.
             var successNav = PaymentNavigationHelper.Resolve(payment);
             if (successNav.Destination != PaymentClientDestination.PaymentSuccess)
-            {
-                if (successNav.Destination == PaymentClientDestination.PaymentDetails)
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = payment.Id });
-                return RedirectToAction(ActionNames.PaymentSummary, new { id = payment.Id });
-            }
+                return RedirectToPayablePayment(payment);
 
             ViewBag.IsAwaitingValidation = payment.Status == PaymentStatus.AwaitingValidation;
             ViewBag.IsPaid = payment.Status == PaymentStatus.Paid;
@@ -2982,10 +3090,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.PaymentSuccess, new { id = payment.Id });
 
             ViewBag.Guidance = PaymentNavigationHelper.GetSummaryGuidance(payment);
-            ViewBag.CanCheckout = PaymentNavigationHelper.CanAccessPaymentCheckout(payment);
-            ViewBag.CheckoutActionLabel = ViewBag.CanCheckout == true
+            var canCheckout = navigation.Destination is PaymentClientDestination.PaymentDetails
+                or PaymentClientDestination.PaymentSettlement;
+            ViewBag.CanCheckout = canCheckout;
+            ViewBag.CheckoutDestination = navigation.Destination;
+            ViewBag.CheckoutActionLabel = canCheckout
                 ? navigation.ActionLabel
-                : "Pagar / atualizar cartão";
+                : "Pagar / atualizar";
             return View(payment);
         }
 
@@ -3003,8 +3114,39 @@ namespace KlyonHubPlatform.Api.Controllers
             }
         }
 
-        private async Task<IActionResult> PaymentDetailsCoreAsync(int id, CancellationToken cancellationToken = default)
+        /// <summary>Acerto de contas (cenário 2): parcela 2+ vencida/falha — separado do checkout inicial.</summary>
+        [HttpGet]
+        public async Task<IActionResult> PaymentSettlement(int id, CancellationToken cancellationToken = default)
         {
+            try
+            {
+                return await PaymentDetailsCoreAsync(id, cancellationToken, ActionNames.PaymentSettlement);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PaymentSettlement falhou. PaymentId: {PaymentId}.", id);
+                throw;
+            }
+        }
+
+        /// <summary>POST do acerto: troca de meio (delega a UpdatePaymentMethod e redireciona ao Settlement).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public Task<IActionResult> PaymentSettlement(
+            int id,
+            string method,
+            [FromForm(Name = "pixPlanType")] string? pixPlanSelection,
+            [FromForm(Name = "boletoPlanType")] string? boletoPlanSelection,
+            [FromForm(Name = "cardPlanOption")] string? cardPlanSelection,
+            CancellationToken cancellationToken = default) =>
+            UpdatePaymentMethod(id, method, pixPlanSelection, boletoPlanSelection, cardPlanSelection, cancellationToken);
+
+        private async Task<IActionResult> PaymentDetailsCoreAsync(
+            int id,
+            CancellationToken cancellationToken = default,
+            string? viewName = null)
+        {
+            var settlementMode = string.Equals(viewName, ActionNames.PaymentSettlement, StringComparison.Ordinal);
             var payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
             if (payment == null)
             {
@@ -3045,17 +3187,33 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 return RedirectToAction(ActionNames.PaymentSuccess, new { id = payment.Id });
             }
-            if (isAuthorized && !PaymentNavigationHelper.CanAccessPaymentCheckout(payment))
+            if (isAuthorized)
             {
-                return RedirectToAction(ActionNames.PaymentSummary, new { id = payment.Id });
+                var payableNav = PaymentNavigationHelper.Resolve(payment);
+                if (settlementMode)
+                {
+                    if (payableNav.Destination == PaymentClientDestination.PaymentDetails)
+                        return RedirectToAction(ActionNames.PaymentDetails, new { id = payment.Id });
+                    if (payableNav.Destination != PaymentClientDestination.PaymentSettlement)
+                        return RedirectToAction(ActionNames.PaymentSummary, new { id = payment.Id });
+                }
+                else
+                {
+                    if (payableNav.Destination == PaymentClientDestination.PaymentSettlement)
+                        return RedirectToAction(ActionNames.PaymentSettlement, new { id = payment.Id });
+                    if (payableNav.Destination != PaymentClientDestination.PaymentDetails)
+                        return RedirectToAction(ActionNames.PaymentSummary, new { id = payment.Id });
+                }
             }
             ViewBag.IsPaymentOwner = isAuthorized;
+            ViewBag.IsSettlementCheckout = settlementMode;
             var asaasApiKey = await _systemConfig.GetValueAsync(AsaasConfigKey.ApiKey.ToConfigKey());
             var isAsaasConfigured = !string.IsNullOrEmpty(asaasApiKey);
             if (!isAsaasConfigured && isAuthorized)
             {
                 var needsAsaasWarning = payment.Status == PaymentStatus.Pending
-                    || PaymentNavigationHelper.CanAccessPaymentCheckout(payment);
+                    || PaymentNavigationHelper.CanAccessPaymentCheckout(payment)
+                    || PaymentNavigationHelper.CanAccessPaymentSettlement(payment);
                 if (needsAsaasWarning)
                 {
                     TempData[TempDataKeys.Warning] = payment.Method == PaymentMethod.CreditCard
@@ -3138,6 +3296,34 @@ namespace KlyonHubPlatform.Api.Controllers
                 }
                 try
                 {
+                    // Garantir Amount alinhado ao plano (PIX tradicional mensal = parcela, não SnapshotListPrice)
+                    // ANTES de emitir/reutilizar cobrança no Asaas — corrige pagamentos já persistidos com valor anual.
+                    if (payment.Method == PaymentMethod.PIX || payment.Method == PaymentMethod.BankTransfer)
+                    {
+                        var syncContract = payment.Subscription?.Contract;
+                        var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == payment.Id, cancellationToken);
+                        var trackedContract = syncContract != null
+                            ? await _context.Contracts.FirstOrDefaultAsync(c => c.Id == syncContract.Id, cancellationToken)
+                            : null;
+                        if (trackedPayment != null && trackedContract != null)
+                        {
+                            var planForSync = payment.Method == PaymentMethod.PIX
+                                ? (trackedContract.CardPlanType ?? ContractCardPlanType.None)
+                                : ContractCardPlanType.None;
+                            var boletoCycle = payment.Method == PaymentMethod.BankTransfer
+                                ? PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment)
+                                : null;
+                            await SyncCheckoutAmountFromSnapshotAsync(
+                                trackedPayment,
+                                trackedContract,
+                                payment.Method,
+                                planForSync,
+                                cancellationToken,
+                                boletoCycle);
+                            payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                        }
+                    }
+
                     if (payment.Method == PaymentMethod.PIX)
                     {
                         // Mesma lógica do PIX Automático: garantir 1 código válido (reaproveitar se válido, gerar 1 vez se não houver ou expirado). Único ponto que dispara geração ao exibir a tela; UpdatePaymentMethod só atualiza método/contrato.
@@ -3148,15 +3334,42 @@ namespace KlyonHubPlatform.Api.Controllers
                     }
                     else if (payment.Method == PaymentMethod.BankTransfer)
                     {
-                        var boletoExpUtc = payment.BoletoExpiresAt.HasValue
-                            ? (payment.BoletoExpiresAt.Value.Kind == DateTimeKind.Utc ? payment.BoletoExpiresAt.Value : DateTime.SpecifyKind(payment.BoletoExpiresAt.Value, DateTimeKind.Utc))
-                            : (DateTime?)null;
+                        // Expiração de boleto é data de calendário Asaas — não tratar midnight como UTC instant.
                         var boletoMissingOrExpired = string.IsNullOrEmpty(payment.BoletoCode) ||
-                            (boletoExpUtc.HasValue && boletoExpUtc.Value < DateTime.UtcNow);
+                            (payment.BoletoExpiresAt.HasValue
+                             && BrazilDateTime.IsCalendarDueDateOverdue(payment.BoletoExpiresAt.Value));
                         if (boletoMissingOrExpired)
                         {
-                            await _paymentService.GenerateBoletoCodeAsync(payment.Id);
-                            payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
+                            try
+                            {
+                                await _paymentService.GenerateBoletoCodeAsync(payment.Id);
+                                payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                            }
+                            catch (InvalidOperationException boletoEx) when (
+                                boletoEx.Message.Contains("linha digitável", StringComparison.OrdinalIgnoreCase)
+                                || boletoEx.Message.Contains("boleto", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Soft: Method já é boleto — não toast vermelho fatal; UI mostra "Gerando" + retry.
+                                _logger.LogWarning(boletoEx,
+                                    "Boleto ainda sem linha digitável no PaymentDetails GET. PaymentId: {PaymentId}", id);
+                                ViewBag.BoletoGenerating = true;
+                                TempData[TempDataKeys.Warning] = WarningMessages.BoletoLineNotReadyYet;
+                            }
+                        }
+                        else
+                        {
+                            // Linha já existe: ainda assim alinhar DueDate local ao dueDate Asaas
+                            // (evita badge Vencido com data stale / shift UTC→BRT).
+                            try
+                            {
+                                await _paymentService.SyncBoletoDueDateFromAsaasAsync(payment.Id);
+                                payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                            }
+                            catch (Exception syncEx)
+                            {
+                                _logger.LogWarning(syncEx,
+                                    "Sync DueDate boleto no PaymentDetails falhou. PaymentId: {PaymentId}", id);
+                            }
                         }
                     }
                 }
@@ -3169,6 +3382,14 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ex.Message;
                     return RedirectToAction(ActionNames.Profile);
                 }
+                catch (InvalidOperationException ex) when (
+                    payment.Method == PaymentMethod.BankTransfer
+                    && (ex.Message.Contains("linha digitável", StringComparison.OrdinalIgnoreCase)
+                        || ex.Message.Contains("boleto", StringComparison.OrdinalIgnoreCase)))
+                {
+                    ViewBag.BoletoGenerating = true;
+                    TempData[TempDataKeys.Warning] = WarningMessages.BoletoLineNotReadyYet;
+                }
                 catch (InvalidOperationException ex)
                 {
                     TempData[ErrorMessages.TempDataKey] = ex.Message;
@@ -3176,7 +3397,9 @@ namespace KlyonHubPlatform.Api.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Falha ao gerar código PIX/Boleto no PaymentDetails (Asaas configurado). PaymentId: {PaymentId}", id);
-                    TempData[TempDataKeys.Warning] = WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
+                    TempData[TempDataKeys.Warning] = payment.Method == PaymentMethod.BankTransfer
+                        ? WarningMessages.BoletoLineNotReadyYet
+                        : WarningMessages.CouldNotGeneratePaymentCodePixOrCheckAsaas;
                 }
             }
             ViewBag.HiddenPaymentOptions = hiddenPaymentSet;
@@ -3299,7 +3522,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     ViewBag.BoletoValidationMessage = validationOk ? "Validação FEBRABAN: dígitos verificadores conferem." : (validationError ?? "Validação FEBRABAN não realizada.");
                 }
             }
-            return View(payment);
+            return View(settlementMode ? ActionNames.PaymentSettlement : ActionNames.PaymentDetails, payment);
         }
         [HttpGet]
         public async Task<IActionResult> GetPaymentStatus(int paymentId, CancellationToken cancellationToken = default)
@@ -3371,7 +3594,13 @@ namespace KlyonHubPlatform.Api.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdatePaymentMethod(int paymentId, string method, [FromForm(Name = "pixPlanType")] string? pixPlanSelection, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> UpdatePaymentMethod(
+            int paymentId,
+            string method,
+            [FromForm(Name = "pixPlanType")] string? pixPlanSelection,
+            [FromForm(Name = "boletoPlanType")] string? boletoPlanSelection,
+            [FromForm(Name = "cardPlanOption")] string? cardPlanSelection,
+            CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3392,10 +3621,12 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     return Forbid();
                 }
-                if (payment.Status != PaymentStatus.Pending)
+                if (payment.Status != PaymentStatus.Pending
+                    && !(payment.Status == PaymentStatus.Failed
+                         && PaymentNavigationHelper.CanChangePaymentMethod(payment)))
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanChangeMethod;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return RedirectToPayablePayment(payment);
                 }
                 var hiddenUpdateRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
                 var hiddenUpdateSet = (hiddenUpdateRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -3427,7 +3658,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     if (requestedPixPlan == ContractCardPlanType.PixMonthly && hiddenUpdateSet.Contains("PixMonthly"))
                         return PaymentMethodUpdateError("A forma de pagamento PIX Automático (mensal) não está disponível.", paymentId);
                     if (requestedPixPlan == ContractCardPlanType.None && hiddenUpdateSet.Contains("PIX"))
-                        return PaymentMethodUpdateError("A forma de pagamento PIX (pagamento único) não está disponível.", paymentId);
+                        return PaymentMethodUpdateError("A forma de pagamento PIX (assinatura mensal) não está disponível.", paymentId);
                     pixPlanType = requestedPixPlan;
                 }
                 else if (!Enum.TryParse<PaymentMethod>(method, out paymentMethod))
@@ -3453,10 +3684,51 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (paymentMethod == PaymentMethod.BankTransfer && hiddenUpdateSet.Contains("Boleto"))
                     return PaymentMethodUpdateError(ErrorMessages.BoletoNoLongerAvailable, paymentId);
 
+                string? boletoBillingCycle = null;
+                if (paymentMethod == PaymentMethod.BankTransfer)
+                {
+                    // Explicit monthly/yearly from form; if absent, preserve current cycle
+                    // (PIX mensal → boleto mensal). Never force YEARLY when ciclo atual é mensal.
+                    if (string.Equals(boletoPlanSelection, "monthly", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(boletoPlanSelection, BillingCycleConstants.Monthly, StringComparison.OrdinalIgnoreCase))
+                    {
+                        boletoBillingCycle = BillingCycleConstants.Monthly;
+                    }
+                    else if (string.Equals(boletoPlanSelection, "yearly", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(boletoPlanSelection, BillingCycleConstants.Yearly, StringComparison.OrdinalIgnoreCase))
+                    {
+                        boletoBillingCycle = BillingCycleConstants.Yearly;
+                    }
+                    else
+                    {
+                        var currentCycle = PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment);
+                        if (BillingCycleConstants.IsMonthly(currentCycle))
+                            boletoBillingCycle = BillingCycleConstants.Monthly;
+                        else if (BillingCycleConstants.IsYearly(currentCycle))
+                            boletoBillingCycle = BillingCycleConstants.Yearly;
+                        else
+                        {
+                            // Sem snapshot: preferir mensal se Amount já é parcela (~lista/12), não preço anual.
+                            var listPrice = contract.SnapshotListPrice > 0 ? contract.SnapshotListPrice : contract.MonthlyValue;
+                            var monthlyGuess = listPrice > 0 ? listPrice / 12m : 0m;
+                            boletoBillingCycle = monthlyGuess > 0 && payment.Amount > 0
+                                && Math.Abs(payment.Amount - monthlyGuess) <= Math.Abs(payment.Amount - listPrice)
+                                ? BillingCycleConstants.Monthly
+                                : BillingCycleConstants.Yearly;
+                        }
+                    }
+
+                    _logger.LogInformation(
+                        "UpdatePaymentMethod boleto: paymentId={PaymentId}, boletoPlanType={Plan}, cycle={Cycle}, amountAntesSync={Amount}",
+                        paymentId, boletoPlanSelection, boletoBillingCycle, payment.Amount);
+                }
+
                 ContractCardPlanType? checkoutCardPlan = paymentMethod switch
                 {
-                    PaymentMethod.CreditCard => NormalizeCheckoutCardPlan(paymentMethod, contract.CardPlanType),
+                    PaymentMethod.CreditCard => ParseCardPlanOption(cardPlanSelection)
+                        ?? NormalizeCheckoutCardPlan(paymentMethod, contract.CardPlanType),
                     PaymentMethod.PIX => pixPlanType ?? ResolveDefaultAvailablePixPlan(hiddenUpdateSet, contract.CardPlanType) ?? contract.CardPlanType,
+                    PaymentMethod.BankTransfer => ContractCardPlanType.None,
                     _ => contract.CardPlanType
                 };
                 var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
@@ -3465,13 +3737,33 @@ namespace KlyonHubPlatform.Api.Controllers
                 // precisa do anterior para cancelar pay_*/auth ao trocar só o ciclo PIX (method continua PIX).
                 var previousCardPlanType = trackedContract?.CardPlanType ?? contract.CardPlanType;
                 if (trackedPayment != null && trackedContract != null)
-                    await SyncCheckoutAmountFromSnapshotAsync(trackedPayment, trackedContract, paymentMethod, checkoutCardPlan, cancellationToken);
+                    await SyncCheckoutAmountFromSnapshotAsync(
+                        trackedPayment,
+                        trackedContract,
+                        paymentMethod,
+                        checkoutCardPlan,
+                        cancellationToken,
+                        boletoBillingCycle);
+
+                if (paymentMethod == PaymentMethod.BankTransfer && trackedPayment != null)
+                {
+                    _logger.LogInformation(
+                        "UpdatePaymentMethod boleto após Sync: paymentId={PaymentId}, Amount={Amount}, SnapshotBillingCycle={Cycle}",
+                        paymentId, trackedPayment.Amount, trackedPayment.SnapshotBillingCycle);
+                }
 
                 await _paymentService.UpdatePaymentMethodAsync(paymentId, paymentMethod, pixPlanType, previousCardPlanType);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PaymentMethodUpdated;
                 if (IsAjaxRequest())
+                {
+                    // Soft: se boleto ainda sem linha, GET completa; não devolver erro vermelho.
+                    var after = await _paymentService.GetPaymentByIdAsync(paymentId);
+                    if (after?.Method == PaymentMethod.BankTransfer && string.IsNullOrEmpty(after.BoletoCode))
+                        return Ok(new { warning = "boleto_pending", message = WarningMessages.BoletoGeneratingRefreshShort });
                     return Ok();
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                }
+                payment = await _paymentService.GetPaymentByIdAsync(paymentId) ?? payment;
+                return RedirectToPayablePayment(payment);
             }
             catch (Exception ex)
             {
@@ -3505,7 +3797,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (payment.Method != PaymentMethod.PIX)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ThisPaymentIsNotPix;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return RedirectToPayablePayment(payment);
                 }
                 if (payment.Status == PaymentStatus.Cancelled)
                 {
@@ -3514,7 +3806,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (payment.Status != PaymentStatus.Pending)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanGeneratePix;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return RedirectToPayablePayment(payment);
                 }
                 // Forma de cobrança escolhida pelo usuário na tela (PixAnnual, PixMonthly ou PIX = único); se não enviada, usa a do contrato
                 ContractCardPlanType? requestedPixPlan = null;
@@ -3536,7 +3828,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
                 await _paymentService.GeneratePixCodeAsync(paymentId, requestedPixPlan, previousCardPlanType);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.PixCodeGenerated;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                payment = await _paymentService.GetPaymentByIdAsync(paymentId) ?? payment;
+                return RedirectToPayablePayment(payment);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("API Key", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("não configurada", StringComparison.OrdinalIgnoreCase))
             {
@@ -3554,6 +3847,77 @@ namespace KlyonHubPlatform.Api.Controllers
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
             }
         }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GenerateBoletoCode(int paymentId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var payment = await _paymentService.GetPaymentByIdAsync(paymentId);
+                if (payment == null)
+                {
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.PaymentNotFound;
+                    return RedirectToAction(ActionNames.MyPayments);
+                }
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
+                if (client == null)
+                    return RedirectToAction(ActionNames.RegisterClient);
+                var contract = await _clientAppService.GetContractByIdAsync(payment.Subscription.ContractId, cancellationToken);
+                if (contract == null || contract.ClientId != client.Id)
+                    return Forbid();
+                if (payment.Method != PaymentMethod.BankTransfer)
+                {
+                    TempData[ErrorMessages.TempDataKey] = "Este pagamento não é boleto.";
+                    return RedirectToPayablePayment(payment);
+                }
+                if (payment.Status != PaymentStatus.Pending)
+                {
+                    TempData[ErrorMessages.TempDataKey] = ErrorMessages.OnlyPendingPaymentsCanChangeMethod;
+                    return RedirectToPayablePayment(payment);
+                }
+
+                var boletoCycle = PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment)
+                    ?? BillingCycleConstants.Monthly;
+                var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
+                var trackedContract = await _context.Contracts.FirstOrDefaultAsync(c => c.Id == contract.Id, cancellationToken);
+                if (trackedPayment != null && trackedContract != null)
+                {
+                    await SyncCheckoutAmountFromSnapshotAsync(
+                        trackedPayment,
+                        trackedContract,
+                        PaymentMethod.BankTransfer,
+                        ContractCardPlanType.None,
+                        cancellationToken,
+                        boletoCycle);
+                }
+
+                await _paymentService.GenerateBoletoCodeAsync(paymentId);
+                TempData[SuccessMessage.TempDataKey] = "Boleto gerado com sucesso.";
+                payment = await _paymentService.GetPaymentByIdAsync(paymentId) ?? payment;
+                return RedirectToPayablePayment(payment);
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message.Contains("linha digitável", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("boleto", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData[TempDataKeys.Warning] = WarningMessages.BoletoLineNotReadyYet;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData[ErrorMessages.TempDataKey] = ex.Message;
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+            catch (Exception ex)
+            {
+                TempData[TempDataKeys.Warning] = WarningMessages.BoletoLineNotReadyYet;
+                _logger.LogWarning(ex, "Falha ao gerar boleto. PaymentId: {PaymentId}", paymentId);
+                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ConfirmPayment(int paymentId, IFormFile? receiptFile, CancellationToken cancellationToken = default)
@@ -5255,7 +5619,7 @@ namespace KlyonHubPlatform.Api.Controllers
                     listPrice,
                     surcharge,
                     payment.Method,
-                    payment.Method == PaymentMethod.CreditCard ? selectedCardPlan : null);
+                    payment.Method == PaymentMethod.CreditCard ? selectedCardPlan : contract.CardPlanType);
                 var address = await _context.CoworkingAddresses.AsNoTracking()
                     .FirstOrDefaultAsync(a => a.Id == contract.CoworkingAddressId, cancellationToken);
                 if (address == null)
@@ -5281,19 +5645,28 @@ namespace KlyonHubPlatform.Api.Controllers
                 payment.SnapshotListPrice = listPrice;
                 if (contract.SnapshotListPrice <= 0)
                     contract.SnapshotListPrice = listPrice;
+                var chargePlan = payment.Method == PaymentMethod.CreditCard
+                    ? selectedCardPlan
+                    : contract.CardPlanType;
                 var chargeAmount = CalculateCheckoutAmount(
                     listPrice,
                     result.DiscountAmount,
                     surcharge,
                     payment.Method,
-                    payment.Method == PaymentMethod.CreditCard ? selectedCardPlan : null);
+                    chargePlan,
+                    payment.Method == PaymentMethod.BankTransfer
+                        ? PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment)
+                        : null);
                 await ApplyChargeAmountToPaymentAndContractAsync(
                     payment,
                     contract,
                     chargeAmount,
                     payment.Method,
-                    selectedCardPlan,
-                    cancellationToken);
+                    chargePlan,
+                    cancellationToken,
+                    payment.Method == PaymentMethod.BankTransfer
+                        ? PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment)
+                        : null);
                 await _context.SaveChangesAsync(cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = $"Cupom aplicado. Desconto de R$ {result.DiscountAmount:N2}.";
                 return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });

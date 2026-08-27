@@ -62,6 +62,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ContractDetails = "Detalhes do Contrato";
         public const string MyPayments = "Cobranças de Endereço Fiscal";
         public const string PaymentDetails = "Detalhes do Pagamento";
+        public const string PaymentSettlement = "Acerto de contas";
         public const string PaymentSummary = "Resumo da Cobrança";
         public const string SelectPaymentPlan = "Escolher forma de pagamento";
         public const string Declarations = "Declarações de Uso de Endereço Fiscal";

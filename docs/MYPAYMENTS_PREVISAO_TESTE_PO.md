@@ -26,9 +26,9 @@ Quando o cliente tem **assinatura recorrente ativa** (`CardMonthly`, `Card1x`, `
 
 | Coluna | Comportamento |
 |--------|---------------|
-| Status | Badge **Previsto** (cartão) ou **Aguardando emissão** (PIX Automático) |
-| Vencimento | Calculado por `Subscription.NextBillingDate` ou último pagamento pago + 1 mês/ano |
-| Valor | `Subscription.MonthlyAmount` ou preço via `AddressPricingService` |
+| Status | Badge **Previsto** (cartão/PIX/boleto assinatura) ou **Aguardando emissão** (PIX Automático) |
+| Vencimento | Último pagamento **pago** + 1 mês (`Monthly`) ou + 1 ano (`Yearly`), conforme `SnapshotBillingCycle` → `CardPlanType` → `Subscription.BillingCycle` |
+| Valor / método / copy | Do ciclo vigente do pagamento pago (ex.: cartão anual R$ 675, texto **anual**); não usar cobrança cancelada residual nem sub Asaas PIX mensal órfã |
 | Ações | "Em breve" (sem link até existir cobrança real) |
 
 Quando o Asaas emite a cobrança (`PAYMENT_CREATED`), a linha prevista **some** e aparece a cobrança real com status **Aguardando Pagamento**.
@@ -276,11 +276,12 @@ Para forçar emissão em dev, aguarde o worker `PixAutomaticBillingBackgroundSer
 |----------|-------------|
 | Não aparece Previsto | Contrato `Active`? Assinatura `Active`? Plano recorrente? Já existe Pending futuro? |
 | Previsto e Pending juntos | DueDate diferente no banco vs previsão — alinhar `NextBillingDate` |
+| Previsto mensal/PIX após cartão anual | Previsão local usa **pagamento pago** (`SnapshotBillingCycle` / método / `Amount`) + `CardPlanType`, não `NextBillingDate` de sub Asaas residual. Se `sub_*` no Asaas ainda for PIX `MONTHLY` órfã após troca para cartão YEARLY, cancelar/atualizar a assinatura no painel Asaas (sandbox) para alinhar o gateway; a UI MyPayments já deve mostrar **+1 ano**, copy **anual** e método **Cartão**. |
 | Webhook 401 | Header `asaas-access-token` ≠ `Asaas.WebhookToken` |
 | PAYMENT_CREATED não cria pagamento | `subscription` no JSON deve ser `sub_*` existente em `Subscriptions.ExternalSubscriptionId` |
 | OVERDUE virou Cancelado | Corrigido: cartão assinatura permanece Pending; Cancelado só em PAYMENT_DELETED |
 | PAYMENT_UPDATED não atualiza DueDate | Corrigido: handler sincroniza DueDate, Amount e Status |
-| Valor divergente | Conferir `Subscription.MonthlyAmount` vs R$ 85,00 esperado |
+| Valor divergente | Conferir valor do último `Paid` e `Subscription.MonthlyAmount` vs ciclo (anual ≠ parcela mensal) |
 
 ---
 

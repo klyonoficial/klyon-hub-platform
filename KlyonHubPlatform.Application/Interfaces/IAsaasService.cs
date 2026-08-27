@@ -66,6 +66,60 @@ namespace KlyonHubPlatform.Application.Interfaces
             string? asaasCustomerIdForToken = null,
             string? remoteIp = null,
             string? customerExternalReference = null);
+        /// <summary>
+        /// Cria assinatura Asaas (POST /subscriptions) para <paramref name="billingType"/> PIX ou BOLETO.
+        /// <paramref name="cycle"/>: MONTHLY ou YEARLY. Retorna 1ª cobrança + SubscriptionId (sub_...).
+        /// </summary>
+        Task<OrderResponse> CreateSubscriptionAsync(
+            string referenceId,
+            decimal amount,
+            string billingType,
+            string cycle,
+            string clientName,
+            string clientEmail,
+            string clientTaxId,
+            string? clientPhone = null,
+            PagBankAddress? clientAddress = null,
+            string? customerExternalReference = null);
+        /// <summary>
+        /// Atualiza assinatura Asaas (PUT /subscriptions/{id}).
+        /// Com <paramref name="updatePendingPayments"/> true, aplica billingType/valor também nas cobranças pendentes (como o painel Asaas).
+        /// </summary>
+        Task<AsaasSubscriptionResponse> UpdateSubscriptionAsync(
+            string asaasSubscriptionId,
+            string? billingType = null,
+            decimal? value = null,
+            string? cycle = null,
+            bool updatePendingPayments = true,
+            PagBankCard? card = null,
+            AsaasCreditCardHolderInfo? creditCardHolderInfo = null,
+            string? creditCardToken = null,
+            string? remoteIp = null);
+        /// <summary>Cancela/remove assinatura Asaas (DELETE /subscriptions/{id}).</summary>
+        Task CancelSubscriptionAsync(string asaasSubscriptionId);
+        /// <summary>
+        /// Aguarda a 1ª cobrança da assinatura e retorna como OrderResponse (útil após UpdateSubscription
+        /// para BOLETO/PIX, quando o Asaas ainda está gerando a cobrança pendente).
+        /// Default ~20s de polling (20 x 1s) para linha digitável após conversão BOLETO.
+        /// </summary>
+        Task<OrderResponse?> WaitForSubscriptionPaymentOrderAsync(string asaasSubscriptionId, int maxAttempts = 20);
+        /// <summary>
+        /// Paga cobrança pendente existente com cartão (POST /payments/{id}/payWithCreditCard).
+        /// Captura imediata mesmo com dueDate futuro — necessário após UpdateSubscription CREDIT_CARD
+        /// que só troca billingType sem cobrar (Asaas agenda até o vencimento).
+        /// </summary>
+        Task<OrderResponse> PayExistingPaymentWithCreditCardAsync(
+            string asaasPaymentId,
+            PagBankCard? card = null,
+            AsaasCreditCardHolderInfo? creditCardHolderInfo = null,
+            string? creditCardToken = null,
+            string? remoteIp = null);
+        /// <summary>
+        /// Resolve o pay_* pendente da assinatura (preferindo <paramref name="preferredPaymentId"/> se ainda existir).
+        /// </summary>
+        Task<string?> ResolveSubscriptionPendingPaymentIdAsync(
+            string asaasSubscriptionId,
+            string? preferredPaymentId = null);
         Task<OrderResponse> GetOrderAsync(string orderId);
         /// <summary>Obtém o QR Code PIX de uma cobrança já existente no Asaas (para reutilizar em vez de criar nova).</summary>
         Task<AsaasPixQrCodeResponse?> GetPixQrCodeAsync(string asaasPaymentId);

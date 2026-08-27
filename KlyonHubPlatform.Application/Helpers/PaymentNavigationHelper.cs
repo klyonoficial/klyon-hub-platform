@@ -21,7 +21,8 @@ namespace KlyonHubPlatform.Application.Helpers
         bool ShowCardMonthly,
         string DefaultPlanOption);
     /// <summary>
-    /// Regras de navegação cliente: checkout (PaymentDetails) vs recibo (PaymentSuccess) vs resumo read-only (PaymentSummary).
+    /// Regras de navegação cliente: checkout inicial (PaymentDetails) vs acerto (PaymentSettlement)
+    /// vs recibo (PaymentSuccess) vs resumo read-only (PaymentSummary).
     /// </summary>
     public static class PaymentNavigationHelper
     {
@@ -41,8 +42,8 @@ namespace KlyonHubPlatform.Application.Helpers
 
                 PaymentStatus.Failed =>
                     ShouldAllowCheckout(payment, isOverdue, hasBillingError)
-                        ? Link(
-                            PaymentClientDestination.PaymentDetails,
+                        ? LinkPayableCheckout(
+                            payment,
                             ResolveFailedActionLabel(payment),
                             ResolveFailedActionIcon(payment))
                         : Link(PaymentClientDestination.PaymentSummary, "Ver detalhes", "bi-info-circle"),
@@ -58,6 +59,33 @@ namespace KlyonHubPlatform.Application.Helpers
 
         public static bool CanAccessPaymentCheckout(Payment payment, DateTime? referenceBrazilNow = null) =>
             Resolve(payment, referenceBrazilNow).Destination == PaymentClientDestination.PaymentDetails;
+
+        public static bool CanAccessPaymentSettlement(Payment payment, DateTime? referenceBrazilNow = null) =>
+            Resolve(payment, referenceBrazilNow).Destination == PaymentClientDestination.PaymentSettlement;
+
+        /// <summary>
+        /// Checkout inicial (1ª parcela / contrato aguardando 1º pagamento) vs acerto de contas (parcela 2+).
+        /// </summary>
+        public static bool IsFirstContractPayment(Payment payment)
+        {
+            if (!payment.SubscriptionId.HasValue)
+                return true;
+
+            var contract = payment.Subscription?.Contract;
+            if (contract?.Status == ContractStatus.PendingPayment)
+                return true;
+
+            var subscriptionPayments = payment.Subscription?.Payments;
+            if (subscriptionPayments == null || subscriptionPayments.Count == 0)
+                return true;
+
+            var firstPayment = subscriptionPayments
+                .OrderBy(p => p.CreatedAt)
+                .ThenBy(p => p.Id)
+                .First();
+
+            return firstPayment.Id == payment.Id;
+        }
 
         public static bool IsRecurringAutoDebitInstallment(Payment payment)
         {
@@ -114,6 +142,9 @@ namespace KlyonHubPlatform.Application.Helpers
             if (payment.Status != PaymentStatus.Pending)
                 return false;
 
+            if (!IsFirstContractPayment(payment))
+                return false;
+
             return !IsRecurringAutoDebitInstallment(payment);
         }
 
@@ -135,6 +166,9 @@ namespace KlyonHubPlatform.Application.Helpers
             var plan = payment.Subscription?.Contract?.CardPlanType;
             if (plan == ContractCardPlanType.CardMonthly || plan == ContractCardPlanType.PixMonthly)
                 return BillingCycleConstants.Monthly;
+            // PIX tradicional (None) = assinatura mensal Asaas.
+            if (payment.Method == PaymentMethod.PIX && (plan == null || plan == ContractCardPlanType.None))
+                return BillingCycleConstants.Monthly;
             if (plan?.IsAnnualBillingCycle() == true)
                 return BillingCycleConstants.Yearly;
 
@@ -143,25 +177,37 @@ namespace KlyonHubPlatform.Application.Helpers
 
         public static bool IsMonthlyBillingCycle(Payment payment) =>
             BillingCycleConstants.IsMonthly(ResolveEffectiveBillingCycle(payment))
-            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.CardMonthly;
+            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.CardMonthly
+            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixMonthly;
 
         public static bool IsYearlyBillingCycle(Payment payment) =>
             BillingCycleConstants.IsYearly(ResolveEffectiveBillingCycle(payment))
-            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.Card1x;
+            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.Card1x
+            || payment.Subscription?.Contract?.CardPlanType == ContractCardPlanType.PixAnnual;
 
         /// <summary>
-        /// Opções de plano no checkout de cartão conforme ciclo snapshot e se é parcela recorrente.
-        /// Mensal: só mensal. Anual recorrente: só 1x. Anual 1ª parcela: ambas se endereço suportar.
+        /// Opções de plano no checkout de cartão.
+        /// Checkout inicial (1ª parcela): ambas se endereço/HiddenPaymentOptions suportarem.
+        /// Acerto / parcelas 2+: conforme ciclo snapshot.
         /// </summary>
         public static CreditCardCheckoutPlanOptions ResolveCreditCardCheckoutPlanOptions(
             Payment payment,
             bool addressSupportsCard1x,
             bool addressSupportsCardMonthly)
         {
+            if (IsFirstContractPayment(payment))
+            {
+                return new CreditCardCheckoutPlanOptions(
+                    ShowCard1x: addressSupportsCard1x,
+                    ShowCardMonthly: addressSupportsCardMonthly,
+                    DefaultPlanOption: addressSupportsCard1x ? "1x" : "monthly");
+            }
+
             var cycle = ResolveEffectiveBillingCycle(payment);
             var isRecurring = IsRecurringAutoDebitInstallment(payment);
+            var isSettlement = !IsFirstContractPayment(payment);
 
-            if (BillingCycleConstants.IsMonthly(cycle))
+            if (BillingCycleConstants.IsMonthly(cycle) || (isSettlement && IsMonthlyBillingCycle(payment)))
             {
                 return new CreditCardCheckoutPlanOptions(
                     ShowCard1x: false,
@@ -169,19 +215,19 @@ namespace KlyonHubPlatform.Application.Helpers
                     DefaultPlanOption: "monthly");
             }
 
-            if (BillingCycleConstants.IsYearly(cycle))
+            if (BillingCycleConstants.IsYearly(cycle) || (isSettlement && IsYearlyBillingCycle(payment)))
             {
-                if (isRecurring)
-                {
-                    return new CreditCardCheckoutPlanOptions(
-                        ShowCard1x: addressSupportsCard1x,
-                        ShowCardMonthly: false,
-                        DefaultPlanOption: "1x");
-                }
-
                 return new CreditCardCheckoutPlanOptions(
                     ShowCard1x: addressSupportsCard1x,
-                    ShowCardMonthly: addressSupportsCardMonthly,
+                    ShowCardMonthly: false,
+                    DefaultPlanOption: "1x");
+            }
+
+            if (isRecurring)
+            {
+                return new CreditCardCheckoutPlanOptions(
+                    ShowCard1x: addressSupportsCard1x,
+                    ShowCardMonthly: false,
                     DefaultPlanOption: "1x");
             }
 
@@ -191,12 +237,18 @@ namespace KlyonHubPlatform.Application.Helpers
                 DefaultPlanOption: "1x");
         }
 
-        public static string FormatCreditCardRecurrenceLabel(decimal amount, bool isMonthly) =>
+        /// <summary>
+        /// Label de recorrência sem misturar "equivale a R$/mês" em opção já mensal.
+        /// </summary>
+        public static string FormatBillingRecurrenceLabel(decimal amount, bool isMonthly) =>
             isMonthly
                 ? "recorrência mensal"
                 : "recorrência anual, equivale a R$ "
                   + (amount / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals, CultureInfo.GetCultureInfo("pt-BR"))
                   + "/mês";
+
+        public static string FormatCreditCardRecurrenceLabel(decimal amount, bool isMonthly) =>
+            FormatBillingRecurrenceLabel(amount, isMonthly);
 
         /// <summary>
         /// Label de recorrência para exibição read-only (Failed, Pending vencido, parcela recorrente).
@@ -241,7 +293,9 @@ namespace KlyonHubPlatform.Application.Helpers
             var locked = ResolveLockedMonthlyChargeAmount(payment);
 
             decimal displayAmount;
-            if (isMonthly && locked.HasValue)
+            if (!IsFirstContractPayment(payment) && payment.Amount > 0)
+                displayAmount = payment.Amount;
+            else if (isMonthly && locked.HasValue)
                 displayAmount = locked.Value;
             else if (useSnapshotPrices)
                 displayAmount = isMonthly ? snapshotPriceMonthly : snapshotPrice1x;
@@ -335,7 +389,7 @@ namespace KlyonHubPlatform.Application.Helpers
                 PaymentStatus.Failed =>
                     IsPixAutomaticAuthorizationFailure(payment)
                         ? (string.IsNullOrWhiteSpace(payment.FailureReason)
-                            ? "A autorização PIX Automático não foi concluída. Gere um novo QR em Detalhes do pagamento."
+                            ? "A autorização PIX Automático não foi concluída. Gere um novo QR em Acerto de contas."
                             : payment.FailureReason.Trim())
                         : string.IsNullOrWhiteSpace(payment.FailureReason)
                             ? "A cobrança não foi concluída. Você pode atualizar o cartão e tentar o pagamento novamente."
@@ -349,12 +403,12 @@ namespace KlyonHubPlatform.Application.Helpers
 
                 PaymentStatus.Pending when isAutoDebit && plan == ContractCardPlanType.CardMonthly =>
                     isOverdue
-                        ? "A cobrança automática no cartão cadastrado está pendente. Atualize o cartão e tente o pagamento novamente nesta cobrança."
+                        ? "A cobrança automática no cartão cadastrado está pendente. Regularize em Acerto de contas."
                         : "Esta parcela será debitada automaticamente no cartão cadastrado até a data de vencimento. Não é necessário pagar manualmente.",
 
                 PaymentStatus.Pending when isAutoDebit && plan == ContractCardPlanType.PixMonthly =>
                     isOverdue
-                        ? "O débito automático via PIX está pendente. Verifique sua autorização PIX Automático ou entre em contato com o suporte."
+                        ? "O débito automático via PIX está pendente. Verifique sua autorização PIX Automático ou regularize em Acerto de contas."
                         : "Esta parcela será debitada automaticamente via PIX Automático próximo ao vencimento. Não é necessário pagar manualmente.",
 
                 PaymentStatus.Pending when isOverdue =>
@@ -367,6 +421,90 @@ namespace KlyonHubPlatform.Application.Helpers
             };
         }
 
+        /// <summary>
+        /// Opções de meio no checkout. Checkout inicial (1ª parcela): não filtra por ciclo.
+        /// Acerto / parcelas 2+: mensal oculta anuais e vice-versa.
+        /// </summary>
+        public static (bool ShowPixAnnual, bool ShowPixMonthly, bool ShowPixSingle, bool ShowCard1x, bool ShowCardMonthly, bool ShowBoleto)
+            FilterPaymentOptionsByBillingCycle(
+                Payment payment,
+                bool showPixAnnual,
+                bool showPixMonthly,
+                bool showPixSingle,
+                bool showCard1x,
+                bool showCardMonthly,
+                bool showBoleto)
+        {
+            if (IsFirstContractPayment(payment))
+                return (showPixAnnual, showPixMonthly, showPixSingle, showCard1x, showCardMonthly, showBoleto);
+
+            if (IsMonthlyBillingCycle(payment))
+            {
+                return (
+                    ShowPixAnnual: false,
+                    ShowPixMonthly: showPixMonthly,
+                    ShowPixSingle: showPixSingle,
+                    ShowCard1x: false,
+                    ShowCardMonthly: showCardMonthly,
+                    ShowBoleto: showBoleto);
+            }
+
+            if (IsYearlyBillingCycle(payment))
+            {
+                return (
+                    ShowPixAnnual: showPixAnnual,
+                    ShowPixMonthly: false,
+                    ShowPixSingle: showPixSingle,
+                    ShowCard1x: showCard1x,
+                    ShowCardMonthly: false,
+                    ShowBoleto: showBoleto);
+            }
+
+            return (showPixAnnual, showPixMonthly, showPixSingle, showCard1x, showCardMonthly, showBoleto);
+        }
+
+        /// <summary>
+        /// Valor selecionado no dropdown flat do acerto de contas (PixAnnual/PixMonthly/PIX/CreditCard/BankTransfer).
+        /// </summary>
+        public static string ResolveSettlementMethodSelectValue(Payment payment)
+        {
+            if (payment.Method == PaymentMethod.CreditCard)
+                return "CreditCard";
+            if (payment.Method == PaymentMethod.BankTransfer)
+                return "BankTransfer";
+            if (payment.Method != PaymentMethod.PIX)
+                return payment.Method.ToString();
+
+            var plan = payment.Subscription?.Contract?.CardPlanType;
+            if (plan == ContractCardPlanType.PixAnnual)
+                return "PixAnnual";
+            if (plan == ContractCardPlanType.PixMonthly)
+                return "PixMonthly";
+            return "PIX";
+        }
+
+        public static string ResolveSettlementCycleLabel(Payment payment)
+        {
+            if (IsMonthlyBillingCycle(payment))
+                return "Mensal";
+            if (IsYearlyBillingCycle(payment))
+                return "Anual";
+            return "Conforme contrato";
+        }
+
+        public static bool CanChangePaymentMethod(Payment payment, DateTime? referenceBrazilNow = null)
+        {
+            if (payment.Status == PaymentStatus.Pending)
+                return true;
+
+            if (payment.Status == PaymentStatus.Failed
+                && (CanAccessPaymentCheckout(payment, referenceBrazilNow)
+                    || CanAccessPaymentSettlement(payment, referenceBrazilNow)))
+                return true;
+
+            return false;
+        }
+
         private static PaymentNavigationResult ResolvePending(
             Payment payment,
             bool isOverdue,
@@ -375,9 +513,9 @@ namespace KlyonHubPlatform.Application.Helpers
             if (hasBillingError)
             {
                 return ShouldAllowCheckout(payment, isOverdue, hasBillingError)
-                    ? Link(
-                        PaymentClientDestination.PaymentDetails,
-                        isOverdue ? "Pagar / atualizar cartão" : "Tentar novamente",
+                    ? LinkPayableCheckout(
+                        payment,
+                        isOverdue ? "Pagar / atualizar" : "Tentar novamente",
                         "bi-arrow-clockwise")
                     : Link(PaymentClientDestination.PaymentSummary, "Ver detalhes", "bi-info-circle");
             }
@@ -386,9 +524,9 @@ namespace KlyonHubPlatform.Application.Helpers
             {
                 if (ShouldAllowCheckout(payment, isOverdue, hasBillingError))
                 {
-                    return Link(
-                        PaymentClientDestination.PaymentDetails,
-                        "Pagar / atualizar cartão",
+                    return LinkPayableCheckout(
+                        payment,
+                        "Pagar / atualizar",
                         "bi-credit-card");
                 }
 
@@ -398,10 +536,21 @@ namespace KlyonHubPlatform.Application.Helpers
                     isOverdue ? "bi-exclamation-triangle" : "bi-calendar-check");
             }
 
-            return Link(
-                PaymentClientDestination.PaymentDetails,
+            return LinkPayableCheckout(
+                payment,
                 isOverdue ? "Pagar agora" : "Pagar",
                 "bi-credit-card");
+        }
+
+        private static PaymentNavigationResult LinkPayableCheckout(
+            Payment payment,
+            string label,
+            string iconCss)
+        {
+            var destination = IsFirstContractPayment(payment)
+                ? PaymentClientDestination.PaymentDetails
+                : PaymentClientDestination.PaymentSettlement;
+            return Link(destination, label, iconCss);
         }
 
         private static bool ShouldAllowCheckout(Payment payment, bool isOverdue, bool hasBillingError)
@@ -415,14 +564,15 @@ namespace KlyonHubPlatform.Application.Helpers
             if (!IsRecurringAutoDebitInstallment(payment))
                 return true;
 
-            // Cartão recorrente falhou: permite retentar / atualizar cartão em PaymentDetails.
-            if (payment.Status == PaymentStatus.Failed && payment.Method == PaymentMethod.CreditCard)
+            // Qualquer Failed: retentar / trocar meio (acerto ou 1ª parcela).
+            if (payment.Status == PaymentStatus.Failed)
                 return true;
 
-            // Débito automático vencido (cartão): permite ir a PaymentDetails para pagar / atualizar cartão.
-            if (payment.Status == PaymentStatus.Pending
-                && isOverdue
-                && payment.Method == PaymentMethod.CreditCard)
+            // Débito automático vencido: permite regularizar.
+            if (payment.Status == PaymentStatus.Pending && isOverdue)
+                return true;
+
+            if (hasBillingError)
                 return true;
 
             return false;
@@ -448,9 +598,11 @@ namespace KlyonHubPlatform.Application.Helpers
         private static string ResolveFailedActionLabel(Payment payment) =>
             IsPixAutomaticAuthorizationFailure(payment)
                 ? "Gerar novo QR"
-                : payment.Method == PaymentMethod.CreditCard
-                    ? "Pagar / atualizar cartão"
-                    : "Tentar novamente";
+                : IsMonthlyBillingCycle(payment)
+                    ? "Pagar / trocar meio"
+                    : payment.Method == PaymentMethod.CreditCard
+                        ? "Pagar / atualizar"
+                        : "Tentar novamente";
 
         private static string ResolveFailedActionIcon(Payment payment) =>
             IsPixAutomaticAuthorizationFailure(payment)

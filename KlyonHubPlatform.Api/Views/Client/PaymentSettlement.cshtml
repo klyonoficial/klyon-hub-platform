@@ -1,0 +1,534 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.Helpers
+@using KlyonHubPlatform.Api.Constants
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.PaymentSettlement;
+    var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
+    var contract = Model.Subscription?.Contract;
+    var isPending = Model.Status == PaymentStatus.Pending;
+    var isFailed = Model.Status == PaymentStatus.Failed;
+    var canCheckout = PaymentNavigationHelper.CanAccessPaymentSettlement(Model);
+    var isPix = Model.Method == PaymentMethod.PIX;
+    var isPixAutomatic = isPix && contract?.CardPlanType.IsPixAutomatic() == true;
+    var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
+    var isPixMonthly = isPix && contract?.CardPlanType == ContractCardPlanType.PixMonthly;
+    var effectivePixCode = isPixAutomatic ? (Model.Subscription?.PixAutomaticPayload) : Model.PixCode;
+    var effectivePixExpiresAt = isPixAutomatic ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt;
+    var pixExpiresAtUtc = effectivePixExpiresAt.HasValue
+        ? (effectivePixExpiresAt.Value.Kind == DateTimeKind.Utc ? effectivePixExpiresAt.Value : DateTime.SpecifyKind(effectivePixExpiresAt.Value, DateTimeKind.Utc))
+        : (DateTime?)null;
+    var isExpired = pixExpiresAtUtc.HasValue && pixExpiresAtUtc.Value < DateTime.UtcNow;
+    var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as IReadOnlySet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
+    var showPixMonthlyInDropdown = !hiddenPaymentOptions.Contains("PixMonthly");
+    var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
+    var addressHasCard1x = !hiddenPaymentOptions.Contains("Card1x");
+    var addressHasCardMonthly = !hiddenPaymentOptions.Contains("CardMonthly");
+    var cardCheckoutPlanOptions = PaymentNavigationHelper.ResolveCreditCardCheckoutPlanOptions(Model, addressHasCard1x, addressHasCardMonthly);
+    var filteredOptions = PaymentNavigationHelper.FilterPaymentOptionsByBillingCycle(
+        Model,
+        showPixAnnualInDropdown,
+        showPixMonthlyInDropdown,
+        showPixSingleInDropdown,
+        cardCheckoutPlanOptions.ShowCard1x,
+        cardCheckoutPlanOptions.ShowCardMonthly,
+        showBoleto: !hiddenPaymentOptions.Contains("Boleto"));
+    showPixAnnualInDropdown = filteredOptions.ShowPixAnnual;
+    showPixMonthlyInDropdown = filteredOptions.ShowPixMonthly;
+    showPixSingleInDropdown = filteredOptions.ShowPixSingle;
+    var showCard1x = filteredOptions.ShowCard1x;
+    var showCardMonthly = filteredOptions.ShowCardMonthly;
+    var showCreditCardInDropdown = showCard1x || showCardMonthly;
+    var showBoletoInDropdown = filteredOptions.ShowBoleto;
+    var canChangePaymentMethod = isPaymentOwner && PaymentNavigationHelper.CanChangePaymentMethod(Model);
+    var isMonthlyBillingCycle = PaymentNavigationHelper.IsMonthlyBillingCycle(Model);
+    var cycleLabel = PaymentNavigationHelper.ResolveSettlementCycleLabel(Model);
+    var currentMethodValue = PaymentNavigationHelper.ResolveSettlementMethodSelectValue(Model);
+    var lockedPlanOption = cardCheckoutPlanOptions.DefaultPlanOption;
+    var showPixCard = (isPending || isFailed) && isPix && (showPixAnnualInDropdown || showPixMonthlyInDropdown || showPixSingleInDropdown);
+    var showBoletoSection = (isPending || isFailed) && Model.Method == PaymentMethod.BankTransfer && showBoletoInDropdown;
+    var showCreditCardCheckout = canCheckout && Model.Method == PaymentMethod.CreditCard && showCreditCardInDropdown;
+    var recurrenceLabel = isMonthlyBillingCycle
+        ? "recorrência mensal"
+        : "recorrência anual";
+    var currentPixPlanValue = isPixAnnual ? "PixAnnual" : (isPixMonthly ? "PixMonthly" : "PIX");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="bi bi-cash-coin"></i> Acerto de contas</h2>
+        <p class="text-muted mb-0">Regularizar cobrança pendente ou com falha</p>
+    </div>
+    <a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (!isPaymentOwner)
+{
+    <div class="alert alert-info mb-4" role="alert">
+        <i class="bi bi-eye"></i> Visualização somente leitura (administrador).
+    </div>
+}
+
+<div class="alert alert-warning border-0 shadow-sm mb-4" role="status">
+    <i class="bi bi-info-circle me-1"></i>
+    Ao trocar o meio de pagamento, as cobranças <strong>pendentes e próximas</strong> são atualizadas no Asaas.
+    Parcelas <strong>já pagas / históricas</strong> permanecem intactas.
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-receipt-cutoff"></i> Cobrança a regularizar</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    @if (contract != null)
+                    {
+                        <dt class="col-sm-4">Contrato:</dt>
+                        <dd class="col-sm-8"><strong>@contract.ContractNumber</strong></dd>
+                        <dt class="col-sm-4">Endereço:</dt>
+                        <dd class="col-sm-8">@(contract.CoworkingAddress?.Address ?? contract.SnapshotAddress)</dd>
+                    }
+
+                    <dt class="col-sm-4">Ciclo do contrato:</dt>
+                    <dd class="col-sm-8"><span class="badge bg-secondary">@cycleLabel</span></dd>
+
+                    <dt class="col-sm-4">Valor:</dt>
+                    <dd class="col-sm-8">
+                        <h4 class="text-primary mb-0">R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                        <small class="text-muted d-block mt-1">@recurrenceLabel (valor fixo deste ciclo — sem opção 1x vs mensal)</small>
+                    </dd>
+
+                    <dt class="col-sm-4">Vencimento:</dt>
+                    <dd class="col-sm-8">
+                        @Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
+                        @if (isPending && BrazilDateTime.IsCalendarDueDateOverdue(Model.DueDate))
+                        {
+                            <span class="badge bg-cancelled ms-2">Vencido</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Status:</dt>
+                    <dd class="col-sm-8">
+                        @if (isFailed)
+                        {
+                            <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Falhou</span>
+                            @if (!string.IsNullOrWhiteSpace(Model.FailureReason))
+                            {
+                                <div class="text-danger small mt-1">@Model.FailureReason</div>
+                            }
+                        }
+                        else if (BrazilDateTime.IsCalendarDueDateOverdue(Model.DueDate))
+                        {
+                            <span class="badge bg-cancelled"><i class="bi bi-exclamation-triangle me-1"></i> Vencido</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Meio de pagamento:</dt>
+                    <dd class="col-sm-8">
+                        @if (canChangePaymentMethod)
+                        {
+                            var hasAnyOption = showPixSingleInDropdown || showPixMonthlyInDropdown || showPixAnnualInDropdown
+                                || showCreditCardInDropdown || showBoletoInDropdown;
+                            if (!hasAnyOption)
+                            {
+                                <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível.</p>
+                            }
+                            else
+                            {
+                                <form method="post" action="@Url.Action(ActionNames.PaymentSettlement, ControllerNames.Client, new { id = Model.Id })" id="settlementMethodForm" data-action-url="@Url.Action(ActionNames.UpdatePaymentMethod, ControllerNames.Client)">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <input type="hidden" name="cardPlanOption" value="@lockedPlanOption" />
+                                    @if (isMonthlyBillingCycle)
+                                    {
+                                        <input type="hidden" name="boletoPlanType" value="monthly" />
+                                    }
+                                    else
+                                    {
+                                        <input type="hidden" name="boletoPlanType" value="yearly" />
+                                    }
+                                    <select name="method" id="settlementMethodSelect" class="form-select" style="max-width: 360px;" onchange="submitSettlementMethod(this)">
+                                        @if (showPixSingleInDropdown)
+                                        {
+                                            if (currentMethodValue == "PIX")
+                                            {
+                                                <option value="PIX" selected>@(isMonthlyBillingCycle ? "PIX tradicional (assinatura mensal)" : "PIX (pagamento)")</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="PIX">@(isMonthlyBillingCycle ? "PIX tradicional (assinatura mensal)" : "PIX (pagamento)")</option>
+                                            }
+                                        }
+                                        @if (showPixMonthlyInDropdown)
+                                        {
+                                            if (currentMethodValue == "PixMonthly")
+                                            {
+                                                <option value="PixMonthly" selected>PIX Automático mensal</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="PixMonthly">PIX Automático mensal</option>
+                                            }
+                                        }
+                                        @if (showPixAnnualInDropdown)
+                                        {
+                                            if (currentMethodValue == "PixAnnual")
+                                            {
+                                                <option value="PixAnnual" selected>PIX Automático anual</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="PixAnnual">PIX Automático anual</option>
+                                            }
+                                        }
+                                        @if (showCreditCardInDropdown)
+                                        {
+                                            if (currentMethodValue == "CreditCard")
+                                            {
+                                                <option value="CreditCard" selected>@(isMonthlyBillingCycle ? "Cartão mensal" : "Cartão anual (1x)")</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="CreditCard">@(isMonthlyBillingCycle ? "Cartão mensal" : "Cartão anual (1x)")</option>
+                                            }
+                                        }
+                                        @if (showBoletoInDropdown)
+                                        {
+                                            if (currentMethodValue == "BankTransfer")
+                                            {
+                                                <option value="BankTransfer" selected>@(isMonthlyBillingCycle ? "Boleto mensal (assinatura)" : "Boleto anual")</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="BankTransfer">@(isMonthlyBillingCycle ? "Boleto mensal (assinatura)" : "Boleto anual")</option>
+                                            }
+                                        }
+                                    </select>
+                                </form>
+                            }
+                        }
+                        else
+                        {
+                            <span>@currentMethodValue</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (showPixCard)
+        {
+            <div class="card mb-4" id="pixPaymentCard">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-qr-code"></i> @(isPixAutomatic ? "Autorização PIX Automático" : "Código PIX")</h5>
+                </div>
+                <div class="card-body text-center">
+                    @if (isExpired || string.IsNullOrEmpty(effectivePixCode))
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            @(string.IsNullOrEmpty(effectivePixCode) ? "Código PIX não gerado." : "Este código PIX expirou.")
+                            @if (isPaymentOwner)
+                            {
+                                <form method="post" action="@Url.Action(ActionNames.GeneratePixCode, ControllerNames.Client)" class="mt-3">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                                    <input type="hidden" name="pixPlanType" value="@currentPixPlanValue" />
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-qr-code"></i> Gerar código PIX
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>PIX Copia e Cola:</strong></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="pixCode" value="@effectivePixCode" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pixCode').value);">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                        @if (effectivePixExpiresAt.HasValue)
+                        {
+                            <p class="text-muted mb-0">Expira em: @effectivePixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</p>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        @if (showBoletoSection)
+        {
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto bancário</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(Model.BoletoCode))
+                    {
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Linha digitável:</strong></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="boletoCode" value="@Model.BoletoCode" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('boletoCode').value);">
+                                    <i class="bi bi-clipboard"></i> Copiar
+                                </button>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(Model.BankSlipUrl))
+                        {
+                            <a href="@Model.BankSlipUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-pdf"></i> Abrir boleto (PDF)
+                            </a>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">Gerando boleto...</p>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (showCreditCardCheckout && isPaymentOwner)
+        {
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-credit-card"></i> Cartão de crédito</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        Cobrança @(isMonthlyBillingCycle ? "mensal" : "anual") de
+                        <strong>R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>.
+                    </p>
+                    @{
+                        var cards = ViewBag.CreditCards as List<KlyonHubPlatform.Domain.Entities.CreditCard>;
+                    }
+                    @if (cards != null && cards.Any())
+                    {
+                        <div class="list-group mb-3">
+                            @foreach (var card in cards)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-credit-card-2-front"></i>
+                                        <strong>@(string.IsNullOrWhiteSpace(card.Nickname) ? card.Brand : card.Nickname)</strong>
+                                        <span class="text-muted">•••• @card.LastFourDigits</span>
+                                        @if (card.IsDefault)
+                                        {
+                                            <span class="badge bg-primary ms-1">Padrão</span>
+                                        }
+                                    </div>
+                                    <button type="button"
+                                            class="btn btn-sm btn-success settlement-pay-card-btn"
+                                            data-card-id="@card.Id"
+                                            data-payment-id="@Model.Id"
+                                            data-plan="@lockedPlanOption">
+                                        <i class="bi bi-credit-card"></i> Pagar com este
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mb-3">Nenhum cartão cadastrado. Adicione um cartão abaixo.</div>
+                    }
+
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#settlementAddCardModal">
+                        <i class="bi bi-plus-circle"></i> Adicionar cartão
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Ações</h5>
+            </div>
+            <div class="card-body">
+                @if (showPixCard || showBoletoSection)
+                {
+                    <div class="alert alert-info small">
+                        Após pagar, a confirmação chega via Asaas. Em boleto, você também pode enviar comprovante na tela de detalhes se necessário.
+                    </div>
+                }
+                @if (contract != null)
+                {
+                    <a href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = contract.Id })" class="btn btn-outline-primary w-100 mb-2">
+                        <i class="bi bi-file-earmark-text"></i> Ver contrato
+                    </a>
+                }
+                <a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-list"></i> Ver cobranças
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (showCreditCardCheckout && isPaymentOwner)
+{
+    <div class="modal fade" id="settlementAddCardModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="@Url.Action(ActionNames.AddCreditCard, ControllerNames.Client)">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="paymentId" value="@Model.Id" />
+                    <div class="modal-header">
+                        <h5 class="modal-title">Adicionar cartão</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Número</label>
+                            <input type="text" name="cardNumber" class="form-control" required maxlength="19" autocomplete="cc-number" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nome impresso</label>
+                            <input type="text" name="cardHolderName" class="form-control" required autocomplete="cc-name" />
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Mês</label>
+                                <input type="text" name="expiryMonth" class="form-control" required maxlength="2" placeholder="MM" />
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Ano</label>
+                                <input type="text" name="expiryYear" class="form-control" required maxlength="4" placeholder="AAAA" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">CVV</label>
+                            <input type="text" name="cvv" class="form-control" required maxlength="4" autocomplete="cc-csc" />
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">CEP do titular</label>
+                                <input type="text" name="postalCode" class="form-control" value="@(ViewBag.CardHolderPostalCode as string ?? "")" required />
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Número</label>
+                                <input type="text" name="addressNumber" class="form-control" value="@(ViewBag.CardHolderAddressNumber as string ?? "")" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar cartão</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showPixCard && !string.IsNullOrEmpty(effectivePixCode) && !isExpired)
+{
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var el = document.getElementById('qrcode');
+            var code = document.getElementById('pixCode');
+            if (el && code && code.value && typeof QRCode !== 'undefined') {
+                new QRCode(el, { text: code.value, width: 200, height: 200 });
+            }
+        });
+    </script>
+}
+
+<script>
+    async function submitSettlementMethod(selectEl) {
+        var form = selectEl.form;
+        if (!form) return;
+        var confirmed = window.confirm('Deseja alterar o meio de pagamento? Cobranças pendentes/próximas serão atualizadas no Asaas; históricas permanecem intactas.');
+        if (!confirmed) {
+            window.location.reload();
+            return;
+        }
+        var formData = new FormData(form);
+        formData.set('method', selectEl.value);
+        if (selectEl.value === 'PIX' || selectEl.value === 'PixMonthly' || selectEl.value === 'PixAnnual') {
+            formData.set('pixPlanType', selectEl.value === 'PIX' ? 'PIX' : selectEl.value);
+        }
+        var actionUrl = form.getAttribute('data-action-url') || form.action;
+        var token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        try {
+            var response = await fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'RequestVerificationToken': token || ''
+                }
+            });
+            if (!response.ok) {
+                var err = await response.json().catch(function () { return {}; });
+                alert(err.error || 'Não foi possível alterar o meio de pagamento.');
+                window.location.reload();
+                return;
+            }
+            window.location.href = '@Url.Action(ActionNames.PaymentSettlement, ControllerNames.Client, new { id = Model.Id })?_=' + Date.now();
+        } catch (e) {
+            alert('Erro ao alterar meio de pagamento.');
+            window.location.reload();
+        }
+    }
+
+    document.querySelectorAll('.settlement-pay-card-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var paymentId = parseInt(btn.getAttribute('data-payment-id'), 10);
+            var cardId = parseInt(btn.getAttribute('data-card-id'), 10);
+            var plan = btn.getAttribute('data-plan') || 'monthly';
+            btn.disabled = true;
+            try {
+                var response = await fetch('@Url.Action(ActionNames.ProcessPaymentWithCard, ControllerNames.Client)', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paymentId: paymentId,
+                        creditCardId: cardId,
+                        installments: 1,
+                        cardPlanOption: plan,
+                        postalCode: @(System.Text.Json.JsonSerializer.Serialize(ViewBag.CardHolderPostalCode as string ?? "")),
+                        addressNumber: @(System.Text.Json.JsonSerializer.Serialize(ViewBag.CardHolderAddressNumber as string ?? "")),
+                        addressHasNoNumber: @(ViewBag.CardHolderHasNoNumber as bool? == true ? "true" : "false")
+                    })
+                });
+                var data = await response.json();
+                if (data.success && data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                    return;
+                }
+                if (data.success) {
+                    window.location.href = '@Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = Model.Id })';
+                    return;
+                }
+                alert(data.error || 'Pagamento não confirmado. Tente novamente ou troque o cartão.');
+            } catch (e) {
+                alert('Erro ao processar pagamento com cartão.');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    });
+</script>

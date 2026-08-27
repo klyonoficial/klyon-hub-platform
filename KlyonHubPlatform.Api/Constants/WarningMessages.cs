@@ -11,6 +11,8 @@ namespace KlyonHubPlatform.Api.Constants
         public const string PaymentSystemNotConfiguredConfigureAsaasShort = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema para gerar códigos de pagamento.";
         public const string PaymentSystemNotConfiguredConfigureAsaasCard = "Sistema de pagamento não configurado. Configure o Asaas nas Configurações do Sistema para processar pagamentos com cartão.";
         public const string CouldNotGeneratePaymentCodePixOrCheckAsaas = "Aviso: Não foi possível gerar o código de pagamento automaticamente. Clique em \"Gerar Código PIX\" abaixo ou verifique a API Key Asaas nas Configurações do Sistema.";
+        public const string BoletoGeneratingRefreshShort = "Boleto em geração no Asaas. A página será atualizada em instantes; se a linha digitável não aparecer, use \"Gerar boleto\".";
+        public const string BoletoLineNotReadyYet = "A linha digitável do boleto ainda não está disponível no Asaas. Aguarde alguns segundos ou clique em \"Gerar boleto\".";
         public static string ClientRegisteredEmailSendFailed(string message) =>
             $"Cliente cadastrado com sucesso, mas houve um erro ao enviar o email: {message}";
         public static string InvoiceSentValidationIssues(string autoValidationMessage) =>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using KlyonHubPlatform.Application.DTOs.Payments;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Domain.Core.Constants;
 using KlyonHubPlatform.Domain.Core.Enums;
@@ -19,17 +20,20 @@ namespace KlyonHubPlatform.Application.Services
         private readonly IPaymentRepository _paymentRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IPaymentService _paymentService;
+        private readonly IAsaasService _asaasService;
         private readonly ILogger<AsaasWebhookHandler> _logger;
 
         public AsaasWebhookHandler(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
             IPaymentService paymentService,
+            IAsaasService asaasService,
             ILogger<AsaasWebhookHandler> logger)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
             _paymentService = paymentService;
+            _asaasService = asaasService;
             _logger = logger;
         }
 
@@ -208,11 +212,26 @@ namespace KlyonHubPlatform.Application.Services
 
             if (payment.Status == PaymentStatus.Cancelled && isSubscriptionCreditCard)
             {
+                if (PaymentSubstitutionReasons.IsSubstitution(payment.FailureReason))
+                {
+                    _logger.LogInformation(
+                        "Pagamento {PaymentId} Cancelled por substituição; PAYMENT_OVERDUE não reabre.",
+                        payment.Id);
+                    return payment;
+                }
                 payment.Status = PaymentStatus.Pending;
                 await _paymentRepository.UpdateAsync(payment);
                 _logger.LogInformation(
                     "Pagamento {PaymentId} reaberto como Pending após PAYMENT_OVERDUE (cartão assinatura {SubscriptionId})",
                     payment.Id, asaasSubscriptionId);
+            }
+            else if (payment.Status == PaymentStatus.Cancelled
+                && PaymentSubstitutionReasons.IsSubstitution(payment.FailureReason))
+            {
+                _logger.LogInformation(
+                    "Pagamento {PaymentId} Cancelled por substituição; PAYMENT_OVERDUE ignorado.",
+                    payment.Id);
+                return payment;
             }
             else if (payment.Status != PaymentStatus.Pending)
             {
@@ -376,8 +395,7 @@ namespace KlyonHubPlatform.Application.Services
             var dueDate = ParseDueDate(paymentEl) ?? subscription.NextBillingDate;
             var duplicateCycle = subscription.Payments?
                 .Where(p =>
-                    p.Method == PaymentMethod.CreditCard
-                    && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing)
+                    (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing)
                     && (p.DueDate.Date == dueDate.Date
                         || string.Equals(p.ExternalPaymentId, asaasPaymentId, StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(p => p.CreatedAt)
@@ -387,12 +405,44 @@ namespace KlyonHubPlatform.Application.Services
                 return await SyncAsaasChargeMetadataAsync(duplicateCycle, asaasPaymentId, paymentEl, cancellationToken);
             }
 
+            // Já há parcela Paid na assinatura e a nova cobrança Asaas cai antes do próximo ciclo:
+            // trata como órfã (troca de meio) — cancela no Asaas e não cria Payment local.
+            var paidCovering = subscription.Payments?
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                .FirstOrDefault();
+            if (paidCovering != null)
+            {
+                var stillInPaidCycle = dueDate.Date <= subscription.NextBillingDate.Date
+                    || (paidCovering.PaidAt.HasValue
+                        && dueDate.Date <= paidCovering.PaidAt.Value.Date.AddYears(1));
+                if (stillInPaidCycle)
+                {
+                    try
+                    {
+                        await _asaasService.CancelChargeAsync(asaasPaymentId);
+                        _logger.LogWarning(
+                            "Cobrança Asaas {AsaasPaymentId} cancelada (órfã): assinatura local {SubscriptionId} já tem Paid {PaidPaymentId}",
+                            asaasPaymentId, subscription.Id, paidCovering.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Falha ao cancelar cobrança órfã Asaas {AsaasPaymentId} (Paid local {PaidPaymentId})",
+                            asaasPaymentId, paidCovering.Id);
+                    }
+                    return null;
+                }
+            }
+
             var amount = ResolveAmount(paymentEl, subscription.MonthlyAmount);
             var listPrice = subscription.Contract?.SnapshotListPrice ?? 0m;
+            var localMethod = MapAsaasBillingTypeToPaymentMethod(
+                GetString(paymentEl, AsaasWebhookPayloadKeys.BillingType));
             var payment = await _paymentService.CreatePaymentAsync(
                 subscription.Id,
                 amount,
-                PaymentMethod.CreditCard,
+                localMethod,
                 snapshotListPrice: listPrice);
             payment.ExternalPaymentId = asaasPaymentId;
             payment.DueDate = dueDate;
@@ -400,10 +450,19 @@ namespace KlyonHubPlatform.Application.Services
             await _paymentRepository.UpdateAsync(payment);
 
             _logger.LogInformation(
-                "Pagamento local {PaymentId} criado para renovação cartão Asaas {AsaasPaymentId} (assinatura {SubscriptionId})",
-                payment.Id, asaasPaymentId, subscription.Id);
+                "Pagamento local {PaymentId} criado para renovação assinatura Asaas {AsaasPaymentId} (assinatura {SubscriptionId}, method={Method})",
+                payment.Id, asaasPaymentId, subscription.Id, localMethod);
 
             return payment;
+        }
+
+        private static PaymentMethod MapAsaasBillingTypeToPaymentMethod(string? billingType)
+        {
+            if (string.Equals(billingType, AsaasBillingType.Pix, StringComparison.OrdinalIgnoreCase))
+                return PaymentMethod.PIX;
+            if (string.Equals(billingType, AsaasBillingType.Boleto, StringComparison.OrdinalIgnoreCase))
+                return PaymentMethod.BankTransfer;
+            return PaymentMethod.CreditCard;
         }
 
         private async Task<Payment?> CreateOrLinkPixAutomaticRenewalAsync(
@@ -506,6 +565,17 @@ namespace KlyonHubPlatform.Application.Services
                 changed = true;
             }
 
+            var billingType = GetString(paymentEl, AsaasWebhookPayloadKeys.BillingType);
+            if (!string.IsNullOrEmpty(billingType))
+            {
+                var mappedMethod = MapAsaasBillingTypeToPaymentMethod(billingType);
+                if (payment.Method != mappedMethod)
+                {
+                    payment.Method = mappedMethod;
+                    changed = true;
+                }
+            }
+
             if (!string.IsNullOrEmpty(asaasStatus))
             {
                 var mappedStatus = MapAsaasStatusToLocal(asaasStatus, payment.Status);
@@ -585,17 +655,7 @@ namespace KlyonHubPlatform.Application.Services
             if (!paymentEl.TryGetProperty(AsaasWebhookPayloadKeys.DueDate, out var dueEl))
                 return null;
 
-            var raw = dueEl.GetString();
-            if (string.IsNullOrWhiteSpace(raw))
-                return null;
-
-            if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
-                return parsed;
-
-            if (DateTime.TryParse(raw, new CultureInfo("pt-BR"), DateTimeStyles.None, out parsed))
-                return parsed;
-
-            return null;
+            return AsaasDateParser.TryParse(dueEl.GetString());
         }
 
         private static string? GetString(JsonElement element, string propertyName)
@@ -726,6 +786,24 @@ namespace KlyonHubPlatform.Application.Services
                 var payment = await ResolveLocalPaymentAsync(paymentId, externalRef, pixQrCodeId, cancellationToken);
                 if (payment != null && payment.Status == PaymentStatus.Pending)
                 {
+                    // Troca de meio: ExternalPaymentId já limpo / aponta para outra cobrança → não cancelar parcela.
+                    if (ShouldPreservePayablePaymentOnRemoteCancel(payment)
+                        && !IsPaymentStillLinkedToAsaasCharge(payment, paymentId))
+                    {
+                        _logger.LogInformation(
+                            "PAYMENT_DELETED para Asaas {AsaasPaymentId}: pagamento local {LocalPaymentId} já desvinculado (troca de meio); parcela preservada.",
+                            paymentId, payment.Id);
+                        return AsaasWebhookHandleResult.Done();
+                    }
+
+                    if (!IsPaymentStillLinkedToAsaasCharge(payment, paymentId))
+                    {
+                        _logger.LogInformation(
+                            "PAYMENT_DELETED para Asaas {AsaasPaymentId}: pagamento local {LocalPaymentId} sem vínculo atual; ignorado.",
+                            paymentId, payment.Id);
+                        return AsaasWebhookHandleResult.Done();
+                    }
+
                     await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, null);
                     _logger.LogInformation("Pagamento {LocalPaymentId} cancelado via PAYMENT_DELETED", payment.Id);
                     return AsaasWebhookHandleResult.Done(paymentIdForCancelledNotification: payment.Id);
@@ -840,25 +918,35 @@ namespace KlyonHubPlatform.Application.Services
 
             if (eventType == AsaasWebhookEvents.PixAutomaticAuthorizationCancelled)
             {
+                // Troca de meio cancela auth no Asaas de propósito: só limpa IDs locais.
+                // NÃO marcar Payment=Cancelled — parcela Pending/Failed permanece pagável.
                 if (subscription != null)
                     ClearPixAuthorizationArtifacts(subscription, pendingPayment);
 
                 if (pendingPayment != null
-                    && pendingPayment.Status == PaymentStatus.Pending)
+                    && ShouldPreservePayablePaymentOnRemoteCancel(pendingPayment))
                 {
-                    pendingPayment.Status = PaymentStatus.Cancelled;
-                    pendingPayment.FailureReason = AsaasPixAuthorizationFailureReasons.Cancelled;
+                    if (pendingPayment.Status == PaymentStatus.Failed
+                        && string.IsNullOrWhiteSpace(pendingPayment.FailureReason))
+                    {
+                        pendingPayment.FailureReason = AsaasPixAuthorizationFailureReasons.Cancelled;
+                    }
+
                     await _paymentRepository.UpdateAsync(pendingPayment, cancellationToken);
                     _logger.LogInformation(
-                        "Pagamento {PaymentId} cancelado via AUTHORIZATION_CANCELLED.",
-                        pendingPayment.Id);
+                        "AUTHORIZATION_CANCELLED: auth limpa para pagamento {PaymentId} (status={Status}); parcela NÃO cancelada (troca de meio / ainda pagável).",
+                        pendingPayment.Id, pendingPayment.Status);
                 }
                 else if (pendingPayment != null
-                    && pendingPayment.Status == PaymentStatus.Failed
-                    && string.IsNullOrWhiteSpace(pendingPayment.FailureReason))
+                    && pendingPayment.Status != PaymentStatus.Paid
+                    && pendingPayment.Status != PaymentStatus.AwaitingValidation
+                    && pendingPayment.Status != PaymentStatus.Cancelled)
                 {
-                    pendingPayment.FailureReason = AsaasPixAuthorizationFailureReasons.Cancelled;
+                    // Status inesperado (ex.: Processing): não cancela; só registra.
                     await _paymentRepository.UpdateAsync(pendingPayment, cancellationToken);
+                    _logger.LogInformation(
+                        "AUTHORIZATION_CANCELLED: auth limpa para pagamento {PaymentId} em {Status}; sem Cancelled local.",
+                        pendingPayment.Id, pendingPayment.Status);
                 }
 
                 if (subscription != null)
@@ -935,12 +1023,23 @@ namespace KlyonHubPlatform.Application.Services
 
             if (eventType == AsaasWebhookEvents.PixAutomaticPaymentInstructionCancelled)
             {
-                if (payment.Status == PaymentStatus.Pending)
+                // Troca de meio desvincula pay_* localmente antes do cancel remoto.
+                if (ShouldPreservePayablePaymentOnRemoteCancel(payment)
+                    && !IsPaymentStillLinkedToAsaasCharge(payment, asaasPaymentId))
+                {
+                    _logger.LogInformation(
+                        "INSTRUCTION_CANCELLED para pagamento {PaymentId}: charge já desvinculada (troca de meio); parcela preservada ({Status}).",
+                        payment.Id, payment.Status);
+                    return null;
+                }
+
+                if (payment.Status == PaymentStatus.Pending
+                    && IsPaymentStillLinkedToAsaasCharge(payment, asaasPaymentId))
                 {
                     await _paymentService.UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Cancelled, asaasPaymentId);
                     _logger.LogInformation(
-                        "Pagamento {PaymentId} cancelado via INSTRUCTION_CANCELLED.",
-                        payment.Id);
+                        "Pagamento {PaymentId} cancelado via INSTRUCTION_CANCELLED (ainda vinculado a {AsaasPaymentId}).",
+                        payment.Id, asaasPaymentId);
                     return payment.Id;
                 }
 
@@ -1068,10 +1167,35 @@ namespace KlyonHubPlatform.Application.Services
             if (eventType == AsaasWebhookEvents.SubscriptionInactivated
                 || eventType == AsaasWebhookEvents.SubscriptionDeleted)
             {
+                // Troca de meio / cenário acerto: sub_* pode ser inativada no Asaas, mas parcela Pending/Failed
+                // permanece pagável. Só sincroniza estado da assinatura local se ainda apontar para este sub_*.
                 if (subscription.Status == SubscriptionStatus.Cancelled)
                 {
                     _logger.LogInformation(
                         "Assinatura {SubscriptionId} já Cancelled; {Event} ignorado (idempotente).",
+                        subscription.Id, eventType);
+                    return;
+                }
+
+                var hasPayableInstallment = subscription.Payments?
+                    .Any(p => ShouldPreservePayablePaymentOnRemoteCancel(p)) == true;
+
+                if (hasPayableInstallment)
+                {
+                    // Não marca Subscription=Cancelled enquanto houver parcela pagável (troca de meio em andamento).
+                    // Limpa ExternalSubscriptionId se ainda for o sub_* remoto inativado (evita Update em sub morta).
+                    if (string.Equals(subscription.ExternalSubscriptionId, asaasSubscriptionId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var previousSubId = subscription.ExternalSubscriptionId;
+                        subscription.ExternalSubscriptionId = Guid.NewGuid().ToString();
+                        subscription.UpdatedAt = DateTime.UtcNow;
+                        subscription.CancellationReason =
+                            $"{eventType}: sub_* remoto {previousSubId} removido; parcela local preservada (troca de meio).";
+                        await _subscriptionRepository.UpdateAsync(subscription, cancellationToken);
+                    }
+
+                    _logger.LogInformation(
+                        "Assinatura {SubscriptionId}: {Event} recebido com parcela(s) pagáveis; Payments NÃO cancelados; ExternalSubscriptionId desvinculado.",
                         subscription.Id, eventType);
                     return;
                 }
@@ -1111,7 +1235,27 @@ namespace KlyonHubPlatform.Application.Services
                 if (string.Equals(asaasStatus, AsaasSubscriptionStatus.Inactive, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(asaasStatus, AsaasSubscriptionStatus.Expired, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (subscription.Status != SubscriptionStatus.Cancelled)
+                    var hasPayableInstallment = subscription.Payments?
+                        .Any(p => ShouldPreservePayablePaymentOnRemoteCancel(p)) == true;
+
+                    if (hasPayableInstallment)
+                    {
+                        // Troca de meio: não Cancelled na assinatura/parcela; desvincula sub_* morto se necessário.
+                        if (string.Equals(subscription.ExternalSubscriptionId, asaasSubscriptionId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var previousSubId = subscription.ExternalSubscriptionId;
+                            subscription.ExternalSubscriptionId = Guid.NewGuid().ToString();
+                            subscription.UpdatedAt = DateTime.UtcNow;
+                            subscription.CancellationReason =
+                                $"SUBSCRIPTION_UPDATED ({asaasStatus}): sub_* remoto {previousSubId} inativo; parcela local preservada.";
+                            changed = true;
+                        }
+
+                        _logger.LogInformation(
+                            "Assinatura {SubscriptionId}: SUBSCRIPTION_UPDATED status={Status} com parcela(s) pagáveis; Payments NÃO cancelados.",
+                            subscription.Id, asaasStatus);
+                    }
+                    else if (subscription.Status != SubscriptionStatus.Cancelled)
                     {
                         subscription.Status = SubscriptionStatus.Cancelled;
                         subscription.CancelledAt = DateTime.UtcNow;
@@ -1206,6 +1350,13 @@ namespace KlyonHubPlatform.Application.Services
 
             if (payment.Status == PaymentStatus.Cancelled || payment.Status == PaymentStatus.Failed)
             {
+                if (PaymentSubstitutionReasons.IsSubstitution(payment.FailureReason))
+                {
+                    _logger.LogInformation(
+                        "Pagamento {PaymentId} Cancelled por substituição; PAYMENT_RESTORED não reabre.",
+                        payment.Id);
+                    return payment;
+                }
                 payment.Status = PaymentStatus.Pending;
                 payment.FailureReason = null;
                 await _paymentRepository.UpdateAsync(payment, cancellationToken);
@@ -1342,6 +1493,22 @@ namespace KlyonHubPlatform.Application.Services
             payment.PixConciliationIdentifier = null;
         }
 
+        /// <summary>
+        /// Parcela ainda pagável após cancelamento remoto intencional (troca de meio):
+        /// Pending/Failed não devem virar Cancelled só porque auth/sub/pay_* morreu no Asaas.
+        /// </summary>
+        private static bool ShouldPreservePayablePaymentOnRemoteCancel(Payment payment) =>
+            payment.Status == PaymentStatus.Pending || payment.Status == PaymentStatus.Failed;
+
+        /// <summary>
+        /// True se o Payment local ainda aponta para a cobrança Asaas do webhook
+        /// (após troca de meio, ExternalPaymentId é limpo antes do DELETE remoto).
+        /// </summary>
+        private static bool IsPaymentStillLinkedToAsaasCharge(Payment payment, string? asaasPaymentId) =>
+            !string.IsNullOrWhiteSpace(asaasPaymentId)
+            && !string.IsNullOrWhiteSpace(payment.ExternalPaymentId)
+            && string.Equals(payment.ExternalPaymentId.Trim(), asaasPaymentId.Trim(), StringComparison.OrdinalIgnoreCase);
+
         private static string? ResolveInstructionPaymentId(JsonElement root, JsonElement instructionEl)
         {
             var paymentId = GetString(instructionEl, AsaasWebhookPayloadKeys.PaymentId);
@@ -1381,17 +1548,7 @@ namespace KlyonHubPlatform.Application.Services
             if (!element.TryGetProperty(propertyName, out var dueEl))
                 return null;
 
-            var raw = dueEl.GetString();
-            if (string.IsNullOrWhiteSpace(raw))
-                return null;
-
-            if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
-                return parsed;
-
-            if (DateTime.TryParse(raw, new CultureInfo("pt-BR"), DateTimeStyles.None, out parsed))
-                return parsed;
-
-            return null;
+            return AsaasDateParser.TryParse(dueEl.GetString());
         }
 
         private static string? GetStringFromNested(JsonElement element, string objectName, string propertyName)

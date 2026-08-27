@@ -6,6 +6,8 @@ namespace KlyonHubPlatform.Domain.Core.Enums
         None = 0,
         PaymentDetails,
         PaymentSuccess,
-        PaymentSummary
+        PaymentSummary,
+        /// <summary>Acerto de contas (parcela 2+ vencida/falha) — separado do checkout inicial.</summary>
+        PaymentSettlement
     }
 }

@@ -38,6 +38,11 @@ namespace KlyonHubPlatform.Application.Interfaces
         /// <summary>Verifica se o código PIX (único ou recorrente anual) está vencido; se sim, faz nova requisição ao Asaas para obter novo(s) código(s) e persiste na base. Deve ser chamado ao exibir/uso do pagamento para garantir código válido.</summary>
         Task EnsurePixCodeValidAsync(int paymentId);
         Task<string> GenerateBoletoCodeAsync(int paymentId);
+        /// <summary>
+        /// Reconsulta a cobrança boleto no Asaas e sincroniza <c>Payment.DueDate</c>/<c>BoletoExpiresAt</c>
+        /// com o dueDate da cobrança (calendário). Útil quando a linha digitável já existe mas a DueDate local ficou defasada.
+        /// </summary>
+        Task SyncBoletoDueDateFromAsaasAsync(int paymentId);
         Task<Payment> ProcessPaymentWithCreditCardAsync(int paymentId, PagBankCard card, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false);
         /// <summary>Cobra o pagamento usando um cartão já tokenizado (AsaasToken).</summary>
         Task<Payment> ProcessPaymentWithSavedCardAsync(int paymentId, int creditCardId, int? installments = null, string? remoteIp = null, string? postalCode = null, string? addressNumber = null, bool addressHasNoNumber = false);

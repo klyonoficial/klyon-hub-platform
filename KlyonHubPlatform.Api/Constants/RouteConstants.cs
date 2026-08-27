@@ -45,6 +45,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string ContractDetails = "ContractDetails";
         public const string MyPayments = "MyPayments";
         public const string PaymentDetails = "PaymentDetails";
+        public const string PaymentSettlement = "PaymentSettlement";
         public const string PaymentSuccess = "PaymentSuccess";
         public const string PaymentSummary = "PaymentSummary";
         public const string ValidateCnpjForFiscal = "ValidateCnpjForFiscal";
@@ -223,6 +224,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CreateReservations = "CreateReservations";
         public const string UpdatePaymentMethod = "UpdatePaymentMethod";
         public const string GeneratePixCode = "GeneratePixCode";
+        public const string GenerateBoletoCode = "GenerateBoletoCode";
         public const string SetDefaultCreditCard = "SetDefaultCreditCard";
         public const string RemoveCreditCard = "RemoveCreditCard";
         public const string UpdateCreditCardNickname = "UpdateCreditCardNickname";

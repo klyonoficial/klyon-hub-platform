@@ -24,17 +24,25 @@ Na UI e nos textos ao cliente, usar **PIX Automático (mensal)**, **PIX Automát
 
 
 
-| Opção na UI | `ContractCardPlanType` | Asaas `frequency` | Valor cobrado |
+| Opção na UI | `ContractCardPlanType` | Asaas | Valor cobrado |
 
-|-------------|------------------------|-------------------|---------------|
+|-------------|------------------------|-------|---------------|
 
-| PIX Automático (mensal) | `PixMonthly` | `MONTHLY` | Parcela líquida `(BasePrice * (1+surcharge%)/12)` com cupom — mesma lógica do cartão mensal |
+| PIX Automático (mensal) | `PixMonthly` | `POST /pix/automatic/authorizations` `frequency=MONTHLY` | Parcela líquida mensal — mesma lógica do cartão mensal |
 
-| PIX Automático (anual) | `PixAnnual` | `ANNUALLY` | BasePrice líquido (anual) — mesma lógica do cartão 1x |
+| PIX Automático (anual) | `PixAnnual` | `POST /pix/automatic/authorizations` `frequency=ANNUALLY` | BasePrice líquido (anual) — mesma lógica do cartão 1x |
 
-| PIX (pagamento único) | `None` | — (POST `/payments`) | BasePrice líquido (anual), sem renovação automática |
+| PIX (assinatura mensal) | `None` + `BillingCycle=Monthly` | `POST /subscriptions` `billingType=PIX` `cycle=MONTHLY` | Parcela mensal (Preview EditAddress); Asaas emite QR todo mês |
 
+| PIX Automático (anual) | `PixAnnual` | `POST /pix/automatic/authorizations` `frequency=ANNUALLY` | BasePrice líquido (anual) — mesma lógica do cartão 1x |
 
+| Boleto (ciclo mensal) | `None` + `BillingCycle=Monthly` | `POST /subscriptions` `billingType=BOLETO` `cycle=MONTHLY` | Parcela mensal; Asaas emite boleto todo mês |
+
+| Boleto (ciclo anual) | `None` + `BillingCycle=Yearly` | `POST /subscriptions` `billingType=BOLETO` `cycle=YEARLY` | Preço anual base (EditAddress) |
+
+**Decisão (2026-08):** meios mensais/anuais liberados em `HiddenPaymentOptions` (`CardMonthly`, `Card1x`, `PIX`, `Boleto`) usam **Assinatura Asaas** (`POST /subscriptions`). **PIX Automático** (`PixMonthly`/`PixAnnual`) permanece produto separado (autorização + débito). Troca de meio em parcela pendente/failed chama `PUT /subscriptions/{id}` com `updatePendingPayments=true` (pendentes/próximas mudam; históricas intactas). Checkout inicial (1ª parcela) exibe todas as opções liberadas; acerto de contas (parcela 2+) filtra pelo ciclo snapshot.
+
+**Troca de meio (parcela pagável):** cancelar auth/pay_* no Asaas **não** cancela o `Payment` local (`Pending`/`Failed` permanece pagável). Webhooks `AUTHORIZATION_CANCELLED` / `PAYMENT_DELETED` / `INSTRUCTION_CANCELLED` / `SUBSCRIPTION_*` só limpam IDs remotos nesse fluxo. Se já existe `sub_*`, editar (não deletar ao ir para PIX Automático).
 
 Ocultar opções via `Payment.HiddenPaymentOptions` (vírgula): `PixMonthly`, `PixAnnual`, `PIX`, `Card1x`, `CardMonthly`, `Boleto`.
 
@@ -89,6 +97,14 @@ Webhooks a marcar no painel Asaas: ver `docs/ASAAS_WEBHOOK_EVENTOS.md` (seção 
 - Recuperação quando `NextBillingDate` já passou sem cobrança emitida (fora da janela): hoje só há log de warning.
 
 - Eventos de autorização cancelada/expirada/recusada: parcialmente cobertos; pode evoluir o estado da assinatura.
+
+### Correção de valor PIX assinatura mensal (ago/2026)
+
+**Sintoma:** `POST /subscriptions` com `cycle=MONTHLY` e `value=SnapshotListPrice` (ex.: 750) em vez da parcela (`GetMonthlyInstallment`, ex.: 85). UI mostrava 85 no rádio e 750 em Valor.
+
+**Correção automática:** no GET `PaymentDetails` (pendente), `SyncCheckoutAmountFromSnapshotAsync` recalcula a parcela; `GeneratePixCodeAsync` chama `UpdateSubscription` com `updatePendingPayments=true` quando o QR local foi invalidado. Abrir `/Client/PaymentDetails/{id}` uma vez após o deploy deve corrigir Amount local e a sub_* no Asaas.
+
+**Se a sub Asaas continuar em 750:** cancelar a assinatura no painel Asaas (sandbox/prod), limpar `Subscriptions.ExternalSubscriptionId` (ou trocar o método na tela e voltar para PIX assinatura mensal) para recriar com `value` = parcela mensal.
 
 
 

@@ -84,4 +84,52 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         [JsonPropertyName("totalCount")]
         public int? TotalCount { get; set; }
     }
+
+    /// <summary>Body de PUT /subscriptions/{id} (troca billingType/valor e opcionalmente cobranças pendentes).</summary>
+    public class AsaasSubscriptionUpdateRequest
+    {
+        [JsonPropertyName("billingType")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? BillingType { get; set; }
+
+        [JsonPropertyName("value")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public decimal? Value { get; set; }
+
+        [JsonPropertyName("cycle")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Cycle { get; set; }
+
+        [JsonPropertyName("nextDueDate")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? NextDueDate { get; set; }
+
+        [JsonPropertyName("description")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Description { get; set; }
+
+        [JsonPropertyName("updatePendingPayments")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? UpdatePendingPayments { get; set; }
+
+        [JsonPropertyName("status")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Status { get; set; }
+
+        [JsonPropertyName("creditCard")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public AsaasCreditCard? CreditCard { get; set; }
+
+        [JsonPropertyName("creditCardHolderInfo")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public AsaasCreditCardHolderInfo? CreditCardHolderInfo { get; set; }
+
+        [JsonPropertyName("creditCardToken")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? CreditCardToken { get; set; }
+
+        [JsonPropertyName("remoteIp")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? RemoteIp { get; set; }
+    }
 }
