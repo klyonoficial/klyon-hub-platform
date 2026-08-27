@@ -101,6 +101,48 @@ A aplicação deve sempre responder **200 OK** rapidamente e processar o payload
 
 ---
 
+## 5. Status de implementação (`AsaasWebhookHandler`)
+
+Centralizado em `KlyonHubPlatform.Application/Services/AsaasWebhookHandler.cs`, roteado por `PaymentWebhookController` (`/api/PaymentWebhook/asaas`) e `AsaasWebhookController`. Idempotência por estado do Payment/Subscription (e motivo de falha), alinhada ao padrão existente.
+
+| Evento | Ação |
+|--------|------|
+| **Cobranças** | |
+| `PAYMENT_CREATED` | Cria/vincula Payment local para recorrência (`sub_*` / PIX Automático) |
+| `PAYMENT_UPDATED` | Sincroniza DueDate/Amount; confirma se RECEIVED/CONFIRMED; cancela se DELETED; Failed se REFUSED/DUNNING |
+| `PAYMENT_RECEIVED` / `CONFIRMED` / `RECEIVED_IN_CASH` | Confirma pagamento local |
+| `PAYMENT_DELETED` | Pending → Cancelled |
+| `PAYMENT_OVERDUE` | Mantém Pending; PIX pendente dispara regeneração de QR |
+| `PAYMENT_REJECTED` | Failed + FailureReason; assinatura PastDue |
+| `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Mesmo handler de REJECTED (branch direto no nome do evento) |
+| `PAYMENT_REFUNDED` | Status → Refunded |
+| `PAYMENT_RESTORED` | Reabre Pending (limpa FailureReason se Failed/Cancelled) |
+| `PAYMENT_PARTIALLY_REFUNDED` | **Ignorado** (log only — marcar no painel se/quando tratar estorno parcial) |
+| **PIX Automático — autorização** | |
+| `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_CREATED` | Log + sync `PixAutomaticAuthorizationId` / QR se assinatura local encontrada |
+| `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED` | Confirma primeiro pagamento Pending |
+| `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_REFUSED` | Failed + FailureReason; limpa auth/QR local; assinatura **não** ativada |
+| `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_EXPIRED` | Igual REFUSED (motivo “expirada sem pagamento”) |
+| `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_CANCELLED` | Limpa auth local; Pending → Cancelled |
+| `PIX_AUTOMATIC_RECURRING_ELIGIBILITY_UPDATED` | **Ignorado** (log only) |
+| **PIX Automático — instrução** | |
+| `PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_CREATED` | Sync DueDate; mantém Pending se `paymentId` presente |
+| `PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_SCHEDULED` | Idem CREATED |
+| `PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_REFUSED` | Failed + PastDue na assinatura |
+| `PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_CANCELLED` | Pending → Cancelled |
+| **Assinaturas (cartão `sub_*`)** | |
+| `SUBSCRIPTION_CREATED` | Log; sync se assinatura local já existir |
+| `SUBSCRIPTION_UPDATED` | Sync `NextBillingDate`, `MonthlyAmount`; Cancelled se status INACTIVE/EXPIRED no payload |
+| `SUBSCRIPTION_INACTIVATED` / `SUBSCRIPTION_DELETED` | Subscription → Cancelled (**contrato não** cancelado automaticamente) |
+| **Opcionais (seção 4)** | |
+| `PAYMENT_RECEIVED_IN_CASH_UNDONE`, chargeback, negativação, visualização | **Ignorados** (log only) |
+
+**Resolução PIX autorização:** `authorization.id`, `immediateQrCode.conciliationIdentifier`, `authorization.contractId` (parse do Id interno do contrato), pagamento Pending da assinatura.
+
+**UX cliente:** `PaymentNavigationHelper` — falha de autorização PIX → CTA **“Gerar novo QR”** em PaymentDetails; mensagem em PaymentSummary.
+
+---
+
 ## Onde ver autorizações PIX Automático no painel Asaas
 
 Quando a aplicação chama `POST /v3/pix/automatic/authorizations`, a API retorna **200** e `status: "CREATED"` com `id`, `payload` (QR PIX) e `immediateQrCode.expirationDate`. **O envio e a resposta estão corretos** e a aplicação grava o `id` na assinatura (`PixAutomaticAuthorizationId`) e o `payload` no pagamento (`PixCode`) para exibir o QR ao cliente.

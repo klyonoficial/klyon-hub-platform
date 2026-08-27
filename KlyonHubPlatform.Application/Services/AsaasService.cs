@@ -603,7 +603,8 @@ namespace KlyonHubPlatform.Application.Services
             if (string.IsNullOrEmpty(holderPostalCode) || string.IsNullOrEmpty(holderAddressNumber))
                 throw new InvalidOperationException("Informe o CEP e o número do endereço do titular do cartão.");
 
-            var nextDueDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            // Vencimento no fuso de Brasília: evita nextDueDate “amanhã/ontem” por UTC e atraso na 1ª cobrança.
+            var nextDueDate = BrazilDateTime.Today.ToString("yyyy-MM-dd");
             var request = new AsaasSubscriptionRequest
             {
                 Customer = customerId,
@@ -654,18 +655,38 @@ namespace KlyonHubPlatform.Application.Services
             if (subscription == null || string.IsNullOrEmpty(subscription.Id))
                 throw new InvalidOperationException("Resposta inválida da API Asaas ao criar assinatura.");
 
-            var firstPayment = await GetFirstSubscriptionPaymentAsync(subscription.Id);
-            var paymentId = firstPayment?.Id ?? subscription.Id;
-            var paymentStatus = firstPayment?.Status ?? subscription.Status ?? "PENDING";
+            // A 1ª cobrança pode demorar milissegundos a aparecer; com cartão, ACTIVE = autorização ok.
+            var firstPayment = await WaitForFirstSubscriptionPaymentAsync(subscription.Id);
+            var subStatus = (subscription.Status ?? "").Trim().ToUpperInvariant();
+            var paymentStatus = (firstPayment?.Status ?? "").Trim().ToUpperInvariant();
             var paidAt = AsaasDateParser.TryParse(firstPayment?.ConfirmedDate ?? firstPayment?.ClientPaymentDate);
-            var statusUpper = paymentStatus.ToUpperInvariant();
-            var paid = statusUpper == AsaasPaymentStatus.Confirmed || statusUpper == AsaasPaymentStatus.Received;
+
+            var declined = IsAsaasCreditCardDeclined(paymentStatus) || subStatus == AsaasSubscriptionStatus.Inactive;
+            var paid = !declined && (
+                IsAsaasCreditCardPaid(paymentStatus)
+                || subStatus == AsaasSubscriptionStatus.Active);
+
+            if (declined)
+            {
+                _logger.LogWarning(
+                    "Assinatura Asaas criada sem cobrança aprovada: subscriptionId={SubscriptionId}, subStatus={SubStatus}, paymentStatus={PaymentStatus}.",
+                    subscription.Id, subStatus, paymentStatus);
+            }
+            else if (paid && !IsAsaasCreditCardPaid(paymentStatus))
+            {
+                _logger.LogInformation(
+                    "Assinatura Asaas ACTIVE tratada como paga (1ª cobrança ainda {PaymentStatus}): subscriptionId={SubscriptionId}.",
+                    string.IsNullOrEmpty(paymentStatus) ? "(vazia)" : paymentStatus, subscription.Id);
+            }
+
+            var paymentId = firstPayment?.Id ?? subscription.Id;
+            var chargeStatus = declined ? "DECLINED" : paid ? "PAID" : (string.IsNullOrEmpty(paymentStatus) ? "PENDING" : paymentStatus);
 
             return new OrderResponse
             {
                 Id = paymentId,
                 ReferenceId = referenceId,
-                Status = paymentStatus,
+                Status = chargeStatus,
                 CreatedAt = AsaasDateParser.TryParse(subscription.DateCreated) ?? DateTime.UtcNow,
                 PaidAt = paid ? paidAt ?? DateTime.UtcNow : paidAt,
                 SubscriptionId = subscription.Id,
@@ -675,7 +696,7 @@ namespace KlyonHubPlatform.Application.Services
                     {
                         Id = paymentId,
                         ReferenceId = referenceId,
-                        Status = paid ? "PAID" : paymentStatus,
+                        Status = chargeStatus,
                         CreatedAt = AsaasDateParser.TryParse(firstPayment?.DateCreated) ?? DateTime.UtcNow,
                         PaidAt = paid ? paidAt ?? DateTime.UtcNow : null,
                         Amount = new PagBankAmount { Value = (int)(amount * 100), Currency = "BRL" },
@@ -683,6 +704,47 @@ namespace KlyonHubPlatform.Application.Services
                     }
                 }
             };
+        }
+
+        private static bool IsAsaasCreditCardPaid(string statusUpper) =>
+            statusUpper == AsaasPaymentStatus.Confirmed
+            || statusUpper == AsaasPaymentStatus.Received;
+
+        private static bool IsAsaasCreditCardDeclined(string statusUpper) =>
+            statusUpper is "DECLINED" or "FAILED" or "REFUSED"
+                or AsaasPaymentStatus.Refunded
+                or AsaasPaymentStatus.Refused
+                or AsaasPaymentStatus.ChargebackRequested
+                or AsaasPaymentStatus.ChargebackDispute
+                or AsaasPaymentStatus.Deleted;
+
+        /// <summary>
+        /// Aguarda a 1ª cobrança da assinatura ( Assaas pode listar vazia logo após o POST ).
+        /// Para quando encontra cobrança paga/recusada ou esgota as tentativas.
+        /// </summary>
+        private async Task<AsaasPaymentResponse?> WaitForFirstSubscriptionPaymentAsync(string asaasSubscriptionId)
+        {
+            const int maxAttempts = 6;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                var first = await GetFirstSubscriptionPaymentAsync(asaasSubscriptionId);
+                if (first != null)
+                {
+                    var status = (first.Status ?? "").Trim().ToUpperInvariant();
+                    if (IsAsaasCreditCardPaid(status) || IsAsaasCreditCardDeclined(status)
+                        || status == AsaasPaymentStatus.AwaitingRiskAnalysis
+                        || attempt == maxAttempts)
+                        return first;
+                }
+                else if (attempt == maxAttempts)
+                {
+                    return null;
+                }
+
+                await Task.Delay(400);
+            }
+
+            return null;
         }
 
         private async Task<AsaasPaymentResponse?> GetFirstSubscriptionPaymentAsync(string asaasSubscriptionId)

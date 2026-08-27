@@ -1582,7 +1582,8 @@ CREATE TABLE IF NOT EXISTS CreditPlans (
                 var existing = await _context.SystemConfigurations.FirstOrDefaultAsync(c => c.Key == key, cancellationToken);
                 if (existing != null)
                 {
-                    existing.Value = value;
+                    if (!(isSensitive && string.IsNullOrWhiteSpace(value) && !string.IsNullOrEmpty(existing.Value)))
+                        existing.Value = value;
                     existing.UpdatedAt = DateTime.UtcNow;
                     existing.UpdatedBy = updatedBy;
                 }

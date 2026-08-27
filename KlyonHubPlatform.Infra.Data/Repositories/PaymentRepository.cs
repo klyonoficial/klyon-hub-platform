@@ -76,6 +76,17 @@ namespace KlyonHubPlatform.Infra.Data.Repositories
                     .FirstOrDefaultAsync(p => p.ExternalPaymentId == referenceId, cancellationToken);
                 if (payment != null)
                     return payment;
+
+                // externalReference do Asaas costuma ser o Id interno do Payment (ex.: "12345").
+                if (int.TryParse(referenceId, out var localPaymentId))
+                {
+                    payment = await _context.Payments
+                        .Include(p => p.Subscription)
+                            .ThenInclude(s => s!.Contract)
+                        .FirstOrDefaultAsync(p => p.Id == localPaymentId, cancellationToken);
+                    if (payment != null)
+                        return payment;
+                }
             }
             return null;
         }

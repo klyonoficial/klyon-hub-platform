@@ -14,7 +14,8 @@ namespace KlyonHubPlatform.Application.Interfaces
             decimal snapshotListPrice = 0,
             string? promoCodeSnapshot = null,
             decimal snapshotDiscountAmount = 0,
-            int? promoCodeId = null);
+            int? promoCodeId = null,
+            string? snapshotBillingCycle = null);
         Task<Payment> ProcessPaymentAsync(int paymentId);
         Task<Payment> ConfirmPaymentAsync(int paymentId, string? transactionId = null);
         Task<Payment> UpdatePaymentStatusAsync(int paymentId, PaymentStatus status, string? transactionId = null);

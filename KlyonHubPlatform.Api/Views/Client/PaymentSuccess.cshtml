@@ -3,7 +3,7 @@
 @using KlyonHubPlatform.Api.Constants
 @using KlyonHubPlatform.Application.DTOs.ClientOnboarding
 @{
-    ViewData[ViewDataKeys.Title] = "Pedido confirmado";
+    ViewData[ViewDataKeys.Title] = "Pagamento realizado";
     Layout = LayoutPaths.LandingLayout;
     var isPaid = ViewBag.IsPaid as bool? == true;
     var isAwaitingValidation = ViewBag.IsAwaitingValidation as bool? == true;
@@ -37,7 +37,7 @@
                             : "bi-check-circle-fill";
                     <div class="display-1 @headingClass mb-3"><i class="bi @headingIcon"></i></div>
                     <h1 class="lp-section-title mb-3">
-                        @(onboardingBanner?.Visible == true ? onboardingBanner.Title.TrimEnd('.') : "Pagamento confirmado!")
+                        @(onboardingBanner?.Visible == true ? onboardingBanner.Title.TrimEnd('.') : "Pagamento realizado com sucesso!")
                     </h1>
                     <p class="lp-section-subtitle mx-auto mb-4">
                         @if (onboardingBanner?.Visible == true)
@@ -91,8 +91,24 @@
                                 || successContract?.CardPlanType == ContractCardPlanType.PixMonthly
                                 ? "Valor mensal"
                                 : "Valor";
+                            var cardBrand = ViewBag.PaymentCardBrand as string;
+                            var cardLastFour = ViewBag.PaymentCardLastFour as string;
+                            string paymentMethodLabel = Model.Method switch
+                            {
+                                PaymentMethod.PIX => "PIX",
+                                PaymentMethod.BankTransfer => "Boleto",
+                                PaymentMethod.CreditCard when !string.IsNullOrWhiteSpace(cardLastFour)
+                                    => $"{(string.IsNullOrWhiteSpace(cardBrand) ? "Cartão" : cardBrand)} ****{cardLastFour}",
+                                PaymentMethod.CreditCard => "Cartão",
+                                _ => Model.Method.ToString()
+                            };
                         }
-                        <p class="mb-0"><strong>@successValueLabel:</strong> R$ @Model.Amount.ToString("N2")</p>
+                        <p class="mb-1"><strong>Método de pagamento:</strong> @paymentMethodLabel</p>
+                        <p class="@(Model.PaidAt.HasValue ? "mb-1" : "mb-0")"><strong>@successValueLabel:</strong> R$ @Model.Amount.ToString("N2")</p>
+                        @if (Model.PaidAt.HasValue)
+                        {
+                            <p class="mb-0"><strong>Pago em:</strong> @Model.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</p>
+                        }
                     </div>
                 </div>
 

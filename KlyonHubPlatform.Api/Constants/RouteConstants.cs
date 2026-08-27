@@ -46,6 +46,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string MyPayments = "MyPayments";
         public const string PaymentDetails = "PaymentDetails";
         public const string PaymentSuccess = "PaymentSuccess";
+        public const string PaymentSummary = "PaymentSummary";
         public const string ValidateCnpjForFiscal = "ValidateCnpjForFiscal";
         public const string UpdateProfile = "UpdateProfile";
         public const string GetLogo = "GetLogo";

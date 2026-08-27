@@ -20,6 +20,7 @@ namespace KlyonHubPlatform.Api.Constants
         public const string CardHolderNameInvalid = "Nome do portador inválido. Informe o nome como está no cartão (mínimo 2 caracteres, com pelo menos uma letra).";
         public const string PaymentDeclinedTryAnotherCard = "Não foi possível validar este cartão. Os dados podem estar incorretos ou o cartão foi recusado pelo emissor. Confira número, validade e CVV, ou use outro cartão.";
         public const string PaymentDeclinedVerifyData = "Pagamento recusado pelo emissor do cartão. Confira os dados ou tente outro cartão.";
+        public const string PaymentNotConfirmedStayOnDetails = "A cobrança no cartão ainda não foi confirmada. Permaneça nesta página e tente novamente em instantes, ou use outro cartão.";
         public const string ErrorProcessingPayment = "Erro ao processar pagamento. Tente novamente ou use outra forma de pagamento.";
         public const string CouldNotProcessPayment = "Não foi possível processar o pagamento. Tente novamente ou entre em contato com o suporte.";
         public const string CreditsNoLongerUsed = "O sistema não utiliza mais o conceito de créditos. Todas as transações são realizadas diretamente em R$.";

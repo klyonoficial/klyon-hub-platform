@@ -68,6 +68,9 @@ namespace KlyonHubPlatform.Api.Constants
         public static string AsaasSandboxPrepared(string apiKeyConfigKey) =>
             "✅ Configurações do Asaas (Sandbox) preparadas.<br/>" +
             $"<strong>Próximo passo:</strong> Edite <strong>{apiKeyConfigKey}</strong> e cole o <strong>Token</strong> (Chave de API que começa com $aact_), obtido em Integrações → Chaves de API no <a href=\"https://sandbox.asaas.com\" target=\"_blank\">painel Asaas</a>.";
+        public static string AsaasSandboxModeEnabled(string apiKeyConfigKey) =>
+            "✅ Ambiente sandbox do Asaas ativado.<br/>" +
+            $"A <strong>{apiKeyConfigKey}</strong> existente foi <strong>preservada</strong>. Se precisar trocar para uma chave de sandbox, edite manualmente a configuração.";
         public static string AsaasConnectionValidated(string environment, int statusCode) =>
             $"✅ Conexão com Asaas ({environment}) validada com sucesso!<br/><strong>Retorno {statusCode}</strong>: API Key configurada e funcionando.";
         public static string AsaasReturnOk(int statusCode, string message) =>

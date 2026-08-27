@@ -322,6 +322,8 @@ namespace KlyonHubPlatform.Application.Services
                     .ThenInclude(s => s!.Contract)
                         .ThenInclude(c => c.CoworkingAddress)
                             .ThenInclude(a => a!.Coworking)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Payments)
                 .Include(p => p.Reservation)
                     .ThenInclude(r => r!.CoworkingAddress)
                         .ThenInclude(a => a!.Coworking)

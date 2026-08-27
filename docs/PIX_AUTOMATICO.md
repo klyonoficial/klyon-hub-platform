@@ -91,3 +91,60 @@ Webhooks a marcar no painel Asaas: ver `docs/ASAAS_WEBHOOK_EVENTOS.md` (seção 
 - Eventos de autorização cancelada/expirada/recusada: parcialmente cobertos; pode evoluir o estado da assinatura.
 
 
+
+## Volume alto de `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_REFUSED`
+
+
+
+**Diagnóstico (ago/2026):** Sim, a aplicação pode disparar múltiplas **criações** de autorização no Asaas. Cada autorização recusada gera um webhook REFUSED distinto (200 OK). Não é, em geral, só reenvio at-least-once do mesmo evento.
+
+
+
+### O que cria autorização (`POST /pix/automatic/authorizations`)
+
+
+
+| Origem | Quando |
+|--------|--------|
+| `ContractService` | Onboarding com plano PIX Automático |
+| `PaymentService.GeneratePixCodeAsync` | 1ª tentativa + **retry** com `contractId` único (`-{guid8}`) se API retorna “Já existe uma autorização” |
+| `ClientController.PaymentDetailsCoreAsync` | **Cada GET** com `Pending` + PIX + Asaas configurado |
+| `PaymentService.UpdatePaymentMethodAsync` | Troca para PIX |
+| `PaymentService.HandlePixPaymentOverdueAsync` | Webhook `PAYMENT_OVERDUE` |
+| `QuickClientRegistrationService` | Venda assistida |
+
+
+
+### O que **não** cria autorização
+
+
+
+- `PixAutomaticBillingBackgroundService` — só emite cobranças com auth existente.
+- `RecurringPaymentScheduleService` — projeção read-only.
+- Handler REFUSED — limpa payload e marca `Failed`; **não** recria auth sozinho.
+
+
+
+### Cenários que explicam rajadas de REFUSED
+
+
+
+1. **GET PaymentDetails** enquanto `Pending` (reload, AutoLogin, AJAX) — sem debounce.
+2. **Retry com sufixo GUID** — cada conflito “Já existe autorização” cria auth nova no Asaas.
+3. **Onboarding duplo** — `ContractService` + depois `GeneratePixCodeAsync` no primeiro acesso.
+4. **Loop indireto** — REFUSED limpa QR → usuário/sistema reabre tela → nova auth → novo REFUSED.
+
+
+
+### Melhorias recomendadas (não implementadas)
+
+
+
+1. Idempotência antes de `POST /pix/automatic/authorizations` (reutilizar auth recente).
+2. Cooldown após REFUSED/EXPIRED antes de nova tentativa automática.
+3. Debounce: GET PaymentDetails não deve chamar Asaas se já houve tentativa recente.
+4. Revisar retry com GUID — preferir reconsultar/cancelar auth existente.
+5. Unificar criação de auth (onboarding vs `GeneratePixCodeAsync`).
+6. Logs correlacionados: `PaymentId`, `contractId`, origem da chamada.
+
+

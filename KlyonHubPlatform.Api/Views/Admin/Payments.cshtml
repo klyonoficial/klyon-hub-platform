@@ -1,6 +1,7 @@
 @model List<KlyonHubPlatform.Domain.Entities.Payment>
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.Helpers
 @{
     ViewData[ViewDataKeys.Title] = "Gerenciar Pagamentos";
 }
@@ -158,7 +159,7 @@
                                 </td>
                                 <td>
                                     @payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
-                                    @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
+                                    @if (payment.Status == PaymentStatus.Pending && BrazilDateTime.IsCalendarDueDateOverdue(payment.DueDate))
                                     {
                                         <br><span class="badge bg-cancelled">Vencido</span>
                                     }

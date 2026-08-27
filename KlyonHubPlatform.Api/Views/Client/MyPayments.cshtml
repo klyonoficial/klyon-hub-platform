@@ -1,7 +1,9 @@
-@model List<KlyonHubPlatform.Domain.Entities.Payment>
+@model List<KlyonHubPlatform.Api.Dtos.Client.MyPaymentListItemDto>
 @using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Application.Helpers
 @{
     ViewData[ViewDataKeys.Title] = "Cobranças de Endereço Fiscal";
+    var realPayments = ViewBag.RealPayments as List<KlyonHubPlatform.Domain.Entities.Payment> ?? new List<KlyonHubPlatform.Domain.Entities.Payment>();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -9,6 +11,10 @@
 </div>
 <p class="text-muted mb-4">
     <i class="bi bi-info-circle"></i> Cobranças dos seus contratos de endereço fiscal.
+    @if (Model?.Any(m => m.IsPredicted) == true)
+    {
+        <span class="d-block mt-1">Parcelas com badge <strong>Previsto</strong> ou <strong>Aguardando emissão</strong> são estimativas até o gateway de pagamento gerar a cobrança real.</span>
+    }
 </p>
 
 @if (Model == null || !Model.Any())
@@ -19,20 +25,28 @@
 }
 else
 {
+    var payableStatuses = new[] { PaymentStatus.Pending, PaymentStatus.Failed };
+    var inProgressStatuses = new[] { PaymentStatus.Processing, PaymentStatus.AwaitingValidation };
+    var totalPayable = realPayments.Where(p => payableStatuses.Contains(p.Status)).Sum(p => p.Amount);
+    var totalInProgress = realPayments.Where(p => inProgressStatuses.Contains(p.Status)).Sum(p => p.Amount);
+    var totalPaid = realPayments.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount);
+
     <div class="row mb-3">
         <div class="col-md-4">
             <div class="card border-0 bg-pending-payment text-white">
                 <div class="card-body">
-                    <h6 class="card-title"><i class="bi bi-cash-coin me-1"></i> Pendentes</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Pending).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <h6 class="card-title"><i class="bi bi-cash-coin me-1"></i> A pagar</h6>
+                    <h4 class="mb-0">R$ @totalPayable.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <small class="opacity-75">Aguardando, vencido ou falhou</small>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card border-0 bg-suspended text-white">
                 <div class="card-body">
-                    <h6 class="card-title"><i class="bi bi-arrow-repeat me-1"></i> Processando / Aguardando Validação</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Processing || p.Status == PaymentStatus.AwaitingValidation).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <h6 class="card-title"><i class="bi bi-arrow-repeat me-1"></i> Em processamento</h6>
+                    <h4 class="mb-0">R$ @totalInProgress.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <small class="opacity-75">Processando ou aguardando validação</small>
                 </div>
             </div>
         </div>
@@ -40,7 +54,8 @@ else
             <div class="card border-0 bg-active text-white">
                 <div class="card-body">
                     <h6 class="card-title"><i class="bi bi-check-circle-fill me-1"></i> Pagas</h6>
-                    <h4 class="mb-0">R$ @Model.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount).ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <h4 class="mb-0">R$ @totalPaid.ToString(NumberFormatConstants.CurrencyTwoDecimals)</h4>
+                    <small class="opacity-75">Somente cobranças confirmadas</small>
                 </div>
             </div>
         </div>
@@ -64,10 +79,10 @@ else
                     <tbody>
                         @foreach (var payment in Model)
                         {
-                            <tr>
+                            <tr class="@(payment.IsPredicted ? "table-light" : "")">
                                 <td>
-                                    <strong>@payment.Subscription?.Contract?.ContractNumber</strong><br>
-                                    <small class="text-muted">@payment.Subscription?.Contract?.CoworkingAddress?.Address</small>
+                                    <strong>@payment.ContractNumber</strong><br>
+                                    <small class="text-muted">@payment.Address</small>
                                 </td>
                                 <td>
                                     <strong>R$ @payment.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong>
@@ -91,40 +106,54 @@ else
                                     }
                                 </td>
                                 <td>
-                                    @switch (payment.Status)
+                                    @if (payment.IsPredicted)
                                     {
-                                        case PaymentStatus.Pending:
-                                            <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
-                                            break;
-                                        case PaymentStatus.Processing:
-                                            <span class="badge bg-suspended"><i class="bi bi-arrow-repeat me-1"></i> Processando</span>
-                                            break;
-                                        case PaymentStatus.AwaitingValidation:
-                                            <span class="badge bg-pending-payment"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
-                                            break;
-                                        case PaymentStatus.Paid:
-                                            <span class="badge bg-active"><i class="bi bi-check-circle-fill me-1"></i> Pago</span>
-                                            break;
-                                        case PaymentStatus.Failed:
-                                            <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Falhou</span>
-                                            break;
-                                        case PaymentStatus.Cancelled:
-                                            <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Cancelado</span>
-                                            break;
-                                        case PaymentStatus.Refunded:
-                                            <span class="badge bg-expired"><i class="bi bi-arrow-counterclockwise me-1"></i> Estornado</span>
-                                            break;
-                                        default:
-                                            <span class="badge bg-expired"><i class="bi bi-question-circle-fill me-1"></i> @payment.Status</span>
-                                            break;
+                                        <span class="badge bg-secondary"><i class="bi bi-calendar-event me-1"></i> @payment.PredictedStatusLabel</span>
+                                        @if (!string.IsNullOrWhiteSpace(payment.PredictedExplanation))
+                                        {
+                                            <br><small class="text-muted">@payment.PredictedExplanation</small>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @switch (payment.Status)
+                                        {
+                                            case PaymentStatus.Pending:
+                                                @if (BrazilDateTime.IsCalendarDueDateOverdue(payment.DueDate))
+                                                {
+                                                    <span class="badge bg-cancelled"><i class="bi bi-exclamation-triangle me-1"></i> Vencido</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
+                                                }
+                                                break;
+                                            case PaymentStatus.Processing:
+                                                <span class="badge bg-suspended"><i class="bi bi-arrow-repeat me-1"></i> Processando</span>
+                                                break;
+                                            case PaymentStatus.AwaitingValidation:
+                                                <span class="badge bg-pending-payment"><i class="bi bi-clock-history me-1"></i> Aguardando Validação</span>
+                                                break;
+                                            case PaymentStatus.Paid:
+                                                <span class="badge bg-active"><i class="bi bi-check-circle-fill me-1"></i> Pago</span>
+                                                break;
+                                            case PaymentStatus.Failed:
+                                                <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Falhou</span>
+                                                break;
+                                            case PaymentStatus.Cancelled:
+                                                <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Cancelado</span>
+                                                break;
+                                            case PaymentStatus.Refunded:
+                                                <span class="badge bg-expired"><i class="bi bi-arrow-counterclockwise me-1"></i> Estornado</span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-expired"><i class="bi bi-question-circle-fill me-1"></i> @payment.Status</span>
+                                                break;
+                                        }
                                     }
                                 </td>
                                 <td>
                                     @payment.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
-                                    @if (payment.DueDate < DateTime.UtcNow && payment.Status == PaymentStatus.Pending)
-                                    {
-                                        <br><span class="badge bg-cancelled">Vencido</span>
-                                    }
                                 </td>
                                 <td>
                                     @if (payment.PaidAt.HasValue)
@@ -137,9 +166,26 @@ else
                                     }
                                 </td>
                                 <td>
-                                    <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = payment.Id })" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-eye"></i> Ver Detalhes
-                                    </a>
+                                    @if (payment.IsPredicted)
+                                    {
+                                        <span class="text-muted" title="Disponível após emissão da cobrança"><i class="bi bi-hourglass-split"></i> Em breve</span>
+                                    }
+                                    else if (!payment.ShowActionLink || !payment.PaymentId.HasValue)
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                    else
+                                    {
+                                        var actionName = payment.Destination switch
+                                        {
+                                            PaymentClientDestination.PaymentSuccess => ActionNames.PaymentSuccess,
+                                            PaymentClientDestination.PaymentSummary => ActionNames.PaymentSummary,
+                                            _ => ActionNames.PaymentDetails
+                                        };
+                                        <a href="@Url.Action(actionName, ControllerNames.Client, new { id = payment.PaymentId })" class="btn btn-sm btn-primary">
+                                            <i class="bi @payment.ActionIconCss"></i> @payment.ActionLabel
+                                        </a>
+                                    }
                                 </td>
                             </tr>
                         }

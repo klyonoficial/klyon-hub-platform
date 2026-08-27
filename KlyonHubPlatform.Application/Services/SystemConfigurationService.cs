@@ -39,7 +39,8 @@ namespace KlyonHubPlatform.Application.Services
             var existing = await GetByKeyAsync(key, cancellationToken);
             if (existing != null)
             {
-                existing.Value = value;
+                if (!(isSensitive && string.IsNullOrWhiteSpace(value) && !string.IsNullOrEmpty(existing.Value)))
+                    existing.Value = value;
                 existing.Description = description ?? existing.Description;
                 existing.Category = category;
                 existing.IsEncrypted = isEncrypted;

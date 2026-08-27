@@ -8,6 +8,8 @@
     var contract = Model.Subscription?.Contract;
     var reservation = Model.Reservation;
     var isPending = Model.Status == PaymentStatus.Pending;
+    var isFailed = Model.Status == PaymentStatus.Failed;
+    var canCheckout = PaymentNavigationHelper.CanAccessPaymentCheckout(Model);
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
     // PIX único: código e expiração em Payments (PixCode, PixExpiresAt). PIX Automático: em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
@@ -26,11 +28,17 @@
     var snapshotListPrice = ViewBag.SnapshotListPrice as decimal? ?? (contract?.SnapshotListPrice > 0 ? contract.SnapshotListPrice : Model.SnapshotListPrice > 0 ? Model.SnapshotListPrice : Model.Amount);
     var snapshotPrice1x = ViewBag.SnapshotPrice1x as decimal? ?? snapshotListPrice;
     var snapshotPriceMonthly = ViewBag.SnapshotPriceMonthly as decimal? ?? snapshotListPrice;
+    var promoDiscount1x = ViewBag.PromoDiscount1x as decimal? ?? 0m;
+    var promoDiscountMonthly = ViewBag.PromoDiscountMonthly as decimal? ?? 0m;
+    var lockedMonthlyCharge = PaymentNavigationHelper.ResolveLockedMonthlyChargeAmount(Model);
+    if (lockedMonthlyCharge.HasValue)
+        snapshotPriceMonthly = lockedMonthlyCharge.Value;
     var addressHasCard1x = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("Card1x");
     var addressHasCardMonthly = snapshotListPrice > 0 && !hiddenPaymentOptions.Contains("CardMonthly");
+    var cardCheckoutPlanOptions = PaymentNavigationHelper.ResolveCreditCardCheckoutPlanOptions(Model, addressHasCard1x, addressHasCardMonthly);
     var showCreditCardInDropdown = (addressHasCard1x || addressHasCardMonthly) && (!hiddenPaymentOptions.Contains("Card1x") || !hiddenPaymentOptions.Contains("CardMonthly"));
-    var showCard1x = addressHasCard1x && !hiddenPaymentOptions.Contains("Card1x");
-    var showCardMonthly = addressHasCardMonthly && !hiddenPaymentOptions.Contains("CardMonthly");
+    var showCard1x = cardCheckoutPlanOptions.ShowCard1x;
+    var showCardMonthly = cardCheckoutPlanOptions.ShowCardMonthly;
     var showBoletoInDropdown = !hiddenPaymentOptions.Contains("Boleto");
     var currentPixPlanValue = isPixAnnual ? "PixAnnual" : (isPixMonthly ? "PixMonthly" : "PIX");
     var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
@@ -42,6 +50,12 @@
     var showCreditCardSection = (Model.Method == PaymentMethod.CreditCard && showCreditCardInDropdown) ||
         (Model.Method == PaymentMethod.PIX && !showPixInDropdown && showCreditCardInDropdown) ||
         (Model.Method == PaymentMethod.BankTransfer && !showBoletoInDropdown && showCreditCardInDropdown);
+    var showCreditCardCheckout = canCheckout && showCreditCardSection;
+    var creditCardCheckoutDisplay = showCreditCardCheckout
+        ? PaymentNavigationHelper.ResolveCreditCardCheckoutDisplay(
+            Model, snapshotPrice1x, snapshotPriceMonthly, showCard1x, showCardMonthly, useSnapshotPrices: isPending)
+        : null;
+    var checkoutCardPlanOption = creditCardCheckoutDisplay?.PlanOption ?? "1x";
     var showBoletoSection = isPending && (
         (Model.Method == PaymentMethod.BankTransfer && showBoletoInDropdown) ||
         (Model.Method == PaymentMethod.PIX && !showPixInDropdown && !showCreditCardInDropdown && showBoletoInDropdown) ||
@@ -186,18 +200,15 @@
 
                     <dt class="col-sm-4">Valor:</dt>
                     <dd class="col-sm-8">
-                        @if (showCreditCardSection && isPending)
+                        @if (showCreditCardCheckout && creditCardCheckoutDisplay != null)
                         {
                             var price1xVal = snapshotPrice1x;
                             var priceMonthlyVal = snapshotPriceMonthly;
-                            var has1xVal = showCard1x;
-                            var hasMonthlyVal = showCardMonthly;
-                            var use1xAsInitial = showCard1x;
-                            var initialVal = use1xAsInitial ? price1xVal : priceMonthlyVal;
-                            var initialLabel = use1xAsInitial ? "recorrência anual, equivale a R$ " + ((initialVal / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals)) + "/mês" : "recorrência mensal";
+                            var initialVal = creditCardCheckoutDisplay.DisplayAmount;
+                            var initialLabel = creditCardCheckoutDisplay.RecurrenceLabel;
                             var price1xStr = price1xVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
                             var priceMonthlyStr = priceMonthlyVal.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
-                            <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr">
+                            <div id="paymentInfoValorContainer" data-card-price-1x="@price1xStr" data-card-price-monthly="@priceMonthlyStr" data-initial-card-plan="@checkoutCardPlanOption">
                                 <h4 class="text-primary mb-0">R$ <span id="paymentInfoValorDisplay">@initialVal.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></h4>
                                 <small class="text-muted d-block mt-1" id="paymentInfoValorLabel">@initialLabel</small>
                             </div>
@@ -248,9 +259,17 @@
                                     <small class="text-muted d-block mt-1">equivale a R$ @pixMonthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês</small>
                                 }
                             }
-                            else if (Model.Method == PaymentMethod.CreditCard && Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                            else if (Model.Method == PaymentMethod.CreditCard)
                             {
-                                <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
+                                var creditCardRecurrenceLabel = PaymentNavigationHelper.ResolveCreditCardRecurrenceLabelForPayment(Model);
+                                if (!string.IsNullOrEmpty(creditCardRecurrenceLabel))
+                                {
+                                    <small class="text-muted d-block mt-1">@creditCardRecurrenceLabel</small>
+                                }
+                                @if (Model.InstallmentCount.HasValue && Model.InstallmentValue.HasValue)
+                                {
+                                    <small class="text-muted d-block mt-1"><i class="bi bi-credit-card-2-back"></i> Parcelado em <strong>@Model.InstallmentCount.Value x</strong> de <strong>R$ @Model.InstallmentValue.Value.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></small>
+                                }
                             }
                         }
                     </dd>
@@ -259,20 +278,30 @@
                         var hasPromoApplied = Model.PromoCodeId != null
                             || Model.SnapshotDiscountAmount > 0
                             || !string.IsNullOrEmpty(Model.PromoCodeSnapshot);
+                        var canApplyPromo = PaymentNavigationHelper.CanApplyPromoCode(Model);
+                        // Badge: desconto do plano exibido (1x vs mensal). SnapshotDiscountAmount fica stale ao trocar o rádio sem Sync.
+                        var promoBadgeDiscount = checkoutCardPlanOption == "monthly" ? promoDiscountMonthly : promoDiscount1x;
+                        if (promoBadgeDiscount <= 0)
+                            promoBadgeDiscount = Model.SnapshotDiscountAmount;
+                        var promoDiscount1xStr = promoDiscount1x.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
+                        var promoDiscountMonthlyStr = promoDiscountMonthly.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture);
                     }
-                    @if (isPending && isPaymentOwner && contract != null)
+                    @if (isPending && isPaymentOwner && contract != null && (canApplyPromo || hasPromoApplied))
                     {
                         <dt class="col-sm-4">Cupom:</dt>
                         <dd class="col-sm-8">
                             @if (hasPromoApplied)
                             {
-                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="d-flex flex-wrap align-items-center gap-2"
+                                     id="promoBadgeContainer"
+                                     data-promo-discount-1x="@promoDiscount1xStr"
+                                     data-promo-discount-monthly="@promoDiscountMonthlyStr">
                                     <span class="badge text-bg-success">
                                         <i class="bi bi-tag"></i>
                                         @(string.IsNullOrEmpty(Model.PromoCodeSnapshot) ? "Cupom aplicado" : Model.PromoCodeSnapshot)
-                                        @if (Model.SnapshotDiscountAmount > 0)
+                                        @if (promoBadgeDiscount > 0)
                                         {
-                                            <text>- R$ @Model.SnapshotDiscountAmount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</text>
+                                            <text>- R$ <span id="promoBadgeDiscountAmount">@promoBadgeDiscount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span></text>
                                         }
                                     </span>
                                     <form method="post" action="@Url.Action("RemovePromoCode", "Client")" class="d-inline">
@@ -284,12 +313,12 @@
                                     </form>
                                 </div>
                             }
-                            else
+                            else if (canApplyPromo)
                             {
                                 <form method="post" action="@Url.Action("ApplyPromoCode", "Client")" class="row g-2 align-items-center" id="applyPromoCodeForm">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="paymentId" value="@Model.Id" />
-                                    <input type="hidden" name="cardPlanOption" id="promoCardPlanOption" value="@(contract?.CardPlanType == ContractCardPlanType.CardMonthly ? "monthly" : "1x")" />
+                                    <input type="hidden" name="cardPlanOption" id="promoCardPlanOption" value="@checkoutCardPlanOption" />
                                     <div class="col-auto flex-grow-1" style="min-width: 180px;">
                                         <input type="text" name="promoCode" class="form-control" placeholder="Código promocional" maxlength="50" autocomplete="off" />
                                     </div>
@@ -404,7 +433,7 @@
                                 var pageHasMonthly = showCardMonthly;
                                 var pageShowCard1x = showCard1x;
                                 var pageShowCardMonthly = showCardMonthly;
-                                var pageCardFirstChecked = contract?.CardPlanType == ContractCardPlanType.CardMonthly ? "monthly" : (pageShowCard1x ? "1x" : (pageShowCardMonthly ? "monthly" : ""));
+                                var pageCardFirstChecked = checkoutCardPlanOption;
                                 <div class="mt-3 pt-2 border-top" id="pageCardPlanOptionWrap">
                                     @if (!pageShowCard1x && !pageShowCardMonthly)
                                     {
@@ -549,7 +578,7 @@
                     <dt class="col-sm-4">Data de Vencimento:</dt>
                     <dd class="col-sm-8">
                         @Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)
-                        @if (Model.DueDate < DateTime.UtcNow && isPending)
+                        @if (isPending && BrazilDateTime.IsCalendarDueDateOverdue(Model.DueDate))
                         {
                             <span class="badge bg-cancelled ms-2">Vencido</span>
                         }
@@ -570,7 +599,7 @@
             </div>
         </div>
 
-        @if (isPending)
+        @if (isPending && (showPixCard || showBoletoSection))
         {
             @if (showPixCard)
             {
@@ -721,8 +750,9 @@
                     </div>
                 </div>
             }
-            else if (showCreditCardSection)
-            {
+        }
+        @if (showCreditCardCheckout)
+        {
                 <div class="card mb-4" id="creditCardPaymentCard">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0">
@@ -799,6 +829,16 @@
 
                         @if (isPaymentOwner)
                         {
+                        @if (isFailed)
+                        {
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Cobrança não concluída.</strong>
+                                @(string.IsNullOrWhiteSpace(Model.FailureReason)
+                                    ? " Atualize o cartão ou tente novamente abaixo."
+                                    : $" {Model.FailureReason.Trim()} Atualize o cartão ou tente novamente.")
+                            </div>
+                        }
                         <p class="text-muted small mb-3">
                             <i class="bi bi-info-circle"></i> Cadastre um cartão abaixo para usar no pagamento. Ao clicar em "Pagar com cartão", você escolhe a forma de cobrança (1x anual ou mensal) e o cartão no modal.
                         </p>
@@ -808,7 +848,6 @@
                         }
                     </div>
                 </div>
-            }
         }
         @if (Model.Status == PaymentStatus.Cancelled && Model.Method == PaymentMethod.PIX && showPixInDropdown)
         {
@@ -865,32 +904,52 @@
                             Após enviar o comprovante, nossa equipe fará a validação manual do pagamento. Assim que aprovado, seu contrato será ativado.
                         </p>
                     }
-                    else if (showCreditCardSection)
+                }
+                @if (showCreditCardCheckout)
+                {
+                    @if (showCard1x || showCardMonthly)
                     {
-                        @if (showCard1x || showCardMonthly)
+                        @if (isFailed)
+                        {
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Cobrança não concluída.</strong>
+                                @(string.IsNullOrWhiteSpace(Model.FailureReason)
+                                    ? " Atualize o cartão ou tente novamente."
+                                    : $" {Model.FailureReason.Trim()} Atualize o cartão ou tente novamente.")
+                            </div>
+                        }
+                        else
                         {
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle"></i> 
                                 Seu contrato será ativado assim que o pagamento for aprovado.
                             </div>
-
-                            @if (isPaymentOwner)
-                            {
-                            <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
-                                <i class="bi bi-credit-card"></i> Pagar com cartão
-                            </button>
-                            }
-
-                            <p class="text-muted small mt-3">
-                                <i class="bi bi-info-circle"></i> 
-                                O pagamento é processado na hora pelo Asaas. Informe o CEP e o número do titular; cartões cadastrados preenchem nome e validade.
-                            </p>
                         }
-                        else
+
+                        @if (isPaymentOwner)
                         {
-                            <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
+                        <button type="button" class="btn btn-success w-100 mb-2" id="btnPagarComCartao" data-payment-id="@Model.Id" data-pay-modal-id="payWithCardModal">
+                            <i class="bi bi-credit-card"></i> @(isFailed ? "Pagar / atualizar cartão" : "Pagar com cartão")
+                        </button>
                         }
+
+                        <p class="text-muted small mt-3">
+                            <i class="bi bi-info-circle"></i> 
+                            O pagamento é processado na hora pelo Asaas. Informe o CEP e o número do titular; cartões cadastrados preenchem nome e validade.
+                        </p>
                     }
+                    else
+                    {
+                        <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Nenhuma forma de pagamento disponível no momento. Entre em contato com o suporte.</p>
+                    }
+                }
+                @if (isPending && !showPixCard && !showBoletoSection && !showCreditCardCheckout)
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        Aguardando confirmação do pagamento.
+                    </div>
                 }
                 else if (isAwaitingValidation)
                 {
@@ -920,7 +979,7 @@
                         <i class="bi bi-file-text"></i> Ver Contrato
                     </a>
                 }
-                else
+                else if (!canCheckout)
                 {
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i> 
@@ -1277,7 +1336,7 @@
     </div>
 </div>
 
-@if (isPending && showCreditCardSection)
+@if (showCreditCardCheckout)
 {
     var totalAmountForCard = ViewBag.FinalAmount ?? Model.Amount;
     var cardPrice1x = snapshotPrice1x;
@@ -1327,14 +1386,14 @@
                     {
                         var modalMonthly1x = cardPrice1x / 12m;
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" @(contract?.CardPlanType != ContractCardPlanType.CardMonthly ? "checked" : "")>
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" @(checkoutCardPlanOption == "1x" ? "checked" : "")>
                             <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual): R$ @cardPrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
                         </div>
                     }
                     @if (hasMonthly && showCardMonthly)
                     {
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @((!showCard1x || contract?.CardPlanType == ContractCardPlanType.CardMonthly) ? "checked" : "")>
+                            <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(checkoutCardPlanOption == "monthly" ? "checked" : "")>
                             <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal): R$ @cardPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
                         </div>
                     }
@@ -1886,7 +1945,8 @@
                 var labelEl = document.getElementById('paymentInfoValorLabel');
                 if (!container || !displayEl) return;
                 var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
-                var option = (pagePlan && pagePlan.value) ? pagePlan.value : '1x';
+                var defaultOption = container.getAttribute('data-initial-card-plan') || '1x';
+                var option = (pagePlan && pagePlan.value) ? pagePlan.value : defaultOption;
                 var price1x = container.getAttribute('data-card-price-1x');
                 var priceMonthly = container.getAttribute('data-card-price-monthly');
                 var amount = 0;
@@ -1906,6 +1966,17 @@
                         labelEl.textContent = 'recorrência anual, equivale a R$ ' + monthlyEq + '/mês';
                     }
                 }
+                updatePromoBadgeDiscount(option);
+            }
+            function updatePromoBadgeDiscount(option) {
+                var badgeWrap = document.getElementById('promoBadgeContainer');
+                var amountEl = document.getElementById('promoBadgeDiscountAmount');
+                if (!badgeWrap || !amountEl) return;
+                var d1x = parseFloat(badgeWrap.getAttribute('data-promo-discount-1x') || '0');
+                var dMonthly = parseFloat(badgeWrap.getAttribute('data-promo-discount-monthly') || '0');
+                var discount = (option === 'monthly') ? dMonthly : d1x;
+                if (isNaN(discount) || discount <= 0) return;
+                amountEl.textContent = discount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
             document.body.addEventListener('change', function(e) {
                 if (e.target && e.target.name === 'payCardPlanOption') {
@@ -2153,16 +2224,19 @@
             if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
-            var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
-            if (!pagePlan || !pagePlan.value) {
-                var wrap = document.getElementById('pageCardPlanOptionWrap');
-                var errBox = document.getElementById('pageCardPlanOptionError');
-                if (wrap) {
-                    wrap.classList.add('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
-                    wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var pagePlanWrap = document.getElementById('pageCardPlanOptionWrap');
+            var pagePlanRadios = pagePlanWrap ? pagePlanWrap.querySelectorAll('input[name="pageCardPlanOption"]') : [];
+            if (pagePlanRadios.length > 0) {
+                var pagePlan = document.querySelector('input[name="pageCardPlanOption"]:checked');
+                if (!pagePlan || !pagePlan.value) {
+                    var errBox = document.getElementById('pageCardPlanOptionError');
+                    if (pagePlanWrap) {
+                        pagePlanWrap.classList.add('border', 'border-2', 'border-danger', 'rounded', 'p-2', 'bg-danger', 'bg-opacity-10');
+                        pagePlanWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    if (errBox) { errBox.classList.remove('d-none'); }
+                    return;
                 }
-                if (errBox) { errBox.classList.remove('d-none'); }
-                return;
             }
             openPayWithCardModal();
         }, true);

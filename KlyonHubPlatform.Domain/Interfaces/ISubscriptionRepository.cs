@@ -14,5 +14,6 @@ namespace KlyonHubPlatform.Domain.Interfaces
         Task<Subscription?> GetByPixAutomaticAuthorizationIdAsync(string pixAutomaticAuthorizationId, CancellationToken cancellationToken = default);
         /// <summary>Busca assinatura local pelo ID da assinatura no Asaas (sub_...).</summary>
         Task<Subscription?> GetByExternalSubscriptionIdAsync(string externalSubscriptionId, CancellationToken cancellationToken = default);
+        Task<Subscription?> GetByPixAutomaticConciliationIdentifierAsync(string conciliationIdentifier, CancellationToken cancellationToken = default);
     }
 }

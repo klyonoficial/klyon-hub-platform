@@ -1,0 +1,125 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Api.Constants
+@using KlyonHubPlatform.Application.Helpers
+@{
+    ViewData[ViewDataKeys.Title] = PageTitles.PaymentSummary;
+    var guidance = ViewBag.Guidance as string ?? string.Empty;
+    var canCheckout = ViewBag.CanCheckout as bool? == true;
+    var checkoutLabel = ViewBag.CheckoutActionLabel as string ?? "Pagar / atualizar cartão";
+    var contract = Model.Subscription?.Contract;
+    var isOverdue = Model.Status == PaymentStatus.Pending && BrazilDateTime.IsCalendarDueDateOverdue(Model.DueDate);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt-cutoff"></i> Resumo da Cobrança</h2>
+    <a href="@Url.Action(ActionNames.MyPayments, ControllerNames.Client)" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(guidance))
+{
+    <div class="alert @(Model.Status == PaymentStatus.Failed || isOverdue ? "alert-warning" : "alert-info") mb-4" role="status">
+        <i class="bi bi-info-circle me-1"></i> @guidance
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informações</h5>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            @if (contract != null)
+            {
+                <dt class="col-sm-4">Contrato:</dt>
+                <dd class="col-sm-8"><strong>@contract.ContractNumber</strong></dd>
+
+                <dt class="col-sm-4">Endereço:</dt>
+                <dd class="col-sm-8">@(contract.CoworkingAddress?.Address ?? contract.SnapshotAddress)</dd>
+            }
+
+            <dt class="col-sm-4">Valor:</dt>
+            <dd class="col-sm-8"><strong>R$ @Model.Amount.ToString(NumberFormatConstants.CurrencyTwoDecimals)</strong></dd>
+
+            <dt class="col-sm-4">Método:</dt>
+            <dd class="col-sm-8">
+                @switch (Model.Method)
+                {
+                    case PaymentMethod.PIX:
+                        <span class="badge bg-primary"><i class="bi bi-qr-code"></i> PIX</span>
+                        break;
+                    case PaymentMethod.CreditCard:
+                        <span class="badge bg-info"><i class="bi bi-credit-card"></i> Cartão</span>
+                        break;
+                    case PaymentMethod.BankTransfer:
+                        <span class="badge bg-secondary"><i class="bi bi-bank"></i> Boleto</span>
+                        break;
+                }
+            </dd>
+
+            <dt class="col-sm-4">Status:</dt>
+            <dd class="col-sm-8">
+                @switch (Model.Status)
+                {
+                    case PaymentStatus.Pending:
+                        @if (isOverdue)
+                        {
+                            <span class="badge bg-cancelled"><i class="bi bi-exclamation-triangle me-1"></i> Vencido</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-pending-payment"><i class="bi bi-cash-coin me-1"></i> Aguardando Pagamento</span>
+                        }
+                        break;
+                    case PaymentStatus.Processing:
+                        <span class="badge bg-suspended"><i class="bi bi-arrow-repeat me-1"></i> Processando</span>
+                        break;
+                    case PaymentStatus.Failed:
+                        <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Falhou</span>
+                        break;
+                    case PaymentStatus.Cancelled:
+                        <span class="badge bg-cancelled"><i class="bi bi-x-circle-fill me-1"></i> Cancelado</span>
+                        break;
+                    case PaymentStatus.Refunded:
+                        <span class="badge bg-expired"><i class="bi bi-arrow-counterclockwise me-1"></i> Estornado</span>
+                        break;
+                    default:
+                        <span class="badge bg-expired">@Model.Status</span>
+                        break;
+                }
+            </dd>
+
+            <dt class="col-sm-4">Vencimento:</dt>
+            <dd class="col-sm-8">@Model.DueDate.ToString(DateFormatConstants.DisplayDateOnly)</dd>
+
+            @if (Model.PaidAt.HasValue)
+            {
+                <dt class="col-sm-4">Pago em:</dt>
+                <dd class="col-sm-8">@Model.PaidAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</dd>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.FailureReason))
+            {
+                <dt class="col-sm-4">Motivo:</dt>
+                <dd class="col-sm-8 text-danger">@Model.FailureReason</dd>
+            }
+        </dl>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+    @if (canCheckout)
+    {
+        <a href="@Url.Action(ActionNames.PaymentDetails, ControllerNames.Client, new { id = Model.Id })" class="btn btn-primary">
+            <i class="bi bi-credit-card"></i> @checkoutLabel
+        </a>
+    }
+    @if (contract != null)
+    {
+        <a href="@Url.Action(ActionNames.ContractDetails, ControllerNames.Client, new { id = contract.Id })" class="btn btn-outline-primary">
+            <i class="bi bi-file-earmark-text"></i> Ver contrato
+        </a>
+    }
+</div>

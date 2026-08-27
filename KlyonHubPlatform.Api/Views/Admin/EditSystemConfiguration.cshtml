@@ -43,9 +43,9 @@
                 </label>
                 @if (Model.IsSensitive)
                 {
-                    <input type="password" class="form-control" id="configValor" name="value" value="@Model.Value">
+                    <input type="password" class="form-control" id="configValor" name="value" value="" placeholder="@(string.IsNullOrEmpty(Model.Value) ? "Informe o valor" : "•••••••• (deixe em branco para manter)")" autocomplete="new-password">
                     <small class="form-text text-muted">
-                        <i class="bi bi-lock"></i> Este é um campo sensível. Digite o novo valor para atualizar.
+                        <i class="bi bi-lock"></i> Campo sensível. Digite o novo valor para atualizar ou deixe em branco para manter o atual.
                         @if (Model.Key == "PagBank.AccessToken" || Model.Key == AsaasConfigKey.ApiKey.ToConfigKey())
                         {
                             <text>

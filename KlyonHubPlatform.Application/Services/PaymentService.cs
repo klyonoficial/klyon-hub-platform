@@ -235,15 +235,19 @@ namespace KlyonHubPlatform.Application.Services
             decimal snapshotListPrice = 0,
             string? promoCodeSnapshot = null,
             decimal snapshotDiscountAmount = 0,
-            int? promoCodeId = null)
+            int? promoCodeId = null,
+            string? snapshotBillingCycle = null)
         {
             DateTime dueDate;
+            string? billingCycleSnapshot = snapshotBillingCycle;
             if (subscriptionId.HasValue)
             {
                 var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId.Value);
                 if (subscription == null)
                     throw new InvalidOperationException("Assinatura não encontrada");
                 dueDate = subscription.NextBillingDate;
+                if (string.IsNullOrWhiteSpace(billingCycleSnapshot))
+                    billingCycleSnapshot = ResolveBillingCycleSnapshot(subscription);
             }
             else
             {
@@ -259,6 +263,7 @@ namespace KlyonHubPlatform.Application.Services
                 SnapshotListPrice = snapshotListPrice > 0 ? snapshotListPrice : amount,
                 PromoCodeSnapshot = promoCodeSnapshot,
                 SnapshotDiscountAmount = snapshotDiscountAmount,
+                SnapshotBillingCycle = billingCycleSnapshot,
                 PromoCodeId = promoCodeId,
                 Method = method,
                 Status = PaymentStatus.Pending,
@@ -1006,7 +1011,7 @@ namespace KlyonHubPlatform.Application.Services
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
-            if (payment.Status != PaymentStatus.Pending)
+            if (payment.Status != PaymentStatus.Pending && payment.Status != PaymentStatus.Failed)
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ser processados");
             if (!payment.SubscriptionId.HasValue)
                 throw new InvalidOperationException("Pagamento não possui assinatura associada.");
@@ -1067,7 +1072,7 @@ namespace KlyonHubPlatform.Application.Services
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
             if (payment == null)
                 throw new InvalidOperationException("Pagamento não encontrado");
-            if (payment.Status != PaymentStatus.Pending)
+            if (payment.Status != PaymentStatus.Pending && payment.Status != PaymentStatus.Failed)
                 throw new InvalidOperationException("Apenas pagamentos pendentes podem ser processados");
             if (!payment.SubscriptionId.HasValue)
                 throw new InvalidOperationException("Pagamento não possui assinatura associada.");
@@ -1225,19 +1230,53 @@ namespace KlyonHubPlatform.Application.Services
             if (orderResponse.Charges != null && orderResponse.Charges.Any())
             {
                 var charge = orderResponse.Charges.First();
-                payment.Status = charge.Status.ToUpper() == "PAID" ? PaymentStatus.Paid :
-                                 charge.Status.ToUpper() == "DECLINED" ? PaymentStatus.Failed :
-                                 PaymentStatus.Processing;
+                var chargeStatus = (charge.Status ?? "").Trim().ToUpperInvariant();
+                payment.Status = IsCreditCardChargePaid(chargeStatus) ? PaymentStatus.Paid
+                    : IsCreditCardChargeDeclined(chargeStatus) ? PaymentStatus.Failed
+                    : PaymentStatus.Processing;
                 if (charge.PaidAt.HasValue)
                     payment.PaidAt = EnsurePaidAtWithTime(charge.PaidAt.Value);
-                if (charge.PaymentMethod?.Card != null || charge.Status.ToUpper() == "PAID")
+                if (charge.PaymentMethod?.Card != null || IsCreditCardChargePaid(chargeStatus))
                     payment.TransactionId = charge.Id;
+            }
+            else
+            {
+                // Sem charges: ainda assim respeitar Status agregado da OrderResponse (ex.: PAID/DECLINED).
+                var orderStatus = (orderResponse.Status ?? "").Trim().ToUpperInvariant();
+                if (IsCreditCardChargePaid(orderStatus))
+                    payment.Status = PaymentStatus.Paid;
+                else if (IsCreditCardChargeDeclined(orderStatus))
+                    payment.Status = PaymentStatus.Failed;
             }
 
             await _paymentRepository.UpdateAsync(payment);
+
+            // Cartão é síncrono: se não confirmou nem foi recusado de forma explícita (exceto análise de risco),
+            // marca Failed para o cliente poder tentar de novo em PaymentDetails (Processing bloqueava o checkout).
+            if (payment.Status == PaymentStatus.Processing)
+            {
+                var openStatus = (orderResponse.Charges?.FirstOrDefault()?.Status
+                    ?? orderResponse.Status
+                    ?? "").Trim().ToUpperInvariant();
+                if (openStatus != AsaasPaymentStatus.AwaitingRiskAnalysis)
+                {
+                    payment.Status = PaymentStatus.Failed;
+                    await _paymentRepository.UpdateAsync(payment);
+                    _logger.LogWarning(
+                        "Cobrança com cartão sem confirmação síncrona. PaymentId={PaymentId}, GatewayStatus={GatewayStatus}. Marcado como Failed.",
+                        payment.Id, openStatus);
+                }
+            }
+
             if (payment.Status == PaymentStatus.Paid)
                 await ConfirmPaymentAsync(payment.Id, payment.TransactionId);
         }
+
+        private static bool IsCreditCardChargePaid(string statusUpper) =>
+            statusUpper is "PAID" or "CONFIRMED" or "RECEIVED";
+
+        private static bool IsCreditCardChargeDeclined(string statusUpper) =>
+            statusUpper is "DECLINED" or "FAILED" or "REFUSED" or "REFUNDED" or "INACTIVE" or "DELETED";
 
         public async Task<CreditCardTokenizeResult> TokenizeCreditCardForClientAsync(
             int clientId,
@@ -1550,6 +1589,9 @@ namespace KlyonHubPlatform.Application.Services
             return await _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s!.Contract)
+                        .ThenInclude(c => c!.CoworkingAddress)
+                .Include(p => p.Subscription)
+                    .ThenInclude(s => s!.Payments)
                 .Where(p => p.Subscription != null && p.Subscription.Contract != null && p.Subscription.Contract.ClientId == clientId)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
@@ -1558,6 +1600,23 @@ namespace KlyonHubPlatform.Application.Services
         {
             return await _paymentRepository.GetByIdAsync(paymentId);
         }
+
+        private static string? ResolveBillingCycleSnapshot(Subscription subscription)
+        {
+            if (BillingCycleConstants.IsMonthly(subscription.BillingCycle))
+                return BillingCycleConstants.Monthly;
+            if (BillingCycleConstants.IsYearly(subscription.BillingCycle))
+                return BillingCycleConstants.Yearly;
+
+            var plan = subscription.Contract?.CardPlanType;
+            if (plan == ContractCardPlanType.CardMonthly || plan == ContractCardPlanType.PixMonthly)
+                return BillingCycleConstants.Monthly;
+            if (plan?.IsAnnualBillingCycle() == true)
+                return BillingCycleConstants.Yearly;
+
+            return null;
+        }
+
         private string GenerateCRC16(string data)
         {
             ushort crc = 0xFFFF;

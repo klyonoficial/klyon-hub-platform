@@ -14,6 +14,8 @@ namespace KlyonHubPlatform.Domain.Entities
         public string? PromoCodeSnapshot { get; set; }
         public decimal SnapshotDiscountAmount { get; set; }
         public decimal SnapshotListPrice { get; set; }
+        /// <summary>Ciclo de cobrança no momento da emissão da parcela (Monthly/Yearly). Imutável após criação.</summary>
+        public string? SnapshotBillingCycle { get; set; }
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
         public PaymentMethod Method { get; set; }
         public DateTime DueDate { get; set; }

@@ -1249,7 +1249,8 @@ namespace KlyonHubPlatform.Api.Controllers
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ConfigNotFound;
                     return RedirectToAction(ActionNames.SystemConfigurations);
                 }
-                configuration.Value = value ?? "";
+                if (!(configuration.IsSensitive && string.IsNullOrWhiteSpace(value)))
+                    configuration.Value = value ?? "";
                 configuration.Description = description ?? configuration.Description;
                 configuration.UpdatedBy = User.Identity?.Name;
                 await _systemConfigurationService.UpdateAsync(configuration, User.Identity?.Name);
@@ -1398,13 +1399,17 @@ namespace KlyonHubPlatform.Api.Controllers
             {
                 var apiKeyKey = AsaasConfigKey.ApiKey.ToConfigKey();
                 var useSandboxKey = AsaasConfigKey.UseSandbox.ToConfigKey();
-                var configs = new[]
+                var existingApiKey = await _systemConfigurationService.GetValueAsync(apiKeyKey, cancellationToken);
+                var configs = new List<(string Key, string Value, string Description, bool IsSensitive)>
                 {
-                    (apiKeyKey, "", "API Key do Asaas (obtida no painel Asaas > Integrações)", true),
                     (useSandboxKey, StringBooleanValue.True, "Usar ambiente sandbox do Asaas (true/false)", false)
                 };
+                if (string.IsNullOrWhiteSpace(existingApiKey))
+                    configs.Insert(0, (apiKeyKey, "", "API Key do Asaas (obtida no painel Asaas > Integrações)", true));
                 await _adminDbService.UpdateOrAddSystemConfigurationsAsync(configs, "Payment", User.Identity?.Name, cancellationToken);
-                TempData[SuccessMessage.TempDataKey] = SuccessMessage.AsaasSandboxPrepared(apiKeyKey);
+                TempData[SuccessMessage.TempDataKey] = string.IsNullOrWhiteSpace(existingApiKey)
+                    ? SuccessMessage.AsaasSandboxPrepared(apiKeyKey)
+                    : SuccessMessage.AsaasSandboxModeEnabled(apiKeyKey);
                 return RedirectToAction(ActionNames.SystemConfigurations);
             }
             catch (Exception ex)

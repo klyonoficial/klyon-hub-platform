@@ -79,7 +79,8 @@ namespace KlyonHubPlatform.Application.Services
                     var payment = await _paymentService.CreatePaymentAsync(
                         subscription.Id,
                         subscription.MonthlyAmount,
-                        PaymentMethod.CreditCard
+                        PaymentMethod.CreditCard,
+                        snapshotListPrice: subscription.Contract?.SnapshotListPrice ?? 0m
                     );
                     await _paymentService.ProcessPaymentAsync(payment.Id);
                     subscription.LastBillingDate = DateTime.UtcNow;
@@ -167,7 +168,8 @@ namespace KlyonHubPlatform.Application.Services
                         payment = await _paymentService.CreatePaymentAsync(
                             subscription.Id,
                             subscription.MonthlyAmount,
-                            PaymentMethod.PIX
+                            PaymentMethod.PIX,
+                            snapshotListPrice: contract.SnapshotListPrice
                         );
                     }
 

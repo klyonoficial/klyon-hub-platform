@@ -1,5 +1,6 @@
 using AutoMapper;
 using KlyonHubPlatform.Application.DTOs.Dashboard;
+using KlyonHubPlatform.Application.Helpers;
 using KlyonHubPlatform.Application.Interfaces;
 using KlyonHubPlatform.Application.ViewModels;
 using KlyonHubPlatform.Domain.Core.Constants;
@@ -234,18 +235,19 @@ namespace KlyonHubPlatform.Application.Services
         {
             try
             {
+                var todayBrazil = BrazilDateTime.Today;
                 var overduePayments = await _context.Payments
                     .AsNoTracking()
                     .Include(p => p.Subscription!)
                         .ThenInclude(s => s.Contract!)
                             .ThenInclude(c => c!.Client)
-                    .Where(p => p.Status == PaymentStatus.Pending && p.DueDate < DateTime.UtcNow)
+                    .Where(p => p.Status == PaymentStatus.Pending && p.DueDate < todayBrazil)
                     .ToListAsync(cancellationToken).ConfigureAwait(false);
                 if (overduePayments.Count > 0)
                 {
                     var overdueAmount = overduePayments.Sum(p => p.Amount);
                     var oldestOverdue = overduePayments.MinBy(p => p.DueDate)!;
-                    var daysOverdue = (DateTime.UtcNow - oldestOverdue.DueDate).Days;
+                    var daysOverdue = (todayBrazil - oldestOverdue.DueDate.Date).Days;
                     alerts.Add(new AdminAlertDto
                     {
                         Type = BootstrapBadgeCss.Danger,

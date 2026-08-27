@@ -2911,6 +2911,9 @@ namespace KlyonHubPlatform.Infra.Data.Migrations
                     b.Property<int?>("ReservationId")
                         .HasColumnType("int");
 
+                    b.Property<string>("SnapshotBillingCycle")
+                        .HasColumnType("longtext");
+
                     b.Property<decimal>("SnapshotDiscountAmount")
                         .HasColumnType("decimal(65,30)");
 
