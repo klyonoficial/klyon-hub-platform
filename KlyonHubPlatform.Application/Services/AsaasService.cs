@@ -248,6 +248,35 @@ namespace KlyonHubPlatform.Application.Services
             return await CreateOrGetAsaasCustomerAsync(clientName, clientEmail, cpfCnpj, clientPhone, clientAddress, externalReference);
         }
 
+        public async Task<AsaasCustomerResponse?> GetCustomerAsync(string asaasCustomerId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(asaasCustomerId))
+                return null;
+
+            try
+            {
+                var httpRequest = await CreateRequestAsync(
+                    HttpMethod.Get,
+                    $"/customers/{Uri.EscapeDataString(asaasCustomerId.Trim())}");
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning(
+                        "Asaas: falha ao obter customer {CustomerId}: {StatusCode} - {Content}",
+                        asaasCustomerId, response.StatusCode, content);
+                    return null;
+                }
+
+                return JsonSerializer.Deserialize<AsaasCustomerResponse>(content, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Asaas: erro ao obter customer {CustomerId}.", asaasCustomerId);
+                return null;
+            }
+        }
+
         public async Task<AsaasCustomerSyncOutcome> TryUpdateExistingCustomerAsync(
             string externalReference,
             string clientName,

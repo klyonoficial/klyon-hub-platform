@@ -12,13 +12,16 @@ using Microsoft.Extensions.Logging;
 namespace KlyonHubPlatform.Application.Services
 {
     /// <summary>
-    /// Centraliza criação/atualização de Payments locais a partir de cobranças recorrentes Asaas
-    /// (renovação cartão sub_*, PIX Automático mensal/anual).
+    /// Centraliza criação/atualização de Payments locais a partir de cobranças Asaas
+    /// (renovação cartão sub_*, PIX Automático, cobranças avulsas criadas no painel).
     /// </summary>
     public class AsaasWebhookHandler : IAsaasWebhookHandler
     {
+        private const string ClientExternalReferencePrefix = "client_";
+
         private readonly IPaymentRepository _paymentRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IContractRepository _contractRepository;
         private readonly IPaymentService _paymentService;
         private readonly IAsaasService _asaasService;
         private readonly ILogger<AsaasWebhookHandler> _logger;
@@ -26,12 +29,14 @@ namespace KlyonHubPlatform.Application.Services
         public AsaasWebhookHandler(
             IPaymentRepository paymentRepository,
             ISubscriptionRepository subscriptionRepository,
+            IContractRepository contractRepository,
             IPaymentService paymentService,
             IAsaasService asaasService,
             ILogger<AsaasWebhookHandler> logger)
         {
             _paymentRepository = paymentRepository;
             _subscriptionRepository = subscriptionRepository;
+            _contractRepository = contractRepository;
             _paymentService = paymentService;
             _asaasService = asaasService;
             _logger = logger;
@@ -154,7 +159,7 @@ namespace KlyonHubPlatform.Application.Services
                 }
             }
 
-            return null;
+            return await CreateStandaloneAsaasPaymentAsync(asaasPaymentId, paymentEl, cancellationToken);
         }
 
         public async Task<Payment?> SyncAsaasChargeMetadataAsync(
@@ -522,6 +527,139 @@ namespace KlyonHubPlatform.Application.Services
                 payment.Id, asaasPaymentId, subscription.Id);
 
             return payment;
+        }
+
+        private async Task<Payment?> CreateStandaloneAsaasPaymentAsync(
+            string asaasPaymentId,
+            JsonElement paymentEl,
+            CancellationToken cancellationToken)
+        {
+            var existingByExternal = await _paymentRepository.GetByExternalPaymentIdAsync(asaasPaymentId, cancellationToken);
+            if (existingByExternal != null)
+                return await SyncAsaasChargeMetadataAsync(existingByExternal, asaasPaymentId, paymentEl, cancellationToken);
+
+            var asaasCustomerId = GetString(paymentEl, AsaasWebhookPayloadKeys.Customer)
+                ?? GetString(paymentEl, AsaasWebhookPayloadKeys.CustomerId);
+            if (string.IsNullOrEmpty(asaasCustomerId))
+            {
+                _logger.LogWarning(
+                    "Webhook Asaas: cobrança avulsa {AsaasPaymentId} sem customer no payload; Payment local não criado.",
+                    asaasPaymentId);
+                return null;
+            }
+
+            var asaasCustomer = await _asaasService.GetCustomerAsync(asaasCustomerId, cancellationToken);
+            if (asaasCustomer == null)
+            {
+                _logger.LogWarning(
+                    "Webhook Asaas: customer {CustomerId} não encontrado para cobrança avulsa {AsaasPaymentId}.",
+                    asaasCustomerId, asaasPaymentId);
+                return null;
+            }
+
+            if (!TryParseClientIdFromExternalReference(asaasCustomer.ExternalReference, out var clientId))
+            {
+                _logger.LogWarning(
+                    "Webhook Asaas: externalReference do customer {CustomerId} não mapeia para clientId (ref={ExternalReference}); cobrança {AsaasPaymentId} ignorada.",
+                    asaasCustomerId, asaasCustomer.ExternalReference, asaasPaymentId);
+                return null;
+            }
+
+            var subscription = await ResolveSubscriptionForClientAsync(clientId, cancellationToken);
+            if (subscription == null)
+            {
+                _logger.LogWarning(
+                    "Webhook Asaas: nenhum contrato/assinatura ativo para clientId={ClientId}; cobrança avulsa {AsaasPaymentId} ignorada.",
+                    clientId, asaasPaymentId);
+                return null;
+            }
+
+            var amount = ResolveAmount(paymentEl, subscription.MonthlyAmount);
+            if (amount <= 0)
+            {
+                _logger.LogWarning(
+                    "Webhook Asaas: cobrança avulsa {AsaasPaymentId} sem valor válido; Payment local não criado.",
+                    asaasPaymentId);
+                return null;
+            }
+
+            var billingType = GetString(paymentEl, AsaasWebhookPayloadKeys.BillingType);
+            var localMethod = MapAsaasBillingTypeToPaymentMethod(billingType);
+            var dueDate = ParseDueDate(paymentEl) ?? DateTime.UtcNow.AddDays(1);
+            var asaasStatus = GetString(paymentEl, AsaasWebhookPayloadKeys.Status);
+            var initialStatus = MapAsaasStatusToLocal(asaasStatus ?? AsaasPaymentStatus.Pending, PaymentStatus.Pending)
+                ?? PaymentStatus.Pending;
+            var listPrice = subscription.Contract?.SnapshotListPrice ?? amount;
+
+            var payment = await _paymentService.CreatePaymentAsync(
+                subscription.Id,
+                amount,
+                localMethod,
+                snapshotListPrice: listPrice);
+            payment.ExternalPaymentId = asaasPaymentId;
+            payment.DueDate = dueDate;
+            payment.Status = initialStatus;
+            await _paymentRepository.UpdateAsync(payment, cancellationToken);
+
+            _logger.LogInformation(
+                "Pagamento local {PaymentId} criado para cobrança avulsa Asaas {AsaasPaymentId} (clientId={ClientId}, assinatura {SubscriptionId}, method={Method})",
+                payment.Id, asaasPaymentId, clientId, subscription.Id, localMethod);
+
+            return payment;
+        }
+
+        private async Task<Subscription?> ResolveSubscriptionForClientAsync(
+            int clientId,
+            CancellationToken cancellationToken)
+        {
+            var contracts = await _contractRepository.GetByClientIdAsync(clientId, cancellationToken);
+            if (contracts.Count == 0)
+                return null;
+
+            var prioritizedContract = contracts
+                .Where(c => c.Status is ContractStatus.Active
+                    or ContractStatus.Suspended
+                    or ContractStatus.PendingPayment)
+                .OrderByDescending(c => c.Status == ContractStatus.Active)
+                .ThenByDescending(c => c.Status == ContractStatus.Suspended)
+                .ThenByDescending(c => c.StartDate)
+                .FirstOrDefault();
+
+            if (prioritizedContract != null)
+            {
+                var subscription = await _subscriptionRepository.GetByContractIdAsync(
+                    prioritizedContract.Id, cancellationToken);
+                if (subscription != null && subscription.Status != SubscriptionStatus.Cancelled)
+                    return subscription;
+            }
+
+            foreach (var contract in contracts.OrderByDescending(c => c.StartDate))
+            {
+                var subscription = await _subscriptionRepository.GetByContractIdAsync(contract.Id, cancellationToken);
+                if (subscription != null
+                    && subscription.Status is SubscriptionStatus.Active
+                        or SubscriptionStatus.PastDue
+                        or SubscriptionStatus.Suspended)
+                {
+                    return subscription;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryParseClientIdFromExternalReference(string? externalReference, out int clientId)
+        {
+            clientId = 0;
+            if (string.IsNullOrWhiteSpace(externalReference))
+                return false;
+
+            if (!externalReference.StartsWith(ClientExternalReferencePrefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return int.TryParse(
+                externalReference.AsSpan(ClientExternalReferencePrefix.Length),
+                out clientId);
         }
 
         private async Task<Subscription?> LoadPixAutomaticSubscriptionFromReferenceAsync(

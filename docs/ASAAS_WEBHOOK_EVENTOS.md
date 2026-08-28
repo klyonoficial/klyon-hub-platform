@@ -108,7 +108,7 @@ Centralizado em `KlyonHubPlatform.Application/Services/AsaasWebhookHandler.cs`, 
 | Evento | Ação |
 |--------|------|
 | **Cobranças** | |
-| `PAYMENT_CREATED` | Cria/vincula Payment local para recorrência (`sub_*` / PIX Automático) |
+| `PAYMENT_CREATED` | Cria/vincula Payment local para recorrência (`sub_*` / PIX Automático) e **cobranças avulsas** criadas no painel Asaas (resolve cliente via `GET /customers/{id}` → `client_{id}`) |
 | `PAYMENT_UPDATED` | Sincroniza DueDate/Amount; confirma se RECEIVED/CONFIRMED; cancela se DELETED; Failed se REFUSED/DUNNING |
 | `PAYMENT_RECEIVED` / `CONFIRMED` / `RECEIVED_IN_CASH` | Confirma pagamento local |
 | `PAYMENT_DELETED` | Pending → Cancelled |

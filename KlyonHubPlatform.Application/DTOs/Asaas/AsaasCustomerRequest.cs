@@ -48,6 +48,8 @@ namespace KlyonHubPlatform.Application.DTOs.Asaas
         public string? CpfCnpj { get; set; }
         [JsonPropertyName("dateCreated")]
         public string? DateCreated { get; set; }
+        [JsonPropertyName("externalReference")]
+        public string? ExternalReference { get; set; }
     }
     public class AsaasCustomerListResponse
     {

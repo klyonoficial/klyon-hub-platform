@@ -63,6 +63,7 @@ namespace KlyonHubPlatform.Domain.Core.Constants
         public const string DueDate = "dueDate";
         public const string ExternalReference = "externalReference";
         public const string ContractId = "contractId";
+        public const string Customer = "customer";
         public const string CustomerId = "customerId";
         public const string ImmediateQrCode = "immediateQrCode";
         public const string ConciliationIdentifier = "conciliationIdentifier";
