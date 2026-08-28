@@ -257,7 +257,17 @@ namespace KlyonHubPlatform.Application.Services
             var payment = await ResolveLocalPaymentAsync(
                 asaasPaymentId, externalReference, pixQrCodeId, cancellationToken);
             if (payment == null)
+            {
+                if (string.Equals(asaasStatus, AsaasPaymentStatus.Deleted, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(
+                        "PAYMENT_UPDATED DELETED para Asaas {AsaasPaymentId} sem registro local; ignorado (idempotente).",
+                        asaasPaymentId);
+                    return null;
+                }
+
                 payment = await EnsureLocalPaymentFromAsaasChargeAsync(paymentEl, cancellationToken);
+            }
 
             if (payment == null)
                 return null;
@@ -405,34 +415,34 @@ namespace KlyonHubPlatform.Application.Services
                 return await SyncAsaasChargeMetadataAsync(duplicateCycle, asaasPaymentId, paymentEl, cancellationToken);
             }
 
+            // Checkout inicial: GeneratePixCode/assinatura Asaas já criou parcela Pending; webhook pode
+            // trazer outro pay_* (dueDate ligeiramente diferente) — vincular em vez de duplicar PIX órfão.
+            var hasPaidOnSubscription = subscription.Payments?.Any(p => p.Status == PaymentStatus.Paid) == true;
+            if (!hasPaidOnSubscription)
+            {
+                var webhookMethod = MapAsaasBillingTypeToPaymentMethod(
+                    GetString(paymentEl, AsaasWebhookPayloadKeys.BillingType));
+                var checkoutPending = subscription.Payments?
+                    .Where(p =>
+                        (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Processing)
+                        && p.Method == webhookMethod)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .FirstOrDefault();
+                if (checkoutPending != null)
+                {
+                    _logger.LogInformation(
+                        "Webhook Asaas {AsaasPaymentId} vinculado ao checkout {PaymentId} (assinatura {SubscriptionId} sem Paid; evita duplicata órfã)",
+                        asaasPaymentId, checkoutPending.Id, subscription.Id);
+                    return await SyncAsaasChargeMetadataAsync(checkoutPending, asaasPaymentId, paymentEl, cancellationToken);
+                }
+            }
+
             // Já há parcela Paid na assinatura e a nova cobrança Asaas cai antes do próximo ciclo:
             // trata como órfã (troca de meio) — cancela no Asaas e não cria Payment local.
-            var paidCovering = subscription.Payments?
-                .Where(p => p.Status == PaymentStatus.Paid)
-                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
-                .FirstOrDefault();
-            if (paidCovering != null)
+            if (await TrySkipOrphanAsaasChargeWhenSubscriptionAlreadyPaidAsync(
+                    subscription, asaasPaymentId, dueDate))
             {
-                var stillInPaidCycle = dueDate.Date <= subscription.NextBillingDate.Date
-                    || (paidCovering.PaidAt.HasValue
-                        && dueDate.Date <= paidCovering.PaidAt.Value.Date.AddYears(1));
-                if (stillInPaidCycle)
-                {
-                    try
-                    {
-                        await _asaasService.CancelChargeAsync(asaasPaymentId);
-                        _logger.LogWarning(
-                            "Cobrança Asaas {AsaasPaymentId} cancelada (órfã): assinatura local {SubscriptionId} já tem Paid {PaidPaymentId}",
-                            asaasPaymentId, subscription.Id, paidCovering.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex,
-                            "Falha ao cancelar cobrança órfã Asaas {AsaasPaymentId} (Paid local {PaidPaymentId})",
-                            asaasPaymentId, paidCovering.Id);
-                    }
-                    return null;
-                }
+                return null;
             }
 
             var amount = ResolveAmount(paymentEl, subscription.MonthlyAmount);
@@ -476,6 +486,12 @@ namespace KlyonHubPlatform.Application.Services
                 return existingByExternal;
 
             var dueDate = ParseDueDate(paymentEl) ?? subscription.NextBillingDate;
+            if (await TrySkipOrphanAsaasChargeWhenSubscriptionAlreadyPaidAsync(
+                    subscription, asaasPaymentId, dueDate))
+            {
+                return null;
+            }
+
             var pendingForCycle = subscription.Payments?
                 .Where(p =>
                     p.Method == PaymentMethod.PIX
@@ -784,7 +800,15 @@ namespace KlyonHubPlatform.Application.Services
             if (eventType == AsaasWebhookEvents.PaymentDeleted)
             {
                 var payment = await ResolveLocalPaymentAsync(paymentId, externalRef, pixQrCodeId, cancellationToken);
-                if (payment != null && payment.Status == PaymentStatus.Pending)
+                if (payment == null)
+                {
+                    _logger.LogInformation(
+                        "PAYMENT_DELETED para Asaas {AsaasPaymentId} sem registro local; ignorado (idempotente).",
+                        paymentId);
+                    return AsaasWebhookHandleResult.Done();
+                }
+
+                if (payment.Status == PaymentStatus.Pending)
                 {
                     // Troca de meio: ExternalPaymentId já limpo / aponta para outra cobrança → não cancelar parcela.
                     if (ShouldPreservePayablePaymentOnRemoteCancel(payment)
@@ -1491,6 +1515,44 @@ namespace KlyonHubPlatform.Application.Services
             payment.PixCode = null;
             payment.PixExpiresAt = null;
             payment.PixConciliationIdentifier = null;
+        }
+
+        /// <summary>
+        /// Assinatura já tem Paid no ciclo: cobrança Asaas tardia (órfã de troca de meio) não deve recriar Payment local.
+        /// </summary>
+        private async Task<bool> TrySkipOrphanAsaasChargeWhenSubscriptionAlreadyPaidAsync(
+            Subscription subscription,
+            string asaasPaymentId,
+            DateTime dueDate)
+        {
+            var paidCovering = subscription.Payments?
+                .Where(p => p.Status == PaymentStatus.Paid)
+                .OrderByDescending(p => p.PaidAt ?? p.CreatedAt)
+                .FirstOrDefault();
+            if (paidCovering == null)
+                return false;
+
+            var stillInPaidCycle = dueDate.Date <= subscription.NextBillingDate.Date
+                || (paidCovering.PaidAt.HasValue
+                    && dueDate.Date <= paidCovering.PaidAt.Value.Date.AddYears(1));
+            if (!stillInPaidCycle)
+                return false;
+
+            try
+            {
+                await _asaasService.CancelChargeAsync(asaasPaymentId);
+                _logger.LogWarning(
+                    "Cobrança Asaas {AsaasPaymentId} cancelada (órfã): assinatura local {SubscriptionId} já tem Paid {PaidPaymentId}",
+                    asaasPaymentId, subscription.Id, paidCovering.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Falha ao cancelar cobrança órfã Asaas {AsaasPaymentId} (Paid local {PaidPaymentId})",
+                    asaasPaymentId, paidCovering.Id);
+            }
+
+            return true;
         }
 
         /// <summary>

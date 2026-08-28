@@ -12,15 +12,17 @@
     var canCheckout = PaymentNavigationHelper.CanAccessPaymentCheckout(Model);
     var isAwaitingValidation = Model.Status == PaymentStatus.AwaitingValidation;
     var isPix = Model.Method == PaymentMethod.PIX;
+    var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as HashSet<string>
+        ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     // PIX único: código e expiração em Payments (PixCode, PixExpiresAt). PIX Automático: em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt)
-    var isPixAutomatic = isPix && contract?.CardPlanType.IsPixAutomatic() == true;
-    var isPixAnnual = isPix && contract?.CardPlanType == ContractCardPlanType.PixAnnual;
-    var isPixMonthly = isPix && contract?.CardPlanType == ContractCardPlanType.PixMonthly;
+    var effectivePixPlanType = PaymentNavigationHelper.ResolveEffectivePixPlanType(contract?.CardPlanType, hiddenPaymentOptions);
+    var isPixAutomatic = isPix && effectivePixPlanType.IsPixAutomatic();
+    var isPixAnnual = isPix && effectivePixPlanType == ContractCardPlanType.PixAnnual;
+    var isPixMonthly = isPix && effectivePixPlanType == ContractCardPlanType.PixMonthly;
     var effectivePixCode = isPixAutomatic ? (Model.Subscription?.PixAutomaticPayload) : Model.PixCode;
     var effectivePixExpiresAt = isPixAutomatic ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt;
     var pixExpiresAtUtc = effectivePixExpiresAt.HasValue ? (effectivePixExpiresAt.Value.Kind == DateTimeKind.Utc ? effectivePixExpiresAt.Value : DateTime.SpecifyKind(effectivePixExpiresAt.Value, DateTimeKind.Utc)) : (DateTime?)null;
     var isExpired = pixExpiresAtUtc.HasValue && pixExpiresAtUtc.Value < DateTime.UtcNow;
-    var hiddenPaymentOptions = ViewBag.HiddenPaymentOptions as IReadOnlySet<string> ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var showPixAnnualInDropdown = !hiddenPaymentOptions.Contains("PixAnnual");
     var showPixMonthlyInDropdown = !hiddenPaymentOptions.Contains("PixMonthly");
     var showPixSingleInDropdown = !hiddenPaymentOptions.Contains("PIX");
@@ -55,7 +57,7 @@
     var isMonthlyBillingCycle = PaymentNavigationHelper.IsMonthlyBillingCycle(Model);
     var isFirstContractPayment = PaymentNavigationHelper.IsFirstContractPayment(Model);
     var isYearlyBillingCycle = PaymentNavigationHelper.IsYearlyBillingCycle(Model);
-    var currentPixPlanValue = isPixAnnual ? "PixAnnual" : (isPixMonthly ? "PixMonthly" : "PIX");
+    var currentPixPlanValue = PaymentNavigationHelper.ResolveEffectivePixPlanSelection(contract?.CardPlanType, hiddenPaymentOptions);
     var currentMethodValue = isPix ? "PIX" : Model.Method.ToString();
     var currentBoletoPlanValue = isMonthlyBillingCycle ? "monthly" : "yearly";
     var boletoPriceAnnual = ViewBag.SnapshotBoletoPrice as decimal? ?? snapshotPrice1x;
@@ -224,7 +226,7 @@
                             decimal displayCheckoutAmount = Model.Amount;
                             if (isPending && Model.Method == PaymentMethod.PIX)
                             {
-                                var pixPlanForValor = contract?.CardPlanType;
+                                var pixPlanForValor = effectivePixPlanType;
                                 if (pixPlanForValor == ContractCardPlanType.PixAnnual)
                                     displayCheckoutAmount = snapshotPrice1x;
                                 else
@@ -279,7 +281,7 @@
                                     string? valorRecurrenceLabel = null;
                                     if (Model.Method == PaymentMethod.PIX)
                                     {
-                                        var pixPlan = contract?.CardPlanType;
+                                        var pixPlan = effectivePixPlanType;
                                         valorRecurrenceLabel = PaymentNavigationHelper.FormatBillingRecurrenceLabel(
                                             displayCheckoutAmount,
                                             isMonthly: pixPlan != ContractCardPlanType.PixAnnual);
@@ -385,7 +387,7 @@
                             }
                             else
                             {
-                            var defaultPixPlanForSwitch = showPixSingleInDropdown ? "PIX" : (showPixMonthlyInDropdown ? "PixMonthly" : "PixAnnual");
+                            var defaultPixPlanForSwitch = PaymentNavigationHelper.ResolveDefaultPixPlanSelection(hiddenPaymentOptions);
                             @if (isFailed && isMonthlyBillingCycle)
                             {
                                 <div class="alert alert-info py-2 small mb-2">
@@ -438,12 +440,6 @@
                                 var pixPriceMonthly = snapshotPriceMonthly;
                                 var pixAnnualMonthlyEq = pixPriceAnnual / 12m;
                                 var pixPlanChecked = currentPixPlanValue;
-                                if (pixPlanChecked == "PixAnnual" && !showPixAnnualInDropdown)
-                                    pixPlanChecked = showPixMonthlyInDropdown ? "PixMonthly" : (showPixSingleInDropdown ? "PIX" : pixPlanChecked);
-                                else if (pixPlanChecked == "PixMonthly" && !showPixMonthlyInDropdown)
-                                    pixPlanChecked = showPixAnnualInDropdown ? "PixAnnual" : (showPixSingleInDropdown ? "PIX" : pixPlanChecked);
-                                else if (pixPlanChecked == "PIX" && !showPixSingleInDropdown)
-                                    pixPlanChecked = showPixAnnualInDropdown ? "PixAnnual" : (showPixMonthlyInDropdown ? "PixMonthly" : pixPlanChecked);
                                 <div class="mt-3 pt-2 border-top" id="pagePixPlanOptionWrap" data-current-pix-plan="@currentPixPlanValue">
                                     <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
                                     @if (showPixSingleInDropdown)

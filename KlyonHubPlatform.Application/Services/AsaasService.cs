@@ -1514,6 +1514,75 @@ namespace KlyonHubPlatform.Application.Services
             _logger.LogInformation("Autorização PIX Automático Asaas cancelada: {AuthorizationId}", authorizationId);
         }
 
+        public async Task CancelPixAutomaticAuthorizationsForContractAsync(
+            string asaasCustomerId,
+            string baseContractId,
+            string? exceptAuthorizationId = null)
+        {
+            if (string.IsNullOrWhiteSpace(asaasCustomerId) || string.IsNullOrWhiteSpace(baseContractId))
+                return;
+
+            var exceptId = exceptAuthorizationId?.Trim();
+            var offset = 0;
+            const int limit = 100;
+            while (true)
+            {
+                var path =
+                    $"/pix/automatic/authorizations?customerId={Uri.EscapeDataString(asaasCustomerId.Trim())}&offset={offset}&limit={limit}";
+                var httpRequest = await CreateRequestAsync(HttpMethod.Get, path);
+                var response = await _httpClient.SendAsync(httpRequest);
+                var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning(
+                        "Erro ao listar autorizações PIX Automático (customerId={CustomerId}, contractId={ContractId}): {StatusCode} - {Content}",
+                        asaasCustomerId, baseContractId, response.StatusCode, content);
+                    return;
+                }
+
+                var list = JsonSerializer.Deserialize<AsaasPixAutomaticAuthorizationListResponse>(content, JsonOptions);
+                var items = list?.Data ?? new List<AsaasPixAutomaticAuthorizationListItem>();
+                foreach (var item in items)
+                {
+                    var authId = item.Id?.Trim();
+                    if (string.IsNullOrEmpty(authId)
+                        || string.Equals(authId, exceptId, StringComparison.OrdinalIgnoreCase)
+                        || !PixAutomaticContractIdMatches(item.ContractId, baseContractId))
+                        continue;
+
+                    if (string.Equals(item.Status, "CANCELLED", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    try
+                    {
+                        await CancelPixAutomaticAuthorizationAsync(authId);
+                        _logger.LogInformation(
+                            "Autorização PIX Automático stale cancelada: {AuthorizationId} (contractId={ContractId}, status={Status})",
+                            authId, item.ContractId, item.Status);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Falha ao cancelar autorização PIX Automático stale {AuthorizationId} (contractId={ContractId}).",
+                            authId, item.ContractId);
+                    }
+                }
+
+                if (list?.HasMore != true || items.Count == 0)
+                    break;
+                offset += limit;
+            }
+        }
+
+        private static bool PixAutomaticContractIdMatches(string? authContractId, string baseContractId)
+        {
+            if (string.IsNullOrWhiteSpace(authContractId))
+                return false;
+            var normalized = authContractId.Trim();
+            return string.Equals(normalized, baseContractId, StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(baseContractId + "-", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>Cria autorização PIX Automático (MONTHLY ou ANNUALLY). Retorna id da autorização, payload do QR Code e data de expiração do primeiro pagamento.</summary>
         public async Task<AsaasPixAutomaticAuthorizationResponse?> CreatePixAutomaticAuthorizationAsync(
             string asaasCustomerId,

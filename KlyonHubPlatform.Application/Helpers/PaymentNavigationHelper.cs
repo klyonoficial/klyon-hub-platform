@@ -247,6 +247,55 @@ namespace KlyonHubPlatform.Application.Helpers
                   + (amount / 12m).ToString(NumberFormatConstants.CurrencyTwoDecimals, CultureInfo.GetCultureInfo("pt-BR"))
                   + "/mês";
 
+        public static string ToPixPlanSelectionValue(ContractCardPlanType? plan) =>
+            plan switch
+            {
+                ContractCardPlanType.PixAnnual => "PixAnnual",
+                ContractCardPlanType.PixMonthly => "PixMonthly",
+                _ => "PIX"
+            };
+
+        public static ContractCardPlanType? ParsePixPlanSelection(string? selection) =>
+            string.Equals(selection, "PixAnnual", StringComparison.OrdinalIgnoreCase) ? ContractCardPlanType.PixAnnual
+            : string.Equals(selection, "PixMonthly", StringComparison.OrdinalIgnoreCase) ? ContractCardPlanType.PixMonthly
+            : string.Equals(selection, "PIX", StringComparison.OrdinalIgnoreCase) ? ContractCardPlanType.None
+            : null;
+
+        /// <summary>
+        /// Plano PIX efetivo no checkout respeitando HiddenPaymentOptions (mesma regra dos radios em PaymentDetails).
+        /// </summary>
+        public static string ResolveEffectivePixPlanSelection(
+            ContractCardPlanType? contractPlan,
+            ISet<string> hiddenPaymentOptions)
+        {
+            var showPixAnnual = !hiddenPaymentOptions.Contains("PixAnnual");
+            var showPixMonthly = !hiddenPaymentOptions.Contains("PixMonthly");
+            var showPixSingle = !hiddenPaymentOptions.Contains("PIX");
+
+            var current = ToPixPlanSelectionValue(contractPlan);
+            if (current == "PixAnnual" && !showPixAnnual)
+                return showPixMonthly ? "PixMonthly" : (showPixSingle ? "PIX" : current);
+            if (current == "PixMonthly" && !showPixMonthly)
+                return showPixAnnual ? "PixAnnual" : (showPixSingle ? "PIX" : current);
+            if (current == "PIX" && !showPixSingle)
+                return showPixAnnual ? "PixAnnual" : (showPixMonthly ? "PixMonthly" : current);
+            return current;
+        }
+
+        public static ContractCardPlanType? ResolveEffectivePixPlanType(
+            ContractCardPlanType? contractPlan,
+            ISet<string> hiddenPaymentOptions) =>
+            ParsePixPlanSelection(ResolveEffectivePixPlanSelection(contractPlan, hiddenPaymentOptions));
+
+        /// <summary>Primeira opção PIX visível (PIX tradicional → automático mensal → automático anual).</summary>
+        public static string ResolveDefaultPixPlanSelection(ISet<string> hiddenPaymentOptions)
+        {
+            if (!hiddenPaymentOptions.Contains("PIX")) return "PIX";
+            if (!hiddenPaymentOptions.Contains("PixMonthly")) return "PixMonthly";
+            if (!hiddenPaymentOptions.Contains("PixAnnual")) return "PixAnnual";
+            return "PIX";
+        }
+
         public static string FormatCreditCardRecurrenceLabel(decimal amount, bool isMonthly) =>
             FormatBillingRecurrenceLabel(amount, isMonthly);
 
@@ -481,6 +530,22 @@ namespace KlyonHubPlatform.Application.Helpers
             if (plan == ContractCardPlanType.PixMonthly)
                 return "PixMonthly";
             return "PIX";
+        }
+
+        /// <summary>
+        /// Rótulo legível do tipo de PIX (Automático mensal/anual, assinatura tradicional ou pagamento avulso).
+        /// Alinhado aos textos de PaymentSettlement e PaymentDetails.
+        /// </summary>
+        public static string ResolvePixPaymentMethodLabel(Payment payment)
+        {
+            return ResolveSettlementMethodSelectValue(payment) switch
+            {
+                "PixAnnual" => "PIX Automático anual",
+                "PixMonthly" => "PIX Automático mensal",
+                "PIX" when IsMonthlyBillingCycle(payment) => "PIX tradicional (assinatura mensal)",
+                "PIX" => "PIX (pagamento)",
+                _ => PaymentMethod.PIX.ToDisplayString()
+            };
         }
 
         public static string ResolveSettlementCycleLabel(Payment payment)

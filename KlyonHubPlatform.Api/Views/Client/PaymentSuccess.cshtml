@@ -2,6 +2,7 @@
 @using KlyonHubPlatform.Domain.Core.Enums
 @using KlyonHubPlatform.Api.Constants
 @using KlyonHubPlatform.Application.DTOs.ClientOnboarding
+@using KlyonHubPlatform.Application.Helpers
 @{
     ViewData[ViewDataKeys.Title] = "Pagamento realizado";
     Layout = LayoutPaths.LandingLayout;
@@ -95,7 +96,7 @@
                             var cardLastFour = ViewBag.PaymentCardLastFour as string;
                             string paymentMethodLabel = Model.Method switch
                             {
-                                PaymentMethod.PIX => "PIX",
+                                PaymentMethod.PIX => PaymentNavigationHelper.ResolvePixPaymentMethodLabel(Model),
                                 PaymentMethod.BankTransfer => "Boleto",
                                 PaymentMethod.CreditCard when !string.IsNullOrWhiteSpace(cardLastFour)
                                     => $"{(string.IsNullOrWhiteSpace(cardBrand) ? "Cartão" : cardBrand)} ****{cardLastFour}",

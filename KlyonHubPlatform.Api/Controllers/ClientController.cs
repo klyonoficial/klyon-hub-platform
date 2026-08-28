@@ -200,25 +200,11 @@ namespace KlyonHubPlatform.Api.Controllers
 
         /// <summary>
         /// Primeiro plano PIX disponível (respeitando HiddenPaymentOptions).
-        /// Prefere ciclo mensal quando o contrato atual é mensal (cartão ou PIX).
         /// </summary>
         private static ContractCardPlanType? ResolveDefaultAvailablePixPlan(
             ISet<string> hidden,
-            ContractCardPlanType? currentPlan = null)
-        {
-            // Checkout inicial: preferir PIX assinatura mensal, depois auto mensal, depois auto anual.
-            if (currentPlan == ContractCardPlanType.PixAnnual && !hidden.Contains("PixAnnual"))
-                return ContractCardPlanType.PixAnnual;
-            if (currentPlan == ContractCardPlanType.PixMonthly && !hidden.Contains("PixMonthly"))
-                return ContractCardPlanType.PixMonthly;
-            if (currentPlan == ContractCardPlanType.None && !hidden.Contains("PIX"))
-                return ContractCardPlanType.None;
-
-            if (!hidden.Contains("PIX")) return ContractCardPlanType.None;
-            if (!hidden.Contains("PixMonthly")) return ContractCardPlanType.PixMonthly;
-            if (!hidden.Contains("PixAnnual")) return ContractCardPlanType.PixAnnual;
-            return null;
-        }
+            ContractCardPlanType? currentPlan = null) =>
+            PaymentNavigationHelper.ResolveEffectivePixPlanType(currentPlan, hidden);
 
         /// <summary>
         /// Resolve o plano PIX pedido no form. Não reutiliza Card1x/CardMonthly do contrato como
@@ -3298,7 +3284,7 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     // Garantir Amount alinhado ao plano (PIX tradicional mensal = parcela, não SnapshotListPrice)
                     // ANTES de emitir/reutilizar cobrança no Asaas — corrige pagamentos já persistidos com valor anual.
-                    if (payment.Method == PaymentMethod.PIX || payment.Method == PaymentMethod.BankTransfer)
+                    if (payment.Method == PaymentMethod.PIX)
                     {
                         var syncContract = payment.Subscription?.Contract;
                         var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == payment.Id, cancellationToken);
@@ -3307,32 +3293,54 @@ namespace KlyonHubPlatform.Api.Controllers
                             : null;
                         if (trackedPayment != null && trackedContract != null)
                         {
-                            var planForSync = payment.Method == PaymentMethod.PIX
-                                ? (trackedContract.CardPlanType ?? ContractCardPlanType.None)
-                                : ContractCardPlanType.None;
-                            var boletoCycle = payment.Method == PaymentMethod.BankTransfer
-                                ? PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment)
-                                : null;
+                            var effectivePixPlan = PaymentNavigationHelper.ResolveEffectivePixPlanType(
+                                trackedContract.CardPlanType, hiddenPaymentSet);
+                            if (effectivePixPlan.HasValue)
+                            {
+                                var previousPlan = trackedContract.CardPlanType;
+                                if (previousPlan != effectivePixPlan)
+                                {
+                                    await _paymentService.UpdatePaymentMethodAsync(
+                                        payment.Id, PaymentMethod.PIX, effectivePixPlan, previousPlan);
+                                    payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                                }
+                                else
+                                {
+                                    await SyncCheckoutAmountFromSnapshotAsync(
+                                        trackedPayment,
+                                        trackedContract,
+                                        PaymentMethod.PIX,
+                                        effectivePixPlan,
+                                        cancellationToken);
+                                    payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                                    await _paymentService.GeneratePixCodeAsync(payment.Id, effectivePixPlan);
+                                    payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
+                                }
+                            }
+                        }
+                    }
+                    else if (payment.Method == PaymentMethod.BankTransfer)
+                    {
+                        var syncContract = payment.Subscription?.Contract;
+                        var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == payment.Id, cancellationToken);
+                        var trackedContract = syncContract != null
+                            ? await _context.Contracts.FirstOrDefaultAsync(c => c.Id == syncContract.Id, cancellationToken)
+                            : null;
+                        if (trackedPayment != null && trackedContract != null)
+                        {
+                            var boletoCycle = PaymentNavigationHelper.ResolveEffectiveBillingCycle(payment);
                             await SyncCheckoutAmountFromSnapshotAsync(
                                 trackedPayment,
                                 trackedContract,
-                                payment.Method,
-                                planForSync,
+                                PaymentMethod.BankTransfer,
+                                ContractCardPlanType.None,
                                 cancellationToken,
                                 boletoCycle);
                             payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken) ?? payment;
                         }
                     }
 
-                    if (payment.Method == PaymentMethod.PIX)
-                    {
-                        // Mesma lógica do PIX Automático: garantir 1 código válido (reaproveitar se válido, gerar 1 vez se não houver ou expirado). Único ponto que dispara geração ao exibir a tela; UpdatePaymentMethod só atualiza método/contrato.
-                        var contract = payment.Subscription?.Contract;
-                        var pixPlanType = contract?.CardPlanType ?? ContractCardPlanType.None;
-                        await _paymentService.GeneratePixCodeAsync(payment.Id, pixPlanType);
-                        payment = await _clientAppService.GetPaymentByIdWithFullDetailsAsync(id, cancellationToken);
-                    }
-                    else if (payment.Method == PaymentMethod.BankTransfer)
+                    if (payment.Method == PaymentMethod.BankTransfer)
                     {
                         // Expiração de boleto é data de calendário Asaas — não tratar midnight como UTC instant.
                         var boletoMissingOrExpired = string.IsNullOrEmpty(payment.BoletoCode) ||
@@ -3817,7 +3825,11 @@ namespace KlyonHubPlatform.Api.Controllers
                 else if (string.Equals(pixPlanSelection, "PIX", StringComparison.OrdinalIgnoreCase))
                     requestedPixPlan = ContractCardPlanType.None;
                 if (!requestedPixPlan.HasValue)
-                    requestedPixPlan = payment.Subscription?.Contract?.CardPlanType;
+                {
+                    var hiddenPixRaw = await _systemConfig.GetValueAsync(PaymentConfigKey.HiddenPaymentOptions.ToConfigKey());
+                    var hiddenPixSet = (hiddenPixRaw ?? "").Split(',', ';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    requestedPixPlan = PaymentNavigationHelper.ResolveEffectivePixPlanType(contract?.CardPlanType, hiddenPixSet);
+                }
 
                 // Garantir Amount + CardPlanType sincronizados ANTES de gerar o PIX no Asaas
                 var trackedPayment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);

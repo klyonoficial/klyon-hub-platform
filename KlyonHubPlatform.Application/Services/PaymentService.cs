@@ -444,8 +444,7 @@ namespace KlyonHubPlatform.Application.Services
 
             // Troca de meio: parcela local Pending/Failed permanece pagável (não vira Cancelled).
             // Limpa IDs locais ANTES do DELETE remoto para webhooks (auth/pay_*) não cancelarem a parcela.
-            // Se já há sub_*: UpdateSubscription (updatePendingPayments) — NÃO cancela sub_* ao ir para PIX Automático
-            // (mantém histórico; auth PIX Automático é fluxo paralelo).
+            // sub_* legada (PIX/Boleto assinatura): cancelar no Asaas ao migrar para PIX Automático.
             if (methodChanged || pixPlanChanged)
             {
             var willUpdateExistingAsaasSubscription = hadAsaasSubscription
@@ -498,12 +497,9 @@ namespace KlyonHubPlatform.Application.Services
                         remoteAuthIdOverride: remoteAuthIdToCancel);
                 }
 
-                // sub_* existente: manter para histórico/futuro UpdateSubscription (não DELETE ao ir para PIX Automático).
-                if (hadAsaasSubscription && switchingToPixAutomatic)
+                if (hadAsaasSubscription && switchingToPixAutomatic && subscription != null)
                 {
-                    _logger.LogInformation(
-                        "Troca para PIX Automático: mantendo ExternalSubscriptionId {ExternalSubscriptionId} (subscriptionLocalId={SubscriptionId}); auth será criada em paralelo.",
-                        subscription?.ExternalSubscriptionId, subscription?.Id);
+                    await TryCancelAsaasSubscriptionAsync(subscription, "troca para PIX Automático");
                 }
             }
 
@@ -801,9 +797,7 @@ namespace KlyonHubPlatform.Application.Services
 
         /// <summary>
         /// Cancela assinatura <c>sub_*</c> no Asaas e desvincula ExternalSubscriptionId local.
-        /// Reservado ao cenário 2 / cancelamento explícito quando ainda NÃO há assinatura consolidada
-        /// do 1º pagamento pago. Troca de meio para PIX Automático NÃO deve chamar este método
-        /// (mantém sub_* histórico; ver UpdatePaymentMethodAsync).
+        /// Usado ao migrar para PIX Automático ou recriar assinatura boleto/PIX tradicional.
         /// </summary>
         private async Task TryCancelAsaasSubscriptionAsync(Subscription subscription, string reason)
         {
@@ -992,6 +986,57 @@ namespace KlyonHubPlatform.Application.Services
             }
         }
 
+        private static string BuildPixAutomaticBaseContractId(Contract contract)
+        {
+            var baseContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
+            if (baseContractId.Length > 35)
+                baseContractId = baseContractId[..35];
+            return baseContractId;
+        }
+
+        private async Task TryCancelStalePixAutomaticAuthorizationsForContractAsync(
+            string asaasCustomerId,
+            string baseContractId,
+            string? exceptAuthorizationId = null)
+        {
+            try
+            {
+                await _asaasService.CancelPixAutomaticAuthorizationsForContractAsync(
+                    asaasCustomerId, baseContractId, exceptAuthorizationId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Falha ao cancelar autorizações PIX Automático stale para contractId={ContractId}.",
+                    baseContractId);
+            }
+        }
+
+        private async Task PersistPixAutomaticAuthorizationAsync(
+            Subscription subscription,
+            Payment payment,
+            AsaasPixAutomaticAuthorizationResponse authResponse)
+        {
+            var expiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate)
+                ?? DateTime.UtcNow.AddHours(24);
+            var payload = !string.IsNullOrEmpty(authResponse.ImmediateQrCode?.Payload)
+                ? authResponse.ImmediateQrCode.Payload
+                : authResponse.Payload;
+            if (string.IsNullOrEmpty(payload))
+                throw new InvalidOperationException("Asaas PIX Automático retornou autorização sem payload do QR Code. Verifique a resposta da API.");
+
+            subscription.PixAutomaticAuthorizationId = authResponse.Id;
+            subscription.PixAutomaticPayload = payload;
+            subscription.PixAutomaticPayloadExpiresAt = expiresAt;
+            subscription.PixAutomaticConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
+            await _subscriptionRepository.UpdateAsync(subscription);
+            payment.PixCode = null;
+            payment.PixExpiresAt = null;
+            payment.PixConciliationIdentifier = subscription.PixAutomaticConciliationIdentifier;
+            payment.DueDate = expiresAt;
+            await _paymentRepository.UpdateAsync(payment);
+        }
+
         public async Task ReopenCancelledPixPaymentAsync(int paymentId)
         {
             var payment = await _paymentRepository.GetByIdAsync(paymentId);
@@ -1170,17 +1215,11 @@ namespace KlyonHubPlatform.Application.Services
                     .FirstOrDefaultAsync();
                 if (paidSiblingId.HasValue)
                 {
-                    payment.Status = PaymentStatus.Cancelled;
-                    payment.FailureReason = PaymentSubstitutionReasons.ForPaidSibling(paidSiblingId.Value);
-                    payment.PixCode = null;
-                    payment.PixExpiresAt = null;
-                    payment.PixConciliationIdentifier = null;
-                    payment.ExternalPaymentId = string.Empty;
-                    payment.UpdatedAt = DateTime.UtcNow;
-                    await _paymentRepository.UpdateAsync(payment);
+                    await DeleteOrphanPaymentLocallyAsync(payment, paidSiblingId.Value, cancelRemoteCharge: true);
+                    await _context.SaveChangesAsync();
                     _logger.LogWarning(
-                        "GeneratePixCode bloqueado: payment {PaymentId} cancelado — assinatura {SubscriptionId} já tem Paid {PaidId}",
-                        payment.Id, payment.SubscriptionId, paidSiblingId.Value);
+                        "GeneratePixCode bloqueado: payment {PaymentId} excluído — assinatura {SubscriptionId} já tem Paid {PaidId}",
+                        paymentId, payment.SubscriptionId, paidSiblingId.Value);
                     throw new InvalidOperationException(
                         "Esta cobrança foi substituída por um pagamento já confirmado. Atualize a lista de cobranças.");
                 }
@@ -1252,14 +1291,11 @@ namespace KlyonHubPlatform.Application.Services
                 }
                 var asaasCustomerId = await _asaasService.GetOrCreateAsaasCustomerIdAsync(
                     clientName, clientEmail, clientTaxId, clientPhone, clientAddress, "client_" + client.Id);
-                var baseContractId = $"{contract.ContractNumber ?? ""}-{contract.Id}";
-                if (baseContractId.Length > 35)
-                    baseContractId = baseContractId[..35];
-                
-                // Garantir que o payment não carrega referência de cobrança PIX único (evita exibir/uso errado depois)
-                //payment.ExternalPaymentId = string.Empty;
-                
-                // Tentar com contractId padrão primeiro (reaproveitar autorização existente no Asaas)
+                var baseContractId = BuildPixAutomaticBaseContractId(contract);
+
+                // Cancelar autorizações stale (troca de plano/valor ou órfãs sem id local) antes de criar nova.
+                await TryCancelStalePixAutomaticAuthorizationsForContractAsync(asaasCustomerId, baseContractId);
+
                 try
                 {
                     var authResponse = await _asaasService.CreatePixAutomaticAuthorizationAsync(
@@ -1271,53 +1307,41 @@ namespace KlyonHubPlatform.Application.Services
                         86400);
                     if (authResponse != null && !string.IsNullOrEmpty(authResponse.Id))
                     {
-                        var expiresAt = AsaasDateParser.TryParse(authResponse.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                        var payload = !string.IsNullOrEmpty(authResponse.ImmediateQrCode?.Payload)
-                            ? authResponse.ImmediateQrCode.Payload
-                            : authResponse.Payload;
-                        if (string.IsNullOrEmpty(payload))
-                            throw new InvalidOperationException("Asaas PIX Automático retornou autorização sem payload do QR Code. Verifique a resposta da API.");
-                        // PIX Automático: gravar somente em Subscriptions (PixAutomaticPayload, PixAutomaticPayloadExpiresAt); não gravar em Payments.PixCode
-                        subscription.PixAutomaticAuthorizationId = authResponse.Id;
-                        subscription.PixAutomaticPayload = payload;
-                        subscription.PixAutomaticPayloadExpiresAt = expiresAt;
-                        subscription.PixAutomaticConciliationIdentifier = authResponse.ImmediateQrCode?.ConciliationIdentifier;
-                        await _subscriptionRepository.UpdateAsync(subscription);
-                        payment.PixCode = null;
-                        payment.PixExpiresAt = null;
-                        payment.PixConciliationIdentifier = subscription.PixAutomaticConciliationIdentifier;
-                        payment.DueDate = expiresAt;
-                        await _paymentRepository.UpdateAsync(payment);
-                        return subscription.PixAutomaticPayload;
+                        await PersistPixAutomaticAuthorizationAsync(subscription, payment, authResponse);
+                        return subscription.PixAutomaticPayload ?? "";
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("Já existe uma autorização", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Usuário voltou de cartão/PIX normal para PIX Automático: criar nova autorização com contractId único
-                    var uniqueContractId = $"{baseContractId}-{Guid.NewGuid().ToString("N")[..8]}";
-                    if (uniqueContractId.Length > 35) uniqueContractId = uniqueContractId[..35];
+                    // Conflito de contractId: cancelar autorizações existentes e tentar novamente com o id base.
+                    await TryCancelStalePixAutomaticAuthorizationsForContractAsync(asaasCustomerId, baseContractId);
                     var retryAuth = await _asaasService.CreatePixAutomaticAuthorizationAsync(
                         asaasCustomerId,
-                        uniqueContractId,
+                        baseContractId,
                         payment.Amount,
                         $"Contrato {contract.ContractNumber} - PIX {periodLabel}",
                         asaasFrequency,
                         86400);
                     if (retryAuth != null && !string.IsNullOrEmpty(retryAuth.Id))
                     {
-                        var expiresAtRetry = AsaasDateParser.TryParse(retryAuth.ImmediateQrCode?.ExpirationDate) ?? DateTime.UtcNow.AddHours(24);
-                        var payloadRetry = !string.IsNullOrEmpty(retryAuth.ImmediateQrCode?.Payload) ? retryAuth.ImmediateQrCode.Payload : retryAuth.Payload;
-                        if (string.IsNullOrEmpty(payloadRetry))
-                            throw new InvalidOperationException("Asaas PIX Automático (retry) retornou autorização sem payload do QR Code.");
-                        subscription.PixAutomaticAuthorizationId = retryAuth.Id;
-                        subscription.PixAutomaticPayload = payloadRetry;
-                        subscription.PixAutomaticPayloadExpiresAt = expiresAtRetry;
-                        subscription.PixAutomaticConciliationIdentifier = retryAuth.ImmediateQrCode?.ConciliationIdentifier;
-                        await _subscriptionRepository.UpdateAsync(subscription);
-                        payment.PixConciliationIdentifier = subscription.PixAutomaticConciliationIdentifier;
-                        payment.DueDate = expiresAtRetry;
-                        await _paymentRepository.UpdateAsync(payment);
-                        return subscription.PixAutomaticPayload;
+                        await PersistPixAutomaticAuthorizationAsync(subscription, payment, retryAuth);
+                        return subscription.PixAutomaticPayload ?? "";
+                    }
+
+                    // Último recurso: contractId com sufixo único (legado).
+                    var uniqueContractId = $"{baseContractId}-{Guid.NewGuid().ToString("N")[..8]}";
+                    if (uniqueContractId.Length > 35) uniqueContractId = uniqueContractId[..35];
+                    var fallbackAuth = await _asaasService.CreatePixAutomaticAuthorizationAsync(
+                        asaasCustomerId,
+                        uniqueContractId,
+                        payment.Amount,
+                        $"Contrato {contract.ContractNumber} - PIX {periodLabel}",
+                        asaasFrequency,
+                        86400);
+                    if (fallbackAuth != null && !string.IsNullOrEmpty(fallbackAuth.Id))
+                    {
+                        await PersistPixAutomaticAuthorizationAsync(subscription, payment, fallbackAuth);
+                        return subscription.PixAutomaticPayload ?? "";
                     }
                     throw new InvalidOperationException(
                         "Já existe uma autorização PIX Automático para este contrato. O código anterior pode ter expirado. Entre em contato com o suporte para gerar um novo código se necessário.");
@@ -2369,8 +2393,8 @@ namespace KlyonHubPlatform.Application.Services
         }
 
         /// <summary>
-        /// Após um pagamento ficar Paid: cancela no Asaas e marca Cancelled localmente as outras
-        /// cobranças Pending/Failed da mesma assinatura (PIX/boleto/cartão órfãos de troca de meio).
+        /// Após um pagamento ficar Paid: cancela no Asaas e exclui localmente as outras cobranças
+        /// Pending/Failed/Processing da mesma assinatura (órfãos de troca de meio — espelha Asaas).
         /// Não altera o payment que acabou de ser pago.
         /// </summary>
         private async Task CancelSiblingPendingPaymentsOnPaidAsync(Payment paidPayment)
@@ -2382,64 +2406,53 @@ namespace KlyonHubPlatform.Application.Services
                 .Where(p =>
                     p.SubscriptionId == paidPayment.SubscriptionId
                     && p.Id != paidPayment.Id
-                    && (p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Failed))
+                    && p.Status != PaymentStatus.Paid
+                    && (p.Status == PaymentStatus.Pending
+                        || p.Status == PaymentStatus.Failed
+                        || p.Status == PaymentStatus.Processing))
                 .ToListAsync();
 
-            if (siblings.Count == 0)
-                return;
-
-            var reason = PaymentSubstitutionReasons.ForPaidSibling(paidPayment.Id);
             foreach (var sibling in siblings)
             {
-                var remotePayId = sibling.ExternalPaymentId?.Trim();
-                if (!string.IsNullOrEmpty(remotePayId)
-                    && remotePayId.StartsWith("pay_", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(remotePayId, paidPayment.ExternalPaymentId, StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        await _asaasService.CancelChargeAsync(remotePayId);
-                        _logger.LogInformation(
-                            "Cobrança Asaas {ExternalPaymentId} cancelada (órfã após Paid {PaidPaymentId}; sibling local {SiblingId})",
-                            remotePayId, paidPayment.Id, sibling.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex,
-                            "Falha ao cancelar cobrança Asaas {ExternalPaymentId} órfã (sibling {SiblingId} após Paid {PaidPaymentId}). Marcando Cancelled localmente.",
-                            remotePayId, sibling.Id, paidPayment.Id);
-                    }
-                }
-
-                sibling.Status = PaymentStatus.Cancelled;
-                sibling.FailureReason = reason;
-                sibling.PixCode = null;
-                sibling.PixExpiresAt = null;
-                sibling.PixConciliationIdentifier = null;
-                sibling.BoletoCode = null;
-                sibling.BoletoBarcode = null;
-                sibling.BoletoExpiresAt = null;
-                sibling.BankSlipUrl = null;
-                sibling.ExternalPaymentId = string.Empty;
-                sibling.UpdatedAt = DateTime.UtcNow;
-                _context.Payments.Update(sibling);
-
-                var hasCancelledHistory = await _context.PaymentHistories
-                    .AnyAsync(h => h.PaymentId == sibling.Id && h.Action == PaymentHistoryActions.Cancelled);
-                if (!hasCancelledHistory)
-                {
-                    _context.PaymentHistories.Add(new PaymentHistory
-                    {
-                        PaymentId = sibling.Id,
-                        Action = PaymentHistoryActions.Cancelled,
-                        ActionAt = DateTime.UtcNow
-                    });
-                }
-
-                _logger.LogInformation(
-                    "Pagamento {SiblingId} marcado Cancelled (substituído pelo Paid {PaidPaymentId} na assinatura {SubscriptionId})",
-                    sibling.Id, paidPayment.Id, paidPayment.SubscriptionId);
+                await DeleteOrphanPaymentLocallyAsync(sibling, paidPayment.Id, cancelRemoteCharge: true);
             }
+        }
+
+        /// <summary>
+        /// Exclui cobrança órfã local (nunca Paid). PaymentHistories em cascade; Commissions só existem em Paid.
+        /// </summary>
+        private async Task DeleteOrphanPaymentLocallyAsync(
+            Payment orphan,
+            int paidSiblingId,
+            bool cancelRemoteCharge)
+        {
+            if (orphan.Status == PaymentStatus.Paid)
+                return;
+
+            var remotePayId = orphan.ExternalPaymentId?.Trim();
+            if (cancelRemoteCharge
+                && !string.IsNullOrEmpty(remotePayId)
+                && remotePayId.StartsWith("pay_", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await _asaasService.CancelChargeAsync(remotePayId);
+                    _logger.LogInformation(
+                        "Cobrança Asaas {ExternalPaymentId} cancelada (órfã após Paid {PaidPaymentId}; local {OrphanId})",
+                        remotePayId, paidSiblingId, orphan.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Falha ao cancelar cobrança Asaas {ExternalPaymentId} órfã (local {OrphanId} após Paid {PaidPaymentId}); excluindo localmente mesmo assim.",
+                        remotePayId, orphan.Id, paidSiblingId);
+                }
+            }
+
+            _context.Payments.Remove(orphan);
+            _logger.LogInformation(
+                "Pagamento {OrphanId} excluído (substituído pelo Paid {PaidPaymentId} na assinatura {SubscriptionId})",
+                orphan.Id, paidSiblingId, orphan.SubscriptionId);
         }
 
         /// <summary>
@@ -2533,7 +2546,7 @@ namespace KlyonHubPlatform.Application.Services
         }
         public async Task<List<Payment>> GetPaymentsByClientIdAsync(int clientId)
         {
-            return await _context.Payments
+            var payments = await _context.Payments
                 .Include(p => p.Subscription)
                     .ThenInclude(s => s!.Contract)
                         .ThenInclude(c => c!.CoworkingAddress)
@@ -2542,6 +2555,8 @@ namespace KlyonHubPlatform.Application.Services
                 .Where(p => p.Subscription != null && p.Subscription.Contract != null && p.Subscription.Contract.ClientId == clientId)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
+
+            return payments;
         }
         public async Task<Payment?> GetPaymentByIdAsync(int paymentId)
         {

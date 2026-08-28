@@ -130,6 +130,14 @@ namespace KlyonHubPlatform.Application.Interfaces
         /// </summary>
         Task CancelPixAutomaticAuthorizationAsync(string authorizationId);
         /// <summary>
+        /// Cancela autorizações PIX Automático do cliente cujo contractId coincide com o contrato base
+        /// (inclui sufixos -{guid8} de tentativas anteriores). Best-effort.
+        /// </summary>
+        Task CancelPixAutomaticAuthorizationsForContractAsync(
+            string asaasCustomerId,
+            string baseContractId,
+            string? exceptAuthorizationId = null);
+        /// <summary>
         /// Cria autorização PIX Automático. Retorna id, payload do QR Code e expiração.
         /// <paramref name="frequency"/>: MONTHLY ou ANNUALLY.
         /// </summary>

@@ -1,0 +1,29 @@
+$token = '$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmVkZDJmYjYxLWJjYTYtNDA3ZC04MzI4LTNiNzA4ZmMzNDI5NTo6JGFhY2hfNTkwODZlYWYtYjUxYi00MzE1LWI0MjYtY2EyMmMyNmRmNjkw'
+$headers = @{ "access_token" = $token; "User-Agent" = "KlyonHub/1.0"; "Accept" = "application/json" }
+try {
+  $test = Invoke-RestMethod -Uri "https://api-sandbox.asaas.com/v3/customers?limit=1" -Headers $headers -Method Get
+  Write-Host "Auth OK. Total customers (approx): $($test.totalCount)"
+} catch {
+  Write-Host "Auth FAILED: $($_.Exception.Message)"
+  exit 1
+}
+
+$deleted = 0; $failed = 0; $offset = 0
+do {
+  $resp = Invoke-RestMethod -Uri "https://api-sandbox.asaas.com/v3/customers?limit=100&offset=$offset" -Headers $headers -Method Get
+  foreach ($c in $resp.data) {
+    try {
+      Invoke-RestMethod -Uri "https://api-sandbox.asaas.com/v3/customers/$($c.id)" -Headers $headers -Method Delete | Out-Null
+      Write-Host "OK $($c.id) $($c.name)"
+      $deleted++
+    } catch {
+      Write-Host "FAIL $($c.id) $($c.name): $($_.Exception.Message)"
+      $failed++
+    }
+  }
+  $offset += 100
+} while ($resp.hasMore -eq $true)
+
+Write-Host "--- Done: deleted=$deleted failed=$failed ---"
+$remaining = Invoke-RestMethod -Uri "https://api-sandbox.asaas.com/v3/customers?limit=1" -Headers $headers -Method Get
+Write-Host "Remaining customers: $($remaining.totalCount)"
