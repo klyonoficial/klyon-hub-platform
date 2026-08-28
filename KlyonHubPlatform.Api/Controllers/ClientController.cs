@@ -325,6 +325,14 @@ namespace KlyonHubPlatform.Api.Controllers
         private IActionResult RedirectToPayablePayment(Payment payment) =>
             RedirectToAction(ResolvePayablePaymentAction(payment), new { id = payment.Id });
 
+        private async Task<IActionResult> RedirectToPayablePaymentAsync(int paymentId, CancellationToken cancellationToken = default)
+        {
+            var payment = await _clientAppService.GetPaymentWithSubscriptionAndContractAsync(paymentId, cancellationToken);
+            if (payment != null)
+                return RedirectToPayablePayment(payment);
+            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+        }
+
         private IActionResult PaymentMethodUpdateError(string message, int paymentId, Payment? payment = null)
         {
             TempData[ErrorMessages.TempDataKey] = message;
@@ -1385,7 +1393,7 @@ namespace KlyonHubPlatform.Api.Controllers
             var client = await _clientAppService.GetClientByUserIdAsync(userId, cancellationToken);
             ViewBag.IsLoggedInCheckout = true;
             ViewBag.ContactEmail = user?.Email ?? "";
-            ViewBag.ContactPhone = client?.ContactPhone ?? user?.Phone ?? "";
+            ViewBag.ContactPhone = BrazilianPhone.FormatForInput(client?.ContactPhone ?? user?.Phone ?? "") ?? "";
             ViewBag.CpfValue = client?.CPF ?? "";
             ViewBag.CnpjValue = client?.CNPJ ?? "";
             ViewBag.DeclaresHasCnpj = !string.IsNullOrWhiteSpace(client?.CNPJ) || user?.ClientHasCnpj == true;
@@ -1492,8 +1500,8 @@ namespace KlyonHubPlatform.Api.Controllers
 
             if (phoneDigits.Length == 0)
                 issues.Add("Telefone / WhatsApp: não informado");
-            else if (phoneDigits.Length < 10)
-                issues.Add("Telefone / WhatsApp: informe com DDD (mínimo 10 dígitos)");
+            else if (!BrazilianPhone.IsValid(contactPhone))
+                issues.Add($"Telefone / WhatsApp: {BrazilianPhone.InvalidMessage}");
 
             if (!aceiteLgpd)
                 issues.Add("Termos de Uso e Política de Privacidade (LGPD): aceite obrigatório");
@@ -1520,7 +1528,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.CpfValue = cpf;
             ViewBag.CnpjValue = cnpj;
             ViewBag.ContactEmail = contactEmail;
-            ViewBag.ContactPhone = contactPhone;
+            ViewBag.ContactPhone = BrazilianPhone.FormatForInput(contactPhone) ?? contactPhone;
             ViewBag.FiscalAcceptLgpdTerms = aceiteLgpd;
             ViewBag.FiscalShowLgpdError = issues.Any(static i => i.Contains("LGPD", StringComparison.Ordinal));
             ViewBag.FiscalValidationIssues = issues.ToList();
@@ -1617,7 +1625,7 @@ namespace KlyonHubPlatform.Api.Controllers
             ViewBag.CpfValue = cpf;
             ViewBag.CnpjValue = cnpj;
             ViewBag.ContactEmail = contactEmail;
-            ViewBag.ContactPhone = contactPhone;
+            ViewBag.ContactPhone = BrazilianPhone.FormatForInput(contactPhone) ?? contactPhone;
             ViewBag.FiscalAcceptLgpdTerms = aceiteLgpd;
             ViewBag.FiscalShowLgpdError = false;
             ViewBag.FiscalValidationIssues = null;
@@ -4106,13 +4114,13 @@ namespace KlyonHubPlatform.Api.Controllers
                 if (client == null)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
                 }
                 var cleanCardNumber = cardNumber.Replace(" ", "").Replace("-", "");
                 if (cleanCardNumber.Length < 13 || cleanCardNumber.Length > 19)
                 {
                     TempData[ErrorMessages.TempDataKey] = ErrorMessages.InvalidCardNumber;
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
                 }
                 var lastFourDigits = cleanCardNumber.Substring(cleanCardNumber.Length - 4);
                 var brand = "Cartão";
@@ -4168,16 +4176,16 @@ namespace KlyonHubPlatform.Api.Controllers
                 {
                     _logger.LogWarning(exToken, "Tokenização Asaas ao adicionar cartão falhou. ClientId={ClientId}", client.Id);
                     TempData[ErrorMessages.TempDataKey] = AsaasCreditCardErrorMapper.ToUserFriendlyMessage(exToken.Message);
-                    return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                    return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
                 }
                 await _clientAppService.AddCreditCardAsync(creditCard, cancellationToken);
                 TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardAdded;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
             catch (Exception ex)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ErrorWithException("adicionar cartão", ex.Message);
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
         }
         [HttpPost]
@@ -4189,17 +4197,17 @@ namespace KlyonHubPlatform.Api.Controllers
             if (client == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
             var card = await _clientAppService.GetCreditCardByIdAndClientIdAsync(cardId, client.Id, cancellationToken);
             if (card == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
             await _clientAppService.RemoveCreditCardAsync(cardId, client.Id, cancellationToken);
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardRemoved;
-            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -4210,17 +4218,17 @@ namespace KlyonHubPlatform.Api.Controllers
             if (client == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
             var card = await _clientAppService.GetCreditCardByIdAndClientIdAsync(cardId, client.Id, cancellationToken);
             if (card == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
             await _clientAppService.SetDefaultCreditCardAsync(client.Id, cardId, cancellationToken);
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardSetAsDefault;
-            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
         }
 
         [HttpPost]
@@ -4232,31 +4240,31 @@ namespace KlyonHubPlatform.Api.Controllers
             if (client == null)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.ClientNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
 
             if (string.IsNullOrWhiteSpace(nickname))
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNicknameRequired;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
 
             var trimmedNickname = nickname.Trim();
             if (trimmedNickname.Length > 100)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNicknameTooLong;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
 
             var updated = await _clientAppService.UpdateCreditCardNicknameAsync(cardId, client.Id, trimmedNickname, cancellationToken);
             if (!updated)
             {
                 TempData[ErrorMessages.TempDataKey] = ErrorMessages.CreditCardNotFound;
-                return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+                return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
             }
 
             TempData[SuccessMessage.TempDataKey] = SuccessMessage.CardNicknameUpdated;
-            return RedirectToAction(ActionNames.PaymentDetails, new { id = paymentId });
+            return await RedirectToPayablePaymentAsync(paymentId, cancellationToken);
         }
         [HttpPost]
         public async Task<IActionResult> ProcessPaymentWithCard([FromBody] ProcessPaymentWithCardRequest request, CancellationToken cancellationToken = default)

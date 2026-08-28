@@ -666,167 +666,16 @@
         {
             @if (showPixCard)
             {
-                <div class="card mb-4" id="pixPaymentCard">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
-                    </div>
-                    <div class="card-body text-center">
-                        @if (isExpired)
-                        {
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> <strong>Este código PIX expirou.</strong>
-                                @if (isPaymentOwner)
-                                {
-                                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar um novo código e realizar o pagamento.</p>
-                                    <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="paymentId" value="@Model.Id" />
-                                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
-                                        <button type="submit" class="btn btn-primary">
-                                            <i class="bi bi-qr-code"></i> Gerar novo código PIX
-                                        </button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
-                                }
-                            </div>
-                        }
-                        else if (!string.IsNullOrEmpty(effectivePixCode))
-                        {
-                            <div class="mb-3">
-                                <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="pixCode" value="@effectivePixCode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode(event)">
-                                        <i class="bi bi-clipboard"></i> Copiar
-                                    </button>
-                                </div>
-                            </div>
-                            <p class="text-muted">
-                                <i class="bi bi-info-circle"></i> 
-                                @if (effectivePixExpiresAt.HasValue)
-                                {
-                                    <text>Este código expira em: @effectivePixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
-                                }
-                                else
-                                {
-                                    <text>Escaneie o QR Code ou copie o código para pagar via PIX</text>
-                                }
-                            </p>
-                        }
-                        else
-                        {
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> 
-                                <strong>Código PIX não gerado.</strong>
-                                @if (isPaymentOwner)
-                                {
-                                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
-                                    <form method="post" action="@Url.Action("GeneratePixCode", "Client")" class="d-inline generate-pix-form">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="paymentId" value="@Model.Id" />
-                                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
-                                        <button type="submit" class="btn btn-primary">
-                                            <i class="bi bi-qr-code"></i> Gerar Código PIX
-                                        </button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
+                ViewBag.EffectivePixCode = effectivePixCode;
+                ViewBag.EffectivePixExpiresAt = effectivePixExpiresAt;
+                ViewBag.IsPixExpired = isExpired;
+                ViewBag.CurrentPixPlanValue = currentPixPlanValue;
+                ViewBag.IsPixAutomatic = isPixAutomatic;
+                @await Html.PartialAsync("Partials/_PaymentPixSection", Model)
             }
             else if (showBoletoSection)
             {
-                <div class="card mb-4" id="boletoPaymentCard">
-                    <div class="card-header bg-secondary text-white">
-                        <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto Bancário</h5>
-                    </div>
-                    <div class="card-body">
-                        @if (!string.IsNullOrEmpty(Model.BoletoCode))
-                        {
-                            @* Copiar sempre clicáveis (inclusive para admin) para repassar códigos ao usuário *@
-                            <div class="mb-3">
-                                <label class="form-label"><strong>Código de Barras (44 dígitos):</strong></label>
-                                <p class="text-muted small mb-1">Para leitura por equipamento de código de barras.</p>
-                                <div class="input-group">
-                                    <input type="text" class="form-control font-monospace" id="boletoBarcode" value="@Model.BoletoBarcode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoBarcode(event)">
-                                        <i class="bi bi-clipboard"></i> Copiar
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><strong>Linha Digitável (47 caracteres):</strong></label>
-                                <p class="text-muted small mb-1">Para digitação no internet banking ou aplicativo do banco.</p>
-                                <div class="input-group">
-                                    <input type="text" class="form-control font-monospace" id="boletoCode" value="@Model.BoletoCode" readonly>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoCode(event)">
-                                        <i class="bi bi-clipboard"></i> Copiar
-                                    </button>
-                                </div>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(Model.BankSlipUrl))
-                            {
-                                @* Link sempre clicável (inclusive para admin) para permitir emitir/visualizar o boleto para o usuário *@
-                                <div class="mb-3">
-                                    <a href="@Model.BankSlipUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                                        <i class="bi bi-file-earmark-pdf"></i> Abrir boleto (PDF)
-                                    </a>
-                                    <p class="text-muted small mb-0 mt-1">Clique para visualizar ou imprimir o boleto em PDF.</p>
-                                </div>
-                            }
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> 
-                                <strong>Instruções:</strong>
-                                <ul class="mb-0 mt-2">
-                                    <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
-                                    <li>O boleto vence em: <strong>@((Model.BoletoExpiresAt ?? Model.DueDate).ToString(DateFormatConstants.DisplayDateOnly))</strong></li>
-                                    <li>Após o pagamento, envie o comprovante para validação</li>
-                                </ul>
-                            </div>
-                            @if (User.IsInRole("Administrator") && ViewBag.BoletoValidationValid != null)
-                            {
-                                @if (ViewBag.BoletoValidationValid == true)
-                                {
-                                    <p class="text-success small mb-0"><i class="bi bi-check-circle"></i> @(ViewBag.BoletoValidationMessage ?? "Validação FEBRABAN: dígitos verificadores conferem.")</p>
-                                }
-                                else
-                                {
-                                    <p class="text-warning small mb-0"><i class="bi bi-exclamation-triangle"></i> @ViewBag.BoletoValidationMessage</p>
-                                }
-                            }
-                        }
-                        else
-                        {
-                            var boletoGenerating = ViewBag.BoletoGenerating as bool? ?? true;
-                            <div class="alert alert-info mb-3" id="boletoGeneratingBox" data-auto-refresh="@(boletoGenerating ? "1" : "0")">
-                                <i class="bi bi-hourglass-split"></i>
-                                <strong>Gerando boleto...</strong>
-                                <p class="mb-2 mt-2">O Asaas ainda está emitindo a linha digitável. A página atualiza automaticamente em alguns segundos.</p>
-                                @if (isPaymentOwner)
-                                {
-                                    <form method="post" action="@Url.Action("GenerateBoletoCode", "Client")" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="paymentId" value="@Model.Id" />
-                                        <button type="submit" class="btn btn-secondary btn-sm">
-                                            <i class="bi bi-bank"></i> Gerar boleto
-                                        </button>
-                                    </form>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
+                @await Html.PartialAsync("Partials/_PaymentBoletoSection", Model)
             }
         }
         @if (showCreditCardCheckout)
@@ -1579,36 +1428,16 @@
 }
 
 @section Scripts {
+    @if (isPending && (showPixCard || showBoletoSection))
+    {
+        <script src="~/js/payment-copy-clipboard.js" asp-append-version="true"></script>
+    }
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
     <script>
-        function copyToClipboardWithButtonFeedback(elementId, ev) {
-            const el = document.getElementById(elementId);
-            if (!el) return;
-            el.select();
-            document.execCommand('copy');
-            const button = (ev && ev.target) ? ev.target.closest('button') : null;
-            if (button) {
-                const originalHtml = button.innerHTML;
-                button.innerHTML = '<i class="bi bi-check"></i> Copiado!';
-                button.classList.add('btn-success');
-                button.classList.remove('btn-outline-secondary');
-                setTimeout(() => {
-                    button.innerHTML = originalHtml;
-                    button.classList.remove('btn-success');
-                    button.classList.add('btn-outline-secondary');
-                }, 2000);
-            }
-        }
-
-        function copyPixCode(ev) {
-            copyToClipboardWithButtonFeedback('pixCode', ev);
-        }
-
         @if (isPending && showPixCard && !string.IsNullOrEmpty(effectivePixCode) && !isExpired)
         {
             <text>
-            // Gerar QR Code (só quando o card PIX está visível): PIX único = Payment.PixCode; PIX Automático = Subscription.PixAutomaticPayload
             new QRCode(document.getElementById("qrcode"), {
                 text: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(effectivePixCode)),
                 width: 200,
@@ -1617,15 +1446,6 @@
             </text>
         }
 
-        function copyBoletoBarcode(ev) {
-            copyToClipboardWithButtonFeedback('boletoBarcode', ev);
-        }
-
-        function copyBoletoCode(ev) {
-            copyToClipboardWithButtonFeedback('boletoCode', ev);
-        }
-
-        // Helper de loading: usa KlyonLoading do loading.js ou fallback pelo overlay (se o script não carregou)
         function showPaymentLoading() {
             if (typeof window.KlyonLoading !== 'undefined' && window.KlyonLoading.show) {
                 window.KlyonLoading.show();
@@ -3073,14 +2893,5 @@
             })();
             </text>
         }
-
-        // Soft refresh enquanto boleto ainda sem linha digitável
-        (function() {
-            var box = document.getElementById('boletoGeneratingBox');
-            if (!box || box.getAttribute('data-auto-refresh') !== '1') return;
-            setTimeout(function() {
-                window.location.reload();
-            }, 8000);
-        })();
     </script>
 }

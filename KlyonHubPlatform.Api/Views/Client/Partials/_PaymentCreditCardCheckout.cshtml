@@ -1,0 +1,432 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.Helpers
+@using KlyonHubPlatform.Api.Constants
+@{
+    var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
+    var isFailed = Model.Status == PaymentStatus.Failed;
+    var isSettlementCheckout = ViewBag.IsSettlementCheckout as bool? ?? false;
+    var checkoutCardPlanOption = ViewBag.CheckoutCardPlanOption as string ?? "1x";
+    var showCard1x = ViewBag.ShowCard1xForCheckout as bool? ?? false;
+    var showCardMonthly = ViewBag.ShowCardMonthlyForCheckout as bool? ?? false;
+    var cardHolderPostalCode = ViewBag.CardHolderPostalCode as string ?? "";
+    var cardHolderAddressNumber = ViewBag.CardHolderAddressNumber as string ?? "";
+    var cardHolderHasNoNumber = ViewBag.CardHolderHasNoNumber as bool? ?? false;
+    var totalAmountForCard = ViewBag.FinalAmount as decimal? ?? Model.Amount;
+    var cardPrice1x = ViewBag.SnapshotPrice1x as decimal? ?? Model.Amount;
+    var cardPriceMonthly = ViewBag.SnapshotPriceMonthly as decimal? ?? Model.Amount;
+    var lockedMonthlyCharge = PaymentNavigationHelper.ResolveLockedMonthlyChargeAmount(Model);
+    if (lockedMonthlyCharge.HasValue)
+        cardPriceMonthly = lockedMonthlyCharge.Value;
+    if (isSettlementCheckout)
+        totalAmountForCard = Model.Amount;
+
+    var creditCardsJson = "[]";
+    if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
+    {
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var cards = ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
+            .Select(c => new {
+                id = c.Id,
+                cardHolderName = c.CardHolderName ?? "",
+                expiryMonth = !string.IsNullOrEmpty(c.ExpiryMonth) && c.ExpiryMonth.Length == 1 ? "0" + c.ExpiryMonth : (c.ExpiryMonth ?? ""),
+                expiryYear = c.ExpiryYear ?? "",
+                lastFourDigits = c.LastFourDigits ?? "",
+                brand = c.Brand ?? "",
+                nickname = string.IsNullOrWhiteSpace(c.Nickname) ? null : c.Nickname.Trim(),
+                hasToken = !string.IsNullOrEmpty(c.AsaasToken),
+                hasBilling = CreditCardHolderBilling.TryReadStored(c.PostalCode, c.AddressNumber, out _, out _),
+                postalCode = CreditCardHolderBilling.FormatMasked(c.PostalCode),
+                addressNumber = c.AddressNumber,
+                isDefault = c.IsDefault
+            })
+            .ToList();
+        creditCardsJson = System.Text.Json.JsonSerializer.Serialize(cards, jsonOptions);
+    }
+
+    var isMonthlyBillingCycle = PaymentNavigationHelper.IsMonthlyBillingCycle(Model);
+    string settlementPlanLabel;
+    if (checkoutCardPlanOption == "monthly" || isMonthlyBillingCycle)
+    {
+        settlementPlanLabel = $"Cobrança mensal de R$ {totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)} (recorrência mensal{(isSettlementCheckout ? " — valor fixo deste ciclo" : "")}).";
+    }
+    else
+    {
+        var monthlyEq = totalAmountForCard / 12m;
+        settlementPlanLabel = $"Cobrança anual de R$ {totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)} (equivale a R$ {monthlyEq.ToString(NumberFormatConstants.CurrencyTwoDecimals)}/mês{(isSettlementCheckout ? " — valor fixo deste ciclo" : "")}).";
+    }
+}
+
+<div class="card mb-4" id="creditCardPaymentCard">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-credit-card"></i> Cartão de Crédito
+        </h5>
+    </div>
+    <div class="card-body">
+        @if (ViewBag.CreditCards != null && ((List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards).Any())
+        {
+            <div class="mb-3">
+                <label class="form-label"><strong>Cartões já cadastrados:</strong></label>
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-info-circle"></i> Estes cartões poderão ser selecionados no modal ao clicar em "Pagar com cartão".
+                </p>
+                <div class="list-group">
+                    @foreach (var card in (List<KlyonHubPlatform.Domain.Entities.CreditCard>)ViewBag.CreditCards)
+                    {
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                <div>
+                                    <i class="bi bi-credit-card-2-front"></i>
+                                    @if (!string.IsNullOrWhiteSpace(card.Nickname))
+                                    {
+                                        <strong>@card.Nickname</strong>
+                                        <span class="text-muted"> (@card.Brand •••• @card.LastFourDigits)</span>
+                                    }
+                                    else
+                                    {
+                                        <strong>@card.Brand</strong> <span class="text-muted">•••• @card.LastFourDigits</span>
+                                    }
+                                    <br />
+                                    <small class="text-muted">@card.CardHolderName - @card.ExpiryMonth/@card.ExpiryYear</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-1">
+                                    @if (card.IsDefault)
+                                    {
+                                        <span class="badge bg-primary">Padrão</span>
+                                    }
+                                    @if (isPaymentOwner)
+                                    {
+                                        @if (!card.IsDefault)
+                                        {
+                                            <form method="post" action="@Url.Action(ActionNames.SetDefaultCreditCard, ControllerNames.Client)" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="paymentId" value="@Model.Id" />
+                                                <input type="hidden" name="cardId" value="@card.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Definir como padrão">Padrão</button>
+                                            </form>
+                                        }
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary edit-card-nickname-btn"
+                                                title="Editar apelido"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#editCardNicknameModal"
+                                                data-card-id="@card.Id"
+                                                data-card-nickname="@(card.Nickname ?? "")"
+                                                data-card-label="@card.Brand •••• @card.LastFourDigits">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="post" action="@Url.Action(ActionNames.RemoveCreditCard, ControllerNames.Client)" class="d-inline" onsubmit="return confirm('Remover este cartão? Você poderá adicioná-lo novamente depois.');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="paymentId" value="@Model.Id" />
+                                            <input type="hidden" name="cardId" value="@card.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover cartão"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isPaymentOwner)
+        {
+            @if (isFailed)
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Cobrança não concluída.</strong>
+                    @(string.IsNullOrWhiteSpace(Model.FailureReason)
+                        ? " Atualize o cartão ou tente novamente abaixo."
+                        : $" {Model.FailureReason.Trim()} Atualize o cartão ou tente novamente.")
+                </div>
+            }
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i> Cadastre um cartão abaixo para usar no pagamento. Ao clicar em "Pagar com cartão", você escolhe o cartão no modal.
+            </p>
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                <i class="bi bi-plus-circle"></i> Adicionar Novo Cartão
+            </button>
+        }
+    </div>
+</div>
+
+<div class="modal fade" id="addCardModal" tabindex="-1" aria-labelledby="addCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCardModalLabel">
+                    <i class="bi bi-credit-card"></i> Adicionar Novo Cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action(ActionNames.AddCreditCard, ControllerNames.Client)" id="addCardForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="cardNumber" class="form-label">Número do Cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cardNumber" name="cardNumber"
+                               placeholder="0000 0000 0000 0000" maxlength="19" required>
+                        <small class="form-text text-muted">Digite apenas os números do cartão</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cardHolderName" class="form-label">Nome no Cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cardHolderName" name="cardHolderName"
+                               placeholder="NOME COMO ESTÁ NO CARTÃO" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cardNickname" class="form-label">Apelido do cartão</label>
+                        <input type="text" class="form-control" id="cardNickname" name="nickname"
+                               placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100">
+                        <small class="form-text text-muted">Opcional. Use para identificar este cartão nas listas.</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="expiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
+                            <select class="form-select" id="expiryMonth" name="expiryMonth" required>
+                                <option value="">MM</option>
+                                @for (int i = 1; i <= 12; i++)
+                                {
+                                    <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="expiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
+                            <select class="form-select" id="expiryYear" name="expiryYear" required>
+                                <option value="">AAAA</option>
+                                @for (int year = DateTime.Now.Year; year <= DateTime.Now.Year + 10; year++)
+                                {
+                                    <option value="@year">@year</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cvv" class="form-label">CVV <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cvv" name="cvv"
+                               placeholder="000" maxlength="4" required>
+                    </div>
+                    <div class="card-holder-billing border rounded p-3 mb-3">
+                        <p class="small text-muted mb-2">Endereço do titular (obrigatório para o cartão). Não é necessário rua, bairro ou cidade.</p>
+                        <div class="mb-3">
+                            <label for="addCardPostalCode" class="form-label">CEP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="addCardPostalCode" name="postalCode"
+                                   value="@cardHolderPostalCode" placeholder="00000-000" maxlength="9"
+                                   inputmode="numeric" autocomplete="postal-code" required>
+                        </div>
+                        <div class="mb-2">
+                            <label for="addCardAddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="addCardAddressNumber" name="addressNumber"
+                                   value="@cardHolderAddressNumber" placeholder="123" maxlength="20"
+                                   inputmode="text" autocomplete="address-line2" @(cardHolderHasNoNumber ? "disabled" : "required")>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="addCardNoNumber" name="addressHasNoNumber" value="true" @(cardHolderHasNoNumber ? "checked" : "")>
+                            <label class="form-check-label" for="addCardNoNumber">Sem número (enviar S/N)</label>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isDefault" name="isDefault" value="true">
+                        <label class="form-check-label" for="isDefault">
+                            Definir como cartão padrão
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar Cartão
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editCardNicknameModal" tabindex="-1" aria-labelledby="editCardNicknameModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCardNicknameModalLabel">
+                    <i class="bi bi-pencil"></i> Editar apelido do cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="@Url.Action(ActionNames.UpdateCreditCardNickname, ControllerNames.Client)" id="editCardNicknameForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="paymentId" value="@Model.Id" />
+                <input type="hidden" name="cardId" id="editCardNicknameCardId" value="" />
+                <div class="modal-body">
+                    <p class="text-muted small mb-3" id="editCardNicknameCardLabel"></p>
+                    <div class="mb-0">
+                        <label for="editCardNicknameInput" class="form-label">Apelido do cartão <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editCardNicknameInput" name="nickname"
+                               placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100" required>
+                        <small class="form-text text-muted">Obrigatório. Máximo de 100 caracteres.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Salvar apelido
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="payWithCardModal" tabindex="-1" aria-labelledby="payWithCardModalLabel" aria-hidden="true"
+     data-total-amount="@(totalAmountForCard.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))"
+     data-card-price-1x="@(cardPrice1x.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))"
+     data-card-price-monthly="@(cardPriceMonthly.ToString(NumberFormatConstants.TwoDecimals, System.Globalization.CultureInfo.InvariantCulture))"
+     data-settlement-mode="@(isSettlementCheckout ? "true" : "false")"
+     data-locked-plan="@checkoutCardPlanOption"
+     data-process-url="@Url.Action(ActionNames.ProcessPaymentWithCard, ControllerNames.Client)"
+     data-success-url="@Url.Action(ActionNames.PaymentSuccess, ControllerNames.Client, new { id = Model.Id })">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payWithCardModalLabel">
+                    <i class="bi bi-credit-card"></i> Pagar com cartão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light border mb-3 py-2" id="payWithCardAmountSummary">
+                    <strong>Valor a cobrar:</strong> R$ <span id="payWithCardTotalDisplay">@totalAmountForCard.ToString(NumberFormatConstants.CurrencyTwoDecimals)</span>
+                </div>
+                @if (isSettlementCheckout)
+                {
+                    <div class="alert alert-info py-2 mb-3" id="payModalSettlementPlanInfo">
+                        <i class="bi bi-info-circle"></i> @settlementPlanLabel
+                    </div>
+                    <input type="hidden" name="payCardPlanOption" id="payCardPlanLocked" value="@checkoutCardPlanOption" />
+                }
+                else
+                {
+                    <div class="mb-3" id="payModalPlanOptionWrap">
+                        <label class="form-label fw-semibold">Forma de cobrança <span class="text-danger">*</span></label>
+                        <div id="payModalPlanOptionError" class="alert alert-danger py-2 mt-1 mb-2 d-none" role="alert">Campo obrigatório.</div>
+                        @if (showCard1x)
+                        {
+                            var modalMonthly1x = cardPrice1x / 12m;
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlan1x" value="1x" @(checkoutCardPlanOption == "1x" ? "checked" : "")>
+                                <label class="form-check-label" for="payCardPlan1x">1x à vista (recorrência anual): R$ @cardPrice1x.ToString(NumberFormatConstants.CurrencyTwoDecimals) (equivale a R$ @modalMonthly1x.ToString(NumberFormatConstants.CurrencyTwoDecimals)/mês)</label>
+                            </div>
+                        }
+                        @if (showCardMonthly)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payCardPlanOption" id="payCardPlanMonthly" value="monthly" @(checkoutCardPlanOption == "monthly" ? "checked" : "")>
+                                <label class="form-check-label" for="payCardPlanMonthly">Mensal (recorrência mensal): R$ @cardPriceMonthly.ToString(NumberFormatConstants.CurrencyTwoDecimals)</label>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Como deseja pagar?</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="payModalOption" id="payModalOptionSaved" value="saved">
+                        <label class="form-check-label" for="payModalOptionSaved">Usar um cartão já cadastrado</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="payModalOption" id="payModalOptionNew" value="new" checked>
+                        <label class="form-check-label" for="payModalOptionNew">Adicionar e usar um novo cartão</label>
+                    </div>
+                </div>
+                <div id="payModalSavedCardsSection" class="mb-3 d-none">
+                    <label class="form-label">Selecione o cartão:</label>
+                    <div id="payModalSavedCardsList" class="list-group"></div>
+                    <p id="payModalSavedCardConfirmMsg" class="text-muted small mt-2 mb-0 d-none">O pagamento será processado com o cartão escolhido.</p>
+                </div>
+                <div id="payModalRevalidateMsg" class="alert alert-warning py-2 mb-2 d-none">Este cartão precisa ser revalidado. Informe o número e o CVV abaixo.</div>
+                <div id="payModalNewCardSection">
+                    <p id="payModalNewCardIntro" class="text-muted small mb-2">Preencha os dados do novo cartão. Opcionalmente você pode salvar para usar depois.</p>
+                    <form id="payWithCardForm">
+                        <input type="hidden" id="payWithCardPaymentId" value="@Model.Id" />
+                        <div class="mb-3">
+                            <label for="payCardNumber" class="form-label">Número do cartão <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardNumber" placeholder="0000 0000 0000 0000" maxlength="19">
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardHolderName" class="form-label">Nome no cartão <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardHolderName" placeholder="NOME COMO NO CARTÃO">
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardNickname" class="form-label">Apelido do cartão</label>
+                            <input type="text" class="form-control" id="payCardNickname" placeholder="Ex.: Cartão pessoal, Nubank" maxlength="100">
+                            <small class="form-text text-muted">Opcional. Aparece nas listas ao salvar.</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label for="payCardExpiryMonth" class="form-label">Mês <span class="text-danger">*</span></label>
+                                <select class="form-select" id="payCardExpiryMonth">
+                                    <option value="">MM</option>
+                                    @for (int i = 1; i <= 12; i++)
+                                    {
+                                        <option value="@i.ToString("00")">@i.ToString("00")</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label for="payCardExpiryYear" class="form-label">Ano <span class="text-danger">*</span></label>
+                                <select class="form-select" id="payCardExpiryYear">
+                                    <option value="">AAAA</option>
+                                    @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 15; y++)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="payCardCvv" class="form-label">CVV <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="payCardCvv" placeholder="123" maxlength="4">
+                            <small class="form-text text-muted">3 ou 4 dígitos no verso do cartão</small>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="payModalSaveCard" name="payModalSaveCard">
+                            <label class="form-check-label" for="payModalSaveCard">Salvar este cartão para usar em outros pagamentos</label>
+                        </div>
+                        <div class="form-check mb-3" id="payModalSetDefaultWrap">
+                            <input class="form-check-input" type="checkbox" id="payModalSetDefault" name="payModalSetDefault">
+                            <label class="form-check-label" for="payModalSetDefault">Marcar como cartão padrão</label>
+                        </div>
+                    </form>
+                </div>
+                <div id="payModalBillingSection" class="card-holder-billing border rounded p-3 mb-3">
+                    <p class="small text-muted mb-2" id="payModalBillingHint">CEP e número do titular, exigidos pelo cartão. PIX e boleto não pedem estes dados.</p>
+                    <div class="mb-3">
+                        <label for="payCardPostalCode" class="form-label">CEP <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardPostalCode" name="payCardPostalCode" placeholder="00000-000" maxlength="9"
+                               value="@cardHolderPostalCode" inputmode="numeric" autocomplete="postal-code">
+                    </div>
+                    <div class="mb-2">
+                        <label for="payCardAddressNumber" class="form-label">Número <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="payCardAddressNumber" name="payCardAddressNumber" placeholder="123" maxlength="20"
+                               value="@cardHolderAddressNumber" inputmode="text" autocomplete="address-line2" @(cardHolderHasNoNumber ? "disabled" : null)>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="payCardNoNumber" @(cardHolderHasNoNumber ? "checked" : null)>
+                        <label class="form-check-label" for="payCardNoNumber">Sem número (enviar S/N)</label>
+                    </div>
+                </div>
+                <div id="payWithCardError" class="alert alert-danger d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="payWithCardSubmitBtn">
+                    <i class="bi bi-credit-card"></i> Pagar agora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="application/json" id="paymentDetailsCreditCards">@Html.Raw(creditCardsJson)</script>

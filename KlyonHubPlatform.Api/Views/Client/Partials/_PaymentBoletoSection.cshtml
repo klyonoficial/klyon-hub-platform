@@ -1,0 +1,97 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Api.Constants
+@{
+    var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
+}
+
+<div class="card mb-4" id="boletoPaymentCard">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0"><i class="bi bi-bank"></i> Boleto Bancário</h5>
+    </div>
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(Model.BoletoCode))
+        {
+            @* Copiar sempre clicáveis (inclusive para admin) para repassar códigos ao usuário *@
+            <div class="mb-3">
+                <label class="form-label"><strong>Código de Barras (44 dígitos):</strong></label>
+                <p class="text-muted small mb-1">Para leitura por equipamento de código de barras.</p>
+                <div class="input-group">
+                    <input type="text" class="form-control font-monospace" id="boletoBarcode" value="@Model.BoletoBarcode" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoBarcode(event)">
+                        <i class="bi bi-clipboard"></i> Copiar
+                    </button>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><strong>Linha Digitável (47 caracteres):</strong></label>
+                <p class="text-muted small mb-1">Para digitação no internet banking ou aplicativo do banco.</p>
+                <div class="input-group">
+                    <input type="text" class="form-control font-monospace" id="boletoCode" value="@Model.BoletoCode" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyBoletoCode(event)">
+                        <i class="bi bi-clipboard"></i> Copiar
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.BankSlipUrl))
+            {
+                @* Link sempre clicável (inclusive para admin) para permitir emitir/visualizar o boleto para o usuário *@
+                <div class="mb-3">
+                    <a href="@Model.BankSlipUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf"></i> Abrir boleto (PDF)
+                    </a>
+                    <p class="text-muted small mb-0 mt-1">Clique para visualizar ou imprimir o boleto em PDF.</p>
+                </div>
+            }
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Instruções:</strong>
+                <ul class="mb-0 mt-2">
+                    <li>Pague o boleto em qualquer banco, lotérica ou aplicativo bancário</li>
+                    <li>O boleto vence em: <strong>@((Model.BoletoExpiresAt ?? Model.DueDate).ToString(DateFormatConstants.DisplayDateOnly))</strong></li>
+                    <li>Após o pagamento, envie o comprovante para validação</li>
+                </ul>
+            </div>
+            @if (User.IsInRole("Administrator") && ViewBag.BoletoValidationValid != null)
+            {
+                @if (ViewBag.BoletoValidationValid == true)
+                {
+                    <p class="text-success small mb-0"><i class="bi bi-check-circle"></i> @(ViewBag.BoletoValidationMessage ?? "Validação FEBRABAN: dígitos verificadores conferem.")</p>
+                }
+                else
+                {
+                    <p class="text-warning small mb-0"><i class="bi bi-exclamation-triangle"></i> @ViewBag.BoletoValidationMessage</p>
+                }
+            }
+        }
+        else
+        {
+            var boletoGenerating = ViewBag.BoletoGenerating as bool? ?? true;
+            <div class="alert alert-info mb-3" id="boletoGeneratingBox" data-auto-refresh="@(boletoGenerating ? "1" : "0")">
+                <i class="bi bi-hourglass-split"></i>
+                <strong>Gerando boleto...</strong>
+                <p class="mb-2 mt-2">O Asaas ainda está emitindo a linha digitável. A página atualiza automaticamente em alguns segundos.</p>
+                @if (isPaymentOwner)
+                {
+                    <form method="post" action="@Url.Action(ActionNames.GenerateBoletoCode, ControllerNames.Client)" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                        <button type="submit" class="btn btn-secondary btn-sm">
+                            <i class="bi bi-bank"></i> Gerar boleto
+                        </button>
+                    </form>
+                }
+            </div>
+            <script>
+                (function () {
+                    var box = document.getElementById('boletoGeneratingBox');
+                    if (!box || box.getAttribute('data-auto-refresh') !== '1') return;
+                    setTimeout(function () {
+                        window.location.reload();
+                    }, 8000);
+                })();
+            </script>
+        }
+    </div>
+</div>

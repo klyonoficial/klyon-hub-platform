@@ -1,0 +1,102 @@
+@model KlyonHubPlatform.Domain.Entities.Payment
+@using KlyonHubPlatform.Domain.Core.Enums
+@using KlyonHubPlatform.Domain.Core.Constants
+@using KlyonHubPlatform.Application.Helpers
+@using KlyonHubPlatform.Api.Constants
+@{
+    var isPaymentOwner = ViewBag.IsPaymentOwner as bool? ?? true;
+    var contract = Model.Subscription?.Contract;
+    var isPix = Model.Method == PaymentMethod.PIX;
+    var isPixAutomatic = ViewBag.IsPixAutomatic as bool?
+        ?? (isPix && contract?.CardPlanType.IsPixAutomatic() == true);
+    var effectivePixCode = ViewBag.EffectivePixCode as string
+        ?? (isPixAutomatic ? Model.Subscription?.PixAutomaticPayload : Model.PixCode);
+    var effectivePixExpiresAt = ViewBag.EffectivePixExpiresAt as DateTime?
+        ?? (isPixAutomatic ? Model.Subscription?.PixAutomaticPayloadExpiresAt : Model.PixExpiresAt);
+    var pixExpiresAtUtc = effectivePixExpiresAt.HasValue
+        ? (effectivePixExpiresAt.Value.Kind == DateTimeKind.Utc
+            ? effectivePixExpiresAt.Value
+            : DateTime.SpecifyKind(effectivePixExpiresAt.Value, DateTimeKind.Utc))
+        : (DateTime?)null;
+    var isExpired = ViewBag.IsPixExpired as bool? ?? (pixExpiresAtUtc.HasValue && pixExpiresAtUtc.Value < DateTime.UtcNow);
+    var currentPixPlanValue = ViewBag.CurrentPixPlanValue as string ?? "PIX";
+}
+
+<div class="card mb-4" id="pixPaymentCard">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-qr-code"></i> Código PIX</h5>
+    </div>
+    <div class="card-body text-center">
+        @if (isExpired)
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Este código PIX expirou.</strong>
+                @if (isPaymentOwner)
+                {
+                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar um novo código e realizar o pagamento.</p>
+                    <form method="post" action="@Url.Action(ActionNames.GeneratePixCode, ControllerNames.Client)" class="d-inline generate-pix-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-qr-code"></i> Gerar novo código PIX
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
+                }
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(effectivePixCode))
+        {
+            <div class="mb-3">
+                <div id="qrcode" class="d-inline-block p-3 bg-white border rounded"></div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><strong>Código PIX Copia e Cola:</strong></label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="pixCode" value="@effectivePixCode" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyPixCode(event)">
+                        <i class="bi bi-clipboard"></i> Copiar
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                @if (effectivePixExpiresAt.HasValue)
+                {
+                    <text>Este código expira em: @effectivePixExpiresAt.Value.ToString(DateFormatConstants.DisplayDateAndTime)</text>
+                }
+                else
+                {
+                    <text>Escaneie o QR Code ou copie o código para pagar via PIX</text>
+                }
+            </p>
+        }
+        else
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Código PIX não gerado.</strong>
+                @if (isPaymentOwner)
+                {
+                    <p class="mb-2 mt-2">Clique no botão abaixo para gerar o código PIX agora.</p>
+                    <form method="post" action="@Url.Action(ActionNames.GeneratePixCode, ControllerNames.Client)" class="d-inline generate-pix-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="paymentId" value="@Model.Id" />
+                        <input type="hidden" name="pixPlanType" class="generate-pix-plan-input" value="@currentPixPlanValue" />
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-qr-code"></i> Gerar Código PIX
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <p class="mb-0 mt-2 text-muted">Visualização somente leitura.</p>
+                }
+            </div>
+        }
+    </div>
+</div>

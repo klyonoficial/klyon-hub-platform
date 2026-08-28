@@ -161,7 +161,8 @@
 
                         <div class="mb-3">
                             <label class="form-label" for="contactPhone">Telefone / WhatsApp <span class="text-danger">*</span></label>
-                            <input class="form-control" id="contactPhone" name="contactPhone" value="@ViewBag.ContactPhone" placeholder="(00) 00000-0000" inputmode="numeric" />
+                            <input class="form-control" id="contactPhone" name="contactPhone" value="@ViewBag.ContactPhone" placeholder="(00) 00000-0000" maxlength="15" required inputmode="numeric" />
+                            <div id="contactPhoneFeedback" class="invalid-feedback"></div>
                             <div class="form-text">Usado para contato e suporte via WhatsApp.</div>
                         </div>
 
@@ -219,6 +220,7 @@
         var acceptHidden      = document.getElementById('acceptLgpdTermsValue');
         var contactEmailEl    = document.getElementById('contactEmail');
         var contactPhoneEl    = document.getElementById('contactPhone');
+        var contactPhoneFeedback = document.getElementById('contactPhoneFeedback');
         var validationAlertEl = document.getElementById('fiscalValidationAlert');
         var validationTitleEl = document.getElementById('fiscalValidationTitle');
         var validationListEl  = document.getElementById('fiscalValidationList');
@@ -388,8 +390,8 @@
 
             if (phoneDigits.length === 0)
                 items.push('Telefone / WhatsApp: não informado');
-            else if (phoneDigits.length < 10)
-                items.push('Telefone / WhatsApp: informe com DDD (mínimo 10 dígitos)');
+            else if (phoneDigits.length !== 10 && phoneDigits.length !== 11)
+                items.push('Telefone / WhatsApp: Informe um telefone válido com DDD.');
 
             if (!acceptCheckbox || !acceptCheckbox.checked)
                 items.push('Termos de Uso e Política de Privacidade (LGPD): aceite obrigatório');
@@ -424,7 +426,20 @@
             acceptCheckbox.addEventListener('change', function(){ syncAcceptLgpd(); this.classList.remove('is-invalid'); });
         }
         if (contactEmailEl) contactEmailEl.addEventListener('input', function(){ this.classList.remove('is-invalid'); });
-        if (contactPhoneEl) contactPhoneEl.addEventListener('input', function(){ this.classList.remove('is-invalid'); });
+        if (contactPhoneEl) {
+            contactPhoneEl.addEventListener('input', function () {
+                this.classList.remove('is-invalid');
+                if (contactPhoneFeedback) contactPhoneFeedback.textContent = '';
+            });
+            contactPhoneEl.addEventListener('blur', function () {
+                var digits = (this.value || '').replace(/\D/g, '');
+                if (!digits) return;
+                if (digits.length !== 10 && digits.length !== 11) {
+                    this.classList.add('is-invalid');
+                    if (contactPhoneFeedback) contactPhoneFeedback.textContent = 'Informe um telefone válido com DDD.';
+                }
+            });
+        }
 
         function releaseFiscalSubmitUi() {
             var btn = document.getElementById('btnContinuarPagar');
